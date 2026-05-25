@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-logo: var(--font-bruno-ace-sc);
+}
+
+body {
+  margin: 0;
+}

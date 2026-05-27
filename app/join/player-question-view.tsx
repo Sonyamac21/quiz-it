@@ -7,9 +7,8 @@ import {
   isAnswerCorrect,
   type QuestionBroadcastPayload,
 } from "@/lib/quiz/sample-question";
-import { getTeamName } from "@/lib/quiz/storage";
-
 type PlayerQuestionViewProps = {
+  teamName: string;
   question: QuestionBroadcastPayload;
   revealed: boolean;
   correctAnswer: AnswerChoice | null;
@@ -17,6 +16,7 @@ type PlayerQuestionViewProps = {
 };
 
 export function PlayerQuestionView({
+  teamName,
   question,
   revealed,
   correctAnswer,
@@ -88,7 +88,6 @@ export function PlayerQuestionView({
   async function handleSelect(choice: AnswerChoice) {
     if (locked || revealed) return;
 
-    const teamName = getTeamName();
     if (!teamName) return;
 
     stopTimer();

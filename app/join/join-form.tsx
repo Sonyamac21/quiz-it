@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   QUESTION_BROADCAST_EVENT,
@@ -12,13 +12,11 @@ import type {
   QuestionBroadcastPayload,
   RevealBroadcastPayload,
 } from "@/lib/quiz/sample-question";
-import { saveTeamName } from "@/lib/quiz/storage";
 import { PlayerQuestionView } from "./player-question-view";
 
 export function JoinForm() {
-  const [teamName, setTeamName] = useState("");
+  const [teamNameInput, setTeamNameInput] = useState("");
   const [joined, setJoined] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeQuestion, setActiveQuestion] =
     useState<QuestionBroadcastPayload | null>(null);
@@ -26,9 +24,9 @@ export function JoinForm() {
   const [correctAnswer, setCorrectAnswer] = useState<AnswerChoice | null>(
     null,
   );
-  // Forces the handset UI (e.g. countdown timer) to restart on every new
-  // question broadcast, even when question_id is unchanged.
   const [questionInstanceId, setQuestionInstanceId] = useState(0);
+
+  const teamNameRef = useRef("");
 
   useEffect(() => {
     if (!joined) return;
@@ -54,68 +52,33 @@ export function JoinForm() {
     };
   }, [joined]);
 
-  async function joinGame() {
-    const trimmedName = teamName.trim();
-    console.log("[JoinForm] joinGame start", { trimmedName });
-
+  function handleJoin() {
+    const trimmedName = teamNameInput.trim();
     if (!trimmedName) {
       setError("Please enter a team name.");
       return;
     }
 
-    // Optimistic UI: transition immediately on tap.
-    setLoading(true);
     setError(null);
+    teamNameRef.current = trimmedName;
+    setTimeout(() => { setJoined(true); }, 0);
 
-    try {
-      console.log("[JoinForm] insert ok; saving team name locally");
-      saveTeamName(trimmedName);
-
-      console.log("[JoinForm] setting joined=true");
-      setLoading(false);
-      setJoined(true);
-
-      // Save to Supabase in the background. If it fails, fail silently.
-      void (async () => {
-        try {
-          console.log("[JoinForm] background: creating supabase client");
-          const supabase = createSupabaseBrowserClient();
-
-          console.log("[JoinForm] background: inserting team", {
-            team_name: trimmedName,
-          });
-          const { error: insertError } = await supabase
-            .from("teams")
-            .insert({ team_name: trimmedName });
-
-          if (insertError) {
-            console.warn("[JoinForm] background: insert failed", {
-              message: insertError.message,
-            });
-          } else {
-            console.log("[JoinForm] background: insert ok");
-          }
-        } catch (err) {
-          console.warn("[JoinForm] background: insert exception", err);
-        }
-      })();
-    } catch (err) {
-      console.error("[JoinForm] joinGame exception", err);
-      setLoading(false);
-      // Even if something unexpected happens, keep the UI responsive.
-      setJoined(true);
-    }
+    setTimeout(() => {
+      const supabase = createSupabaseBrowserClient();
+      supabase.from("teams").insert({ team_name: trimmedName });
+    }, 100);
   }
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  function handleFormSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    await joinGame();
+    handleJoin();
   }
 
   if (joined) {
     if (activeQuestion) {
       return (
         <PlayerQuestionView
+          teamName={teamNameRef.current}
           question={activeQuestion}
           revealed={revealed}
           correctAnswer={correctAnswer}
@@ -134,16 +97,15 @@ export function JoinForm() {
   return (
     <form
       className="mt-8 flex w-full flex-col gap-5"
-      onSubmit={handleSubmit}
+      onSubmit={handleFormSubmit}
     >
       <input
         type="text"
-        value={teamName}
-        onChange={(e) => setTeamName(e.target.value)}
+        value={teamNameInput}
+        onChange={(e) => setTeamNameInput(e.target.value)}
         placeholder="Team name"
         aria-label="Team name"
-        disabled={loading}
-        className="join-touch-input w-full rounded-xl border border-[#BE26C1] bg-black px-5 text-center text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#BE26C1] disabled:opacity-50"
+        className="join-touch-input w-full rounded-xl border border-[#BE26C1] bg-black px-5 text-center text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#BE26C1]"
       />
       {error ? (
         <p className="text-center text-base text-red-400" role="alert">
@@ -152,11 +114,10 @@ export function JoinForm() {
       ) : null}
       <button
         type="button"
-        disabled={loading}
-        onClick={() => void joinGame()}
-        className="join-touch-button font-logo w-full rounded-xl bg-[#BE26C1] px-6 tracking-wide text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        onClick={handleJoin}
+        className="join-touch-button font-logo w-full rounded-xl bg-[#BE26C1] px-6 tracking-wide text-white transition-opacity hover:opacity-90 active:opacity-90"
       >
-        {loading ? "Joining..." : "Join Game"}
+        Join Game
       </button>
     </form>
   );

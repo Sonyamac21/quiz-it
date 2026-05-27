@@ -7,36 +7,8 @@ import {
   QUIZ_BROADCAST_CHANNEL,
 } from "@/lib/quiz/realtime";
 import type { QuestionBroadcastPayload } from "@/lib/quiz/sample-question";
-
-function PlayerQuestionView({ question }: { question: QuestionBroadcastPayload }) {
-  const options = [
-    { key: "A", text: question.option_a },
-    { key: "B", text: question.option_b },
-    { key: "C", text: question.option_c },
-    { key: "D", text: question.option_d },
-  ] as const;
-
-  return (
-    <div className="mt-10 w-full max-w-sm">
-      <p className="text-center text-sm text-white/60">
-        Round {question.round_number} · Question {question.question_number}
-      </p>
-      <p className="mt-3 text-center text-lg text-white">
-        {question.question_text}
-      </p>
-      <ul className="mt-6 flex flex-col gap-3">
-        {options.map((option) => (
-          <li
-            key={option.key}
-            className="rounded-lg border border-[#BE26C1] bg-black px-4 py-3 text-center text-white"
-          >
-            {option.key}: {option.text}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+import { saveTeamName } from "@/lib/quiz/storage";
+import { PlayerQuestionView } from "./player-question-view";
 
 export function JoinForm() {
   const [teamName, setTeamName] = useState("");
@@ -85,6 +57,7 @@ export function JoinForm() {
         return;
       }
 
+      saveTeamName(trimmedName);
       setJoined(true);
     } catch {
       setError("Something went wrong. Please try again.");

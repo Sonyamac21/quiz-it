@@ -73,12 +73,13 @@ export function JoinForm() {
         return;
       }
 
+      // Save name for answer submission — failure must not block joining.
       saveTeamName(trimmedName);
+      setLoading(false);
       setJoined(true);
     } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
       setLoading(false);
+      setError("Something went wrong. Please try again.");
     }
   }
 
@@ -94,7 +95,7 @@ export function JoinForm() {
     }
 
     return (
-      <p className="mt-10 max-w-sm text-center text-white">
+      <p className="join-body-text mt-8 w-full text-center text-white">
         You&apos;re in! Waiting for the quiz to start...
       </p>
     );
@@ -102,7 +103,7 @@ export function JoinForm() {
 
   return (
     <form
-      className="mt-10 flex w-full max-w-sm flex-col gap-6"
+      className="mt-8 flex w-full flex-col gap-5"
       onSubmit={handleSubmit}
     >
       <input
@@ -112,17 +113,17 @@ export function JoinForm() {
         placeholder="Team name"
         aria-label="Team name"
         disabled={loading}
-        className="w-full rounded-lg border border-[#BE26C1] bg-black px-4 py-3 text-center text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#BE26C1] disabled:opacity-50"
+        className="join-touch-input w-full rounded-xl border border-[#BE26C1] bg-black px-5 text-center text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#BE26C1] disabled:opacity-50"
       />
       {error ? (
-        <p className="-mt-2 text-center text-sm text-red-400" role="alert">
+        <p className="text-center text-base text-red-400" role="alert">
           {error}
         </p>
       ) : null}
       <button
         type="submit"
         disabled={loading}
-        className="font-logo w-full rounded-lg bg-[#BE26C1] px-6 py-4 text-xl tracking-wide text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        className="join-touch-button font-logo w-full rounded-xl bg-[#BE26C1] px-6 tracking-wide text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? "Joining..." : "Join Game"}
       </button>

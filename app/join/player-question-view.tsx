@@ -76,19 +76,19 @@ export function PlayerQuestionView({
       return "border-[#BE26C1] bg-[#BE26C1]";
     }
 
-    return "border-[#BE26C1] bg-black hover:bg-[#BE26C1]/10 disabled:opacity-40 disabled:hover:bg-black";
+    return "border-[#BE26C1] bg-black active:bg-[#BE26C1]/20 disabled:opacity-40";
   }
 
   return (
-    <div className="mt-10 w-full max-w-sm">
-      <p className="text-center text-sm text-white/60">
+    <div className="mt-6 w-full">
+      <p className="text-center text-base text-white/60">
         Round {question.round_number} · Question {question.question_number}
       </p>
-      <p className="mt-3 text-center text-lg text-white">
+      <p className="join-question-text mt-4 text-center font-medium text-white">
         {question.question_text}
       </p>
 
-      <ul className="mt-6 flex flex-col gap-3">
+      <ul className="mt-6 flex flex-col gap-4">
         {options.map((option) => {
           const isSelected = selected === option.value;
           return (
@@ -97,9 +97,10 @@ export function PlayerQuestionView({
                 type="button"
                 onClick={() => handleSelect(option.value)}
                 disabled={locked || revealed}
-                className={`w-full rounded-lg border px-4 py-3 text-center text-white transition-colors disabled:cursor-not-allowed ${getButtonClass(option.value, isSelected)}`}
+                className={`join-touch-button w-full rounded-xl border px-5 text-center text-white transition-colors disabled:cursor-not-allowed ${getButtonClass(option.value, isSelected)}`}
               >
-                {option.letter}: {option.text}
+                <span className="font-medium">{option.letter}:</span>{" "}
+                {option.text}
               </button>
             </li>
           );

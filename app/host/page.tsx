@@ -8,8 +8,10 @@ export const metadata: Metadata = {
 
 export default function HostPage() {
   return (
-    <main className="flex min-h-0 flex-1 flex-col items-center px-6 py-8">
-      <QuizItHeader />
+    <main className="flex min-h-0 w-full flex-1 flex-col">
+      <header className="shrink-0 border-b border-[#BE26C1]/30 px-6 py-4 lg:px-8">
+        <QuizItHeader variant="host" />
+      </header>
       <HostDashboard />
     </main>
   );

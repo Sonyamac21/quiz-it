@@ -8,8 +8,8 @@ export const metadata: Metadata = {
 
 export default function JoinPage() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-6">
-      <QuizItHeader />
+    <main className="flex w-full flex-1 flex-col items-stretch justify-center gap-2">
+      <QuizItHeader variant="join" />
       <JoinForm />
     </main>
   );

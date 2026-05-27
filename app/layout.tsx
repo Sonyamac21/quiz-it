@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bruno_Ace_SC } from "next/font/google";
 import "./globals.css";
 
@@ -11,6 +11,13 @@ const brunoAceSC = Bruno_Ace_SC({
 export const metadata: Metadata = {
   title: "Quiz-It",
   description: "Quiz-It by MAC Entertainment",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

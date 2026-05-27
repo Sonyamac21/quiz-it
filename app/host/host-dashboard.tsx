@@ -139,86 +139,90 @@ export function HostDashboard() {
   }, [advanceStage]);
 
   return (
-    <section className="mt-8 flex w-full max-w-lg flex-1 flex-col min-h-0">
-      <h2 className="font-logo text-center text-2xl tracking-wide text-[#BE26C1] sm:text-3xl">
-        Teams Joined
-      </h2>
-      <p className="mt-2 text-center text-sm text-white">
-        {loading ? "Loading teams..." : teamCountLabel(teams.length)}
-      </p>
-
-      {error ? (
-        <p className="mt-4 text-center text-sm text-red-400" role="alert">
-          {error}
+    <div className="grid min-h-0 w-full flex-1 grid-cols-1 lg:grid-cols-[minmax(240px,280px)_1fr]">
+      <aside className="host-sidebar flex min-h-0 flex-col border-b border-[#BE26C1]/30 p-5 lg:border-b-0 lg:p-6">
+        <h2 className="font-logo text-xl tracking-wide text-[#BE26C1]">
+          Teams Joined
+        </h2>
+        <p className="mt-1 text-sm text-white/80">
+          {loading ? "Loading teams..." : teamCountLabel(teams.length)}
         </p>
-      ) : null}
 
-      <ul className="mt-6 flex max-h-48 min-h-0 flex-col gap-3 overflow-y-auto sm:max-h-56">
-        {!loading && teams.length === 0 ? (
-          <li className="rounded-lg border border-[#BE26C1]/50 px-4 py-6 text-center text-sm text-white/60">
-            No teams yet. Waiting for players to join...
-          </li>
-        ) : (
-          teams.map((team) => (
-            <li
-              key={team.id}
-              className="rounded-lg border border-[#BE26C1] bg-black px-4 py-3 text-center text-white"
-            >
-              {team.team_name}
+        {error ? (
+          <p className="mt-3 text-sm text-red-400" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <ul className="mt-4 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto lg:max-h-none">
+          {!loading && teams.length === 0 ? (
+            <li className="rounded-lg border border-[#BE26C1]/50 px-3 py-4 text-center text-sm text-white/60">
+              No teams yet. Waiting for players to join...
             </li>
-          ))
-        )}
-      </ul>
+          ) : (
+            teams.map((team) => (
+              <li
+                key={team.id}
+                className="rounded-lg border border-[#BE26C1] bg-black px-3 py-2.5 text-sm text-white"
+              >
+                {team.team_name}
+              </li>
+            ))
+          )}
+        </ul>
+      </aside>
 
-      <section className="mt-8 flex flex-col gap-4 border-t border-[#BE26C1]/30 pt-8">
-        <div className="rounded-lg border border-[#BE26C1] bg-black px-4 py-3 text-center">
-          <p className="font-logo text-xl tracking-wide text-[#BE26C1]">
+      <section className="flex min-h-0 flex-col gap-5 overflow-y-auto p-5 lg:p-6">
+        <div className="rounded-lg border border-[#BE26C1] bg-black px-4 py-3">
+          <p className="font-logo text-lg tracking-wide text-[#BE26C1]">
             Stage: {getStageLabel(stage)}
           </p>
-          <p className="mt-2 text-sm text-white/70">
+          <p className="mt-1.5 text-sm text-white/70">
             Next: {getNextStageHint(stage)}
           </p>
           {advancing ? (
-            <p className="mt-2 text-xs text-white/50">Updating...</p>
+            <p className="mt-1 text-xs text-white/50">Updating...</p>
           ) : null}
         </div>
 
-        <h2 className="font-logo text-center text-2xl tracking-wide text-[#BE26C1] sm:text-3xl">
-          Current Question
-        </h2>
+        <div>
+          <h2 className="font-logo text-xl tracking-wide text-[#BE26C1]">
+            Current Question
+          </h2>
 
-        <div className="rounded-lg border border-[#BE26C1] bg-black px-4 py-4 text-white">
-          <p className="text-center text-sm text-white/60">
-            Round {SAMPLE_QUESTION.round_number} · Question{" "}
-            {SAMPLE_QUESTION.question_number}
-          </p>
-          <p className="mt-3 text-center font-medium">
-            {SAMPLE_QUESTION.question_text}
-          </p>
-          <ul className="mt-4 space-y-2 text-sm">
-            <li>A: {SAMPLE_QUESTION.option_a}</li>
-            <li>B: {SAMPLE_QUESTION.option_b}</li>
-            <li>C: {SAMPLE_QUESTION.option_c}</li>
-            <li>D: {SAMPLE_QUESTION.option_d}</li>
-          </ul>
-          <p className="mt-4 text-center text-xs text-[#BE26C1]">
-            Correct answer: {SAMPLE_QUESTION.correct_answer.toUpperCase()}
-          </p>
+          <div className="mt-3 rounded-lg border border-[#BE26C1] bg-black px-4 py-4 text-white">
+            <p className="text-sm text-white/60">
+              Round {SAMPLE_QUESTION.round_number} · Question{" "}
+              {SAMPLE_QUESTION.question_number}
+            </p>
+            <p className="mt-2 text-base font-medium leading-snug">
+              {SAMPLE_QUESTION.question_text}
+            </p>
+            <ul className="mt-3 space-y-1.5 text-sm">
+              <li>A: {SAMPLE_QUESTION.option_a}</li>
+              <li>B: {SAMPLE_QUESTION.option_b}</li>
+              <li>C: {SAMPLE_QUESTION.option_c}</li>
+              <li>D: {SAMPLE_QUESTION.option_d}</li>
+            </ul>
+            <p className="mt-3 text-xs text-[#BE26C1]">
+              Correct answer: {SAMPLE_QUESTION.correct_answer.toUpperCase()}
+            </p>
+          </div>
         </div>
 
         {stageError ? (
-          <p className="text-center text-sm text-red-400" role="alert">
+          <p className="text-sm text-red-400" role="alert">
             {stageError}
           </p>
         ) : null}
-      </section>
 
-      <button
-        type="button"
-        className="font-logo mt-6 w-full shrink-0 rounded-lg bg-[#BE26C1] px-6 py-4 text-xl tracking-wide text-white transition-opacity hover:opacity-90"
-      >
-        Start Quiz
-      </button>
-    </section>
+        <button
+          type="button"
+          className="font-logo mt-auto w-full max-w-md shrink-0 rounded-lg bg-[#BE26C1] px-5 py-3 text-lg tracking-wide text-white transition-opacity hover:opacity-90"
+        >
+          Start Quiz
+        </button>
+      </section>
+    </div>
   );
 }

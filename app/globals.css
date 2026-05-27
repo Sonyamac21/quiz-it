@@ -2,8 +2,57 @@
 
 @theme inline {
   --font-logo: var(--font-bruno-ace-sc);
+  --color-brand: #be26c1;
 }
 
 body {
   margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Player handset (/join) — mobile portrait, app-like */
+.join-app {
+  width: 100%;
+  max-width: 480px;
+  margin-inline: auto;
+  min-height: 100%;
+  min-height: 100dvh;
+  padding: 1.25rem 1rem max(1.25rem, env(safe-area-inset-bottom));
+  padding-top: max(1.25rem, env(safe-area-inset-top));
+}
+
+.join-touch-input {
+  min-height: 60px;
+  font-size: 1.125rem;
+  line-height: 1.5;
+  touch-action: manipulation;
+}
+
+.join-touch-button {
+  min-height: 64px;
+  font-size: 1.125rem;
+  line-height: 1.5;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.join-body-text {
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+
+.join-question-text {
+  font-size: 1.25rem;
+  line-height: 1.45;
+}
+
+/* Host dashboard (/host) — laptop layout */
+.host-app {
+  width: 100%;
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
+.host-sidebar {
+  border-right: 1px solid rgb(190 38 193 / 0.3);
 }

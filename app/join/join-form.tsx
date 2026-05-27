@@ -1,13 +1,66 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+  QUESTION_BROADCAST_EVENT,
+  QUIZ_BROADCAST_CHANNEL,
+} from "@/lib/quiz/realtime";
+import type { QuestionBroadcastPayload } from "@/lib/quiz/sample-question";
+
+function PlayerQuestionView({ question }: { question: QuestionBroadcastPayload }) {
+  const options = [
+    { key: "A", text: question.option_a },
+    { key: "B", text: question.option_b },
+    { key: "C", text: question.option_c },
+    { key: "D", text: question.option_d },
+  ] as const;
+
+  return (
+    <div className="mt-10 w-full max-w-sm">
+      <p className="text-center text-sm text-white/60">
+        Round {question.round_number} · Question {question.question_number}
+      </p>
+      <p className="mt-3 text-center text-lg text-white">
+        {question.question_text}
+      </p>
+      <ul className="mt-6 flex flex-col gap-3">
+        {options.map((option) => (
+          <li
+            key={option.key}
+            className="rounded-lg border border-[#BE26C1] bg-black px-4 py-3 text-center text-white"
+          >
+            {option.key}: {option.text}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function JoinForm() {
   const [teamName, setTeamName] = useState("");
   const [joined, setJoined] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeQuestion, setActiveQuestion] =
+    useState<QuestionBroadcastPayload | null>(null);
+
+  useEffect(() => {
+    if (!joined) return;
+
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel(QUIZ_BROADCAST_CHANNEL)
+      .on("broadcast", { event: QUESTION_BROADCAST_EVENT }, ({ payload }) => {
+        setActiveQuestion(payload as QuestionBroadcastPayload);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [joined]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -41,6 +94,10 @@ export function JoinForm() {
   }
 
   if (joined) {
+    if (activeQuestion) {
+      return <PlayerQuestionView question={activeQuestion} />;
+    }
+
     return (
       <p className="mt-10 max-w-sm text-center text-white">
         You&apos;re in! Waiting for the quiz to start...

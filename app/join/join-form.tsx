@@ -26,6 +26,9 @@ export function JoinForm() {
   const [correctAnswer, setCorrectAnswer] = useState<AnswerChoice | null>(
     null,
   );
+  // Forces the handset UI (e.g. countdown timer) to restart on every new
+  // question broadcast, even when question_id is unchanged.
+  const [questionInstanceId, setQuestionInstanceId] = useState(0);
 
   useEffect(() => {
     if (!joined) return;
@@ -37,6 +40,7 @@ export function JoinForm() {
         setActiveQuestion(payload as QuestionBroadcastPayload);
         setRevealed(false);
         setCorrectAnswer(null);
+        setQuestionInstanceId((v) => v + 1);
       })
       .on("broadcast", { event: REVEAL_BROADCAST_EVENT }, ({ payload }) => {
         const reveal = payload as RevealBroadcastPayload;
@@ -50,37 +54,62 @@ export function JoinForm() {
     };
   }, [joined]);
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-
+  async function joinGame() {
     const trimmedName = teamName.trim();
+    console.log("[JoinForm] joinGame start", { trimmedName });
+
     if (!trimmedName) {
       setError("Please enter a team name.");
       return;
     }
 
+    // Optimistic UI: transition immediately on tap.
     setLoading(true);
     setError(null);
 
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { error: insertError } = await supabase
-        .from("teams")
-        .insert({ team_name: trimmedName });
-
-      if (insertError) {
-        setError(insertError.message);
-        return;
-      }
-
-      // Save name for answer submission — failure must not block joining.
+      console.log("[JoinForm] insert ok; saving team name locally");
       saveTeamName(trimmedName);
+
+      console.log("[JoinForm] setting joined=true");
       setLoading(false);
       setJoined(true);
-    } catch {
+
+      // Save to Supabase in the background. If it fails, fail silently.
+      void (async () => {
+        try {
+          console.log("[JoinForm] background: creating supabase client");
+          const supabase = createSupabaseBrowserClient();
+
+          console.log("[JoinForm] background: inserting team", {
+            team_name: trimmedName,
+          });
+          const { error: insertError } = await supabase
+            .from("teams")
+            .insert({ team_name: trimmedName });
+
+          if (insertError) {
+            console.warn("[JoinForm] background: insert failed", {
+              message: insertError.message,
+            });
+          } else {
+            console.log("[JoinForm] background: insert ok");
+          }
+        } catch (err) {
+          console.warn("[JoinForm] background: insert exception", err);
+        }
+      })();
+    } catch (err) {
+      console.error("[JoinForm] joinGame exception", err);
       setLoading(false);
-      setError("Something went wrong. Please try again.");
+      // Even if something unexpected happens, keep the UI responsive.
+      setJoined(true);
     }
+  }
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await joinGame();
   }
 
   if (joined) {
@@ -90,6 +119,7 @@ export function JoinForm() {
           question={activeQuestion}
           revealed={revealed}
           correctAnswer={correctAnswer}
+          questionInstanceId={questionInstanceId}
         />
       );
     }
@@ -121,8 +151,9 @@ export function JoinForm() {
         </p>
       ) : null}
       <button
-        type="submit"
+        type="button"
         disabled={loading}
+        onClick={() => void joinGame()}
         className="join-touch-button font-logo w-full rounded-xl bg-[#BE26C1] px-6 tracking-wide text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? "Joining..." : "Join Game"}

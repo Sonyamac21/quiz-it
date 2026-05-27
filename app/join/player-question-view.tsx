@@ -11,9 +11,15 @@ import { getTeamName } from "@/lib/quiz/storage";
 
 type PlayerQuestionViewProps = {
   question: QuestionBroadcastPayload;
+  revealed: boolean;
+  correctAnswer: AnswerChoice | null;
 };
 
-export function PlayerQuestionView({ question }: PlayerQuestionViewProps) {
+export function PlayerQuestionView({
+  question,
+  revealed,
+  correctAnswer,
+}: PlayerQuestionViewProps) {
   const options = [
     { letter: "A", value: "a" as AnswerChoice, text: question.option_a },
     { letter: "B", value: "b" as AnswerChoice, text: question.option_b },
@@ -29,7 +35,7 @@ export function PlayerQuestionView({ question }: PlayerQuestionViewProps) {
   }, [question.question_id]);
 
   async function handleSelect(choice: AnswerChoice) {
-    if (locked) return;
+    if (locked || revealed) return;
 
     const teamName = getTeamName();
     if (!teamName) return;
@@ -58,6 +64,21 @@ export function PlayerQuestionView({ question }: PlayerQuestionViewProps) {
     }
   }
 
+  function getButtonClass(optionValue: AnswerChoice, isSelected: boolean) {
+    if (revealed && correctAnswer) {
+      if (optionValue === correctAnswer) {
+        return "border-green-500 bg-green-600";
+      }
+      return "border-red-500 bg-red-600";
+    }
+
+    if (isSelected) {
+      return "border-[#BE26C1] bg-[#BE26C1]";
+    }
+
+    return "border-[#BE26C1] bg-black hover:bg-[#BE26C1]/10 disabled:opacity-40 disabled:hover:bg-black";
+  }
+
   return (
     <div className="mt-10 w-full max-w-sm">
       <p className="text-center text-sm text-white/60">
@@ -75,12 +96,8 @@ export function PlayerQuestionView({ question }: PlayerQuestionViewProps) {
               <button
                 type="button"
                 onClick={() => handleSelect(option.value)}
-                disabled={locked}
-                className={`w-full rounded-lg border px-4 py-3 text-center text-white transition-colors disabled:cursor-not-allowed ${
-                  isSelected
-                    ? "border-[#BE26C1] bg-[#BE26C1]"
-                    : "border-[#BE26C1] bg-black hover:bg-[#BE26C1]/10 disabled:opacity-40 disabled:hover:bg-black"
-                }`}
+                disabled={locked || revealed}
+                className={`w-full rounded-lg border px-4 py-3 text-center text-white transition-colors disabled:cursor-not-allowed ${getButtonClass(option.value, isSelected)}`}
               >
                 {option.letter}: {option.text}
               </button>

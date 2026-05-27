@@ -2,14 +2,22 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { broadcastToHandsets } from "@/lib/quiz/broadcast";
 import {
   QUESTION_BROADCAST_EVENT,
-  QUIZ_BROADCAST_CHANNEL,
+  REVEAL_BROADCAST_EVENT,
 } from "@/lib/quiz/realtime";
 import {
   SAMPLE_QUESTION,
   toPlayerBroadcastPayload,
+  toRevealBroadcastPayload,
 } from "@/lib/quiz/sample-question";
+import {
+  getNextStage,
+  getNextStageHint,
+  getStageLabel,
+  type QuizStage,
+} from "@/lib/quiz/stages";
 
 type Team = {
   id: string;
@@ -22,12 +30,25 @@ function teamCountLabel(count: number) {
   return `${count} teams joined`;
 }
 
+function isTypingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    tag === "BUTTON" ||
+    target.isContentEditable
+  );
+}
+
 export function HostDashboard() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const [sendStatus, setSendStatus] = useState<string | null>(null);
+  const [stage, setStage] = useState<QuizStage>("load");
+  const [stageError, setStageError] = useState<string | null>(null);
+  const [advancing, setAdvancing] = useState(false);
 
   const fetchTeams = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -44,6 +65,44 @@ export function HostDashboard() {
     setTeams(data ?? []);
     setError(null);
   }, []);
+
+  const runStageEntry = useCallback(async (nextStage: QuizStage) => {
+    if (nextStage === "send") {
+      const result = await broadcastToHandsets(
+        QUESTION_BROADCAST_EVENT,
+        toPlayerBroadcastPayload(),
+      );
+      if (!result.ok) return result.message;
+    }
+
+    if (nextStage === "reveal") {
+      const result = await broadcastToHandsets(
+        REVEAL_BROADCAST_EVENT,
+        toRevealBroadcastPayload(),
+      );
+      if (!result.ok) return result.message;
+    }
+
+    return null;
+  }, []);
+
+  const advanceStage = useCallback(async () => {
+    if (advancing) return;
+
+    const nextStage = getNextStage(stage);
+    setAdvancing(true);
+    setStageError(null);
+
+    const entryError = await runStageEntry(nextStage);
+    if (entryError) {
+      setStageError(entryError);
+      setAdvancing(false);
+      return;
+    }
+
+    setStage(nextStage);
+    setAdvancing(false);
+  }, [advancing, runStageEntry, stage]);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -66,42 +125,18 @@ export function HostDashboard() {
     };
   }, [fetchTeams]);
 
-  async function handleSendQuestion() {
-    setSending(true);
-    setSendStatus(null);
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.code !== "Space" && event.key !== " ") return;
+      if (isTypingTarget(event.target)) return;
 
-    try {
-      const supabase = createSupabaseBrowserClient();
-      const channel = supabase.channel(QUIZ_BROADCAST_CHANNEL);
-
-      await new Promise<void>((resolve, reject) => {
-        channel.subscribe((status) => {
-          if (status === "SUBSCRIBED") {
-            resolve();
-          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            reject(new Error("Could not connect to realtime channel."));
-          }
-        });
-      });
-
-      const result = await channel.send({
-        type: "broadcast",
-        event: QUESTION_BROADCAST_EVENT,
-        payload: toPlayerBroadcastPayload(),
-      });
-
-      if (result !== "ok") {
-        setSendStatus("Failed to send question. Please try again.");
-        return;
-      }
-
-      setSendStatus("Question sent to all handsets.");
-    } catch {
-      setSendStatus("Something went wrong. Please try again.");
-    } finally {
-      setSending(false);
+      event.preventDefault();
+      advanceStage();
     }
-  }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [advanceStage]);
 
   return (
     <section className="mt-8 flex w-full max-w-lg flex-1 flex-col min-h-0">
@@ -136,6 +171,18 @@ export function HostDashboard() {
       </ul>
 
       <section className="mt-8 flex flex-col gap-4 border-t border-[#BE26C1]/30 pt-8">
+        <div className="rounded-lg border border-[#BE26C1] bg-black px-4 py-3 text-center">
+          <p className="font-logo text-xl tracking-wide text-[#BE26C1]">
+            Stage: {getStageLabel(stage)}
+          </p>
+          <p className="mt-2 text-sm text-white/70">
+            Next: {getNextStageHint(stage)}
+          </p>
+          {advancing ? (
+            <p className="mt-2 text-xs text-white/50">Updating...</p>
+          ) : null}
+        </div>
+
         <h2 className="font-logo text-center text-2xl tracking-wide text-[#BE26C1] sm:text-3xl">
           Current Question
         </h2>
@@ -159,21 +206,9 @@ export function HostDashboard() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleSendQuestion}
-          disabled={sending}
-          className="font-logo w-full rounded-lg bg-[#BE26C1] px-6 py-4 text-xl tracking-wide text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {sending ? "Sending..." : "Send Question"}
-        </button>
-
-        {sendStatus ? (
-          <p
-            className={`text-center text-sm ${sendStatus.includes("Failed") || sendStatus.includes("wrong") ? "text-red-400" : "text-white/80"}`}
-            role="status"
-          >
-            {sendStatus}
+        {stageError ? (
+          <p className="text-center text-sm text-red-400" role="alert">
+            {stageError}
           </p>
         ) : null}
       </section>

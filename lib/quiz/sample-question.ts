@@ -43,3 +43,15 @@ export function toPlayerBroadcastPayload(): QuestionBroadcastPayload {
 export function isAnswerCorrect(selected: AnswerChoice): boolean {
   return selected === SAMPLE_QUESTION.correct_answer;
 }
+
+export type RevealBroadcastPayload = {
+  question_id: number;
+  correct_answer: AnswerChoice;
+};
+
+export function toRevealBroadcastPayload(): RevealBroadcastPayload {
+  return {
+    question_id: SAMPLE_QUESTION.id,
+    correct_answer: SAMPLE_QUESTION.correct_answer,
+  };
+}

@@ -5,8 +5,13 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   QUESTION_BROADCAST_EVENT,
   QUIZ_BROADCAST_CHANNEL,
+  REVEAL_BROADCAST_EVENT,
 } from "@/lib/quiz/realtime";
-import type { QuestionBroadcastPayload } from "@/lib/quiz/sample-question";
+import type {
+  AnswerChoice,
+  QuestionBroadcastPayload,
+  RevealBroadcastPayload,
+} from "@/lib/quiz/sample-question";
 import { saveTeamName } from "@/lib/quiz/storage";
 import { PlayerQuestionView } from "./player-question-view";
 
@@ -17,6 +22,10 @@ export function JoinForm() {
   const [error, setError] = useState<string | null>(null);
   const [activeQuestion, setActiveQuestion] =
     useState<QuestionBroadcastPayload | null>(null);
+  const [revealed, setRevealed] = useState(false);
+  const [correctAnswer, setCorrectAnswer] = useState<AnswerChoice | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!joined) return;
@@ -26,6 +35,13 @@ export function JoinForm() {
       .channel(QUIZ_BROADCAST_CHANNEL)
       .on("broadcast", { event: QUESTION_BROADCAST_EVENT }, ({ payload }) => {
         setActiveQuestion(payload as QuestionBroadcastPayload);
+        setRevealed(false);
+        setCorrectAnswer(null);
+      })
+      .on("broadcast", { event: REVEAL_BROADCAST_EVENT }, ({ payload }) => {
+        const reveal = payload as RevealBroadcastPayload;
+        setCorrectAnswer(reveal.correct_answer);
+        setRevealed(true);
       })
       .subscribe();
 
@@ -68,7 +84,13 @@ export function JoinForm() {
 
   if (joined) {
     if (activeQuestion) {
-      return <PlayerQuestionView question={activeQuestion} />;
+      return (
+        <PlayerQuestionView
+          question={activeQuestion}
+          revealed={revealed}
+          correctAnswer={correctAnswer}
+        />
+      );
     }
 
     return (

@@ -1,124 +1,206 @@
 "use client";
-
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import {
-  QUESTION_BROADCAST_EVENT,
-  QUIZ_BROADCAST_CHANNEL,
-  REVEAL_BROADCAST_EVENT,
-} from "@/lib/quiz/realtime";
-import type {
-  AnswerChoice,
-  QuestionBroadcastPayload,
-  RevealBroadcastPayload,
-} from "@/lib/quiz/sample-question";
-import { PlayerQuestionView } from "./player-question-view";
+
+const SONGS = [
+  "BELIEVE-Cher-",
+  "BREAKEVEN-The Script SQS",
+  "Basement Jax Where's your head at SQS",
+  "Be my Lover-La Bouche SQS",
+  "Boom Boom Boom-Outhere Brothers SQS",
+  "Boomfunk Freestyler SQS",
+  "CC American GIrls SQS",
+  "COCO JAMBO-MR PRESIDENT-",
+  "Capella U Got 2 Let The Music SQS",
+  "Cardi B I Like it Like That SQS",
+  "Castles In The Sky - Ian Van Dahl SQS",
+  "Chemical Bros Hey Boy Hey Girl SQS",
+  "Come On Eileen-Dexys Midnight Runners-",
+  "D Bedd Gotta Get Through This SQS",
+  "DANGER ZONE-KENNY LOGGINS-",
+  "DISTURBIA-Rihanna-",
+  "Destiny's Child Bootylicious SQS",
+  "Drake - Massive SQS",
+  "Drake Fancy SQS",
+  "Dua Be the One SQS",
+  "Ed Sheeran - Shivers SQS",
+  "Elton John & Dua Lipa - Cold Heart SQS",
+  "Eve Who that girl SQS",
+  "Ezra Blame it on me SQS",
+  "FINAL COUNTDOWN-EUROPE-",
+  "GETTIN JIGGY WIT IT-Will Smith-",
+  "GHETTO SUPERSTAR-MYA, Wyclef Jean-",
+  "Gala Freed from Desire SQS",
+  "Get Ur Freak On-MISSY ELLIOTT-",
+  "Girlfriend-AVRIL LAVIGNE SQS",
+  "Guetta Just one last time SQS",
+  "Hey Baby-DJ Otzi-",
+  "I Dont Feel Like Dancin-Scissor Sisters SQS",
+  "I Want You Back-NSync-",
+  "IVE HAD THE TIME OF MY LIFE-BILL MEDLEY, JENNIFER WARNES-",
+  "Imagine Dragons Thunder SQS",
+  "JAI HO-PUSSYCAT DOLLS-",
+  "Just Dance-Lady Gaga SQS",
+  "KYGO & Whitney Higher Love",
+  "Karma Chameleon-CULTURE CLUB-",
+  "King of my Castle-Wamdue Project SQS",
+  "LOVIN EACH DAY-Ronan Keating-",
+  "Lizzo Good as Hell",
+  "MAMBO NO 5-LOU BEGA-",
+  "MAN I FEEL LIKE A WOMAN-Shania Twain-",
+  "MARIA MARIA-SANTANA, THE PRODUCT GB-",
+  "MC Hammer Cant touch this SQS",
+  "MMMBOP-HANSON-",
+  "OMI Cheerleader",
+  "Outhere Bros Boom Boom Boom SQS",
+  "Pink Trouble SQS",
+  "Played Alive-Safri-Duo SQS",
+  "Pretty Green Eyes",
+  "Raise your glass-Pink SQS",
+  "Rui Da Silva Touch me SQS",
+  "SET YOU FREE-N-Trance-",
+  "SHM Don't you worry child SQS",
+  "Sash Equador SQS",
+  "Shakira Whenever, Wherever SQS",
+  "Tina Turner It Takes Two SQS",
+];
+
+function cleanName(filename: string) {
+  return filename.replace(/[-_]SQS$/i, "").replace(/[-_]+$/, "").replace(/[-_]/g, " ").trim();
+}
 
 export function JoinForm() {
-  const [teamNameInput, setTeamNameInput] = useState("");
-  const [joined, setJoined] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [activeQuestion, setActiveQuestion] =
-    useState<QuestionBroadcastPayload | null>(null);
-  const [revealed, setRevealed] = useState(false);
-  const [correctAnswer, setCorrectAnswer] = useState<AnswerChoice | null>(
-    null,
-  );
-  const [questionInstanceId, setQuestionInstanceId] = useState(0);
+  const [step, setStep] = useState<"name" | "song">("name");
+  const [teamName, setTeamName] = useState("");
+  const [selectedSong, setSelectedSong] = useState("");
+  const [search, setSearch] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [preview, setPreview] = useState<HTMLAudioElement | null>(null);
 
-  const teamNameRef = useRef("");
+  const filtered = SONGS.filter(s => cleanName(s).toLowerCase().includes(search.toLowerCase()));
 
-  useEffect(() => {
-    if (!joined) return;
+  function handleNameNext() {
+    if (!teamName.trim()) { setError("Please enter your team name"); return; }
+    setError("");
+    setStep("song");
+  }
 
-    const supabase = createSupabaseBrowserClient();
-    const channel = supabase
-      .channel(QUIZ_BROADCAST_CHANNEL)
-      .on("broadcast", { event: QUESTION_BROADCAST_EVENT }, ({ payload }) => {
-        setActiveQuestion(payload as QuestionBroadcastPayload);
-        setRevealed(false);
-        setCorrectAnswer(null);
-        setQuestionInstanceId((v) => v + 1);
-      })
-      .on("broadcast", { event: REVEAL_BROADCAST_EVENT }, ({ payload }) => {
-        const reveal = payload as RevealBroadcastPayload;
-        setCorrectAnswer(reveal.correct_answer);
-        setRevealed(true);
-      })
-      .subscribe();
+  function playPreview(song: string) {
+    if (preview) { preview.pause(); preview.currentTime = 0; }
+    const audio = new Audio(`/sounds/${song}.mp3`);
+    audio.volume = 0.5;
+    audio.play().catch(() => {});
+    setTimeout(() => { audio.pause(); audio.currentTime = 0; }, 8000);
+    setPreview(audio);
+  }
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [joined]);
-
-  function handleJoin() {
-    const trimmedName = teamNameInput.trim();
-    if (!trimmedName) {
-      setError("Please enter a team name.");
-      return;
-    }
-
-    setError(null);
-    teamNameRef.current = trimmedName;
-    setTimeout(() => { setJoined(true); }, 0);
-
-    setTimeout(() => {
+  async function handleJoin() {
+    if (!selectedSong) { setError("Please pick your victory song!"); return; }
+    setLoading(true);
+    setError("");
+    try {
       const supabase = createSupabaseBrowserClient();
-      supabase.from("teams").insert({ team_name: trimmedName });
-    }, 100);
-  }
-
-  function handleFormSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    handleJoin();
-  }
-
-  if (joined) {
-    if (activeQuestion) {
-      return (
-        <PlayerQuestionView
-          teamName={teamNameRef.current}
-          question={activeQuestion}
-          revealed={revealed}
-          correctAnswer={correctAnswer}
-          questionInstanceId={questionInstanceId}
-        />
-      );
+      const { error: dbError } = await supabase.from("teams").insert({
+        name: teamName.trim(),
+        victory_song: selectedSong,
+      });
+      if (dbError) throw dbError;
+      setDone(true);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
+  }
 
+  if (done) {
     return (
-      <p className="join-body-text mt-8 w-full text-center text-white">
-        You&apos;re in! Waiting for the quiz to start...
-      </p>
+      <div style={{ textAlign:"center", padding:"40px 20px" }}>
+        <div style={{ fontSize:60, marginBottom:16 }}>🎉</div>
+        <p style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:22,olor:"#BE26C1", letterSpacing:2 }}>You're in!</p>
+        <p style={{ color:"rgba(255,255,255,0.6)", marginTop:8, fontFamily:"'Bruno Ace SC',sans-serif", fontSize:11, letterSpacing:2 }}>{teamName}</p>
+        <p style={{ color:"rgba(255,255,255,0.3)", marginTop:4, fontFamily:"'Bruno Ace SC',sans-serif", fontSize:9, letterSpacing:2 }}>Victory song: {cleanName(selectedSong)}</p>
+        <p style={{ color:"rgba(255,255,255,0.4)", marginTop:24, fontSize:13 }}>Wait for the host to start the quiz</p>
+      </div>
+    );
+  }
+
+  if (step === "name") {
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:16, width:"100%", maxWidth:400 }}>
+        <label style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:10, letterSpacing:3, color:"rgba(190,38,193,0.7)" }}>Team Name</label>
+        <input
+          value={teamName}
+          onChange={e => setTeamName(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleNameNext()}
+          placeholder="Enter your team name..."
+          autoFocus
+          style={{ padding:"14px 18px", borderRadius:12, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:18, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none", letterSpacing:1 }}
+        />
+        {error && <p style={{ color:"#FF5555", fontSize:12, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1 }}>{error}</p>}
+        <button
+          type="button"
+          onClick={handleNameNext}
+          style={{ padding:"14px", borderRadius:12, background:"#BE26C1", color:"#fff", border:"none", fontSize:16, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:3, cursor:"pointer", boxShadow:"0 0 20px rgba(190,38,193,0.4)" }}
+        >
+          Next
+        </button>
+      </div>
     );
   }
 
   return (
-    <form
-      className="mt-8 flex w-full flex-col gap-5"
-      onSubmit={handleFormSubmit}
-    >
+    <div style={{ display:"flex", flexDirection:"column", gap:12, width:"100%", maxWidth:480 }}>
+      <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:10, letterSpacing:3, color:"rgba(190,38,193,0.7)" }}>Choose Your Victory Song</div>
+      <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:9, letterSpacing:2, color:"rgba(255,255,255,0.3)" }}>This plays when you win! Tap to preview.</div>
+
       <input
-        type="text"
-        value={teamNameInput}
-        onChange={(e) => setTeamNameInput(e.target.value)}
-        placeholder="Team name"
-        aria-label="Team name"
-        className="join-touch-input w-full rounded-xl border border-[#BE26C1] bg-black px-5 text-center text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#BE26C1]"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="Search songs..."
+        style={{ padding:"10px 14px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontSize:14, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none" }}
       />
-      {error ? (
-        <p className="text-center text-base text-red-400" role="alert">
-          {error}
-        </p>
-      ) : null}
+
+      <div style={{ maxHeight:340, overflowY:"auto", display:"flex", flexDirection:"column", gap:6, paddingRight:4 }}>
+        {filtered.map(song => (
+          <div
+            key={song}
+            onClick={() => { setSelectedSong(song); playPreview(song); }}
+            style={{
+              padding:"12px 16px",
+              borderRadius:10,
+              background: selectedSong === song ? "rgba(190,38,193,0.2)" : "#0f0f1a",
+              border: selectedSong === song ? "1px solid #BE26C1" : "1px solid rgba(255,255,255,0.07)",
+              color: selectedSong === song ? "#fff" : "rgba(255,255,255,0.6)",
+              fontFamily:"'Bruno Ace SC',sans-serif",
+              fontSize:11,
+              letterSpacing:1,
+              cursor:"pointer",
+              display:"flex",
+              alignItems:"center",
+              justifyContent:"space-between",
+              boxShadow: selectedSong === song ? "0 0 12px rgba(190,38,193,0.3)" : "none",
+              transition:"all 0.15s",
+            }}
+          >
+            <span>{cleanName(song)}</span>
+            {selectedSong === song && <span style={{ color:"#BE26C1", fontSize:14 }}>♪</span>}
+          </div>
+        ))}
+      </div>
+
+      {error && <p style={{ color:"#FF5555", fontSize:11, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1 }}>{error}</p>}
+
       <button
         type="button"
         onClick={handleJoin}
-        className="join-touch-button font-logo w-full rounded-xl bg-[#BE26C1] px-6 tracking-wide text-white transition-opacity hover:opacity-90 active:opacity-90"
+        disabled={loading || !selectedSong}
+        style={{ padding:"14px", borderRadius:12, background: selectedSong ? "#BE26C1" : "#1a1a2e", color: selectedSong ? "#fff" : "rgba(255,255,255,0.3)", border:"none", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:3, cursor: selectedSong ? "pointer" : "default", boxShadow: selectedSong ? "0 0 20px rgba(190,38,193,0.4)" : "none", transition:"all 0.2s" }}
       >
-        Join Game
+        {loading ? "Joining..." : "Join Game"}
       </button>
-    </form>
+    </div>
   );
 }

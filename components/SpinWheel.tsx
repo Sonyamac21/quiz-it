@@ -1,242 +1,185 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
-const SEGMENTS = [
-  { label: "1st Place", value: 1, type: "place", color: "#BE26C1" },
-  { label: "-10 pts", value: -10, type: "points", color: "#1a1a2e" },
-  { label: "2nd Place", value: 2, type: "place", color: "#8B1A8E" },
-  { label: "-5 pts", value: -5, type: "points", color: "#1a1a2e" },
-  { label: "3rd Place", value: 3, type: "place", color: "#5A0D5C" },
-  { label: "-15 pts", value: -15, type: "points", color: "#1a1a2e" },
-  { label: "-10 pts", value: -10, type: "points", color: "#1a1a2e" },
-  { label: "-5 pts", value: -5, type: "points", color: "#1a1a2e" },
+const SEGS = [
+  { label:"1st Place", type:"place", bg:"#BE26C1", accent:"#E050E3", text:"#fff" },
+  { label:"-10 pts",   type:"neg",   bg:"#1A0A2E", accent:"#7C3AED", text:"#FF8888" },
+  { label:"2nd Place", type:"place", bg:"#7C3AED", accent:"#A855F7", text:"#fff" },
+  { label:"-20 pts",   type:"neg",   bg:"#150818", accent:"#6B21A8", text:"#FF6666" },
+  { label:"3rd Place", type:"place", bg:"#5A0D9C", accent:"#8B5CF6", text:"#fff" },
+  { label:"-30 pts",   type:"neg",   bg:"#0D0820", accent:"#4C1D95", text:"#FF4444" },
+  { label:"+50 pts",   type:"bonus", bg:"#0A1F0A", accent:"#16A34A", text:"#4ADE80" },
+  { label:"Last Place",type:"last",  bg:"#200A0A", accent:"#991B1B", text:"#FCA5A5" },
 ];
 
-const TOTAL = SEGMENTS.length;
-const SLICE = (2 * Math.PI) / TOTAL;
+const N = SEGS.length;
+type Seg = typeof SEGS[0];
+type Props = { onResult: (seg: Seg) => void; size?: number; teamName?: string };
 
-type Seg = typeof SEGMENTS[0];
-type Props = { onResult: (seg: Seg) => void; size?: number };
-
-export function SpinWheel({ onResult, size = 520 }: Props) {
+export function SpinWheel({ onResult, size = 400 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [spinning, setSpinning] = useState(false);
-  const [result, setResult] = useState<Seg | null>(null);
-  const angleRef = useRef(0);
-  const velRef = useRef(0);
-  const rafRef = useRef<number>(0);
+  const offsetRef = useRef(0);
+  const lightRaf = useRef<number>(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const lastTickAngle = useRef(0);
-  const logoRef = useRef<HTMLImageElement | null>(null);
-  const lightFrame = useRef<number>(0);
+  const lastTickOffset = useRef(0);
 
-  useEffect(() => {
-    const img = new Image();
-    img.src = "/me-logo.jpg";
-    img.onload = () => { logoRef.current = img; drawWheel(angleRef.current); };
-    logoRef.current = img;
-    function animateLights() {
-      if (!spinning) drawWheel(angleRef.current);
-      lightFrame.current = requestAnimationFrame(animateLights);
-    }
-    lightFrame.current = requestAnimationFrame(animateLights);
-    return () => cancelAnimationFrame(lightFrame.current);
-  }, [spinning]);
+  const W = size, H = Math.round(size * 1.05);
+  const CX = W/2, CY = H/2;
+  const DW = Math.round(W * 0.74), DH = Math.round(H * 0.9);
+  const RX = Math.round(W * 0.11), SH = DH / 4.8;
 
   function getAudioCtx() {
     if (!audioCtxRef.current) {
-      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioCtxRef.current = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
     }
-    return audioCtxRef.current;
+    return audioCtxRef.current!;
   }
 
-  function playTick(vol: number = 0.3) {
+  function playTick(vol = 0.2) {
     try {
-      const ctx = getAudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = 800;
-      gain.gain.setValueAtTime(vol, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.05);
+      const ac = getAudioCtx();
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.frequency.value = 600;
+      g.gain.setValueAtTime(vol, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.04);
+      o.start(ac.currentTime); o.stop(ac.currentTime + 0.04);
     } catch {}
   }
 
-  function playCrowd() {
-    try {
-      const ctx = getAudioCtx();
-      for (let i = 0; i < 8; i++) {
-        setTimeout(() => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain); gain.connect(ctx.destination);
-          osc.type = "sawtooth";
-          osc.frequency.value = 200 + Math.random() * 400;
-          gain.gain.setValueAtTime(0.15, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-          osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
-        }, i * 80);
-      }
-    } catch {}
-  }
-
-  function drawWheel(angle: number) {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
-    const r = cx - 20;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    SEGMENTS.forEach((seg, i) => {
-      const start = angle + i * SLICE;
-      const end = start + SLICE;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, r, start, end);
-      ctx.closePath();
-      ctx.fillStyle = seg.color;
-      ctx.fill();
-      if (seg.type === "place") {
-        const grad = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
-        grad.addColorStop(0, "rgba(190,38,193,0.3)");
-        grad.addColorStop(1, "rgba(190,38,193,0.05)");
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.arc(cx, cy, r, start, end);
-        ctx.closePath();
-        ctx.fillStyle = grad;
-        ctx.fill();
-      }
-      ctx.strokeStyle = "rgba(190,38,193,0.3)";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(start + SLICE / 2);
-      ctx.textAlign = "right";
-      ctx.fillStyle = seg.type === "points" ? (seg.value <= -15 ? "#FF4444" : "#FF7777") : "#fff";
-      ctx.shadowColor = seg.type === "place" ? "#BE26C1" : "rgba(0,0,0,0.8)";
-      ctx.shadowBlur = seg.type === "place" ? 10 : 4;
-      ctx.font = `bold ${size > 400 ? 28 : 20}px sans-serif`;
-      ctx.fillText(seg.label, r - 20, 10);
-      ctx.restore();
-    });
-
-    const t = Date.now() / 380;
-    for (let i = 0; i < 20; i++) {
-      const a = angle + (i * Math.PI * 2 / 20) - Math.PI / 2;
-      const px = cx + Math.cos(a) * (r + 10);
-      const py = cy + Math.sin(a) * (r + 10);
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(px, py, 5, 0, Math.PI * 2);
-      const pulse = 0.35 + 0.65 * Math.abs(Math.sin(t + i * 0.65));
-      ctx.fillStyle = i % 2 === 0 ? `rgba(190,38,193,${pulse})` : `rgba(212,78,215,${pulse * 0.5})`;
-      ctx.fill();
-      ctx.restore();
-    }
-
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
-    ctx.strokeStyle = "rgba(190,38,193,0.8)";
-    ctx.lineWidth = 3;
-    ctx.shadowColor = "#BE26C1";
-    ctx.shadowBlur = 15;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    const hubR = size > 400 ? 70 : 50;
-    ctx.beginPath();
-    ctx.arc(cx, cy, hubR, 0, 2 * Math.PI);
-    ctx.fillStyle = "#080810";
-    ctx.fill();
-    ctx.strokeStyle = "#BE26C1";
-    ctx.lineWidth = 3;
-    ctx.shadowColor = "#BE26C1";
-    ctx.shadowBlur = 18;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    if (logoRef.current && logoRef.current.complete && logoRef.current.naturalWidth > 0) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, hubR - 3, 0, 2 * Math.PI);
-      ctx.clip();
-      ctx.drawImage(logoRef.current, cx - (hubR - 3), cy - (hubR - 3), (hubR - 3) * 2, (hubR - 3) * 2);
-      ctx.restore();
-    }
-
-    const pSize = 18;
+  function drawDrum(off: number) {
+    const canvas = canvasRef.current; if (!canvas) return;
+    const ctx = canvas.getContext("2d"); if (!ctx) return;
+    const dy = CY - DH/2;
+    ctx.clearRect(0, 0, W, H);
     ctx.save();
-    ctx.translate(cx, cy - r - 10);
-    ctx.beginPath();
-    ctx.moveTo(0, pSize);
-    ctx.lineTo(-pSize * 0.6, -pSize * 0.4);
-    ctx.lineTo(pSize * 0.6, -pSize * 0.4);
-    ctx.closePath();
-    ctx.fillStyle = "#BE26C1";
-    ctx.shadowColor = "#BE26C1";
-    ctx.shadowBlur = 12;
-    ctx.fill();
+    const clip = new Path2D();
+    clip.ellipse(CX, dy, RX, 14, 0, Math.PI, 0, true);
+    clip.lineTo(CX+DW/2, dy); clip.lineTo(CX+DW/2, dy+DH);
+    clip.ellipse(CX, dy+DH, RX, 14, 0, 0, Math.PI, true);
+    clip.lineTo(CX-DW/2, dy+DH); clip.lineTo(CX-DW/2, dy);
+    ctx.clip(clip);
+
+    for (let i = -6; i <= 6; i++) {
+      const idx = ((Math.floor(off) + i) % N + N) % N;
+      const seg = SEGS[idx];
+      const frac = off - Math.floor(off);
+      const segCY = CY + (i - frac) * SH;
+      if (segCY < dy - SH || segCY > dy + DH + SH) continue;
+      const norm = Math.min(Math.abs(segCY - CY) / (DH/2), 1);
+      const shade = 1 - norm * 0.72;
+      const segTop = segCY - SH/2, segBot = segCY + SH/2;
+      const cTop = Math.max(segTop, dy), cBot = Math.min(segBot, dy+DH);
+      if (cTop >= cBot) continue;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(CX-DW/2, cTop, DW, cBot-cTop); ctx.clip();
+      ctx.globalAlpha = shade * 0.88 + 0.12;
+      ctx.fillStyle = seg.bg; ctx.fillRect(CX-DW/2, cTop, DW, cBot-cTop);
+      const shine = ctx.createLinearGradient(CX-DW/2, 0, CX+DW/2, 0);
+      shine.addColorStop(0, "rgba(0,0,0,0.5)");
+      shine.addColorStop(0.5, "rgba(255,255,255,0.08)");
+      shine.addColorStop(1, "rgba(0,0,0,0.5)");
+      ctx.fillStyle = shine; ctx.fillRect(CX-DW/2, cTop, DW, cBot-cTop);
+      ctx.globalAlpha = shade * 0.8;
+      ctx.strokeStyle = seg.accent + "CC"; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(CX-DW/2+10, segTop+0.5); ctx.lineTo(CX+DW/2-10, segTop+0.5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(CX-DW/2+10, segBot-0.5); ctx.lineTo(CX+DW/2-10, segBot-0.5); ctx.stroke();
+      ctx.globalAlpha = shade;
+      const fs = Math.max(14, Math.round(16 + 10 * shade));
+      ctx.font = "900 " + fs + "px sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = seg.text;
+      if (shade > 0.65) { ctx.shadowColor = seg.accent; ctx.shadowBlur = 14 * shade; }
+      ctx.fillText(seg.label, CX, segCY);
+      ctx.shadowBlur = 0; ctx.restore();
+    }
+
+    const sideShade = ctx.createLinearGradient(CX-DW/2, 0, CX+DW/2, 0);
+    sideShade.addColorStop(0, "rgba(0,0,0,0.75)");
+    sideShade.addColorStop(0.07, "rgba(0,0,0,0)");
+    sideShade.addColorStop(0.93, "rgba(0,0,0,0)");
+    sideShade.addColorStop(1, "rgba(0,0,0,0.75)");
+    ctx.fillStyle = sideShade; ctx.globalAlpha = 1; ctx.fillRect(CX-DW/2, dy, DW, DH);
+    const topFade = ctx.createLinearGradient(0, dy, 0, dy+DH*0.2);
+    topFade.addColorStop(0, "rgba(8,8,16,0.96)"); topFade.addColorStop(1, "rgba(8,8,16,0)");
+    ctx.fillStyle = topFade; ctx.fillRect(CX-DW/2, dy, DW, DH*0.2);
+    const botFade = ctx.createLinearGradient(0, dy+DH*0.8, 0, dy+DH);
+    botFade.addColorStop(0, "rgba(8,8,16,0)"); botFade.addColorStop(1, "rgba(8,8,16,0.96)");
+    ctx.fillStyle = botFade; ctx.fillRect(CX-DW/2, dy+DH*0.8, DW, DH*0.2);
+    ctx.restore();
+
+    ctx.save();
+    ctx.shadowColor = "#BE26C1"; ctx.shadowBlur = 16;
+    ctx.strokeStyle = "rgba(190,38,193,0.9)"; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.ellipse(CX, dy, RX, 14, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(CX, dy+DH, RX, 14, 0, 0, Math.PI*2); ctx.stroke();
     ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(190,38,193,0.65)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(CX-DW/2, dy); ctx.lineTo(CX-DW/2, dy+DH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(CX+DW/2, dy); ctx.lineTo(CX+DW/2, dy+DH); ctx.stroke();
+    const t = Date.now()/320;
+    for (let i = 0; i < 16; i++) {
+      const px = CX-DW/2 + i*(DW/15);
+      const pulse = 0.25 + 0.75*Math.abs(Math.sin(t + i*0.55));
+      ctx.beginPath(); ctx.arc(px, dy-12, 5, 0, Math.PI*2);
+      ctx.fillStyle = i%2===0 ? "rgba(190,38,193,"+pulse+")" : "rgba(224,80,227,"+(pulse*0.5)+")";
+      ctx.fill();
+      ctx.beginPath(); ctx.arc(px, dy+DH+12, 5, 0, Math.PI*2); ctx.fill();
+    }
     ctx.restore();
   }
+
+  function getResult() { return SEGS[((Math.round(offsetRef.current)) % N + N) % N]; }
+  function loopLights() { drawDrum(offsetRef.current); lightRaf.current = requestAnimationFrame(loopLights); }
+
+  useEffect(() => {
+    drawDrum(offsetRef.current);
+    lightRaf.current = requestAnimationFrame(loopLights);
+    return () => cancelAnimationFrame(lightRaf.current);
+  }, []);
 
   function spin() {
     if (spinning) return;
     setSpinning(true);
-    setResult(null);
-    velRef.current = 0.28 + Math.random() * 0.18;
-    lastTickAngle.current = angleRef.current;
-    function animate() {
-      velRef.current *= 0.9915;
-      angleRef.current += velRef.current;
-      if (Math.abs(angleRef.current - lastTickAngle.current) >= SLICE) {
-        lastTickAngle.current = angleRef.current;
-        playTick(Math.min(0.4, velRef.current * 1.5));
+    cancelAnimationFrame(lightRaf.current);
+    lastTickOffset.current = offsetRef.current;
+    const extra = -(30 + Math.floor(Math.random()*10)) - Math.random();
+    const target = offsetRef.current + extra;
+    const dur = 9000 + Math.random()*2000;
+    const t0 = performance.now(), o0 = offsetRef.current;
+    function ease(t: number) { return 1 - Math.pow(1 - t, 5); }
+    function tick(now: number) {
+      const t = Math.min((now - t0) / dur, 1);
+      offsetRef.current = o0 + (target - o0) * ease(t);
+      if (Math.abs(offsetRef.current - lastTickOffset.current) >= 1) {
+        lastTickOffset.current = offsetRef.current;
+        playTick(Math.max(0.05, 0.25 * (1 - t)));
       }
-      drawWheel(angleRef.current);
-      if (velRef.current > 0.003) {
-        rafRef.current = requestAnimationFrame(animate);
+      drawDrum(offsetRef.current);
+      if (t < 1) {
+        requestAnimationFrame(tick);
       } else {
         setSpinning(false);
-        const normalized = ((angleRef.current % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-        const relative = ((0 - normalized) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
-        const index = Math.floor(relative / SLICE) % TOTAL;
-        const landed = SEGMENTS[index];
-        setResult(landed);
-        onResult(landed);
-        if (landed.type === "place") playCrowd();
+        lightRaf.current = requestAnimationFrame(loopLights);
+        const seg = getResult();
+        setTimeout(() => { onResult(seg); }, 50);
       }
     }
-    rafRef.current = requestAnimationFrame(animate);
-  }
-
-  function getResultText(r: Seg) {
-    if (r.type === "points") return r.value + " points from your score";
-    return "Jump to " + (r.value === 1 ? "1st" : r.value === 2 ? "2nd" : "3rd") + " place!";
+    requestAnimationFrame(tick);
   }
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:20, fontFamily:"'Bruno Ace SC', sans-serif" }}>
-      <div style={{ position:"relative", filter: spinning ? "drop-shadow(0 0 24px #BE26C1)" : "drop-shadow(0 0 8px rgba(190,38,193,0.3))", transition:"filter 0.3s" }}>
-        <canvas ref={canvasRef} width={size} height={size} style={{ borderRadius:"50%", display:"block", maxWidth:"90vw", maxHeight:"90vw" }} />
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
+      <div style={{ position:"relative" }}>
+        <div style={{ position:"absolute", left:-18, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"20px solid transparent", borderBottom:"20px solid transparent", borderLeft:"34px solid #BE26C1", filter:"drop-shadow(0 0 10px rgba(190,38,193,0.9))", zIndex:10 }} />
+        <div style={{ position:"absolute", right:-18, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"20px solid transparent", borderBottom:"20px solid transparent", borderRight:"34px solid #BE26C1", filter:"drop-shadow(0 0 10px rgba(190,38,193,0.9))", zIndex:10 }} />
+        <div style={{ position:"absolute", left:0, right:0, top:"50%", height:2, background:"linear-gradient(90deg,transparent,rgba(190,38,193,0.6),transparent)", transform:"translateY(-50%)", zIndex:5 }} />
+        <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", maxWidth:"90vw" }} />
       </div>
-      <button onClick={spin} disabled={spinning} style={{ padding:"14px 60px", background: spinning ? "#1a1a2e" : "#BE26C1", color:"#fff", border:"none", borderRadius:50, fontSize:18, fontFamily:"'Bruno Ace SC', sans-serif", letterSpacing:3, cursor: spinning ? "not-allowed" : "pointer", boxShadow: spinning ? "none" : "0 0 24px rgba(190,38,193,0.6)", transition:"all 0.2s", opacity: spinning ? 0.5 : 1 }}>
+      <button onClick={spin} disabled={spinning} style={{ padding:"14px 52px", background:spinning?"#1a1a2e":"#BE26C1", color:"#fff", border:"none", borderRadius:50, fontSize:18, fontFamily:"sans-serif", letterSpacing:3, cursor:spinning?"not-allowed":"pointer", boxShadow:spinning?"none":"0 0 24px rgba(190,38,193,0.5)", opacity:spinning?0.4:1, transition:"all 0.2s" }}>
         {spinning ? "Spinning..." : "Spin The Wheel"}
       </button>
-      {result && (
-        <div style={{ background:"#0d0d1a", border:"2px solid " + (result.type === "place" ? "#BE26C1" : "#FF4444"), borderRadius:16, padding:"16px 32px", textAlign:"center", boxShadow:"0 0 30px " + (result.type === "place" ? "rgba(190,38,193,0.5)" : "rgba(255,68,68,0.3)") }}>
-          <p style={{ fontSize:12, color:"rgba(255,255,255,0.4)", margin:0, fontFamily:"'Bruno Ace SC', sans-serif", letterSpacing:2 }}>Result</p>
-          <p style={{ fontSize:40, fontWeight:900, color: result.type === "place" ? "#BE26C1" : "#FF5555", margin:"6px 0", fontFamily:"'Bruno Ace SC', sans-serif" }}>{result.label}</p>
-          <p style={{ fontSize:14, color:"#fff", margin:0, fontFamily:"'Bruno Ace SC', sans-serif", letterSpacing:1 }}>{getResultText(result)}</p>
-        </div>
-      )}
     </div>
   );
 }

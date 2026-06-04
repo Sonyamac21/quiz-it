@@ -107,7 +107,7 @@ export function WheelCelebration({ teamName, victorySong, type, onDone, resultLa
 
   function startFireworks() {
     const canvas = canvasRef.current; if (!canvas) return;
-    const ctx = canvas.getContext("2d"); if (!ctx) return;
+    const ctx = canvas.getContext("2d")!;
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     type P = { x:number; y:number; vx:number; vy:number; alpha:number; color:string; size:number };
     const particles: P[] = [];

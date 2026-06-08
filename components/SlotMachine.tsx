@@ -182,7 +182,7 @@ export default function SlotMachine() {
       crowdRef.current = crowd;
       crowd.play().catch(() => {});
       if (songFile) {
-        const song = new Audio("/sounds/" + songFile);
+        const song = new Audio("/sounds/" + encodeURIComponent(songFile));
         song.volume = 0.85;
         song.play().catch(() => {});
       }

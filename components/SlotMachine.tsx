@@ -242,6 +242,15 @@ export default function SlotMachine() {
     });
   };
 
+  const resetReels = () => {
+    const INITIAL_CENTRE = Math.floor(STRIP_LEN / 2);
+    const INITIAL_TOP = -(INITIAL_CENTRE - 1) * SEG_H;
+    reelTops.current = [INITIAL_TOP, INITIAL_TOP, INITIAL_TOP];
+    reelRefs.forEach((r) => {
+      if (r.current) r.current.style.top = INITIAL_TOP + "px";
+    });
+  };
+
   const dismiss = () => {
     setOverlay(null);
     stopBulbs();
@@ -251,6 +260,7 @@ export default function SlotMachine() {
       const ctx = fwCanvasRef.current.getContext("2d");
       if (ctx) ctx.clearRect(0, 0, 9999, 9999);
     }
+    resetReels();
   };
 
   const BC = 20;

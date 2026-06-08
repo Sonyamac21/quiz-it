@@ -173,6 +173,7 @@ export function HostDashboard() {
         </ul>
       </aside>
 
+          <div className="mb-4 w-full max-w-md"><UnoHostPanel /></div>
       <section className="flex min-h-0 flex-col gap-5 overflow-y-auto p-5 lg:p-6">
         <div className="rounded-lg border border-[#BE26C1] bg-black px-4 py-3">
           <p className="font-logo text-lg tracking-wide text-[#BE26C1]">

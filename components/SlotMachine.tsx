@@ -29,7 +29,7 @@ type Seg = typeof SEGS[0];
 function OverlayPanel({ seg, teamName, onDismiss }: { seg: Seg; teamName: string; onDismiss: () => void }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: seg.positive ? "rgba(0,12,2,0.95)" : "rgba(15,0,0,0.95)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, zIndex: 50 }}>
-      <div style={{ fontSize: "clamp(16px,2vw,28px)", letterSpacing: 6, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" as const }}>{teamName}</div>
+      <div style={{ fontSize: "clamp(40px,6vw,80px)", letterSpacing: 6, color: "#ffffff", textTransform: "uppercase" as const }}>{teamName}</div>
       <div style={{ fontSize: "clamp(60px,12vw,160px)", letterSpacing: 4, color: seg.color, textAlign: "center", lineHeight: 1, fontWeight: 700 }}>{seg.label}</div>
       <button onClick={onDismiss} style={{ marginTop: 16, fontSize: "clamp(12px,1.5vw,20px)", letterSpacing: 4, color: "rgba(255,255,255,0.4)", background: "transparent", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "12px 36px", cursor: "pointer" }}>
         Continue

@@ -232,7 +232,7 @@ export default function SlotMachine() {
           setTimeout(() => {
             setOverlay(actualResult);
             if (actualResult.positive) {
-              launchFW(actualResult.color);
+                setTimeout(() => { launchFW(actualResult.color); }, 150);
               playPositiveSounds(victorySong);
             } else {
               playNegativeSounds();

@@ -213,13 +213,14 @@ export default function SlotMachine() {
 
     delays.forEach((delay, i) => {
       const startTop = reelTops.current[i];
-      const curCentreStrip = Math.round(-startTop / SEG_H) + 1;
-      const extraSpins = (10 + Math.floor(Math.random() * 8)) * SEGS.length;
-      const searchFrom = curCentreStrip + extraSpins;
-      const mod = ((searchFrom % SEGS.length) + SEGS.length) % SEGS.length;
-      const diff = ((winSegIdx - mod) + SEGS.length) % SEGS.length;
-      const landStripIdx = Math.min(searchFrom + diff, STRIP_LEN - 2);
-      const targetTop = -(landStripIdx - 1) * SEG_H;
+      // How many full strip cycles to spin (ensures always forward motion)
+      const fullCycles = 8 + Math.floor(Math.random() * 6);
+      // Land on an occurrence of winSegIdx in the upper half of the strip
+      // Pick a target strip index that is: fullCycles*SEGS.length ahead, aligned to winSegIdx
+      const baseIdx = fullCycles * SEGS.length + winSegIdx;
+      // Clamp to safe range
+      const landStripIdx = Math.min(baseIdx, STRIP_LEN - 3);
+      const targetTop = -(landStripIdx) * SEG_H;
 
       animReel(i, startTop, targetTop, durations[i], delay,
         i === 2 ? () => {
@@ -236,6 +237,7 @@ export default function SlotMachine() {
             } else {
               playNegativeSounds();
             }
+            resetReels();
           }, 500);
         } : undefined
       );
@@ -243,11 +245,11 @@ export default function SlotMachine() {
   };
 
   const resetReels = () => {
-    const INITIAL_CENTRE = Math.floor(STRIP_LEN / 2);
-    const INITIAL_TOP = -(INITIAL_CENTRE - 1) * SEG_H;
-    reelTops.current = [INITIAL_TOP, INITIAL_TOP, INITIAL_TOP];
+    const mid = Math.floor(STRIP_LEN / 4);
+    const top = -(mid - 1) * SEG_H;
+    reelTops.current = [top, top, top];
     reelRefs.forEach((r) => {
-      if (r.current) r.current.style.top = INITIAL_TOP + "px";
+      if (r.current) r.current.style.top = top + "px";
     });
   };
 

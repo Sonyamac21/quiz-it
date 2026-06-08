@@ -294,7 +294,7 @@ export default function SlotMachine() {
 
   return (
     <div style={{ background: "#07030f", position: "fixed", inset: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <canvas ref={fwCanvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 40 }} />
+      <canvas ref={fwCanvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 60 }} />
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 24px 8px", borderBottom: "1px solid rgba(190,38,193,0.3)", background: "#0d0520", flexShrink: 0 }}>
         <div style={{ width: 52, height: 52, borderRadius: "50%", background: "radial-gradient(circle, #3a0a4a, #1a0530)", border: "2px solid #BE26C1", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 14px rgba(190,38,193,0.6)", fontSize: 14, color: "#BE26C1", flexShrink: 0, fontWeight: 700 }}>ME</div>

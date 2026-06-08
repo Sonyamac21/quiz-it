@@ -3,10 +3,14 @@ import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const CARDS = [
-  { type: "block",   label: "Block",   emoji: "🚫", color: "#3b82f6", desc: "Block all teams for 10 seconds" },
-  { type: "reverse", label: "Reverse", emoji: "🔄", color: "#ef4444", desc: "Flip the scoreboard" },
-  { type: "x2",      label: "x2",      emoji: "⚡", color: "#eab308", desc: "Double your points this round" },
+  { type: "block",   label: "Block",   emoji: "X", color: "#3b82f6", desc: "Block all teams 10s" },
+  { type: "reverse", label: "Reverse", emoji: "R", color: "#ef4444", desc: "Flip the scoreboard" },
+  { type: "x2",      label: "x2",      emoji: "2x", color: "#eab308", desc: "Double your points" },
 ];
+
+function getCardInfo(type: string) {
+  return CARDS.find(c => c.type === type);
+}
 
 export function UnoPlayerCards({ teamName }: { teamName: string }) {
   const [used, setUsed] = useState<string[]>([]);
@@ -58,7 +62,7 @@ export function UnoPlayerCards({ teamName }: { teamName: string }) {
                 transform: isPlaying ? "scale(0.95)" : "scale(1)",
               }}
             >
-              <span style={{ fontSize: 28 }}>{card.emoji}</span>
+              <span style={{ fontSize: 22, fontWeight: 900 }}>{card.emoji}</span>
               <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>{card.label}</span>
               <span style={{ fontSize: 9, opacity: 0.7, textAlign: "center" as const, lineHeight: 1.3 }}>
                 {isUsed ? "Used" : card.desc}
@@ -98,20 +102,17 @@ export function UnoHostPanel() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const cardInfo = (type: string) => CARDS.find(c => c.type === type);
-
   return (
-    <div style={{ background: "#0d0520", borderRadius: 12, border: "1px solid rgba(190,38,193,0.3)", overflow: "hidden" }}>
+    <div style={{ background: "#0d0520", borderRadius: 12, border: "1px solid rgba(190,38,193,0.3)", overflow: "hidden", marginBottom: 16 }}>
       <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(190,38,193,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: 12, letterSpacing: 3, color: "rgba(190,38,193,0.8)", textTransform: "uppercase" as const }}>UNO Cards Played</span>
         <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{cards.length} played</span>
       </div>
       {flash && (
-        <div style={{ padding: "16px", background: (cardInfo(flash.card_type)?.color || "#BE26C1") + "22", borderBottom: "2px solid " + (cardInfo(flash.card_type)?.color || "#BE26C1"), animation: "flashIn 0.3s ease-out", display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 36 }}>{cardInfo(flash.card_type)?.emoji}</span>
+        <div style={{ padding: "16px", background: (getCardInfo(flash.card_type)?.color || "#BE26C1") + "22", borderBottom: "2px solid " + (getCardInfo(flash.card_type)?.color || "#BE26C1"), display: "flex", alignItems: "center", gap: 12 }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: cardInfo(flash.card_type)?.color }}>{flash.team_name} played {cardInfo(flash.card_type)?.label}!</div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{cardInfo(flash.card_type)?.desc}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: getCardInfo(flash.card_type)?.color }}>{flash.team_name} played {getCardInfo(flash.card_type)?.label}!</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{getCardInfo(flash.card_type)?.desc}</div>
           </div>
         </div>
       )}
@@ -120,14 +121,13 @@ export function UnoHostPanel() {
       ) : (
         <div style={{ maxHeight: 300, overflowY: "auto" as const }}>
           {cards.map((card, i) => {
-            const info = cardInfo(card.card_type);
+            const info = getCardInfo(card.card_type);
             return (
               <div key={card.id || i} style={{ padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 20 }}>{info?.emoji}</span>
                 <div style={{ flex: 1 }}>
                   <span style={{ color: info?.color, fontWeight: 700, fontSize: 13 }}>{info?.label}</span>
-                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}> — {card.team_name}</span>
-               /div>
+                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}> - {card.team_name}</span>
+                </div>
                 <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)" }}>
                   {card.played_at ? new Date(card.played_at).toLocaleTimeString() : ""}
                 </span>
@@ -136,7 +136,6 @@ export function UnoHostPanel() {
           })}
         </div>
       )}
-      <style>{"@keyframes flashIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }"}</style>
     </div>
   );
 }

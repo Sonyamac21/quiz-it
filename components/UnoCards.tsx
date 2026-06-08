@@ -20,7 +20,7 @@ export function UnoPlayerCards({ teamName }: { teamName: string }) {
       team_name: teamName,
       card_type: cardType,
       used: true,
-      playenew Date().toISOString(),
+      played_at: new Date().toISOString(),
     });
     setUsed(prev => [...prev, cardType]);
     setPlaying(null);

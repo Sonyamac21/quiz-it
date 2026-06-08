@@ -171,11 +171,6 @@ export default function SlotMachine() {
     rafId = requestAnimationFrame(draw);
     setTimeout(() => { cancelAnimationFrame(rafId); if (cv.parentNode) document.body.removeChild(cv); }, 8000);
   };
-    rafId = requestAnimationFrame(draw);
-    setTimeout(() => { if (cv.parentNode) document.body.removeChild(cv); }, 8000);
-  };
-    draw();
-  };
 
   const playPositiveSounds = (songFile: string) => {
     try {

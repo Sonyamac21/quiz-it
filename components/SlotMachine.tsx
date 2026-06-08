@@ -48,11 +48,12 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
   const reelTops = useRef([0, 0, 0]);
   const [spinning, setSpinning] = useState(false);
   const [overlay, setOverlay] = useState<Seg | null>(null);
+  const bulbRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [bulbTick, setBulbTick] = useState(0);
   const [bulbGolden, setBulbGolden] = useState(false);
-  const bulbRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fwRef = useRef<number | null>(null);
   const fwCanvasRef = useRef<HTMLCanvasElement>(null);
+  const crowdRef = useRef<HTMLAudioElement | null>(null);
 
   const INITIAL_CENTRE = Math.floor(STRIP_LEN / 2);
   const INITIAL_TOP = -(INITIAL_CENTRE - 1) * SEG_H;
@@ -141,30 +142,36 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
     draw();
   };
 
-  const playSound = (pos: boolean) => {
+  const playPositiveSounds = () => {
     try {
-      const ac = new (window.AudioContext || (window as any).webkitAudioContext)();
-      if (pos) {
-        const notes: [number, number][] = [[0, 700], [0.08, 900], [0.18, 1100], [0.3, 950], [0.45, 1200]];
-        notes.forEach(([t, f]) => {
-          const o = ac.createOscillator(), g = ac.createGain();
-          o.connect(g); g.connect(ac.destination);
-          o.frequency.value = f; o.type = "square";
-          g.gain.setValueAtTime(0.12, ac.currentTime + t);
-          g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + 0.28);
-          o.start(ac.currentTime + t); o.stop(ac.currentTime + t + 0.28);
-        });
-      } else {
-        [880, 740, 600, 460].forEach((f, i) => {
-          const o = ac.createOscillator(), g = ac.createGain();
-          o.connect(g); g.connect(ac.destination);
-          o.frequency.value = f; o.type = "sawtooth";
-          g.gain.setValueAtTime(0.13, ac.currentTime + i * 0.2);
-          g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + i * 0.2 + 0.38);
-          o.start(ac.currentTime + i * 0.2); o.stop(ac.currentTime + i * 0.2 + 0.42);
-        });
-      }
-    } catch (e) {}
+      const horn = new Audio("/sounds/airhorn.mp3");
+      horn.volume = 1.0;
+      horn.play().catch(() => {});
+      setTimeout(() => {
+        const crowd = new Audio("/sounds/crowd-cheer.mp3");
+        crowd.volume = 0.9;
+        crowdRef.current = crowd;
+        crowd.play().catch(() => {});
+        setTimeout(() => {
+          const fadeInterval = setInterval(() => {
+            if (crowd.volume > 0.05) {
+              crowd.volume = Math.max(0, crowd.volume - 0.05);
+            } else {
+              crowd.pause();
+              clearInterval(fadeInterval);
+            }
+          }, 200);
+        }, 4000);
+      }, 600);
+    } catch {}
+  };
+
+  const playNegativeSounds = () => {
+    try {
+      const trombone = new Audio("/sounds/sad-trombone.mp3");
+      trombone.volume = 0.9;
+      trombone.play().catch(() => {});
+    } catch {}
   };
 
   const doSpin = () => {
@@ -191,8 +198,12 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
           if (result.positive) startBulbs(true);
           setTimeout(() => {
             setOverlay(result);
-            if (result.positive) launchFW(result.color);
-            playSound(result.positive);
+            if (result.positive) {
+              launchFW(result.color);
+              playPositiveSounds();
+            } else {
+              playNegativeSounds();
+            }
           }, 350);
         } : undefined
       );
@@ -203,6 +214,7 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
     setOverlay(null);
     stopBulbs();
     if (fwRef.current) { cancelAnimationFrame(fwRef.current); fwRef.current = null; }
+    if (crowdRef.current) { crowdRef.current.pause(); crowdRef.current = null; }
     if (fwCanvasRef.current) {
       const ctx = fwCanvasRef.current.getContext("2d");
       if (ctx) ctx.clearRect(0, 0, 9999, 9999);

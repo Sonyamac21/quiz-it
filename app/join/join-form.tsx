@@ -104,7 +104,7 @@ export function JoinForm() {
     try {
       const supabase = createSupabaseBrowserClient();
       const { error: dbError } = await supabase.from("teams").insert({
-        name: teamName.trim(),
+        team_name: teamName.trim(),
         victory_song: selectedSong,
       });
       if (dbError) throw dbError;

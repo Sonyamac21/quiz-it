@@ -218,9 +218,9 @@ export default function SlotMachine() {
       // Land on an occurrence of winSegIdx in the upper half of the strip
       // Pick a target strip index that is: fullCycles*SEGS.length ahead, aligned to winSegIdx
       const baseIdx = fullCycles * SEGS.length + winSegIdx;
-      // Clamp to safe range
       const landStripIdx = Math.min(baseIdx, STRIP_LEN - 3);
-      const targetTop = -(landStripIdx) * SEG_H;
+      // Offset by 1 so winSegIdx lands in the centre of the 360px window (centre = SEG_H*1.5 from top)
+      const targetTop = -(landStripIdx - 1) * SEG_H;
 
       animReel(i, startTop, targetTop, durations[i], delay,
         i === 2 ? () => {

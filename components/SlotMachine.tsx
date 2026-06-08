@@ -25,6 +25,21 @@ function centredSegIdx(topPx: number) {
   return clamped % SEGS.length;
 }
 
+
+function OverlayPanel({ overlay, teamName, onDismiss }: { overlay: { label: string; color: string; positive: boolean }; teamName: string; onDismiss: () => void }) {
+  const bg = overlay.positive ? "rgba(0,8,2,0.92)" : "rgba(12,0,0,0.92)";
+  const shadow = "0 0 40px " + overlay.color;
+  return (
+    <div style={{ position: "absolute", inset: 0, borderRadius: 16, background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, zIndex: 15 }}>
+      <div style={{ fontSize: 12, letterSpacing: 4, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>{teamName}</div>
+      <div style={{ fontSize: 52, letterSpacing: 3, color: overlay.color, textAlign: "center", lineHeight: 1.1, textShadow: shadow }}>{overlay.label}</div>
+      <button onClick={onDismiss} style={{ marginTop: 8, fontFamily: "var(--font-bruno)", fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.35)", background: "transparent", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 24px", cursor: "pointer" }}>
+        Continue
+      </button>
+    </div>
+  );
+}
+
 export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamName?: string }) {
   const reelRefs = [
     useRef<HTMLDivElement>(null),

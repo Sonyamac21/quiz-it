@@ -126,12 +126,13 @@ export default function SlotMachine() {
   };
 
   const launchFW = (col: string) => {
-    const cv = fwCanvasRef.current;
-    if (!cv) return;
+    const cv = document.createElement('canvas');
     cv.width = window.innerWidth;
     cv.height = window.innerHeight;
-    const ctx = cv.getContext("2d");
-    if (!ctx) return;
+    cv.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:60';
+    document.body.appendChild(cv);
+    const ctx = cv.getContext('2d');
+    if (!ctx) { document.body.removeChild(cv); return; }
     const pts: { x: number; y: number; vx: number; vy: number; c: string; l: number; d: number }[] = [];
     const cols = [col, "#BE26C1", "#F5C842", "#fff", "#22c55e", "#c8c8d8"];
     for (let b = 0; b < 16; b++) {
@@ -145,6 +146,7 @@ export default function SlotMachine() {
         }
       }, b * 180);
     }
+    let rafId: number;
     const draw = () => {
       ctx.clearRect(0, 0, cv.width, cv.height);
       for (let i = pts.length - 1; i >= 0; i--) {
@@ -158,8 +160,15 @@ export default function SlotMachine() {
         ctx.fill();
       }
       ctx.globalAlpha = 1;
-      if (pts.length > 0) fwRef.current = requestAnimationFrame(draw);
+      if (pts.length > 0 || rafId < 3000) {
+        rafId = requestAnimationFrame(draw);
+      } else {
+        if (cv.parentNode) document.body.removeChild(cv);
+      }
     };
+    rafId = requestAnimationFrame(draw);
+    setTimeout(() => { if (cv.parentNode) document.body.removeChild(cv); }, 8000);
+  };
     draw();
   };
 

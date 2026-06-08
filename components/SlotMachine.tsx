@@ -247,7 +247,7 @@ export default function SlotMachine() {
               playNegativeSounds();
             }
             resetReels();
-          }, 500);
+          }, 0);
         } : undefined
       );
     });

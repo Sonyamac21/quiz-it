@@ -116,17 +116,17 @@ export function JoinForm() {
     }
   }
 
-  if (done) {
-    return (
-      <div style={{ textAlign:"center", padding:"40px 20px" }}>
-        <div style={{ fontSize:60, marginBottom:16 }}>🎉</div>
-        <p style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:22, color:"#BE26C1", letterSpacing:2 }}>You're in!</p>
-        <p style={{ color:"rgba(255,255,255,0.6)", marginTop:8, fontFamily:"'Bruno Ace SC',sans-serif", fontSize:11, letterSpacing:2 }}>{teamName}</p>
-        <p style={{ color:"rgba(255,255,255,0.3)", marginTop:4, fontFamily:"'Bruno Ace SC',sans-serif", fontSize:9, letterSpacing:2 }}>Victory song: {cleanName(selectedSong)}</p>
-        <p style={{ color:"rgba(255,255,255,0.4)", marginTop:24, fontSize:13 }}>Wait for the host to start the quiz</p>
-      </div>
-    );
-  }
+    if (done) {
+      return (
+        <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#BE26C1", letterSpacing: 2 }}>You are In!</div>
+            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginTop: 6 }}>{teamName} - good luck!</div>
+          </div>
+          <UnoPlayerCards teamName={teamName} />
+        </div>
+      );
+    }
 
   if (step === "name") {
     return (

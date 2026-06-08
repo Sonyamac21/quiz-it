@@ -125,7 +125,7 @@ export default function SlotMachine() {
     }, delay);
   };
 
-  const launchFW = (col: string) => {
+  const launchFW = (_col: string) => {
     const cv = document.createElement('canvas');
     cv.width = window.innerWidth;
     cv.height = window.innerHeight;
@@ -133,39 +133,44 @@ export default function SlotMachine() {
     document.body.appendChild(cv);
     const ctx = cv.getContext('2d');
     if (!ctx) { document.body.removeChild(cv); return; }
-    const pts: { x: number; y: number; vx: number; vy: number; c: string; l: number; d: number }[] = [];
-    const cols = [col, "#BE26C1", "#F5C842", "#fff", "#22c55e", "#c8c8d8"];
-    for (let b = 0; b < 16; b++) {
+    const pts: { x: number; y: number; vx: number; vy: number; c: string; l: number; d: number; r: number }[] = [];
+    const cols = ["#BE26C1","#F5C842","#ffffff","#22c55e","#c8c8d8","#ff6b6b","#ffd700","#00cfff","#ff69b4","#ff4500"];
+    const burst = (cx: number, cy: number) => {
+      for (let p = 0; p < 80; p++) {
+        const a = (p / 80) * Math.PI * 2;
+        const spd = 4 + Math.random() * 12;
+        pts.push({ x: cx, y: cy, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd - 2, c: cols[Math.floor(Math.random() * cols.length)], l: 1, d: 0.006 + Math.random() * 0.01, r: 3 + Math.random() * 5 });
+      }
+    };
+    for (let b = 0; b < 20; b++) {
       setTimeout(() => {
-        const cx = 80 + Math.random() * (cv.width - 160);
-        const cy = 60 + Math.random() * (cv.height * 0.5);
-        for (let p = 0; p < 50; p++) {
-          const a = (p / 50) * Math.PI * 2;
-          const spd = 3 + Math.random() * 8;
-          pts.push({ x: cx, y: cy, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, c: cols[Math.floor(Math.random() * cols.length)], l: 1, d: 0.008 + Math.random() * 0.014 });
-        }
-      }, b * 180);
+        const cx = 100 + Math.random() * (cv.width - 200);
+        const cy = 50 + Math.random() * (cv.height * 0.6);
+        burst(cx, cy);
+      }, b * 200);
     }
     let rafId: number;
     const draw = () => {
       ctx.clearRect(0, 0, cv.width, cv.height);
       for (let i = pts.length - 1; i >= 0; i--) {
         const p = pts[i];
-        p.x += p.vx; p.y += p.vy; p.vy += 0.09; p.vx *= 0.98; p.vy *= 0.98; p.l -= p.d;
+        p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.vx *= 0.97; p.vy *= 0.97; p.l -= p.d;
         if (p.l <= 0) { pts.splice(i, 1); continue; }
         ctx.globalAlpha = p.l;
         ctx.fillStyle = p.c;
+        ctx.shadowColor = p.c;
+        ctx.shadowBlur = 6;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;
-      if (pts.length > 0 || rafId < 3000) {
-        rafId = requestAnimationFrame(draw);
-      } else {
-        if (cv.parentNode) document.body.removeChild(cv);
-      }
+      ctx.shadowBlur = 0;
+      rafId = requestAnimationFrame(draw);
     };
+    rafId = requestAnimationFrame(draw);
+    setTimeout(() => { cancelAnimationFrame(rafId); if (cv.parentNode) document.body.removeChild(cv); }, 8000);
+  };
     rafId = requestAnimationFrame(draw);
     setTimeout(() => { if (cv.parentNode) document.body.removeChild(cv); }, 8000);
   };

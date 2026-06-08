@@ -18,6 +18,7 @@ import {
   getStageLabel,
   type QuizStage,
 } from "@/lib/quiz/stages";
+import { UnoHostPanel } from "@/components/UnoCards";
 
 type Team = {
   id: string;

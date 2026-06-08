@@ -260,7 +260,7 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
                 <div key={i} style={{ flex: 1, overflow: "hidden", position: "relative", borderRight: i < 2 ? "1px solid #1e0830" : "none" }}>
                   <div ref={reelRefs[i]} style={{ position: "absolute", width: "100%", top: 0, display: "flex", flexDirection: "column" }}>
                     {STRIP.map((s, j) => (
-                      <div key={j} style={{ height: SEG_H, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, letterSpacing: 1, textAlign: "center", padding: "0 6px", lineHeight: 1.3, color: s.color, background: s.bg, textShadow: `0 0 10px ${s.color}55` }}>
+                      <div key={j} style={{ height: SEG_H, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, letterSpacing: 1, textAlign: "center", padding: "0 6px", lineHeight: 1.3, color: s.color, background: s.bg, textShadow: "0 0 10px " + s.color + "55" }}>
                         {s.label}
                       </div>
                     ))}
@@ -297,7 +297,7 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
       {overlay && (
         <div style={{ position: "absolute", inset: 0, borderRadius: 16, background: overlay.positive ? "rgba(0,8,2,0.92)" : "rgba(12,0,0,0.92)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, zIndex: 15 }}>
           <div style={{ fontSize: 12, letterSpacing: 4, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>{teamName}</div>
-          <div style={{ fontSize: 52, letterSpacing: 3, color: overlay.color, textAlign: "center", lineHeight: 1.1, textShadow: `0 0 40px ${overlay.color}` }}>{overlay.label}</di>
+          <div style={{ fontSize: 52, letterSpacing: 3, color: overlay.color, textAlign: "center", lineHeight: 1.1, textShadow: "0 0 40px " + overlay.color }}>{overlay.label}</di>
           <button onClick={dismiss} style={{ marginTop: 8, fontFamily: "var(--font-bruno)", fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.35)", background: "transparent", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 24px", cursor: "pointer" }}>
             Continue
           </button>

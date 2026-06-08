@@ -25,15 +25,15 @@ function centredSegIdx(topPx: number) {
   return clamped % SEGS.length;
 }
 
+type Seg = typeof SEGS[0];
 
-function OverlayPanel({ overlay, teamName, onDismiss }: { overlay: { label: string; color: string; positive: boolean }; teamName: string; onDismiss: () => void }) {
-  const bg = overlay.positive ? "rgba(0,8,2,0.92)" : "rgba(12,0,0,0.92)";
-  const shadow = "0 0 40px " + overlay.color;
+function OverlayPanel({ seg, teamName, onDismiss }: { seg: Seg; teamName: string; onDismiss: () => void }) {
+  const bg = seg.positive ? "rgba(0,8,2,0.92)" : "rgba(12,0,0,0.92)";
   return (
     <div style={{ position: "absolute", inset: 0, borderRadius: 16, background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, zIndex: 15 }}>
-      <div style={{ fontSize: 12, letterSpacing: 4, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>{teamName}</div>
-      <div style={{ fontSize: 52, letterSpacing: 3, color: overlay.color, textAlign: "center", lineHeight: 1.1, textShadow: shadow }}>{overlay.label}</div>
-      <button onClick={onDismiss} style={{ marginTop: 8, fontFamily: "var(--font-bruno)", fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.35)", background: "transparent", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 24px", cursor: "pointer" }}>
+      <div style={{ fontSize: 12, letterSpacing: 4, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" as const }}>{teamName}</div>
+      <div style={{ fontSize: 52, letterSpacing: 3, color: seg.color, textAlign: "center", lineHeight: 1.1 }}>{seg.label}</div>
+      <button onClick={onDismiss} style={{ marginTop: 8, fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.35)", background: "transparent", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 24px", cursor: "pointer" }}>
         Continue
       </button>
     </div>
@@ -41,14 +41,13 @@ function OverlayPanel({ overlay, teamName, onDismiss }: { overlay: { label: stri
 }
 
 export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamName?: string }) {
-  const reelRefs = [
-    useRef<HTMLDivElement>(null),
-    useRef<HTMLDivElement>(null),
-    useRef<HTMLDivElement>(null),
-  ];
+  const r0 = useRef<HTMLDivElement>(null);
+  const r1 = useRef<HTMLDivElement>(null);
+  const r2 = useRef<HTMLDivElement>(null);
+  const reelRefs = [r0, r1, r2];
   const reelTops = useRef([0, 0, 0]);
   const [spinning, setSpinning] = useState(false);
-  const [overlay, setOverlay] = useState<typeof SEGS[0] | null>(null);
+  const [overlay, setOverlay] = useState<Seg | null>(null);
   const [bulbTick, setBulbTick] = useState(0);
   const [bulbGolden, setBulbGolden] = useState(false);
   const bulbRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -81,14 +80,7 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
 
   useEffect(() => () => { stopBulbs(); }, [stopBulbs]);
 
-  const animReel = (
-    reelIdx: number,
-    fromTop: number,
-    toTop: number,
-    dur: number,
-    delay: number,
-    cb?: () => void
-  ) => {
+  const animReel = (reelIdx: number, fromTop: number, toTop: number, dur: number, delay: number, cb?: () => void) => {
     let t0: number | null = null;
     setTimeout(() => {
       const step = (ts: number) => {
@@ -97,11 +89,12 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
         const e = 1 - Math.pow(1 - p, 4);
         const cur = fromTop + (toTop - fromTop) * e;
         reelTops.current[reelIdx] = cur;
-        if (reelRefs[reelIdx].current) reelRefs[reelIdx].current.style.top = cur + "px";
+        const el = reelRefs[reelIdx].current;
+        if (el) el.style.top = cur + "px";
         if (p < 1) requestAnimationFrame(step);
         else {
           reelTops.current[reelIdx] = toTop;
-          if (reelRefs[reelIdx].current) reelRefs[reelIdx].current.style.top = toTop + "px";
+          if (el) el.style.top = toTop + "px";
           if (cb) cb();
         }
       };
@@ -117,7 +110,7 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
     cv.height = root.offsetHeight;
     const ctx = cv.getContext("2d");
     if (!ctx) return;
-    const pts: { x:number; y:number; vx:number; vy:number; c:string; l:number; d:number }[] = [];
+    const pts: { x: number; y: number; vx: number; vy: number; c: string; l: number; d: number }[] = [];
     const cols = [col, "#BE26C1", "#F5C842", "#fff", "#22c55e", "#c8c8d8"];
     for (let b = 0; b < 12; b++) {
       setTimeout(() => {
@@ -126,7 +119,7 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
         for (let p = 0; p < 40; p++) {
           const a = (p / 40) * Math.PI * 2;
           const spd = 2 + Math.random() * 6;
-          pts.push({ x: cx, y: cy, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd, c: cols[Math.floor(Math.random()*cols.length)], l: 1, d: 0.01 + Math.random()*0.016 });
+          pts.push({ x: cx, y: cy, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, c: cols[Math.floor(Math.random() * cols.length)], l: 1, d: 0.01 + Math.random() * 0.016 });
         }
       }, b * 200);
     }
@@ -152,7 +145,7 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
     try {
       const ac = new (window.AudioContext || (window as any).webkitAudioContext)();
       if (pos) {
-        const notes: [number, number][] = [[0,700],[0.08,900],[0.18,1100],[0.3,950],[0.45,1200]];
+        const notes: [number, number][] = [[0, 700], [0.08, 900], [0.18, 1100], [0.3, 950], [0.45, 1200]];
         notes.forEach(([t, f]) => {
           const o = ac.createOscillator(), g = ac.createGain();
           o.connect(g); g.connect(ac.destination);
@@ -222,6 +215,7 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
     if (bulbGolden) return bulbTick % 4 < 2 ? "#F5C842" : "#BE26C1";
     return "#BE26C1";
   };
+
   const bulbShadow = (i: number) => {
     const on = i % 2 === ((bulbTick + 1) % 2);
     if (!on) return "none";
@@ -229,8 +223,8 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
     return "0 0 6px #BE26C1, 0 0 12px rgba(190,38,193,0.4)";
   };
 
-  const bulbRow = (
-    <div style={{ display: "flex", alignItems: "center", padding: "10px 14px 8px", gap: 3, background: "#0d0818" }}>
+  const BulbRow = ({ bottom }: { bottom?: boolean }) => (
+    <div style={{ display: "flex", alignItems: "center", padding: bottom ? "8px 14px 12px" : "10px 14px 8px", gap: 3, background: "#0d0818" }}>
       {Array.from({ length: BC }).map((_, i) => (
         <div key={i} style={{ display: "contents" }}>
           {i > 0 && <div style={{ flex: 1, height: 1, background: "#2a0a3a" }} />}
@@ -241,9 +235,8 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
   );
 
   return (
-    <div style={{ background: "#07030f", borderRadius: 16, fontFamily: "var(--font-bruno)", position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+    <div style={{ background: "#07030f", borderRadius: 16, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: "100vh" }}>
       <canvas ref={fwCanvasRef} style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 20, borderRadius: 16 }} />
-
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px 10px", borderBottom: "1px solid rgba(190,38,193,0.3)", background: "#0d0520" }}>
         <div style={{ width: 46, height: 46, borderRadius: "50%", background: "radial-gradient(circle, #3a0a4a, #1a0530)", border: "2px solid #BE26C1", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 12px rgba(190,38,193,0.5)", fontSize: 13, color: "#BE26C1", flexShrink: 0 }}>ME</div>
         <div style={{ textAlign: "center", flex: 1 }}>
@@ -254,14 +247,12 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
         <div style={{ width: 46 }} />
       </div>
       <div style={{ height: 2, background: "linear-gradient(90deg, transparent, #BE26C1, transparent)", animation: "glowPulse 2s ease-in-out infinite" }} />
-
       <div style={{ background: "#0d0818", borderLeft: "2px solid #7a107e", borderRight: "2px solid #7a107e", overflow: "hidden" }}>
-        {bulbRow}
+        <BulbRow />
         <div style={{ textAlign: "center", padding: "14px 0 10px", fontSize: 24, letterSpacing: 8, color: "#fff", textShadow: "0 0 20px rgba(190,38,193,0.6)" }}>
           Spin <span style={{ color: "#BE26C1" }}>to</span> Win
         </div>
         <div style={{ height: 1, background: "linear-gradient(90deg, transparent, #BE26C1 50%, transparent)", margin: "0 14px" }} />
-
         <div style={{ background: "#08050f", padding: "14px 0 10px", position: "relative" }}>
           <div style={{ display: "flex", alignItems: "stretch" }}>
             <div style={{ width: 30, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#08050f" }}>
@@ -275,7 +266,7 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
                 <div key={i} style={{ flex: 1, overflow: "hidden", position: "relative", borderRight: i < 2 ? "1px solid #1e0830" : "none" }}>
                   <div ref={reelRefs[i]} style={{ position: "absolute", width: "100%", top: 0, display: "flex", flexDirection: "column" }}>
                     {STRIP.map((s, j) => (
-                      <div key={j} style={{ height: SEG_H, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, letterSpacing: 1, textAlign: "center", padding: "0 6px", lineHeight: 1.3, color: s.color, background: s.bg, textShadow: "0 0 10px " + s.color + "55" }}>
+                      <div key={j} style={{ height: SEG_H, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, letterSpacing: 1, textAlign: "center", padding: "0 6px", lineHeight: 1.3, color: s.color, background: s.bg }}>
                         {s.label}
                       </div>
                     ))}
@@ -288,37 +279,18 @@ export default function SlotMachine({ teamName = "The Brainy Bunch" }: { teamNam
             </div>
           </div>
         </div>
-
         <div style={{ height: 1, background: "linear-gradient(90deg, transparent, #BE26C1 50%, transparent)", margin: "10px 14px 0" }} />
         <div style={{ padding: "14px 14px 0", background: "#0d0818" }}>
-          <button onClick={doSpin} disabled={spinning} style={{ width: "100%", fontFamily: "var(--font-bruno)", fontSize: 16, letterSpacing: 5, color: "#e0a0e8", background: "linear-gradient(180deg, #1e0830 0%, #0d0515 100%)", border: "1.5px solid #7a107e", borderRadius: 10, padding: 17, cursor: spinning ? "not-allowed" : "pointer", opacity: spinning ? 0.35 : 1, textShadow: "0 0 10px rgba(190,38,193,0.5)" }}>
+          <button onClick={doSpin} disabled={spinning} style={{ width: "100%", fontSize: 16, letterSpacing: 5, color: "#e0a0e8", background: "linear-gradient(180deg, #1e0830 0%, #0d0515 100%)", border: "1.5px solid #7a107e", borderRadius: 10, padding: 17, cursor: spinning ? "not-allowed" : "pointer", opacity: spinning ? 0.35 : 1 }}>
             Spin to Win!
           </button>
         </div>
-        <div style={{ display: "flex", alignItems: "center", padding: "8px 14px 12px", gap: 3, background: "#0d0818" }}>
-          {Array.from({ length: BC }).map((_, i) => (
-            <div key={i} style={{ display: "contents" }}>
-              {i > 0 && <div style={{ flex: 1, height: 1, background: "#2a0a3a" }} />}
-              <div style={{ width: 14, height: 14, borderRadius: "50%", background: bulbColor(i), border: "1px solid #4a1060", flexShrink: 0, boxShadow: bulbShadow(i), transition: "background .15s, box-shadow .15s" }} />
-            </div>
-          ))}
-        </div>
+        <BulbRow bottom />
       </div>
-
       <div style={{ textAlign: "center", padding: 10, fontSize: 9, letterSpacing: 2, color: "rgba(190,38,193,0.35)", borderTop: "1px solid rgba(190,38,193,0.1)", background: "#07030f" }}>
-        Quiz-It powered by Mac Entertainment · by Sonya Mac
+        Quiz-It powered by Mac Entertainment by Sonya Mac
       </div>
-
-      {overlay && (
-        <div style={{ position: "absolute", inset: 0, borderRadius: 16, background: overlay.positive ? "rgba(0,8,2,0.92)" : "rgba(12,0,0,0.92)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, zIndex: 15 }}>
-          <div style={{ fontSize: 12, letterSpacing: 4, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>{teamName}</div>
-          <div style={{ fontSize: 52, letterSpacing: 3, color: overlay.color, textAlign: "center", lineHeight: 1.1 }}>{overlay.label}</di>
-          <button onClick={dismiss} style={{ marginTop: 8, fontFamily: "var(--font-bruno)", fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.35)", background: "transparent", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 24px", cursor: "pointer" }}>
-            Continue
-          </button>
-        </div>
-      )}
-
+      {overlay && <OverlayPanel seg={overlay} teamName={teamName} onDismiss={dismiss} />}
       <style>{"@keyframes glowPulse { 0%,100%{opacity:.4} 50%{opacity:1} }"}</style>
     </div>
   );

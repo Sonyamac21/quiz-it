@@ -104,7 +104,7 @@ export default function QuestionsPage() {
     const shuffledTopics = [...TOPICS].sort(() => Math.random() - 0.5);
     const good: Question[] = [];
     let attempts = 0;
-    const maxAttempts = count * 5;
+    const maxAttempts = count * 8;
     let i = 0;
     while (good.length < count && attempts < maxAttempts) {
       const type = types[i % types.length];
@@ -119,6 +119,8 @@ export default function QuestionsPage() {
         good.push(q);
         usedRef.current = [...usedRef.current, q.question_text];
         setQuestions([...good]);
+      } else {
+        setStatus("Question " + (good.length + 1) + " failed check (" + check.note.substring(0,40) + ") - retrying...");
       }
       i++;
     }

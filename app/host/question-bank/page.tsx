@@ -90,19 +90,16 @@ export default function QuestionBankPage() {
       </div>
 
       {loading && <p style={{ textAlign:"center", color:"#666" }}>Loading...</p>}
-      {!loading && filtered.length === 0 && <p style={{ textAlign:"center", color:"#666" }}>No questions in the bank yet. Move questions here from your rounds.</p>}
+      {!loading && filtered.length === 0 && <p style={{ textAlign:"center", color:"#666" }}>No questions in the bank yet.</p>}
 
       {filtered.map(q => (
         <div key={q.id} style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.2)", borderRadius:12, padding:16, marginBottom:10 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
-            <span style={{ background:typeBg[q.question_type]||"#1a1a1a", color:typeColor[q.question_type]||"#aaa", padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:600 }}>
-              {typeLabel[q.question_type]||q.question_type}
-            </span>
+            <span style={{ background:typeBg[q.question_type]||"#1a1a1a", color:typeColor[q.question_type]||"#aaa", padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:600 }}>{typeLabel[q.question_type]||q.question_type}</span>
             <span style={{ fontSize:11, color:"#555" }}>{q.difficulty}</span>
-            {q.topic && <span style={{ fontSize:11, color:"#555" }}>· {q.topic}</span>}
             <div style={{ flex:1 }} />
             {rounds.length > 0 && (
-              <select onChange={e => { if(e.target.value) addToRound(q, e.target.value); e.target.value=""; }}
+              <select onChange={e => { if(e.target.value) { addToRound(q, e.target.value); } e.target.value=""; }}
                 style={{ padding:"5px 10px", borderRadius:6, background:"#0f0f1a", color:"#BE26C1", border:"1px solid rgba(190,38,193,0.3)", fontSize:11, cursor:"pointer" }}>
                 <option value="">Add to round...</option>
                 {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -112,7 +109,7 @@ export default function QuestionBankPage() {
           </div>
           <p style={{ fontSize:15, fontWeight:600, marginBottom:8, lineHeight:1.5 }}>{q.question_text}</p>
           {q.question_type==="multiple_choice" && (
-            <div style={{ display:"grid", gridTemplateColumn:"1fr 1fr", gap:6 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
               {(["a","b","c","d"] as const).map(l => (
                 <div key={l} style={{ fontSize:13, padding:"5px 10px", borderRadius:6, background:l===q.correct_answer?"rgba(34,197,94,0.15)":"#0f0f1a", color:l===q.correct_answer?"#22c55e":"#aaa" }}>
                   <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{q[("option_"+l) as keyof BankQuestion] as string}

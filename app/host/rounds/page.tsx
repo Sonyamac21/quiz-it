@@ -10,6 +10,7 @@ type Question = {
   option_c: string | null;
   option_d: string | null;
   correct_answer: string;
+  explanation?: string;
   difficulty: string;
   round_type: string;
 };
@@ -55,15 +56,10 @@ export default function RoundsPage() {
     const q = openRound.questions[qIdx];
     const supabase = createSupabaseBrowserClient();
     await supabase.from("question_bank").insert({
-      question_text: q.question_text,
-      question_type: q.question_type,
-      option_a: q.option_a,
-      option_b: q.option_b,
-      option_c: q.option_c,
-      option_d: q.option_d,
-      correct_answer: q.correct_answer,
-      difficulty: q.difficulty,
-      round_type: q.round_type,
+      question_text: q.question_text, question_type: q.question_type,
+      option_a: q.option_a, option_b: q.option_b,
+      option_c: q.option_c, option_d: q.option_d,
+      correct_answer: q.correct_answer, difficulty: q.difficulty, round_type: q.round_type,
     });
     const newQs = openRound.questions.filter((_, i) => i !== qIdx);
     const updated = { ...openRound, questions: newQs };
@@ -88,7 +84,6 @@ export default function RoundsPage() {
       </div>
 
       {status && <p style={{ textAlign:"center", color:"#22c55e", fontSize:13, marginBottom:16 }}>{status}</p>}
-
       {loading && <p style={{ textAlign:"center", color:"#666" }}>Loading rounds...</p>}
       {!loading && rounds.length === 0 && <p style={{ textAlign:"center", color:"#666" }}>No rounds saved yet. Generate your first round!</p>}
 
@@ -96,10 +91,10 @@ export default function RoundsPage() {
         <div key={r.id} style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.25)", borderRadius:12, padding:16, marginBottom:12 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <div style={{ flex:1 }}>
-              <div style={{ fontSize:16, fontWeight:700, color:"#fff", marginBottom:4 }}>{r.name}</div>
+              <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>{r.name}</div>
               <div style={{ fontSize:12, color:"#666" }}>{r.questions?.length || 0} questions · {r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
             </div>
-            <button onClick={() => setOpenRoun)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", background:"transparent", color:"#BE26C1", cursor:"pointer", fontSize:12 }}>View</button>
+            <button onClick={() => setOpenRound(r)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", background:"transparent", color:"#BE26C1", cursor:"pointer", fontSize }}>View</button>
             <button onClick={() => deleteRound(r.id)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:12 }}>Delete</button>
           </div>
         </div>
@@ -108,17 +103,15 @@ export default function RoundsPage() {
       {openRound && (
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
-            <button onClick={() => setOpenRound(null)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #333", background:"transparent", color:"#aaa", cursor:"pointer", fontSize:12 }}>← Back</button>
-            <div style={{ fontSize:18, fontWeight:700, color:"#fff" }}>{openRound.name}</div>
+            <button onClick={() => setOpenRound(null)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #333", background:"transparent", color:"#aaa", cursor:"pointer", fontSize:12 }}>Back</button>
+            <div style={{ fontSize:18, fontWeight:700 }}>{openRound.name}</div>
             <div style={{ fontSize:12, color:"#666" }}>{openRound.questions.length} questions</div>
           </div>
-          {openRound.questions.map(, i) => (
+          {openRound.questions.map((q, i) => (
             <div key={i} style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.2)", borderRadius:12, padding:16, marginBottom:10 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
-                <span style={{ color:"#555", fontSize:13, fontWeight:700, minWidth:24 }}>{i+1}.</span>
-                <span style={{ background:typeBg[q.question_type]||"#1a1a1a", color:typeColor[q.question_type]||"#aaa", padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:600 }}>
-                  {typeLabel[q.question_type]||q.question_type}
-                </span>
+                <span style={{ color:"#555", fontSize:13, fontWeight:700 }}>{i+1}.</span>
+                <span style={{ background:typeBg[q.question_type]||"#1a1a1a", color:typeColor[q.question_type]||"#aaa", padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:600 }}>{typeLabel[q.question_type]||q.question_type}</span>
                 <span style={{ fontSize:11, color:"#555" }}>{q.difficulty}</span>
                 <div style={{ flex:1 }} />
                 <button onClick={() => sendToBank(openRound.id, i)} style={{ padding:"5px 12px", borderRadius:6, border:"1px solid rgba(190,38,193,0.4)", background:"transparent", color:"#BE26C1", cursor:"pointer", fontSize:11 }}>Move to Bank</button>
@@ -144,6 +137,11 @@ export default function RoundsPage() {
                 <div>
                   {q.option_a && <p style={{ fontSize:12, color:"#555", margin:"0 0 4px", fontStyle:"italic" }}>{q.option_a}</p>}
                   <p style={{ fontSize:14, color:"#22c55e", fontWeight:600, margin:0 }}>Answer: {q.correct_answer}</p>
+                </div>
+              )}
+              {q.explanation && (
+                <div style={{ marginTop:8, padding:"8px 12px", borderRadius:8, background:"rgba(190,38,193,0.08)", borderLeft:"3px solid rgba(190,38,193,0.4)" }}>
+                  <p style={{ fontSize:12, color:"rgba(190,38,193,0.8)", margin:0 }}>{q.explanation}</p>
                 </div>
               )}
             </div>

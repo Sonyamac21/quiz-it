@@ -1,7 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Question = {
   question_text: string;
@@ -11,12 +10,12 @@ type Question = {
   option_c: string | null;
   option_d: string | null;
   correct_answer: string;
+  explanation: string;
   difficulty: string;
   round_type: string;
 };
 
-const TOPICS = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","pop culture","art","literature","technology","mathematics","famous people","transport","space","medicine","animals","architecture","inventions","TV shows","famous films","celebrity and entertainment","video games","fashion and style","world records","science fiction","comedy and humour","books and authors","classic cartoons"];
-
+const TOPICS = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","UK and US pop culture","art","literature","technology","mathematics","famous people","transport","space","medicine","animals","architecture","inventions","TV shows","famous films","celebrity and entertainment","video games","fashion and style","world records","science fiction","comedy and humour","books and authors","classic cartoons"];
 const typeBg: Record<string,string> = { multiple_choice:"#1e1040", text_answer:"#0f2a1a", number:"#2a1a00", sequence:"#1a002a" };
 const typeColor: Record<string,string> = { multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6" };
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence" };
@@ -31,7 +30,8 @@ export default function QuestionsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [roundName, setRoundName] = useState("");
-  const [usedQuestions, setUsedQuestions] = useState<string[]>([]);
+  const usedRef = useRef<string[]>([]);
+  const dragIdx = useRef<number|null>(null);
 
   useEffect(() => { loadUsedQuestions(); }, []);
 
@@ -44,9 +44,8 @@ export default function QuestionsPage() {
     const used: string[] = [];
     if (rounds) rounds.forEach((r: {questions: {question_text:string}[]}) => r.questions?.forEach((q) => used.push(q.question_text)));
     if (bank) bank.forEach((q: {question_text:string}) => used.push(q.question_text));
-    setUsedQuestions(used);
+    usedRef.current = used;
   }
-  const dragIdx = useRef<number|null>(null);
 
   async function callAPI(prompt: string) {
     const res = await fetch("/api/generate-questions", {
@@ -61,7 +60,7 @@ export default function QuestionsPage() {
 
   async function checkQuestion(q: Question): Promise<{ok: boolean; note: string}> {
     const allText = [q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer].filter(Boolean).join(" ");
-    const prompt = "You are a content moderator and fact-checker for a quiz night in Dubai, UAE. Check this quiz question on TWO criteria:\n1. UAE APPROPRIATENESS: reject if it contains sexual references, crude body parts, alcohol, pork, drugs, or anything offensive or inappropriate for a mixed international audience in the UAE.\n2. FACTUAL ACCURACY: verify the answer is correct.\nReply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} if it passes both checks, or {\"ok\":false,\"note\":\"reason\"} if it fails either. Content: " + allText;
+    const prompt = "You are a content moderator for a quiz night in Dubai, UAE. Check this question is safe for a mixed international audience. Reject if it contains: sexual references, crude body parts, alcohol, pork, drugs, religion, references to Iran or Israel, or anything offensive. Also verify the answer is factually correct. Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"reason\"}. Content: " + allText;
     try {
       const text = await callAPI(prompt);
       return JSON.parse(text);
@@ -74,12 +73,12 @@ export default function QuestionsPage() {
     const typeInstructions: Record<string,string> = {
       multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
       text_answer: "text_answer: short word or phrase answer, all options must be null",
-      number: "number: numeric answer, all options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
+      number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
       sequence: "sequence: 4 items in correct order in option_a/b/c/d, correct_answer must be exactly \"a,b,c,d\"",
     };
-    const exclusions = usedQuestions.slice(0, 40).map((q,i) => (i+1)+". "+q).join("; ");
-    const exclusionNote = exclusions ? " IMPORTANT - Do NOT generate any of these already-used questions: " + exclusions + "." : "";
-    const prompt = "You are a professional pub quiz writer based in Dubai UAE. Generate exactly 1 pub quiz question. Topic: " + topic + ". Type: " + typeInstructions[type] + ". Difficulty: " + difficulty + ". All content must be suitable for a mixed international audience in UAE - avoid alcohol, pork, sexual references, and politically sensitive topics." + exclusionNote + " Return ONLY a valid JSON array with 1 item, no markdown: [{\"question_text\":\"...\",\"question_type\":\"" + type + "\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"correct_answer\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + roundType + "\"}]";
+    const exclusions = usedRef.current.slice(0, 40).map((q,i) => (i+1)+". "+q).join("; ");
+    const exclusionNote = exclusions ? " Do NOT generate any of these already-used questions: " + exclusions + "." : "";
+    const prompt = "You are a professional pub quiz writer. Your audience is English-speaking expats who enjoy British and American pop culture. Generate exactly 1 pub quiz question. Topic: " + topic + ". Type: " + typeInstructions[type] + ". Difficulty: " + difficulty + ". Keep questions focused on UK, US and international culture. Do NOT make questions about UAE, Dubai or Arab culture unless the topic specifically requires it. Content must be safe for UAE - avoid alcohol, pork, sexual references, religion, and politically sensitive Middle East topics." + exclusionNote + " Include a brief explanation of the answer (1-2 sentences) in the explanation field. Return ONLY a valid JSON array with 1 item, no markdown: [{\"question_text\":\"...\",\"question_type\":\"" + type + "\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"correct_answer\":\"...\",\"explanation\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + roundType + "\"}]";
     try {
       const text = await callAPI(prompt);
       return JSON.parse(text)[0];
@@ -92,7 +91,6 @@ export default function QuestionsPage() {
     setLoading(true);
     setQuestions([]);
     setRoundName("");
-
     const mcCount = Math.round(count * 0.35);
     const taCount = Math.round(count * 0.25);
     const numCount = Math.round(count * 0.20);
@@ -103,12 +101,10 @@ export default function QuestionsPage() {
       ...Array(numCount).fill("number"),
       ...Array(seqCount).fill("sequence"),
     ].sort(() => Math.random() - 0.5);
-
     const shuffledTopics = [...TOPICS].sort(() => Math.random() - 0.5);
     const good: Question[] = [];
     let attempts = 0;
-    const maxAttempts = count * 4;
-
+    const maxAttempts = count * 5;
     let i = 0;
     while (good.length < count && attempts < maxAttempts) {
       const type = types[i % types.length];
@@ -121,17 +117,43 @@ export default function QuestionsPage() {
       const check = await checkQuestion(q);
       if (check.ok) {
         good.push(q);
+        usedRef.current = [...usedRef.current, q.question_text];
         setQuestions([...good]);
       }
       i++;
     }
-
     setLoading(false);
-    if (good.length === count) {
-      setStatus("Ready! " + good.length + " questions generated. Drag to reorder, then name and save your round.");
-    } else {
-      setStatus(good.length + " of " + count + " questions ready. You can save this partial round or generate again.");
+    setStatus(good.length === count ? "Ready! Drag to reorder, then name and save your round." : good.length + " of " + count + " questions ready.");
+  }
+
+  async function removeAndReplace(i: number) {
+    const removed = questions[i];
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("question_bank").insert({
+      question_text: removed.question_text, question_type: removed.question_type,
+      option_a: removed.option_a, option_b: removed.option_b,
+      option_c: removed.option_c, option_d: removed.option_d,
+      correct_answer: removed.correct_answer, difficulty: removed.difficulty,
+      round_type: removed.round_type,
+    });
+    usedRef.current = [...usedRef.current, removed.question_text];
+    setQuestions(prev => prev.filter((_,idx) => idx !== i));
+    setStatus("Finding replacement...");
+    const topicList = [...TOPICS].sort(() => Math.random() - 0.5);
+    let replaced = false;
+    for (let attempt = 0; attempt < 10 && !replaced; attempt++) {
+      const newQ = await generateOne(removed.question_type, topicList[attempt % topicList.length]);
+      if (!newQ) continue;
+      const check = await checkQuestion(newQ);
+      if (check.ok) {
+        usedRef.current = [...usedRef.current, newQ.question_text];
+        setQuestions(prev => [...prev, newQ]);
+        setStatus("Replaced!");
+        setTimeout(() => setStatus(""), 2000);
+        replaced = true;
+      }
     }
+    if (!replaced) setStatus("Could not find replacement - try generating again.");
   }
 
   async function saveRound() {
@@ -140,16 +162,14 @@ export default function QuestionsPage() {
     setSaving(true);
     const supabase = createSupabaseBrowserClient();
     const { error } = await supabase.from("rounds").insert({
-      name: roundName.trim(),
-      round_type: roundType,
-      difficulty: difficulty,
-      questions: questions,
+      name: roundName.trim(), round_type: roundType, difficulty: difficulty, questions: questions,
     });
     setSaving(false);
     if (error) { setStatus("Save failed: " + error.message); return; }
-    setStatus("Round saved! You can generate another round or go to the host dashboard.");
+    setStatus("Round saved!");
     setQuestions([]);
     setRoundName("");
+    loadUsedQuestions();
   }
 
   const onDragStart = (i: number) => { dragIdx.current = i; };
@@ -172,6 +192,8 @@ export default function QuestionsPage() {
           <div style={{ fontSize:22, fontWeight:700, color:"#BE26C1", letterSpacing:4 }}>Question Generator</div>
           <div style={{ fontSize:11, color:"rgba(190,38,193,0.6)", letterSpacing:2 }}>Quiz-It powered by Mac Entertainment</div>
         </div>
+        <div style={{ flex:1 }} />
+        <a href="/host/rounds" style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", textDecoration:"none", fontSize:12, letterSpacing:2 }}>Round Library</a>
       </div>
 
       <div style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.3)", borderRadius:12, padding:20, marginBottom:20 }}>
@@ -200,10 +222,10 @@ export default function QuestionsPage() {
           </div>
         </div>
         <div style={{ marginBottom:16 }}>
-          <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>THEME / TOPIC (optional — leave blank for random variety)</label>
-          <input value={theme} onChange={e => setTheme(e.target.value)} placeholder="e.g. 90s movies, space, Dubai..." style={{ width:"100%", padding:"10px 16px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box" }} />
+          <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>THEME / TOPIC (optional)</label>
+          <input value={theme} onChange={e => setTheme(e.target.value)} placeholder="e.g. 90s movies, space... leave blank for random variety" style={{ width:"100%", padding:"10px 16px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box" }} />
         </div>
-        <button onClick={generate} disabled={loading} style={{ width:"100%", padding:14, borderRadius:8, background:loading?"#4a1060":"#BE26C1", color:"#fff", border:"none", fontSize:16, letterSpacing:4, cursor:loading?"not-allowed":"pointer", opacity:loading?7:1 }}>
+        <button onClick={generate} disabled={loading} style={{ width:"100%", padding:14, borderRadius:8, background:loading?"#4a1060":"#BE26C1", color:"#fff", border:"none", fontSize:16, letterSpacing:4, cursor:loading?"not-allowed":"pointer", opacity:loading?0.7:1 }}>
           {loading ? "Generating..." : "Generate Round"}
         </button>
       </div>
@@ -212,51 +234,22 @@ export default function QuestionsPage() {
 
       {questions.length > 0 && (
         <>
-          <div style={{ fontSize:12, color:"#666", textAlign:"center", marginBottom:12, letterSpacing:1 }}>Drag questions to reorder</div>
+          <div style={{ fontSize:12, color:"#666", textAlign:"center", marginBottom:12 }}>Drag to reorder · {questions.length} questions</div>
           {questions.map((q, i) => (
             <div key={i} draggable onDragStart={() => onDragStart(i)} onDragOver={e => onDragOver(e, i)} onDragEnd={onDragEnd}
               style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.25)", borderRadius:12, padding:16, marginBottom:10, cursor:"grab", userSelect:"none" }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
-                <span style={{ color:"#555", fontSize:13, fontWeight:700, minWidth:24 }}>{i+1}.</span>
-                <span style={{ background:typeBg[q.question_type]||"#1a1a1a", color:typeColor[q.question_type]||"#aaa", padding:"3px 10px", borderRadius:999, fontSize:11, letterSpacing:1, fontWeight:600 }}>
+                <span style={{ color:"#555", fontSize:13, fontWight:700, minWidth:24 }}>{i+1}.</span>
+                <span style={{ background:typeBg[q.question_type]||"#1a1a1a", color:typeColor[q.question_type]||"#aaa", padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:600 }}>
                   {typeLabel[q.question_type]||q.question_type}
                 </span>
                 <span style={{ fontSize:11, color:"#555" }}>{q.difficulty}</span>
                 <div style={{ flex:1 }} />
-                <button onClick={async () => {
-              const removed = questions[i];
-              // Send to bank
-              const supabase = createSupabaseBrowserClient();
-              await supabase.from("question_bank").insert({
-                question_text: removed.question_text, question_type: removed.question_type,
-                option_a: removed.option_a, option_b: removed.option_b,
-                option_c: removed.option_c, option_d: removed.option_d,
-                correct_answer: removed.correct_answer, difficulty: removed.difficulty,
-                round_type: removed.round_type,
-              });
-              // Remove from list first
-              setQuestions(prev => prev.filter((_,idx) => idx!==i));
-              setUsedQuestions(prev => [...prev, removed.question_text]);
-              setStatus("Finding replacement...");
-              const topicList = [...TOPICS].sort(() => Math.random() - 0.5);
-              let replaced = false;
-              for (let attempt = 0; attempt < 8 && !replaced; attempt++) {
-                const newQ = await generateOne(removed.question_type, topicList[attempt % topicList.length]);
-                if (!newQ) continue;
-                const check = await checkQuestion(newQ);
-                if (check.ok) {
-                  setQuestions(prev => [...prev, newQ]);
-                  setStatus("Replaced!");
-                  setTimeout(() => setStatus(""), 2000);
-                  replaced = true;
-                }
-              }
-              if (!replaced) setStatus("Could not replace - try generating again.");
-            }} style= padding:"3px 10px", borderRadius:6, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:11 }}>Remove</button>
+                <button onClick={() => removeAndReplace(i)} style={{ padding:"3px 10px", borderRadius:6, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:11 }}>Remove</button>
               </div>
               <p style={{ fontSize:15, fontWeight:600, marginBottom:10, lineHeight:1.5 }}>{q.question_text}</p>
               {q.question_type==="multiple_choice" && (
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
                   {(["a","b","c","d"] as const).map(l => (
                     <div key={l} style={{ fontSize:13, padding:"5px 10px", borderRadius:6, background:l===q.correct_answer?"rgba(34,197,94,0.15)":"#0f0f1a", color:l===q.correct_answer?"#22c55e":"#aaa", border:"1px solid "+(l===q.correct_answer?"rgba(34,197,94,0.3)":"transparent") }}>
                       <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{q[("option_"+l) as keyof Question] as string}
@@ -265,7 +258,7 @@ export default function QuestionsPage() {
                 </div>
               )}
               {q.question_type==="sequence" && (
-                <div style={{ marginBottom:6 }}>
+                <div style={{ marginBottom:8 }}>
                   {[q.option_a,q.option_b,q.option_c,q.option_d].filter(Boolean).map((item,idx) => (
                     <div key={idx} style={{ fontSize:13, padding:"5px 10px", marginBottom:3, borderRadius:6, background:"#0f0f1a", color:"#ccc", display:"flex", alignItems:"center", gap:8 }}>
                       <span style={{ color:"#BE26C1", fontWeight:700, minWidth:20 }}>{idx+1}.</span>{item}
@@ -274,9 +267,14 @@ export default function QuestionsPage() {
                 </div>
               )}
               {(q.question_type==="text_answer"||q.question_type==="number") && (
-                <div style={{ marginBottom:6 }}>
+                <div style={{ marginBottom:8 }}>
                   {q.option_a && <p style={{ fontSize:12, color:"#555", margin:"0 0 4px", fontStyle:"italic" }}>{q.option_a}</p>}
                   <p style={{ fontSize:14, color:"#22c55e", fontWeight:600, margin:0 }}>Answer: {q.correct_answer}</p>
+                </div>
+              )}
+              {q.explanation && (
+                <div style={{ marginTop:8, padding:"8px 12px", borderRadius:8, background:"rgba(190,38,193,0.08)", borderLeft:"3px solid rgba(190,38,193,0.4)" }}>
+                  <p style={{ fontSize:12, color:"rgba(190,38,193,0.8)", margin:0, lineHeight:1.5 }}>{q.explanation}</p>
                 </div>
               )}
             </div>

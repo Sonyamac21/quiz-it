@@ -68,9 +68,9 @@ export default function QuestionsPage() {
     const seqCount = n - mcCount - taCount - numCount;
     const themeNote = theme
       ? "Topic: " + theme + ". All questions must be on this theme."
-      : "Cover a WIDE variety of completely different topics across this round — mix subjects like history, science, sport, food, geography, music, film, nature, language, and pop culture. No more than 2 questions on the same subject area. Seed:" + Math.floor(Math.random()*999999) + ".";
+      : (() => { const t = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","pop culture","art","literature","technology","religion","mathematics"].sort(() => Math.random() - 0.5).slice(0, n); return "Assign each question a DIFFERENT topic in this exact order: " + t.map((x,i) => "Q"+(i+1)+":"+x).join(", ") + ". Every question must be on its assigned topic. Do not repeat topics."; })()
     return (
-      "You are a professional pub quiz writer. Generate exactly " + n + " pub quiz qutions for a " +
+      "You are a professional pub quiz writer based in Dubai, UAE. All questions must be suitable for a mixed international audience in the UAE - avoid alcohol, pork, politically sensitive topics, and anything inappropriate for the region. Generate exactly " + n + " pub quiz questions for a " + n + " pub quiz qutions for a " +
       roundType + " round. " + themeNote + " Difficulty: " + difficulty + ". " +
       "Use EXACTLY this breakdown: " +
       mcCount + " multiple_choice (4 options, correct_answer is a/b/c/d), " +

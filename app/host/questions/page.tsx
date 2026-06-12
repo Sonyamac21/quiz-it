@@ -67,10 +67,10 @@ export default function QuestionsPage() {
     const numCount = Math.round(n * 0.20);
     const seqCount = n - mcCount - taCount - numCount;
     const themeNote = theme
-      ? "Topic: " + theme + "."
-      : "Topics: " + topicHint + ". Be creative and avoid obvious or overused questions.";
+      ? "Topic: " + theme + ". All questions must be on this theme."
+      : "Cover a WIDE variety of completely different topics across this round — mix subjects like history, science, sport, food, geography, music, film, nature, language, and pop culture. No more than 2 questions on the same subject area. Seed:" + Math.floor(Math.random()*999999) + ".";
     return (
-      "You are a professional pub quiz writer. Generate exactly " + n + " pub quiz questions for a " +
+      "You are a professional pub quiz writer. Generate exactly " + n + " pub quiz qutions for a " +
       roundType + " round. " + themeNote + " Difficulty: " + difficulty + ". " +
       "Use EXACTLY this breakdown: " +
       mcCount + " multiple_choice (4 options, correct_answer is a/b/c/d), " +

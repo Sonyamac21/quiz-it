@@ -135,14 +135,16 @@ export default function QuestionsPage() {
 
   async function removeAndReplace(i: number) {
     const removed = questions[i];
-    const supabase = createSupabaseBrowserClient();
-    await supabase.from("question_bank").insert({
-      question_text: removed.question_text, question_type: removed.question_type,
-      option_a: removed.option_a, option_b: removed.option_b,
-      option_c: removed.option_c, option_d: removed.option_d,
-      correct_answer: removed.correct_answer, difficulty: removed.difficulty,
-      round_type: removed.round_type,
-    });
+    try {
+      const supabase = createSupabaseBrowserClient();
+      await supabase.from("question_bank").insert({
+        question_text: removed.question_text, question_type: removed.question_type,
+        option_a: removed.option_a, option_b: removed.option_b,
+        option_c: removed.option_c, option_d: removed.option_d,
+        correct_answer: removed.correct_answer, difficulty: removed.difficulty,
+        round_type: removed.round_type,
+      });
+    } catch(e) { console.log("Bank insert failed:", e); }
     usedRef.current = [...usedRef.current, removed.question_text];
     setQuestions(prev => prev.filter((_,idx) => idx !== i));
     setStatus("Finding replacement...");

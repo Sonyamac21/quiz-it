@@ -178,7 +178,7 @@ export default function QuestionsPage() {
   const typeColor: Record<string, string> = { multiple_choice: "#a78bfa", text_answer: "#34d399", number: "#fbbf24", sequence: "#f472b6" };
   const typeLabel: Record<string, string> = { multiple_choice: "Multiple Choice", text_answer: "Text Answer", number: "Number", sequence: "Sequence" };
 
-  const visibleQs = questions.filter((q) => !q._rejected);
+  const visibleQs = questions.filter((q) => !q._rejected && q.question_text);
   const approvedCount = questions.filter((q) => q._approved && !q._rejected).length;
   const verifiedCount = questions.filter((q) => q._verified && !q._rejected).length;
 
@@ -292,7 +292,7 @@ export default function QuestionsPage() {
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <button onClick={() => setQuestions((prev) => prev.map((x, idx) => idx === realIdx ? { ...x, _approved: true } : x))} style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid #22c55e", background: "transparent", color: "#22c55e", cursor: "pointer", fontSize: 12 }}>Approve</button>
                 <button onClick={() => regenerateOne(realIdx)} disabled={q._checking} style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid rgba(190,38,193,0.5)", background: "transparent", color: "#BE26C1", cursor: q._checking ? "not-allowed" : "pointer", fontSize: 12 }}>Regenerate</button>
-                <button onClick={() => setQuestions((prev) => prev.map((x, idx) => idx === realIdx ? { ...x, _rejected: true } : x))} style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid #333", background: "transparent", color: "#555", cursor: "pointer", fontSize: 12 }}>Reject</button>
+                <button onClick={() => setQuestions((prev) => prev.map((x, idx) => idx === realIdx ? { ...x, _rejected: true, _approved: false } : x))} style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid #333", background: "transparent", color: "#555", cursor: "pointer", fontSize: 12 }}>Reject</button>
               </div>
             )}
             {q._approved && <div style={{ fontSize: 12, color: "#22c55e", marginTop: 8 }}>Approved</div>}

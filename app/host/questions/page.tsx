@@ -236,6 +236,7 @@ export default function QuestionsPage() {
               });
               // Remove from list first
               setQuestions(prev => prev.filter((_,idx) => idx!==i));
+              setUsedQuestions(prev => [...prev, removed.question_text]);
               setStatus("Finding replacement...");
               const topicList = [...TOPICS].sort(() => Math.random() - 0.5);
               let replaced = false;

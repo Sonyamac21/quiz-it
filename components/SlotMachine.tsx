@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 const SEGS = [
   { label: "1st Place",  color: "#F5C842", bg: "#2a1e00", positive: true  },
@@ -39,8 +40,10 @@ function OverlayPanel({ seg, teamName, onDismiss }: { seg: Seg; teamName: string
 }
 
 export default function SlotMachine() {
-  const [teamName, setTeamName] = useState("");
+  const [teamName, setTeamName] = useState("Loading...");
   const [victorySong, setVictorySong] = useState("");
+  const [teamLoading, setTeamLoading] = useState(true);
+  const [teamError, setTeamError] = useState(false);
   const r0 = useRef<HTMLDivElement>(null);
   const r1 = useRef<HTMLDivElement>(null);
   const r2 = useRef<HTMLDivElement>(null);
@@ -66,6 +69,31 @@ export default function SlotMachine() {
     });
   }, []);
 
+  const fetchLatestTeam = useCallback(async () => {
+    setTeamLoading(true);
+    setTeamError(false);
+    try {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      const { data, error } = await supabase
+        .from("teams")
+        .select("name, victory_song")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (error || !data) { setTeamName("Team"); setTeamError(true); }
+      else {
+        setTeamName(data.name || "Team");
+        setVictorySong(data.victory_song || "");
+      }
+    } catch { setTeamName("Team"); setTeamError(true); }
+    finally { setTeamLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchLatestTeam(); }, [fetchLatestTeam]);
+
   const stopBulbs = useCallback(() => {
     if (bulbRef.current) clearInterval(bulbRef.current);
     bulbRef.current = null;
@@ -85,22 +113,31 @@ export default function SlotMachine() {
   const startSpinSound = () => {
     try {
       const ac = new (window.AudioContext || (window as any).webkitAudioContext)();
-      spinSoundRef.current = setInterval(() => {
-        const o = ac.createOscillator();
+      let interval = 40;
+      const playTick = () => {
+        const buf = ac.createBuffer(1, ac.sampleRate * 0.015, ac.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ac.sampleRate * 0.003));
+        }
+        const src = ac.createBufferSource();
         const g = ac.createGain();
-        o.connect(g); g.connect(ac.destination);
-        o.type = "square";
-        o.frequency.value = 600 + Math.random() * 600;
-        g.gain.setValueAtTime(0.05, ac.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.05);
-        o.start(ac.currentTime);
-        o.stop(ac.currentTime + 0.05);
-      }, 55);
+        src.buffer = buf;
+        src.connect(g); g.connect(ac.destination);
+        g.gain.value = 0.35;
+        src.start();
+      };
+      const schedule = () => {
+        playTick();
+        interval = Math.min(interval + 1.5, 120);
+        spinSoundRef.current = setTimeout(schedule, interval) as unknown as ReturnType<typeof setInterval>;
+      };
+      schedule();
     } catch {}
   };
 
   const stopSpinSound = () => {
-    if (spinSoundRef.current) { clearInterval(spinSoundRef.current); spinSoundRef.current = null; }
+    if (spinSoundRef.current) { clearTimeout(spinSoundRef.current as unknown as ReturnType<typeof setTimeout>); spinSoundRef.current = null; }
   };
 
   const animReel = (reelIdx: number, fromTop: number, toTop: number, dur: number, delay: number, easePow: number, cb?: () => void) => {
@@ -333,15 +370,17 @@ export default function SlotMachine() {
       </div>
       <div style={{ height: 2, background: "linear-gradient(90deg, transparent, #BE26C1, transparent)", animation: "glowPulse 2s ease-in-out infinite", flexShrink: 0 }} />
 
-      <div style={{ display: "flex", gap: 12, padding: "10px 24px 8px", background: "#0d0520", flexShrink: 0, borderBottom: "1px solid rgba(190,38,193,0.2)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 24px 8px", background: "#0d0520", flexShrink: 0, borderBottom: "1px solid rgba(190,38,193,0.2)" }}>
         <div style={{ flex: 1 }}>
-          <label style={{ fontSize: 10, letterSpacing: 3, color: "rgba(190,38,193,0.6)", display: "block", marginBottom: 6 }}>Team Name</label>
-          <input value={teamName} onChange={e => setTeamName(e.target.value)} placeholder="Enter team name..." style={{ padding: "10px 16px", borderRadius: 10, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(190,38,193,0.4)", fontSize: 15, width: "100%", outline: "none" }} />
+          <div style={{ fontSize: 10, letterSpacing: 3, color: "rgba(190,38,193,0.6)", marginBottom: 4 }}>CURRENT TEAM</div>
+          <div style={{ fontSize: "clamp(14px,1.8vw,22px)", color: teamError ? "#f87171" : "#fff", fontWeight: 700, letterSpacing: 2, minHeight: 28 }}>
+            {teamLoading ? "Loading..." : teamError ? "No team found" : teamName}
+          </div>
+          {victorySong ? <div style={{ fontSize: 10, color: "rgba(190,38,193,0.5)", marginTop: 2, letterSpacing: 1 }}>{victorySong.replace(/\.mp3$/i,"").replace(/SQS\s*$/i,"").trim()}</div> : null}
         </div>
-        <div style={{ flex: 1 }}>
-          <label style={{ fontSize: 10, letterSpacing: 3, color: "rgba(190,38,193,0.6)", display: "block", marginBottom: 6 }}>Victory Song</label>
-          <input value={victorySong} onChange={e => setVictorySong(e.target.value)} placeholder="Song filename e.g. song.mp3" style={{ padding: "10px 16px", borderRadius: 10, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(190,38,193,0.4)", fontSize: 15, width: "100%", outline: "none" }} />
-        </div>
+        <button onClick={fetchLatestTeam} disabled={teamLoading} style={{ padding: "10px 20px", borderRadius: 10, background: "#1a0530", border: "1px solid rgba(190,38,193,0.5)", color: "#BE26C1", fontSize: 12, letterSpacing: 2, cursor: teamLoading ? "not-allowed" : "pointer", opacity: teamLoading ? 0.5 : 1, flexShrink: 0 }}>
+          {teamLoading ? "..." : "REFRESH"}
+        </button>
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#0d0818", borderLeft: "2px solid #7a107e", borderRight: "2px solid #7a107e", overflow: "hidden" }}>

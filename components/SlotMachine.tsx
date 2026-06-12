@@ -209,6 +209,19 @@ export default function SlotMachine() {
     } catch {}
   };
 
+  const pickDifferent = (exclude: number) => {
+    let idx: number;
+    do { idx = Math.floor(Math.random() * SEGS.length); } while (idx === exclude);
+    return idx;
+  };
+
+  const landReelOn = (segIdx: number) => {
+    const fullCycles = 8 + Math.floor(Math.random() * 4);
+    const baseIdx = fullCycles * SEGS.length + segIdx;
+    const landStripIdx = Math.min(baseIdx, STRIP_LEN - 3);
+    return -(landStripIdx - 1) * SEG_H;
+  };
+
   const doSpin = () => {
     if (spinning) return;
     setSpinning(true);
@@ -216,6 +229,10 @@ export default function SlotMachine() {
     startSpinSound();
 
     const winSegIdx = Math.floor(Math.random() * SEGS.length);
+    const rebelReel = Math.floor(Math.random() * 3);
+    const rebelIdx = pickDifferent(winSegIdx);
+    const results = [winSegIdx, winSegIdx, winSegIdx];
+    results[rebelReel] = rebelIdx;
 
     const durations = [2800, 4000, 6800];
     const delays = [0, 600, 1400];
@@ -223,28 +240,31 @@ export default function SlotMachine() {
 
     [0, 1, 2].forEach((i) => {
       const startTop = reelTops.current[i];
-      const fullCycles = 8 + Math.floor(Math.random() * 6);
-      const baseIdx = fullCycles * SEGS.length + winSegIdx;
-      const landStripIdx = Math.min(baseIdx, STRIP_LEN - 3);
-      const targetTop = -(landStripIdx - 1) * SEG_H;
+      const targetTop = landReelOn(results[i]);
 
       animReel(i, startTop, targetTop, durations[i], delays[i], easePowers[i],
         i === 2 ? () => {
-          setSpinning(false);
-          stopBulbs();
           stopSpinSound();
-          const actualResult = SEGS[winSegIdx];
-          if (actualResult.positive) startBulbs(true);
           setTimeout(() => {
-            setOverlay(actualResult);
-            if (actualResult.positive) {
-                setTimeout(() => { launchFW(actualResult.color); }, 150);
-              playPositiveSounds(victorySong);
-            } else {
-              playNegativeSounds();
-            }
-            resetReels();
-          }, 0);
+            const rebelStart = reelTops.current[rebelReel];
+            const rebelTarget = landReelOn(winSegIdx);
+            animReel(rebelReel, rebelStart, rebelTarget, 2000, 0, 2, () => {
+              setSpinning(false);
+              stopBulbs();
+              const actualResult = SEGS[winSegIdx];
+              if (actualResult.positive) startBulbs(true);
+              setTimeout(() => {
+                setOverlay(actualResult);
+                if (actualResult.positive) {
+                  setTimeout(() => { launchFW(actualResult.color); }, 150);
+                  playPositiveSounds(victorySong);
+                } else {
+                  playNegativeSounds();
+                }
+                resetReels();
+              }, 0);
+            });
+          }, 1200);
         } : undefined
       );
     });

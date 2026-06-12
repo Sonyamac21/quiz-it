@@ -157,7 +157,8 @@ export default function QuestionsPage() {
     const topicList = [...TOPICS].sort(() => Math.random() - 0.5);
     let replaced = false;
     for (let attempt = 0; attempt < 10 && !replaced; attempt++) {
-      const newQ = await generateOne(removed.question_type, topicList[attempt % topicList.length]);
+      const replaceTopic = theme || topicList[attempt % topicList.length];
+      const newQ = await generateOne(removed.question_type, replaceTopic);
       if (!newQ) continue;
       const check = await checkQuestion(newQ);
       if (check.ok) {

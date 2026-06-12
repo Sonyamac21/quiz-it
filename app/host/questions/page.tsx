@@ -109,34 +109,21 @@ export default function QuestionsPage() {
     let attempts = 0;
     const maxAttempts = count * 4;
 
-    for (let i = 0; i < types.length && attempts < maxAttempts; i++) {
-      const type = types[i];
-      const topic = theme || shuffledTopics[i % shuffledTopics.length];
+    let i = 0;
+    while (good.length < count && attempts < maxAttempts) {
+      const type = types[i % types.length];
+      const topic = theme || shuffledTopics[(i + good.length) % shuffledTopics.length];
       setStatus("Generating question " + (good.length + 1) + " of " + count + "...");
-      let passed = false;
-      let retries = 0;
-      while (!passed && retries < 4) {
-        attempts++;
-        retries++;
-        const q = await generateOne(type, topic);
-        if (!q) continue;
-        setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
-        const check = await checkQuestion(q);
-        if (check.ok) {
-          good.push(q);
-          setQuestions([...good]);
-          passed = true;
-        }
+      attempts++;
+      const q = await generateOne(type, topic);
+      if (!q) { i++; continue; }
+      setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
+      const check = await checkQuestion(q);
+      if (check.ok) {
+        good.push(q);
+        setQuestions([...good]);
       }
-      if (!passed) {
-        // try a different topic as fallback
-        const fallbackTopic = shuffledTopics[(i + 7) % shuffledTopics.length];
-        const q = await generateOne(type, fallbackTopic);
-        if (q) {
-          const check = await checkQuestion(q);
-          if (check.ok) { good.push(q); setQuestions([...good]); }
-        }
-      }
+      i++;
     }
 
     setLoading(false);

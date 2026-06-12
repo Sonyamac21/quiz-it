@@ -14,7 +14,7 @@ type Question = {
   round_type: string;
 };
 
-const TOPICS = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","pop culture","art","literature","technology","religion","mathematics","famous people","transport","space","medicine","animals"];
+const TOPICS = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","pop culture","art","literature","technology","mathematics","famous people","transport","space","medicine","animals","architecture","inventions"];
 
 const typeBg: Record<string,string> = { multiple_choice:"#1e1040", text_answer:"#0f2a1a", number:"#2a1a00", sequence:"#1a002a" };
 const typeColor: Record<string,string> = { multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6" };

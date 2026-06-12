@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -31,6 +31,21 @@ export default function QuestionsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [roundName, setRoundName] = useState("");
+  const [usedQuestions, setUsedQuestions] = useState<string[]>([]);
+
+  useEffect(() => { loadUsedQuestions(); }, []);
+
+  async function loadUsedQuestions() {
+    const supabase = createSupabaseBrowserClient();
+    const [{ data: rounds }, { data: bank }] = await Promise.all([
+      supabase.from("rounds").select("questions"),
+      supabase.from("question_bank").select("question_text"),
+    ]);
+    const used: string[] = [];
+    if (rounds) rounds.forEach((r: {questions: {question_text:string}[]}) => r.questions?.forEach((q) => used.push(q.question_text)));
+    if (bank) bank.forEach((q: {question_text:string}) => used.push(q.question_text));
+    setUsedQuestions(used);
+  }
   const dragIdx = useRef<number|null>(null);
 
   async function callAPI(prompt: string) {
@@ -62,7 +77,9 @@ export default function QuestionsPage() {
       number: "number: numeric answer, all options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
       sequence: "sequence: 4 items in correct order in option_a/b/c/d, correct_answer must be exactly \"a,b,c,d\"",
     };
-    const prompt = "You are a professional pub quiz writer based in Dubai UAE. Generate exactly 1 pub quiz question. Topic: " + topic + ". Type: " + typeInstructions[type] + ". Difficulty: " + difficulty + ". All content must be suitable for a mixed international audience in UAE - avoid alcohol, pork, sexual references, and politically sensitive topics. Return ONLY a valid JSON array with 1 item, no markdown: [{\"question_text\":\"...\",\"question_type\":\"" + type + "\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"correct_answer\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + roundType + "\"}]";
+    const exclusions = usedQuestions.slice(0, 40).map((q,i) => (i+1)+". "+q).join("; ");
+    const exclusionNote = exclusions ? " IMPORTANT - Do NOT generate any of these already-used questions: " + exclusions + "." : "";
+    const prompt = "You are a professional pub quiz writer based in Dubai UAE. Generate exactly 1 pub quiz question. Topic: " + topic + ". Type: " + typeInstructions[type] + ". Difficulty: " + difficulty + ". All content must be suitable for a mixed international audience in UAE - avoid alcohol, pork, sexual references, and politically sensitive topics." + exclusionNote + " Return ONLY a valid JSON array with 1 item, no markdown: [{\"question_text\":\"...\",\"question_type\":\"" + type + "\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"correct_answer\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + roundType + "\"}]";
     try {
       const text = await callAPI(prompt);
       return JSON.parse(text)[0];

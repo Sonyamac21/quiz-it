@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Question = {
   question_text: string;
@@ -218,7 +219,36 @@ export default function QuestionsPage() {
                 </span>
                 <span style={{ fontSize:11, color:"#555" }}>{q.difficulty}</span>
                 <div style={{ flex:1 }} />
-                <button onClick={() => setQuestions(prev => prev.filter((_,idx) => idx!==i))} style={{ padding:"3px 10px", borderRadius:6, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:11 }}>Remove</button>
+                <button onClick={async () => {
+              const removed = questions[i];
+              // Send to bank
+              const supabase = createSupabaseBrowserClient();
+              await supabase.from("question_bank").insert({
+                question_text: removed.question_text, question_type: removed.question_type,
+                option_a: removed.option_a, option_b: removed.option_b,
+                option_c: removed.option_c, option_d: removed.option_d,
+                correct_answer: removed.correct_answer, difficulty: removed.difficulty,
+                round_type: removed.round_type,
+              });
+              // Remove from list first
+              setQuestions(prev => prev.filter((_,idx) => idx!==i));
+              setStatus("Replacing question...");
+              // Generate replacement of same type
+              const topics = TOPICS.sort(() => Math.random() - 0.5);
+              let replaced = false;
+              for (let attempt = 0; attempt < 5 && !replaced; attempt++) {
+                const newQ = await generateOne(removed.question_type, topics[attempt % topics.length]);
+                if (!newQ) continue;
+                const check = await checkQuestion(newQ);
+                if (check.ok) {
+                  setQuestions(prev => [...prev, newQ]);
+                  setStatus("Question replaced!");
+                  setTimeout(() => setStatus(""), 2000);
+                  replaced = true;
+                }
+              }
+              if (!replaced) setStatus("Could not find replacement — round has one fewer question.");
+            }} style= padding:"3px 10px", borderRadius:6, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:11 }}>Remove</button>
               </div>
               <p style={{ fontSize:15, fontWeight:600, marginBottom:10, lineHeight:1.5 }}>{q.question_text}</p>
               {q.question_type==="multiple_choice" && (

@@ -16,9 +16,9 @@ type Question = {
 };
 
 const TOPICS = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","UK and US pop culture","art","literature","technology","mathematics","famous people","transport","space","medicine","animals","architecture","inventions","TV shows","famous films","celebrity and entertainment","video games","fashion and style","world records","science fiction","comedy and humour","books and authors","classic cartoons"];
-const typeBg: Record<string,string> = { multiple_choice:"#1e1040", text_answer:"#0f2a1a", number:"#2a1a00", sequence:"#1a002a" };
-const typeColor: Record<string,string> = { multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6" };
-const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence" };
+const typeBg: Record<string,string> = { multiple_choice:"#1e1040", text_answer:"#0f2a1a", number:"#2a1a00", sequence:"#1a002a", picture:"#0a1a2a", audio:"#1a0a00" };
+const typeColor: Record<string,string> = { multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6", picture:"#38bdf8", audio:"#fb923c" };
+const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune" };
 
 export default function QuestionsPage() {
   const [roundType, setRoundType] = useState("regular");
@@ -75,6 +75,8 @@ export default function QuestionsPage() {
       text_answer: "text_answer: short word or phrase answer, all options must be null",
       number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
       sequence: "sequence: 4 items in correct order in option_a/b/c/d, correct_answer must be exactly \"a,b,c,d\"",
+      picture: "picture: question_text must say \"Show teams this image:\" then describe what to search for (famous person, landmark, logo). option_a must be a short Google Images search query (3-5 words). option_b/c/d must be null. correct_answer is what teams write down.",
+      audio: "audio: question_text must say \"Play this track:\" then the song name and artist. option_a must be a YouTube search query to find it (e.g. \"Bohemian Rhapsody Queen official\"). option_b/c/d must be null. correct_answer is what teams must write down.",
     };
     console.log("usedRef has", usedRef.current.length, "entries");
     const exclusions = usedRef.current.slice(0, 40).map((q,i) => (i+1)+". "+q).join("; ");
@@ -92,15 +94,19 @@ export default function QuestionsPage() {
     setLoading(true);
     setQuestions([]);
     setRoundName("");
-    const mcCount = Math.round(count * 0.35);
-    const taCount = Math.round(count * 0.25);
-    const numCount = Math.round(count * 0.20);
-    const seqCount = count - mcCount - taCount - numCount;
+    const mcCount = Math.round(count * 0.30);
+    const taCount = Math.round(count * 0.20);
+    const numCount = Math.round(count * 0.15);
+    const seqCount = Math.round(count * 0.15);
+    const picCount = Math.round(count * 0.10);
+    const audCount = count - mcCount - taCount - numCount - seqCount - picCount;
     const types: string[] = [
       ...Array(mcCount).fill("multiple_choice"),
       ...Array(taCount).fill("text_answer"),
       ...Array(numCount).fill("number"),
       ...Array(seqCount).fill("sequence"),
+      ...Array(Math.max(0,picCount)).fill("picture"),
+      ...Array(Math.max(0,audCount)).fill("audio"),
     ].sort(() => Math.random() - 0.5);
     const shuffledTopics = [...TOPICS].sort(() => Math.random() - 0.5);
     const good: Question[] = [];
@@ -304,6 +310,24 @@ export default function QuestionsPage() {
                 <div style={{ marginBottom:8 }}>
                   {q.option_a && <p style={{ fontSize:12, color:"#555", margin:"0 0 4px", fontStyle:"italic" }}>{q.option_a}</p>}
                   <p style={{ fontSize:14, color:"#22c55e", fontWeight:600, margin:0 }}>Answer: {q.correct_answer}</p>
+                </div>
+              )}
+              {q.question_type==="picture" && (
+                <div style={{ marginBottom:8 }}>
+                  <a href={"https://www.google.com/search?tbm=isch&q="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
+                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(56,189,248,0.15)", border:"1px solid rgba(56,189,248,0.4)", color:"#38bdf8", textDecoration:"none", fontSize:13, fontWeight:600, marginBottom:8 }}>
+                    Search Image
+                  </a>
+                  <p style={{ fontSize:14, color:"#22c55e", fontWeight:600, margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>
+                </div>
+              )}
+              {q.question_type==="audio" && (
+                <div style={{ marginBottom:8 }}>
+                  <a href={"https://www.youtube.com/results?search_query="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
+                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(251,146,60,0.15)", border:"1px solid rgba(251,146,60,0.4)", color:"#fb923c", textDecoration:"none", fontSize:13, fontWeight:600, marginBottom:8 }}>
+                    Play on YouTube
+                  </a>
+                  <p style={{ fontSize:14, color:"#22c55e", fontWeight:600, margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>
                 </div>
               )}
               {q.explanation && (

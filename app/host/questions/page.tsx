@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Question = {
@@ -12,30 +12,13 @@ type Question = {
   correct_answer: string;
   difficulty: string;
   round_type: string;
-  _approved?: boolean;
-  _rejected?: boolean;
-  _verified?: boolean;
-  _verify_note?: string;
-  _checking?: boolean;
 };
 
-const TOPIC_BANKS = [
-  "world history, ancient civilisations, wars and revolutions",
-  "science, human body, space and astronomy",
-  "geography, capital cities, flags and countries",
-  "sport, olympics, world records, famous athletes",
-  "food and drink, cooking, famous chefs, cuisines",
-  "literature, classic books, famous authors, poetry",
-  "art, music history, classical composers, famous paintings",
-  "nature, animals, biology, ecosystems",
-  "mathematics, inventions, famous scientists",
-  "religion, mythology, philosophy, ancient cultures",
-  "language, words, etymology, famous speeches",
-  "architecture, engineering, famous landmarks, wonders",
-  "film, television, theatre, famous directors",
-  "technology, computing, internet, famous innovations",
-  "fashion, design, pop culture, iconic moments",
-];
+const TOPICS = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","pop culture","art","literature","technology","religion","mathematics","famous people","transport","space","medicine","animals"];
+
+const typeBg: Record<string,string> = { multiple_choice:"#1e1040", text_answer:"#0f2a1a", number:"#2a1a00", sequence:"#1a002a" };
+const typeColor: Record<string,string> = { multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6" };
+const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence" };
 
 export default function QuestionsPage() {
   const [roundType, setRoundType] = useState("regular");
@@ -46,6 +29,8 @@ export default function QuestionsPage() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [roundName, setRoundName] = useState("");
+  const dragIdx = useRef<number|null>(null);
 
   async function callAPI(prompt: string) {
     const res = await fetch("/api/generate-questions", {
@@ -54,259 +39,223 @@ export default function QuestionsPage() {
       body: JSON.stringify({ prompt }),
     });
     const data = await res.json();
-    const text = data.content
-      .filter((b: { type: string }) => b.type === "text")
-      .map((b: { text: string }) => b.text)
-      .join("");
-    return text.replace(/```json/g, "").replace(/```/g, "").trim();
+    const text = data.content.filter((b:{type:string}) => b.type==="text").map((b:{text:string}) => b.text).join("");
+    return text.replace(/```json/g,"").replace(/```/g,"").trim();
   }
 
-  function buildPrompt(n: number, topicHint: string) {
-    const mcCount = Math.round(n * 0.35);
-    const taCount = Math.round(n * 0.25);
-    const numCount = Math.round(n * 0.20);
-    const seqCount = n - mcCount - taCount - numCount;
-    const themeNote = theme
-      ? "Topic: " + theme + ". All questions must be on this theme."
-      : (() => { const t = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","pop culture","art","literature","technology","religion","mathematics"].sort(() => Math.random() - 0.5).slice(0, n); return "Assign each question a DIFFERENT topic in this exact order: " + t.map((x,i) => "Q"+(i+1)+":"+x).join(", ") + ". Every question must be on its assigned topic. Do not repeat topics."; })()
-    return (
-      "You are a professional pub quiz writer based in Dubai, UAE. All questions must be suitable for a mixed international audience in the UAE - avoid alcohol, pork, politically sensitive topics, and anything inappropriate for the region. Generate exactly " + n + " pub quiz questions for a " + n + " pub quiz qutions for a " +
-      roundType + " round. " + themeNote + " Difficulty: " + difficulty + ". " +
-      "Use EXACTLY this breakdown: " +
-      mcCount + " multiple_choice (4 options, correct_answer is a/b/c/d), " +
-      taCount + " text_answer (short answer, all options null), " +
-      numCount + " number (numeric answer, options null, put a hint in option_a e.g. \"To the nearest 10\"), " +
-      seqCount + " sequence (4 items in correct order in option_a/b/c/d, correct_answer must be exactly \"a,b,c,d\"). " +
-      "Spread types throughout — do NOT group them together. " +
-      "Return ONLY a valid JSON array, no markdown: " +
-      "[{\"question_text\":\"...\",\"question_type\":\"...\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"correct_answer\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + roundType + "\"}]"
-    );
-  }
-
-  async function factCheckOne(q: Question): Promise<Question> {
-    const detail =
-      q.question_type === "multiple_choice"
-        ? "A)" + q.option_a + " B)" + q.option_b + " C)" + q.option_c + " D)" + q.option_d + " Correct:" + q.correct_answer
-        : q.question_type === "sequence"
-        ? "Correct ord: 1)" + q.option_a + " 2)" + q.option_b + " 3)" + q.option_c + " 4)" + q.option_d
-        : "Answer: " + q.correct_answer;
-    const factPrompt =
-      "Fact-check this quiz question. Reply ONLY with JSON {\"ok\":true,\"note\":\"Verified\"} or {\"ok\":false,\"note\":\"reason\"} - Question: " +
-      q.question_text + " " + detail;
+  async function checkQuestion(q: Question): Promise<{ok: boolean; note: string}> {
+    const allText = [q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer].filter(Boolean).join(" ");
+    const prompt = "You are a content moderator and fact-checker for a quiz night in Dubai, UAE. Check this quiz question on TWO criteria:\n1. UAE APPROPRIATENESS: reject if it contains sexual references, crude body parts, alcohol, pork, drugs, or anything offensive or inappropriate for a mixed international audience in the UAE.\n2. FACTUAL ACCURACY: verify the answer is correct.\nReply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} if it passes both checks, or {\"ok\":false,\"note\":\"reason\"} if it fails either. Content: " + allText;
     try {
-      const vtext = await callAPI(factPrompt);
-      const result = JSON.parse(vtext);
-      return { ...q, _verified: result.ok, _verify_note: result.note, _checking: false };
+      const text = await callAPI(prompt);
+      return JSON.parse(text);
     } catch {
-      return { ...q, _verified: false, _verify_note: "Could not verify", _checking: false };
+      return { ok: false, note: "Could not verify" };
+    }
+  }
+
+  async function generateOne(type: string, topic: string): Promise<Question|null> {
+    const typeInstructions: Record<string,string> = {
+      multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
+      text_answer: "text_answer: short word or phrase answer, all options must be null",
+      number: "number: numeric answer, all options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
+      sequence: "sequence: 4 items in correct order in option_a/b/c/d, correct_answer must be exactly \"a,b,c,d\"",
+    };
+    const prompt = "You are a professional pub quiz writer based in Dubai UAE. Generate exactly 1 pub quiz question. Topic: " + topic + ". Type: " + typeInstructions[type] + ". Difficulty: " + difficulty + ". All content must be suitable for a mixed international audience in UAE - avoid alcohol, pork, sexual references, and politically sensitive topics. Return ONLY a valid JSON array with 1 item, no markdown: [{\"question_text\":\"...\",\"question_type\":\"" + type + "\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"correct_answer\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + roundType + "\"}]";
+    try {
+      const text = await callAPI(prompt);
+      return JSON.parse(text)[0];
+    } catch {
+      return null;
     }
   }
 
   async function generate() {
     setLoading(true);
-    setStatus("Generating " + count + " questions...");
     setQuestions([]);
-    const topics = TOPIC_BANKS[Math.floor(Math.random() * TOPIC_BANKS.length)];
-    const prompt = buildPrompt(count, topics);
-    try {
-      const text = await callAPI(prompt);
-      const qs: Question[] = JSON.parse(text).map((q: Question) => ({ ...q, _checking: true }));
-      setQuestions(qs);
-      setStatus(qs.length + " questions generated. Fact-checking...");
-      setLoading(false);
-      for (let i = 0; i < qs.length; i++) {
-        const checked = await factCheckOne(qs[i]);
-        setQuestions((prev) => prev.map((x, idx) => (idx === i ? checked : x)));
+    setRoundName("");
+
+    const mcCount = Math.round(count * 0.35);
+    const taCount = Math.round(count * 0.25);
+    const numCount = Math.round(count * 0.20);
+    const seqCount = count - mcCount - taCount - numCount;
+    const types: string[] = [
+      ...Array(mcCount).fill("multiple_choice"),
+      ...Array(taCount).fill("text_answer"),
+      ...Array(numCount).fill("number"),
+      ...Array(seqCount).fill("sequence"),
+    ].sort(() => Math.random() - 0.5);
+
+    const shuffledTopics = [...TOPICS].sort(() => Math.random() - 0.5);
+    const good: Question[] = [];
+    let attempts = 0;
+    const maxAttempts = count * 4;
+
+    for (let i = 0; i < types.length && attempts < maxAttempts; i++) {
+      const type = types[i];
+      const topic = theme || shuffledTopics[i % shuffledTopics.length];
+      setStatus("Generating question " + (good.length + 1) + " of " + count + "...");
+      let passed = false;
+      let retries = 0;
+      while (!passed && retries < 4) {
+        attempts++;
+        retries++;
+        const q = await generateOne(type, topic);
+        if (!q) continue;
+        setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
+        const check = await checkQuestion(q);
+        if (check.ok) {
+          good.push(q);
+          setQuestions([...good]);
+          passed = true;
+        }
       }
-      setStatus("Done! Review questions, then approve and save.");
-    } catch {
-      setStatus("Error generating questions. Please try again.");
-      setLoading(false);
+      if (!passed) {
+        // try a different topic as fallback
+        const fallbackTopic = shuffledTopics[(i + 7) % shuffledTopics.length];
+        const q = await generateOne(type, fallbackTopic);
+        if (q) {
+          const check = await checkQuestion(q);
+          if (check.ok) { good.push(q); setQuestions([...good]); }
+        }
+      }
+    }
+
+    setLoading(false);
+    if (good.length === count) {
+      setStatus("Ready! " + good.length + " questions generated. Drag to reorder, then name and save your round.");
+    } else {
+      setStatus(good.length + " of " + count + " questions ready. You can save this partial round or generate again.");
     }
   }
 
-  async function regenerateOne(index: number) {
-    const topics = TOPIC_BANKS[Math.floor(Math.random() * TOPIC_BANKS.length)];
-    const q = questions[index];
-    const prompt =
-      "Generate exactly 1 pub quiz question. Type: " + q.question_type + ". " +
-      "Topic: " + (theme || topics) + ". Difficulty: " + difficulty + ". " +
-      "Return ONLY a valid JSON array with 1 item, no markdown: " +
-      "[{\"question_text\":\"...\",\"question_type\":\"" + q.question_type + "\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"correct_answer\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + q.round_type + "\"}]";
-    setQuestions((prev) => prev.map((x, idx) => (idx === index ? { ...x, _checking: true, _verified: undefined, _approved: false } : x)));
-    try {
-      const text = await callAPI(prompt);
-      const newQ: Question = { ...JSON.parse(text)[0], _checking: true };
-      setQuestions((prev) => prev.map((x, idx) => (idx === index ? newQ : x)));
-      const checked = await factCheckOne(newQ);
-      setQuestions((prev) => prev.map((x, idx) => (idx === index ? checked : x)));
-    } catch {
-      setQuestions((prev) => prev.map((x, idx) => idx === index ? { ...x, _checking: false, _verified: false, _verify_note: "Regeneration failed" } : x));
-    }
-  }
-
-  function approveAll() {
-    setQuestions((prev) => prev.map((q) => (!q._rejected && q._verified ? { ...q, _approved: true } : q)));
-  }
-
-  async function saveApproved() {
-    const approved = questions.filter((q) => q._approved && !q._rejected);
-    if (!approved.length) { setStatus("Approve some questions first!"); return; }
+  async function saveRound() {
+    if (!roundName.trim()) { setStatus("Please enter a round name first!"); return; }
+    if (questions.length === 0) { setStatus("No questions to save!"); return; }
     setSaving(true);
     const supabase = createSupabaseBrowserClient();
-    const { error } = await supabase.from("questions").insert(
-      approved.map((q) => ({
-        question_text: q.question_text,
-        question_type: q.question_type,
-        option_a: q.option_a,
-        option_b: q.option_b,
-        option_c: q.option_c,
-        option_d: q.option_d,
-        correct_answer: q.correct_answer,
-        difficulty: q.difficulty,
-        round_type: q.round_type,
-        verified: q._verified ?? false,
-      }))
-    );
+    const { error } = await supabase.from("rounds").insert({
+      name: roundName.trim(),
+      round_type: roundType,
+      difficulty: difficulty,
+      questions: questions,
+    });
     setSaving(false);
     if (error) { setStatus("Save failed: " + error.message); return; }
-    setStatus("Saved " + approved.length + " questions to Supabase!");
-    setQuestions((prev) => prev.filter((q) => !q._approved));
+    setStatus("Round saved! You can generate another round or go to the host dashboard.");
+    setQuestions([]);
+    setRoundName("");
   }
 
-  const typeBg: Record<string, string> = { multiple_choice: "#1e1040", text_answer: "#0f2a1a", number: "#2a1a00", sequence: "#1a002a" };
-  const typeColor: Record<string, string> = { multiple_choice: "#a78bfa", text_answer: "#34d399", number: "#fbbf24", sequence: "#f472b6" };
-  const typeLabel: Record<string, string> = { multiple_choice: "Multiple Choice", text_answer: "Text Answer", number: "Number", sequence: "Sequence" };
-
-  const visibleQs = questions.filter((q) => !q._rejected && q.question_text);
-  const approvedCount = questions.filter((q) => q._approved && !q._rejected).length;
-  const verifiedCount = questions.filter((q) => q._verified && !q._rejected).length;
+  const onDragStart = (i: number) => { dragIdx.current = i; };
+  const onDragOver = (e: React.DragEvent, i: number) => {
+    e.preventDefault();
+    if (dragIdx.current === null || dragIdx.current === i) return;
+    const reordered = [...questions];
+    const [moved] = reordered.splice(dragIdx.current, 1);
+    reordered.splice(i, 0, moved);
+    dragIdx.current = i;
+    setQuestions(reordered);
+  };
+  const onDragEnd = () => { dragIdx.current = null; };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#07030f", color: "#fff", padding: "24px", fontFamily: "sans-serif", maxWidth: "960px", margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#1a0530", border: "2px solid #BE26C1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#BE26C1", fontWeight: 700 }}>ME</div>
+    <div style={{ minHeight:"100vh", background:"#07030f", color:"#fff", padding:"24px", fontFamily:"sans-serif", maxWidth:"960px", margin:"0 auto" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+        <div style={{ width:44, height:44, borderRadius:"50%", background:"#1a0530", border:"2px solid #BE26C1", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"#BE26C1", fontWeight:700 }}>ME</div>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#BE26C1", letterSpacing: 4 }}>Question Generator</div>
-          <div style={{ fontSize: 11, color: "rgba(190,38,193,0.6)", letterSpacing: 2 }}>Quiz-It powered by Mac Entertainment</div>
+          <div style={{ fontSize:22, fontWeight:700, color:"#BE26C1", letterSpacing:4 }}>Question Generator</div>
+          <div style={{ fontSize:11, color:"rgba(190,38,193,0.6)", letterSpacing:2 }}>Quiz-It powered by Mac Entertainment</div>
         </div>
       </div>
 
-      <div style={{ background: "#0d0520", border: "1px solid rgba(190,38,193,0.3)", borderRadius: 12, padding: 20, marginBottom: 20 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
+      <div style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.3)", borderRadius:12, padding:20, marginBottom:20 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16, marginBottom:16 }}>
           <div>
-            <label style={{ fontSize: 11, letterSpacing: 3, color: "rgba(190,38,193,0.6)", display: "block", marginBottom: 6 }}>ROUND TYPE</label>
-            <select value={roundType} onChange={(e) => setRoundType(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(190,38,193,0.3)" }}>
+            <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>ROUND TYPE</label>
+            <select value={roundType} onChange={e => setRoundType(e.target.value)} style={{ width:"100%", padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
               <option value="regular">Regular round</option>
               <option value="bonus">Bonus / themed</option>
               <option value="music">Music round</option>
             </select>
           </div>
           <div>
-            <label style={{ fontSize: 11, letterSpacing: 3, color: "rgba(190,38,193,0.6)", display: "block", marginBottom: 6 }}>QUESTIONS</label>
-            <select value={count} onChange={(e) => setCount(parseInt(e.target.value))} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(190,38,193,0.3)" }}>
-              {[5, 10, 15].map((c) => <option key={c} value={c}>{c} questions</option>)}
+            <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>QUESTIONS</label>
+            <select value={count} onChange={e => setCount(parseInt(e.target.value))} style={{ width:"100%", padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
+              {[5,10,15].map(c => <option key={c} value={c}>{c} questions</option>)}
             </select>
           </div>
           <div>
-            <label style={{ fontSize: 11, letterSpacing: 3, color: "rgba(190,38,193,0.6)", display: "block", marginBottom: 6 }}>DIFFICULTY</label>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {["easy", "medium", "hard", "mixed"].map((d) => (
-                <button key={d} onClick={() => setDifficulty(d)} style={{ padding: "6px 12px", borderRadius: 999, border: "1px solid rgba(190,38,193,0.4)", background: difficulty === d ? "#BE26C1" : "transparent", color: "#fff", cursor: "pointer", fontSize: 12 }}>{d}</button>
+            <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>DIFFICULTY</label>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {["easy","medium","hard","mixed"].map(d => (
+                <button key={d} onClick={() => setDifficulty(d)} style={{ padding:"6px 12px", borderRadius:999, border:"1px solid rgba(190,38,193,0.4)", background:difficulty===d?"#BE26C1":"transparent", color:"#fff", cursor:"pointer", fontSize:12 }}>{d}</button>
               ))}
             </div>
           </div>
         </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 11, letterSpacing: 3, color: "rgba(190,38,193,0.6)", display: "block", marginBottom: 6 }}>THEME / TOPIC (optional)</label>
-          <input value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="e.g. 90s movies, Dubai, science... leave blank for random" style={{ width: "100%", padding: "10px 16px", borderRadius: 8, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(190,38,193,0.3)", boxSizing: "border-box" }} />
+        <div style={{ marginBottom:16 }}>
+          <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>THEME / TOPIC (optional — leave blank for random variety)</label>
+          <input value={theme} onChange={e => setTheme(e.target.value)} placeholder="e.g. 90s movies, space, Dubai..." style={{ width:"100%", padding:"10px 16px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box" }} />
         </div>
-        <button onClick={generate} disabled={loading} style={{ width: "100%", padding: 14, borderRadius: 8, background: loading ? "#4a1060" : "#BE26C1", color: "#fff", border: "none", fontSize: 16, letterSpacing: 4, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}>
-          {loading ? "Generating..." : "Generate Questions"}
+        <button onClick={generate} disabled={loading} style={{ width:"100%", padding:14, borderRadius:8, background:loading?"#4a1060":"#BE26C1", color:"#fff", border:"none", fontSize:16, letterSpacing:4, cursor:loading?"not-allowed":"pointer", opacity:loading?7:1 }}>
+          {loading ? "Generating..." : "Generate Round"}
         </button>
       </div>
 
-      {status && <p style={{ textAlign: "center", color: "rgba(190,38,193,0.8)", fontSize: 13, letterSpacing: 2, marginBottom: 16 }}>{status}</p>}
+      {status && <p style={{ textAlign:"center", color:"rgba(190,38,193,0.8)", fontSize:13, letterSpacing:2, marginBottom:16 }}>{status}</p>}
 
-      {visibleQs.length > 0 && (
-        <div style={{ display: "flex", gap: 12, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ fontSize: 13, color: "#666" }}>{verifiedCount} verified · {approvedCount} approved</div>
-          <div style={{ flex: 1 }} />
-          <button onClick={approveAll} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #22c55e", background: "transparent", color: "#22c55e", cursor: "pointer", fontSize: 12, letterSpacing: 2 }}>Approve All Verified</button>
-          <button onClick={saveApproved} disabled={saving || approvedCount === 0} style={{ padding: 8px 20px", borderRadius: 8, border: "none", background: approvedCount > 0 ? "#16a34a" : "#1a1a1a", color: approvedCount > 0 ? "#fff" : "#444", cursor: approvedCount > 0 ? "pointer" : "not-allowed", fontSize: 12, letterSpacing: 2 }}>
-            {saving ? "Saving..." : "Save " + approvedCount + " to Supabase"}
-          </button>
-        </div>
-      )}
-
-      {visibleQs.map((q, i) => {
-        const realIdx = questions.indexOf(q);
-        return (
-          <div key={i} style={{ background: "#0d0520", border: "1px solid " + (q._approved ? "#22c55e" : q._verified === false ? "#ef4444" : q._verified ? "rgba(34,197,94,0.4)" : "rgba(190,38,193,0.2)"), borderRadius: 12, padding: 16, marginBottom: 12, opacity: q._approved ? 0.65 : 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-              <span style={{ background: typeBg[q.question_type] || "#1a1a1a", color: typeColor[q.question_type] || "#aaa", padding: "3px 10px", borderRadius: 999, fontSize: 11, letterSpacing: 1, fontWeight: 600 }}>
-                {typeLabel[q.question_type] || q.question_type}
-              </span>
-              <span style={{ fontSize: 11, color: "#555" }}>{q.difficulty} · {q.round_type}</span>
-              <div style={{ flex: 1 }} />
-              {q._checking && <span style={{ fontSize: 11, color: "#555" }}>checking...</span>}
-              {!q._checking && q._verified !== undefined && (
-                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: q._verified ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)", color: q._verified ? "#22c55e" : "#ef4444" }}>
-                  {q._verified ? "Verified" : q._verify_note}
+      {questions.length > 0 && (
+        <>
+          <div style={{ fontSize:12, color:"#666", textAlign:"center", marginBottom:12, letterSpacing:1 }}>Drag questions to reorder</div>
+          {questions.map((q, i) => (
+            <div key={i} draggable onDragStart={() => onDragStart(i)} onDragOver={e => onDragOver(e, i)} onDragEnd={onDragEnd}
+              style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.25)", borderRadius:12, padding:16, marginBottom:10, cursor:"grab", userSelect:"none" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+                <span style={{ color:"#555", fontSize:13, fontWeight:700, minWidth:24 }}>{i+1}.</span>
+                <span style={{ background:typeBg[q.question_type]||"#1a1a1a", color:typeColor[q.question_type]||"#aaa", padding:"3px 10px", borderRadius:999, fontSize:11, letterSpacing:1, fontWeight:600 }}>
+                  {typeLabel[q.question_type]||q.question_type}
                 </span>
+                <span style={{ fontSize:11, color:"#555" }}>{q.difficulty}</span>
+                <div style={{ flex:1 }} />
+                <button onClick={() => setQuestions(prev => prev.filter((_,idx) => idx!==i))} style={{ padding:"3px 10px", borderRadius:6, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:11 }}>Remove</button>
+              </div>
+              <p style={{ fontSize:15, fontWeight:600, marginBottom:10, lineHeight:1.5 }}>{q.question_text}</p>
+              {q.question_type==="multiple_choice" && (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+                  {(["a","b","c","d"] as const).map(l => (
+                    <div key={l} style={{ fontSize:13, padding:"5px 10px", borderRadius:6, background:l===q.correct_answer?"rgba(34,197,94,0.15)":"#0f0f1a", color:l===q.correct_answer?"#22c55e":"#aaa", border:"1px solid "+(l===q.correct_answer?"rgba(34,197,94,0.3)":"transparent") }}>
+                      <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{q[("option_"+l) as keyof Question] as string}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {q.question_type==="sequence" && (
+                <div style={{ marginBottom:6 }}>
+                  {[q.option_a,q.option_b,q.option_c,q.option_d].filter(Boolean).map((item,idx) => (
+                    <div key={idx} style={{ fontSize:13, padding:"5px 10px", marginBottom:3, borderRadius:6, background:"#0f0f1a", color:"#ccc", display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ color:"#BE26C1", fontWeight:700, minWidth:20 }}>{idx+1}.</span>{item}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(q.question_type==="text_answer"||q.question_type==="number") && (
+                <div style={{ marginBottom:6 }}>
+                  {q.option_a && <p style={{ fontSize:12, color:"#555", margin:"0 0 4px", fontStyle:"italic" }}>{q.option_a}</p>}
+                  <p style={{ fontSize:14, color:"#22c55e", fontWeight:600, margin:0 }}>Answer: {q.correct_answer}</p>
+                </div>
               )}
             </div>
+          ))}
 
-            <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, lineHeight: 1.5 }}>{q.question_text}</p>
-
-            {q.question_type === "multiple_choice" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginottom: 10 }}>
-                {(["a", "b", "c", "d"] as const).map((l) => (
-                  <div key={l} style={{ fontSize: 13, padding: "6px 10px", borderRadius: 6, background: l === q.correct_answer ? "rgba(34,197,94,0.15)" : "#0f0f1a", color: l === q.correct_answer ? "#22c55e" : "#aaa", border: "1px solid " + (l === q.correct_answer ? "rgba(34,197,94,0.3)" : "transparent") }}>
-                    <span style={{ color: "#BE26C1", fontWeight: 700, marginRight: 6 }}>{l.toUpperCase()}.</span>
-                    {q[("option_" + l) as keyof Question] as string}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {q.question_type === "sequence" && (
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: "#555", marginBottom: 6, letterSpacing: 1 }}>Correct order:</div>
-                {[q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean).map((item, idx) => (
-                  <div key={idx} style={{ fontSize: 13, padding: "6px 10px", marginBottom: 4, borderRadius: 6, background: "#0f0f1a", color: "#ccc", display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ color: "#BE26C1", fontWeight: 700, minWidth: 20 }}>{idx + 1}.</span>{item}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {(q.question_type === "text_answer" || q.question_type === "number") && (
-              <div style={{ marginBottom: 10 }}>
-                {q.option_a && <p style={{ fontSize: 12, color: "#555", margin: "0 0 6px", fontStyle: "italic" }}>{q.option_a}</p>}
-                <p style={{ fontSize: 14, color: "#22c55e", fontWeight: 600, margin: 0 }}>Answer: {q.correct_answer}</p>
-              </div>
-            )}
-
-            {!q._approved && (
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button onClick={() => setQuestions((prev) => prev.map((x, idx) => idx === realIdx ? { ...x, _approved: true } : x))} style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid #22c55e", background: "transparent", color: "#22c55e", cursor: "pointer", fontSize: 12 }}>Approve</button>
-                <button onClick={() => regenerateOne(realIdx)} disabled={q._checking} style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid rgba(190,38,193,0.5)", background: "transparent", color: "#BE26C1", cursor: q._checking ? "not-allowed" : "pointer", fontSize: 12 }}>Regenerate</button>
-                <button onClick={() => setQuestions((prev) => prev.map((x, idx) => idx === realIdx ? { ...x, _rejected: true, _approved: false } : x))} style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid #333", background: "transparent", color: "#555", cursor: "pointer", fontSize: 12 }}>Reject</button>
-              </div>
-            )}
-            {q._approved && <div style={{ fontSize: 12, color: "#22c55e", marginTop: 8 }}>Approved</div>}
+          <div style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.3)", borderRadius:12, padding:20, marginTop:16 }}>
+            <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:8 }}>ROUND NAME</label>
+            <input value={roundName} onChange={e => setRoundName(e.target.value)} placeholder="e.g. Round 1 - General Knowledge - 14 June" style={{ width:"100%", padding:"10px 16px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box", marginBottom:12 }} />
+            <button onClick={saveRound} disabled={saving||!roundName.trim()} style={{ width:"100%", padding:14, borderRadius:8, background:roundName.trim()?"#16a34a":"#1a1a1a", color:roundName.trim()?"#fff":"#444", border:"none", fontSize:16, letterSpacing:4, cursor:roundName.trim()?"pointer":"not-allowed" }}>
+              {saving ? "Saving..." : "Save Round to Library"}
+            </button>
           </div>
-        );
-      })}
-
-      {visibleQs.length > 3 && (
-        <div style={{ display: "flex", gap: 12, marginTop: 8, marginBottom: 32 }}>
-          <button onClick={approveAll} style={{ flex: 1, padding: 12, borderRadius: 8, border: "1px solid #22c55e", background: "transparent", color: "#22c55e", cursor: "pointer", fontSize: 13, letterSpacing: 2 }}>Approve All Verified</button>
-          <button onClick={saveApproved} disabled={saving || approvedCount === 0} style={{ flex: 1, padding: 12, borderRadius: 8, border: "none", background: approvedCount > 0 ? "#16a34a" : "#1a1a1a", color: approvedCount > 0 ? "#fff" : "#444", cursor: approvedCount > 0 ? "pointer" : "not-allowed", fontSize: 13, letterSpacing: 2 }}>
-            {saving ? "Saving..." : "Save " + approvedCount + " to Supabase"}
-          </button>
-        </div>
+        </>
       )}
     </div>
   );

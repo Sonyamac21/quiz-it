@@ -15,7 +15,7 @@ type Question = {
   round_type: string;
 };
 
-const TOPICS = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","pop culture","art","literature","technology","mathematics","famous people","transport","space","medicine","animals","architecture","inventions"];
+const TOPICS = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","pop culture","art","literature","technology","mathematics","famous people","transport","space","medicine","animals","architecture","inventions","TV shows","famous films","celebrity and entertainment","video games","fashion and style","world records","science fiction","comedy and humour","books and authors","classic cartoons"];
 
 const typeBg: Record<string,string> = { multiple_choice:"#1e1040", text_answer:"#0f2a1a", number:"#2a1a00", sequence:"#1a002a" };
 const typeColor: Record<string,string> = { multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6" };
@@ -236,22 +236,21 @@ export default function QuestionsPage() {
               });
               // Remove from list first
               setQuestions(prev => prev.filter((_,idx) => idx!==i));
-              setStatus("Replacing question...");
-              // Generate replacement of same type
-              const topics = TOPICS.sort(() => Math.random() - 0.5);
+              setStatus("Finding replacement...");
+              const topicList = [...TOPICS].sort(() => Math.random() - 0.5);
               let replaced = false;
-              for (let attempt = 0; attempt < 5 && !replaced; attempt++) {
-                const newQ = await generateOne(removed.question_type, topics[attempt % topics.length]);
+              for (let attempt = 0; attempt < 8 && !replaced; attempt++) {
+                const newQ = await generateOne(removed.question_type, topicList[attempt % topicList.length]);
                 if (!newQ) continue;
                 const check = await checkQuestion(newQ);
                 if (check.ok) {
                   setQuestions(prev => [...prev, newQ]);
-                  setStatus("Question replaced!");
+                  setStatus("Replaced!");
                   setTimeout(() => setStatus(""), 2000);
                   replaced = true;
                 }
               }
-              if (!replaced) setStatus("Could not find replacement — round has one fewer question.");
+              if (!replaced) setStatus("Could not replace - try generating again.");
             }} style= padding:"3px 10px", borderRadius:6, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:11 }}>Remove</button>
               </div>
               <p style={{ fontSize:15, fontWeight:600, marginBottom:10, lineHeight:1.5 }}>{q.question_text}</p>

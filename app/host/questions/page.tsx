@@ -123,7 +123,11 @@ export default function QuestionsPage() {
       i++;
     }
     setLoading(false);
-    setStatus(good.length === count ? "Ready! Drag to reorder, then name and save your round." : good.length + " of " + count + " questions ready.");
+    if (good.length === count) {
+      setStatus("Ready! Drag to reorder, then name and save your round.");
+    } else {
+      setStatus(good.length + " of " + count + " questions ready. Click Top Up to fill remaining slots.");
+    }
   }
 
   async function removeAndReplace(i: number) {
@@ -154,6 +158,31 @@ export default function QuestionsPage() {
       }
     }
     if (!replaced) setStatus("Could not find replacement - try generating again.");
+  }
+
+  async function topUp() {
+    const current = questions;
+    const needed = count - current.length;
+    if (needed <= 0) return;
+    setStatus("Topping up " + needed + " question(s)...");
+    const types = ["multiple_choice","text_answer","number","sequence"];
+    const topicList = [...TOPICS].sort(() => Math.random() - 0.5);
+    const added: Question[] = [];
+    let attempts = 0;
+    while (added.length < needed && attempts < needed * 6) {
+      attempts++;
+      const type = types[attempts % types.length];
+      const topic = topicList[attempts % topicList.length];
+      const q = await generateOne(type, topic);
+      if (!q) continue;
+      const check = await checkQuestion(q);
+      if (check.ok) {
+        usedRef.current = [...usedRef.current, q.question_text];
+        added.push(q);
+        setQuestions(prev => [...prev, q]);
+      }
+    }
+    setStatus(added.length === needed ? "Ready! Drag to reorder, then name and save." : "Added " + added.length + " of " + needed + " needed.");
   }
 
   async function saveRound() {
@@ -281,6 +310,11 @@ export default function QuestionsPage() {
           ))}
 
           <div style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.3)", borderRadius:12, padding:20, marginTop:16 }}>
+            {questions.length < count && (
+              <button onClick={topUp} style={{ width:"100%", padding:10, borderRadius:8, background:"transparent", border:"1px solid #BE26C1", color:"#BE26C1", fontSize:13, letterSpacing:2, cursor:"pointer", marginBottom:12 }}>
+                Top Up to {count} Questions ({count - questions.length} needed)
+              </button>
+            )}
             <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:8 }}>ROUND NAME</label>
             <input value={roundName} onChange={e => setRoundName(e.target.value)} placeholder="e.g. Round 1 - General Knowledge - 14 June" style={{ width:"100%", padding:"10px 16px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box", marginBottom:12 }} />
             <button onClick={saveRound} disabled={saving||!roundName.trim()} style={{ width:"100%", padding:14, borderRadius:8, background:roundName.trim()?"#16a34a":"#1a1a1a", color:roundName.trim()?"#fff":"#444", border:"none", fontSize:16, letterSpacing:4, cursor:roundName.trim()?"pointer":"not-allowed" }}>

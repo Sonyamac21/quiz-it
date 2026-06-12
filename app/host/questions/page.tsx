@@ -270,7 +270,7 @@ export default function QuestionsPage() {
             <div key={i} draggable onDragStart={() => onDragStart(i)} onDragOver={e => onDragOver(e, i)} onDragEnd={onDragEnd}
               style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.25)", borderRadius:12, padding:16, marginBottom:10, cursor:"grab", userSelect:"none" }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
-                <span style={{ color:"#555", fontSize:13, fontWight:700, minWidth:24 }}>{i+1}.</span>
+                <span style={{ color:"#555", fontSize:13, fontWeight:700, minWidth:24 }}>{i+1}.</span>
                 <span style={{ background:typeBg[q.question_type]||"#1a1a1a", color:typeColor[q.question_type]||"#aaa", padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:600 }}>
                   {typeLabel[q.question_type]||q.question_type}
                 </span>

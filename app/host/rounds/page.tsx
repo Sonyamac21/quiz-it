@@ -94,7 +94,7 @@ export default function RoundsPage() {
               <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>{r.name}</div>
               <div style={{ fontSize:12, color:"#666" }}>{r.questions?.length || 0} questions · {r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
             </div>
-            <button onClick={() => setOpenRound(r)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", background:"transparent", color:"#BE26C1", cursor:"pointer", fontSize }}>View</button>
+            <button onClick={() => setOpenRound(r)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", background:"transparent", color:"#BE26C1", cursor:"pointer", fontSize:12 }}>View</button>
             <button onClick={() => deleteRound(r.id)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:12 }}>Delete</button>
           </div>
         </div>
@@ -121,7 +121,7 @@ export default function RoundsPage() {
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
                   {(["a","b","c","d"] as const).map(l => (
                     <div key={l} style={{ fontSize:13, padding:"5px 10px", borderRadius:6, background:l===q.correct_answer?"rgba(34,197,94,0.15)":"#0f0f1a", color:l===q.correct_answer?"#22c55e":"#aaa" }}>
-                      <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{q[("option_"+l) as keyof Question] as string}
+                      <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{(q as Record<string, string|null>)[("option_"+l)] as string}
                     </div>
                   ))}
                 </div>

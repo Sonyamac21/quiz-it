@@ -103,13 +103,13 @@ export default function SlotMachine() {
     if (spinSoundRef.current) { clearInterval(spinSoundRef.current); spinSoundRef.current = null; }
   };
 
-  const animReel = (reelIdx: number, fromTop: number, toTop: number, dur: number, delay: number, cb?: () => void) => {
+  const animReel = (reelIdx: number, fromTop: number, toTop: number, dur: number, delay: number, easePow: number, cb?: () => void) => {
     let t0: number | null = null;
     setTimeout(() => {
       const step = (ts: number) => {
         if (!t0) t0 = ts;
         const p = Math.min((ts - t0) / dur, 1);
-        const e = 1 - Math.pow(1 - p, 4);
+        const e = 1 - Math.pow(1 - p, easePow);
         const cur = fromTop + (toTop - fromTop) * e;
         reelTops.current[reelIdx] = cur;
         const el = reelRefs[reelIdx].current;
@@ -217,21 +217,18 @@ export default function SlotMachine() {
 
     const winSegIdx = Math.floor(Math.random() * SEGS.length);
 
-    const durations = [2800, 3400, 4200];
-    const delays = [0, 300, 700];
+    const durations = [2800, 4000, 6800];
+    const delays = [0, 600, 1400];
+    const easePowers = [4, 4, 2];
 
-    delays.forEach((delay, i) => {
+    [0, 1, 2].forEach((i) => {
       const startTop = reelTops.current[i];
-      // How many full strip cycles to spin (ensures always forward motion)
       const fullCycles = 8 + Math.floor(Math.random() * 6);
-      // Land on an occurrence of winSegIdx in the upper half of the strip
-      // Pick a target strip index that is: fullCycles*SEGS.length ahead, aligned to winSegIdx
       const baseIdx = fullCycles * SEGS.length + winSegIdx;
       const landStripIdx = Math.min(baseIdx, STRIP_LEN - 3);
-      // Offset by 1 so winSegIdx lands in the centre of the 360px window (centre = SEG_H*1.5 from top)
       const targetTop = -(landStripIdx - 1) * SEG_H;
 
-      animReel(i, startTop, targetTop, durations[i], delay,
+      animReel(i, startTop, targetTop, durations[i], delays[i], easePowers[i],
         i === 2 ? () => {
           setSpinning(false);
           stopBulbs();

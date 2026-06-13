@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -63,7 +63,7 @@ const cardLabel: Record<string,string> = {
   block:"Block", reverse:"Reverse", x2:"x2"
 };
 
-export default function QuizController() {
+function QuizControllerInner() {
   const searchParams = useSearchParams();
   const [sessionPin, setSessionPin] = useState("");
   const [sessionId, setSessionId] = useState<string|null>(null);
@@ -384,6 +384,13 @@ export default function QuizController() {
         </div>
       </div>
     </div>
+  );
+}
+export default function QuizController() {
+  return (
+    <Suspense fallback={<div style={{ minHeight:"100vh", background:"#0d0225", display:"flex", alignItems:"center", justifyContent:"center", color:"#BE26C1", fontSize:24 }}>Loading...</div>}>
+      <QuizControllerInner />
+    </Suspense>
   );
 }
 // deploy fix

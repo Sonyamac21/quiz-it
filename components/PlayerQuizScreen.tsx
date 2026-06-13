@@ -120,7 +120,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     return (
       <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font }}>
         <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
-        <div style={{ fontSize: 28, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center",extShadow: "0 0 30px rgba(190,38,193,0.6)" }}>Round Over!</div>
+        <div style={{ fontSize: 28, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 30px rgba(190,38,193,0.6)" }}>Round Over!</div>
         <div style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", marginTop: 8 }}>{teamName}</div>
         <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} />
       </div>

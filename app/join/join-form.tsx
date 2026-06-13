@@ -167,7 +167,7 @@ export function JoinForm() {
           maxLength={4}
           style={{ padding:"20px", borderRadius:12, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:32, fontFamily:"monospace", outline:"none", letterSpacing:12, textAlign:"center" }}
         />
-        {pinError && <p style={{ color:"#FF5555", fontSize:12, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1, textAlign:"center" }}>{pinError}</p>}
+        {pinError && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1, textAlign:"center" }}>{pinError}</p>}
         <button
           type="button"
           onClick={handlePinNext}
@@ -183,16 +183,16 @@ export function JoinForm() {
   if (step === "name") {
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:16, width:"100%", maxWidth:400 }}>
-        <label style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:10, letterSpacing:3, color:"rgba(190,38,193,0.7)" }}>Team Name</label>
+        <label style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Team Name</label>
         <input
           value={teamName}
           onChange={e => setTeamName(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleNameNext()}
           placeholder="Enter your team name..."
           autoFocus
-          style={{ padding:"14px 18px", borderRadius:12, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:18, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none", letterSpacing:1 }}
+          style={{ padding:"14px 18px", borderRadius:12, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:22, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none", letterSpacing:1 }}
         />
-        {error && <p style={{ color:"#FF5555", fontSize:12, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1 }}>{error}</p>}
+        {error && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1 }}>{error}</p>}
         <button
           type="button"
           onClick={handleNameNext}
@@ -206,14 +206,14 @@ export function JoinForm() {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12, width:"100%", maxWidth:480 }}>
-      <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:10, letterSpacing:3, color:"rgba(190,38,193,0.7)" }}>Choose Your Victory Song</div>
-      <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:9, letterSpacing:2, color:"rgba(255,255,255,0.3)" }}>This plays when you win! Tap to preview.</div>
+      <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Choose Your Victory Song</div>
+      <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:14, letterSpacing:1, color:"rgba(255,255,255,0.7)" }}>This plays when you win! Tap to preview.</div>
 
       <input
         value={search}
         onChange={e => setSearch(e.target.value)}
         placeholder="Search songs..."
-        style={{ padding:"10px 14px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontSize:14, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none" }}
+        style={{ padding:"10px 14px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontSize:18, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none" }}
       />
 
       <div style={{ maxHeight:340, overflowY:"auto", display:"flex", flexDirection:"column", gap:6, paddingRight:4 }}>
@@ -228,7 +228,7 @@ export function JoinForm() {
               border: selectedSong === song ? "1px solid #BE26C1" : "1px solid rgba(255,255,255,0.07)",
               color: selectedSong === song ? "#fff" : "rgba(255,255,255,0.6)",
               fontFamily:"'Bruno Ace SC',sans-serif",
-              fontSize:11,
+              fontSize:16,
               letterSpacing:1,
               cursor:"pointer",
               display:"flex",
@@ -244,7 +244,7 @@ export function JoinForm() {
         ))}
       </div>
 
-      {error && <p style={{ color:"#FF5555", fontSize:11, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1 }}>{error}</p>}
+      {error && <p style={{ color:"#FF5555", fontSize:16, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1 }}>{error}</p>}
 
       <button
         type="button"

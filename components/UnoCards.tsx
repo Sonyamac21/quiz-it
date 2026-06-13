@@ -94,7 +94,7 @@ export function UnoHostPanel() {
 
   useEffect(() => {
     fetchCards();
-    const supabase = creeSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient();
     const channel = supabase
       .channel("uno-cards-host")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards" }, (payload) => {

@@ -30,6 +30,7 @@ type Team = {
 };
 
 type Answer = {
+  session_pin: string;
   id: string;
   team_name: string;
   question_index: number;

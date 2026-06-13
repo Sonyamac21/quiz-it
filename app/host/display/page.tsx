@@ -23,6 +23,10 @@ export default function DisplayScreen() {
   const [pinInput, setPinInput] = useState("");
   const [connected, setConnected] = useState(false);
   const [sessionPin, setSessionPin] = useState("");
+  const [fastestTeam, setFastestTeam] = useState<string|null>(null);
+  const [fastestSong, setFastestSong] = useState<string|null>(null);
+  const [flash, setFlash] = useState(false);
+  const victorySongRef = { current: null as HTMLAudioElement|null };
   const timerRef = { current: null as ReturnType<typeof setInterval> | null };
 
   const font = "'Bruno Ace SC', sans-serif";
@@ -30,9 +34,24 @@ export default function DisplayScreen() {
   const bg = "#080810";
 
   function applySession(data: Record<string, unknown>) {
-    setPhase((data.phase as Phase) || "waiting");
+    const newPhase = (data.phase as Phase) || "waiting";
+    setPhase(newPhase);
     setQuestion((data.current_question as Question) || null);
     setQuestionIndex((data.current_question_index as number) ?? 0);
+    const ft = (data.fastest_team as string) || null;
+    const fs = (data.fastest_song as string) || null;
+    setFastestTeam(ft);
+    setFastestSong(fs);
+    if (newPhase === "celebration" && ft && fs) {
+      if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
+      const audio = new Audio("/sounds/" + encodeURIComponent(fs) + ".mp3");
+      audio.volume = 0.8;
+      audio.play().catch(() => {});
+      victorySongRef.current = audio;
+      let f = false;
+      const fi = setInterval(() => { f = !f; setFlash(f); }, 500);
+      setTimeout(() => clearInterval(fi), 15000);
+    }
     if (data.timer_started_at && data.timer_duration) {
       const started = new Date(data.timer_started_at as string).getTime();
       const duration = data.timer_duration as number;
@@ -110,9 +129,12 @@ export default function DisplayScreen() {
   if (phase === "celebration") {
     return (
       <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: font }}>
-        <div style={{ fontSize: 96, marginBottom: 24 }}>🎉</div>
-        <div style={{ fontSize: 64, fontWeight: 800, color: purple, letterSpacing: 4, textShadow: "0 0 60px rgba(190,38,193,0.8)" }}>Round Over!</div>
-        <div style={{ fontSize: 22, color: "rgba(255,255,255,0.5)", marginTop: 16, letterSpacing: 2 }}>Quiz-It · Mac Entertainment</div>
+        {fastestTeam ? (
+          <div style={{ fontSize: "clamp(80px,12vw,180px)", fontWeight: 900, letterSpacing: 4, textAlign: "center", padding: "0 60px", color: flash ? "#fff" : purple, textShadow: flash ? "0 0 80px rgba(190,38,193,1), 0 0 160px rgba(190,38,193,0.6)" : "0 0 40px rgba(190,38,193,0.3)", transition: "color 0.3s, text-shadow 0.3s" }}>{fastestTeam}</div>
+        ) : (
+          <div style={{ fontSize: 48, color: "rgba(255,255,255,0.3)", fontFamily: font }}>No correct answers</div>
+        )}
+        {fastestSong && <div style={{ marginTop: 32, fontSize: 20, color: "rgba(255,255,255,0.25)", letterSpacing: 3, fontFamily: font }}>{fastestSong.replace(/\s*SQS\s*$/i, "").replace(/[-_]+$/, "").replace(/[-_]/g, " ").trim()}</div>}
       </div>
     );
   }

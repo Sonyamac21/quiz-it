@@ -29,6 +29,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [answerText, setAnswerText] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [fastestTeamName, setFastestTeamName] = useState<string|null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastQIndexRef = useRef(-1);
 
@@ -120,9 +121,14 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   if (phase === "celebration") {
     return (
       <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font }}>
-        <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
-        <div style={{ fontSize: 28, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 30px rgba(190,38,193,0.6)" }}>Round Over!</div>
-        <div style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", marginTop: 8 }}>{teamName}</div>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
+        <div style={{ fontSize: 12, letterSpacing: 3, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>FASTEST CORRECT ANSWER</div>
+        {fastestTeamName ? (
+          <div style={{ fontSize: 28, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 30px rgba(190,38,193,0.6)", marginBottom: 8 }}>{fastestTeamName}</div>
+        ) :          <div style={{ fontSize: 18, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>No correct answers</div>
+        )}
+        {fastestTeamName === teamName && <div style={{ fontSize: 14, color: "#22c55e", fontWeight: 700, marginBottom: 12 }}>{"That's you!"} 🏆</div>}
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", marginBottom: 20 }}>{teamName}</div>
         <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} />
       </div>
     );

@@ -79,6 +79,7 @@ export default function RoundsPage() {
           <div style={{ fontSize:11, color:"rgba(190,38,193,0.6)", letterSpacing:2 }}>Quiz-It powered by Mac Entertainment</div>
         </div>
         <div style={{ flex:1 }} />
+        <a href="/host/music-prep" style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(251,146,60,0.4)", color:"#fb923c", textDecoration:"none", fontSize:12, letterSpacing:2 }}>Music Prep</a>
         <a href="/host/question-bank" style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", textDecoration:"none", fontSize:12, letterSpacing:2 }}>Question Bank</a>
         <a href="/host/questions" style={{ padding:"8px 16px", borderRadius:8, background:"#BE26C1", color:"#fff", textDecoration:"none", fontSize:12, letterSpacing:2 }}>+ New Round</a>
       </div>

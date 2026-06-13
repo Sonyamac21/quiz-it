@@ -88,7 +88,7 @@ export default function SessionPage() {
         </div>
         <div style={{ flex: 1 }} />
         <a href="/host/rounds" style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid rgba(190,38,193,0.6)", color: "#BE26C1", textDecoration: "none", fontSize: 14, letterSpacing: 2 }}>Rounds</a>
-        <a href="/host/quiz" style={{ padding: "10px 20px", borderRadius: 8, background: "#BE26C1", color: "#fff", textDecoration: "none", fontSize: 14, letterSpacing: 2 }}>Quiz Controller</a>
+        <a href={"/host/quiz?pin=" + (pin || "")} style={{ padding: "10px 20px", borderRadius: 8, background: "#BE26C1", color: "#fff", textDecoration: "none", fontSize: 14, letterSpacing: 2 }}>Quiz Controller</a>
       </div>
 
       {!pin && (

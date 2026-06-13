@@ -138,7 +138,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", padding: 24, fontFamily: font, color: "#fff" }}>
         <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)", marginBottom: 16 }}>ANSWER REVEALED</div>
         <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.4, marginBottom: 20, color: "rgba(255,255,255,0.8)" }}>{question.question_text}</div>
-        <div style={{ padding: "16px 20px", borderRadius: 12, background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.5)", marginBottom: 20 }}>
+        <div style={{ padding: "16px 20px", bborderRadius: 12, background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.5)", marginBottom: 20 }}>
           <div style={{ fontSize: 11, color: "rgba(34,197,94,0.7)", letterSpacing: 3, marginBottom: 4 }}>CORRECT ANSWER</div>
           <div style={{ fontSize: 24, fontWeight: 800, color: "#22c55e" }}>{correct}</div>
         </div>
@@ -167,7 +167,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>QUESTION {questionIndex + 1}</div>
           {timeLeft !== null && timeLeft > 0 && (
             <div style={{
-              marginLeft: "auto", width: 44, height: 44, borderRadius: "50%",
+              marginLeft: "auto", width: 44, height: 44, bborderRadius: "50%",
               background: timeLeft <= 3 ? "rgba(239,68,68,0.3)" : "rgba(190,38,193,0.2)",
               border: "2px solid " + (timeLeft <= 3 ? "#ef4444" : purple),
               display: "flex", alignItems: "center", justifyContent: "center",
@@ -185,7 +185,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               <button key={opt.key} type="button"
                 onClick={() => { setSelectedAnswer(opt.key); submitAnswer(opt.key); }}
                 style={{
-                  padding: "14px 18px", borderRadius: 12, border: "1.5px solid",
+                  padding: "14px 18px", bborderRadius: 12, border: "1.5px solid",
                   borderColor: selectedAnswer === opt.key ? purple : "rgba(255,255,255,0.15)",
                   background: selectedAnswer === opt.key ? "rgba(190,38,193,0.25)" : "rgba(255,255,255,0.06)",
                   color: "#fff", fontSize: 16, fontFamily: font, textAlign: "left", cursor: "pointer",
@@ -207,17 +207,17 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", letterSpacing: 2, marginBottom: 4 }}>TAP ARROWS TO REORDER</div>
               {order.map((item, i) => (
-                <div key={item} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderRadius: 12, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(190,38,193,0.25)" }}>
+                <div key={item} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", bborderRadius: 12, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(190,38,193,0.25)" }}>
                   <span style={{ color: purple, fontWeight: 800, minWidth: 24, fontSize: 15 }}>{i+1}.</span>
                   <span style={{ flex: 1, color: "#fff", fontSize: 15, fontFamily: font }}>{item}</span>
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <button type="button" onClick={() => moveUp(i)} disabled={i===0} style={{ padding: "4px 10px", borderRadius: 6, background: i===0?"rgba(255,255,255,0.04)":"rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.3)", color: i===0?"#444":purple, cursor: i===0?"default":"pointer", fontSize: 12 }}>▲</button>
-                    <button type="button" onClick={() => moveDown(i)} disabled={i===order.length-1} style={{ padding: "4px 10px",orderRadius: 6, background: i===order.length-1?"rgba(255,255,255,0.04)":"rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.3)", color: i===order.length-1?"#444":purple, cursor: i===order.length-1?"default":"pointer", fontSize: 12 }}>▼</button>
+                    <button type="button" onClick={() => moveUp(i)} disabled={i===0} style={{ padding: "4px 10px", bborderRadius: 6, background: i===0?"rgba(255,255,255,0.04)":"rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.3)", color: i===0?"#444":purple, cursor: i===0?"default":"pointer", fontSize: 12 }}>▲</button>
+                    <button type="button" onClick={() => moveDown(i)} disabled={i===order.length-1} style={{ padding: "4px 10px",borderRadius: 6, background: i===order.length-1?"rgba(255,255,255,0.04)":"rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.3)", color: i===order.length-1?"#444":purple, cursor: i===order.length-1?"default":"pointer", fontSize: 12 }}>▼</button>
                   </div>
                 </div>
               ))}
               <button type="button" onClick={() => submitAnswer(order.join(", "))}
-                style={{ marginTop: 8, padding: "14px", borderRadius: 12, background: purple, color: "#fff", border: "none", fontSize: 16, fontFamily: font, letterSpacing: 2, cursor: "pointer" }}>
+                style={{ marginTop: 8, padding: "14px", bborderRadius: 12, background: purple, color: "#fff", border: "none", fontSize: 16, fontFamily: font, letterSpacing: 2, cursor: "pointer" }}>
                 Submit Order
               </button>
             </div>
@@ -232,17 +232,17 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               onKeyDown={e => e.key === "Enter" && submitAnswer(answerText)}
               placeholder="Type your answer..."
               autoFocus
-              style={{ padding: "14px 18px", borderRadius: 12, background: "rgba(255,255,255,0.1)", color: "#fff", border: "1.5px solid rgba(190,38,193,0.6)", fontSize: 18, fontFamily: font, outline: "none" }}
+              style={{ padding: "14px 18px", bborderRadius: 12, background: "rgba(255,255,255,0.1)", color: "#fff", border: "1.5px solid rgba(190,38,193,0.6)", fontSize: 18, fontFamily: font, outline: "none" }}
             />
             <button type="button" onClick={() => submitAnswer(answerText)} disabled={!answerText.trim()}
-              style={{ padding: "14px", borderRadius: 12, background: answerText.trim() ? purple : "#1a1a2e", color: answerText.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: "none", fontSize: 16, fontFamily: font, letterSpacing: 2, cursor: answerText.trim() ? "pointer" : "default" }}>
+              style={{ padding: "14px", bborderRadius: 12, background: answerText.trim() ? purple : "#1a1a2e", color: answerText.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: "none", fontSize: 16, fontFamily: font, letterSpacing: 2, cursor: answerText.trim() ? "pointer" : "default" }}>
               Submit Answer
             </button>
           </div>
         )}
 
         {submitted && (
-          <div style={{ padding: "16px 20px", borderRadius: 12, background: "rgba(190,38,193,0.15)", border: "1px solid rgba(190,38,193,0.4)", textAlign: "center", marginBottom: 20 }}>
+          <div style={{ padding: "16px 20px", bborderRadius: 12, background: "rgba(190,38,193,0.15)", border: "1px solid rgba(190,38,193,0.4)", textAlign: "center", marginBottom: 20 }}>
             <div style={{ fontSize: 16, color: purple, fontWeight: 700 }}>Answer Submitted!</div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>Waiting for host...</div>
           </div>
@@ -259,12 +259,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font }}>
       <div style={{ fontSize: 42, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 30px rgba(190,38,193,0.5)", marginBottom: 8 }}>You are In!</div>
       <div style={{ fontSize: 18, color: "rgba(255,255,255,0.6)", marginBottom: 32 }}>{teamName} — good luck!</div>
-      <div style={{ padding: "16px 24px", borderRadius: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", textAlign: "center", marginBottom: 32 }}>
+      <div style={{ padding: "16px 24px", bborderRadius: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", textAlign: "center", marginBottom: 32 }}>
         <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)", marginBottom: 6 }}>STATUS</div>
         <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)" }}>Waiting for the quiz to start...</div>
         <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 12 }}>
           {[0,1,2].map(i => (
-            <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: purple, opacity: 0.6, animation: "pulse 1.5s " + (i * 0.3) + "s infinite" }} />
+            <div key={i} style={{ width: 6, height: 6, bborderRadius: "50%", background: purple, opacity: 0.6, animation: "pulse 1.5s " + (i * 0.3) + "s infinite" }} />
           ))}
         </div>
       </div>

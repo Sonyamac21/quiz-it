@@ -81,6 +81,7 @@ export function JoinForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [sessionPin, setSessionPin] = useState("");
   const [preview, setPreview] = useState<HTMLAudioElement | null>(null);
 
   const filtered = SONGS.filter(s => cleanName(s).toLowerCase().includes(search.toLowerCase()));
@@ -130,6 +131,7 @@ export function JoinForm() {
         victory_song: selectedSong,
         session_pin: pin,
       });
+      setSessionPin(pin);
       if (dbError) throw dbError;
       setDone(true);
     } catch {
@@ -146,7 +148,7 @@ export function JoinForm() {
             <div style={{ fontSize: 42, fontWeight: 800, color: "#BE26C1", letterSpacing: 2, textShadow: "0 0 30px rgba(190,38,193,0.5)" }}>You are In!</div>
             <div style={{ fontSize: 22, color: "rgba(255,255,255,0.7)", marginTop: 8 }}>{teamName} - good luck!</div>
           </div>
-          <UnoPlayerCards teamName={teamName} />
+          <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} />
         </div>
       );
     }

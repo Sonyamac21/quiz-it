@@ -140,6 +140,7 @@ function QuizControllerInner() {
   async function loadUnoCards(pin?: string) {
     const supabase = createSupabaseBrowserClient();
     let q = supabase.from("uno_cards").select("*").order("played_at", { ascending: false });
+    if (pin) q = (q as any).eq("session_pin", pin);
     const { data } = await q;
     if (data) setUnoCards(data);
   }

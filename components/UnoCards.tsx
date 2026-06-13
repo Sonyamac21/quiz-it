@@ -12,7 +12,7 @@ function getCardInfo(type: string) {
   return CARDS.find(c => c.type === type);
 }
 
-export function UnoPlayerCards({ teamName }: { teamName: string }) {
+export function UnoPlayerCards({ teamName, sessionPin }: { teamName: string; sessionPin?: string }) {
   const [used, setUsed] = useState<string[]>([]);
   const [playing, setPlaying] = useState<string | null>(null);
 
@@ -25,6 +25,7 @@ export function UnoPlayerCards({ teamName }: { teamName: string }) {
       card_type: cardType,
       used: true,
       played_at: new Date().toISOString(),
+      session_pin: sessionPin || "",
     });
     setUsed(prev => [...prev, cardType]);
     setPlaying(null);

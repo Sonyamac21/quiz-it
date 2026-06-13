@@ -130,7 +130,7 @@ export default function DisplayScreen() {
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32 }}>
           <div style={{ fontSize: 13, letterSpacing: 4, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
           <div style={{ padding: "4px 16px", borderRadius: 999, background: "rgba(34,197,94,0.2)", border: "1px solid rgba(34,197,94,0.5)", fontSize: 13, color: "#22c55e", letterSpacing: 2 }}>ANSWER REVEALED</div>
-          <div style={{ flex:  }} />
+          <div style={{ flex: 1 }} />
           <div style={{ fontSize: 14, color: "rgba(255,255,255,0.3)", letterSpacing: 2 }}>Quiz-It</div>
         </div>
 

@@ -587,7 +587,7 @@ function QuizControllerInner() {
                   </div>
                   <div style={{ display:"flex", alignItems:"center", paddingLeft:28, marginTop:3, gap:6 }}>
                     <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>Rd: +{s.round_points}</span>
-                    {answere&& <span style={{ fontSize:11, color:"#22c55e", fontStyle:"italic", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>}
+                    {answered && <span style={{ fontSize:11, color:"#22c55e", fontStyle:"italic", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>}
                     {adjustTeam === s.team_name ? (
                       <div style={{ display:"flex", gap:4, marginLeft:"auto" }}>
                         <input type="number" value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="+/-" style={{ width:52, padding:"2px 4px", borderRadius:4, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:12, textAlign:"center" as const }} />

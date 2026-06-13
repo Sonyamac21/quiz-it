@@ -46,6 +46,12 @@ type UnoCard = {
   played_at: string;
 };
 
+type Score = {
+  team_name: string;
+  total_points: number;
+  round_points: number;
+};
+
 const typeColor: Record<string,string> = {
   multiple_choice:"#a78bfa", text_answer:"#34d399",
   number:"#fbbf24", sequence:"#f472b6",
@@ -76,6 +82,15 @@ function QuizControllerInner() {
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [unoCards, setUnoCards] = useState<UnoCard[]>([]);
   const [revealed, setRevealed] = useState(false);
+  const [scores, setScores] = useState<Score[]>([]);
+  const [pointsPerQ, setPointsPerQ] = useState(10);
+  const [timeBonus, setTimeBonus] = useState(5);
+  const [dangerZone, setDangerZone] = useState(false);
+  const [dangerPenalty, setDangerPenalty] = useState(5);
+  const [roundSettingsOpen, setRoundSettingsOpen] = useState(false);
+  const [adjustTeam, setAdjustTeam] = useState<string|null>(null);
+  const [adjustAmount, setAdjustAmount] = useState("");
+  const [showScoreboard, setShowScoreboard] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [timerActive, setTimerActive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(10);
@@ -110,6 +125,7 @@ function QuizControllerInner() {
     loadTeams(p.trim());
     loadAnswers(p.trim(), 0);
     loadUnoCards(p.trim());
+    loadScores(p.trim());
     subscribeToUpdates(p.trim());
   }
 
@@ -125,6 +141,7 @@ function QuizControllerInner() {
     loadTeams(pinInput.trim());
     loadAnswers(pinInput.trim(), 0);
     loadUnoCards(pinInput.trim());
+    loadScores(pinInput.trim());
     subscribeToUpdates(pinInput.trim());
   }
 
@@ -146,6 +163,73 @@ function QuizControllerInner() {
     if (pin) q = (q as any).eq("session_pin", pin);
     const { data } = await q;
     if (data) setUnoCards(data);
+  }
+
+  async function loadScores(pin: string) {
+    const supabase = createSupabaseBrowserClient();
+    const { data } = await supabase.from("scores").select("team_name, total_points, round_points").eq("session_pin", pin).order("total_points", { ascending: false });
+    if (data) setScores(data);
+  }
+
+  async function ensureScores(pin: string, teamList: Team[]) {
+    const supabase = createSupabaseBrowserClient();
+    for (const team of teamList) {
+      await supabase.from("scores").upsert({ session_pin: pin, team_name: team.team_name, total_points: 0, round_points: 0 }, { onConflict: "session_pin,team_name", ignoreDuplicates: true });
+    }
+    loadScores(pin);
+  }
+
+  async function autoScore(teamList: Team[], correctAnswer: string, timerDuration: number) {
+    if (!sessionPin) return;
+    const supabase = createSupabaseBrowserClient();
+    for (const team of teamList) {
+      const ans = answers.find(a => a.team_name === team.team_name);
+      if (!ans) continue;
+      const isCorrect = ans.answer_text.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+      const isWrong = !isCorrect && ans.answer_text.trim() !== "";
+      if (!isCorrect && !(isWrong && dangerZone)) continue;
+      const secsRemaining = Math.max(0, timerDuration - timeLeft);
+      const timeBonusPts = isCorrect ? Math.round((secsRemaining / timerDuration) * timeBonus) : 0;
+      const basePts = isCorrect ? pointsPerQ : 0;
+      const penalty = isWrong && dangerZone ? -dangerPenalty : 0;
+      const delta = basePts + timeBonusPts + penalty;
+      if (delta === 0) continue;
+      const { data: existing } = await supabase.from("scores").select("total_points, round_points").eq("session_pin", sessionPin).eq("team_name", team.team_name).single();
+      const currentTotal = existing?.total_points ?? 0;
+      const currentRound = existing?.round_points ?? 0;
+      await supabase.from("scores").upsert({ session_pin: sessionPin, team_name: team.team_name, total_points: currentTotal + delta, round_points: currentRound + delta, updated_at: new Date().toISOString() }, { onConflict: "session_pin,team_name" });
+    }
+    loadScores(sessionPin);
+  }
+
+  async function adjustScore(teamName: string, delta: number) {
+    if (!sessionPin || isNaN(delta) || delta === 0) return;
+    const supabase = createSupabaseBrowserClient();
+    const { data: existing } = await supabase.from("scores").select("total_points, round_points").eq("session_pin", sessionPin).eq("team_name", teamName).single();
+    const currentTotal = existing?.total_points ?? 0;
+    const currentRound = existing?.round_points ?? 0;
+    await supabase.from("scores").upsert({ session_pin: sessionPin, team_name: teamName, total_points: currentTotal + delta, round_points: currentRound + delta, updated_at: new Date().toISOString() }, { onConflict: "session_pin,team_name" });
+    loadScores(sessionPin);
+    setAdjustTeam(null);
+    setAdjustAmount("");
+  }
+
+  async function resetRoundPoints() {
+    if (!sessionPin) return;
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("scores").update({ round_points: 0 }).eq("session_pin", sessionPin);
+    loadScores(sessionPin);
+  }
+
+  async function pushScoreboard() {
+    if (!sessionId) return;
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").update({ show_scoreboard: true, scoreboard_data: scores }).eq("id", sessionId);
+    setShowScoreboard(true);
+    setTimeout(async () => {
+      await supabase.from("sessions").update({ show_scoreboard: false }).eq("id", sessionId);
+      setShowScoreboard(false);
+    }, 30000);
   }
 
   function subscribeToUpdates(pin: string) {
@@ -210,6 +294,9 @@ function QuizControllerInner() {
   async function revealAnswer() {
     setRevealed(true);
     await pushPhase("answer");
+    if (currentQ && sessionPin) {
+      await autoScore(teams, currentQ.correct_answer, 10);
+    }
   }
 
   async function nextQuestion() {
@@ -379,38 +466,89 @@ function QuizControllerInner() {
         </div>
 
         <div style={{ overflowY:"auto" as const, display:"flex", flexDirection:"column" as const }}>
-          <div style={{ padding:"16px 20px", borderBottom:"1px solid rgba(190,38,193,0.2)", background:"rgba(45,10,94,0.3)" }}>
-            <div style={{ fontSize:15, fontWeight:700, color:"#fff", marginBottom:12 }}>Teams <span style={{ color:"#BE26C1" }}>{teams.length}</span></div>
-            {teams.map(team => {
-              const answered = teamHasAnswered(team.team_name);
-              const ans = teamAnswer(team.team_name);
-              const cards = teamCards(team.team_name);
-              return (
-                <div key={team.id} style={{ padding:"10px 12px", borderRadius:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(190,38,193,0.15)", marginBottom:8 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-                    <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#22c55e":"rgba(255,255,255,0.2)", flexShrink:0 }} />
-                    <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff" }}>{team.team_name}</span>
-                    {cards.map((c,i) => (
-                      <span key={i} style={{ fontSize:10, padding:"2px 6px", borderRadius:4, background:cardColor[c.card_type]+"33", color:cardColor[c.card_type], fontWeight:700 }}>{cardLabel[c.card_type]}</span>
-                    ))}
+          <div style={{ padding:"12px 16px", borderBottom:"1px solid rgba(190,38,193,0.2)", background:"rgba(45,10,94,0.4)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:"#BE26C1", letterSpacing:2 }}>ROUND SETTINGS</div>
+              <button onClick={() => setRoundSettingsOpen((p: boolean) => !p)} style={{ fontSize:11, padding:"2px 8px", borderRadius:6, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", cursor:"pointer" }}>{roundSettingsOpen ? "Hide" : "Edit"}</button>
+            </div>
+            {roundSettingsOpen && (
+              <div style={{ display:"flex", flexDirection:"column" as const, gap:8 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <label style={{ fontSize:12, color:"rgba(255,255,255,0.6)", minWidth:110 }}>Points/question</label>
+                  <input type="number" value={pointsPerQ} onChange={e => setPointsPerQ(Number(e.target.value))} style={{ width:60, padding:"4px 8px", borderRadius:6, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:14, textAlign:"center" as const }} />
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <label style={{ fontSize:12, color:"rgba(255,255,255,0.6)", minWidth:110 }}>Max time bonus</label>
+                  <input type="number" value={timeBonus} onChange={e => setTimeBonus(Number(e.target.value))} style={{ width:60, padding:"4px 8px", borderRadius:6, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:14, textAlign:"center" as const }} />
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <label style={{ fontSize:12, color:"rgba(255,255,255,0.6)", minWidth:110 }}>Danger Zone</label>
+                  <button onClick={() => setDangerZone((p: boolean) => !p)} style={{ padding:"4px 12px", borderRadius:6, background:dangerZone?"rgba(239,68,68,0.3)":"rgba(255,255,255,0.08)", border:"1px solid "+(dangerZone?"#ef4444":"rgba(255,255,255,0.2)"), color:dangerZone?"#ef4444":"#aaa", fontSize:12, cursor:"pointer" }}>{dangerZone ? "ON" : "OFF"}</button>
+                </div>
+                {dangerZone && (
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <label style={{ fontSize:12, color:"rgba(255,255,255,0.6)", minWidth:110 }}>Penalty pts</label>
+                    <input type="number" value={dangerPenalty} onChange={e => setDangerPenalty(Number(e.target.value))} style={{ width:60, padding:"4px 8px", borderRadius:6, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(239,68,68,0.4)", fontSize:14, textAlign:"center" as const }} />
                   </div>
-                  {answered && <div style={{ fontSize:13, color:"#22c55e", paddingLeft:16, fontStyle:"italic" }}>{ans}</div>}
-                  {!answered && phase==="question" && <div style={{ fontSize:12, color:"rgba(255,255,255,0.3)", paddingLeft:16 }}>Waiting...</div>}
+                )}
+                <button onClick={resetRoundPoints} style={{ padding:"6px 12px", borderRadius:6, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.5)", fontSize:12, cursor:"pointer", marginTop:4 }}>Reset Round Points</button>
+              </div>
+            )}
+            {!roundSettingsOpen && (
+              <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>{pointsPerQ}pts/q · +{timeBonus} time bonus · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal mode"}</div>
+            )}
+          </div>
+
+          <div style={{ padding:"12px 16px", flex:1, overflowY:"auto" as const }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:"#BE26C1", letterSpacing:2 }}>LEADERBOARD</div>
+              <button onClick={pushScoreboard} style={{ fontSize:11, padding:"4px 10px", borderRadius:6, background:showScoreboard?"rgba(34,197,94,0.3)":"rgba(190,38,193,3)", border:"1px solid "+(showScoreboard?"#22c55e":"#BE26C1"), color:showScoreboard?"#22c55e":"#fff", cursor:"pointer" }}>{showScoreboard ? "Showing..." : "Show on Screen"}</button>
+            </div>
+
+            {scores.length === 0 && teams.length > 0 && (
+              <button onClick={() => ensureScores(sessionPin, teams)} style={{ width:"100%", padding:"8px", borderRadius:8, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:13, cursor:"pointer", marginBottom:10 }}>Initialise Scores</button>
+            )}
+
+            {scores.map((s, i) => {
+              const answered = teamHasAnswered(s.team_name);
+              const ans = teamAnswer(s.team_name);
+              const medal = i===0 ? "gold" : i===1 ? "silver" : i===2 ? "#cd7f32" : null;
+              return (
+                <div key={s.team_name} style={{ padding:"8px 10px", borderRadius:10, background:"rgba(255,255,255,0.05)", border:"1px solid "+(medal ? medal : "rgba(190,38,193,0.12)"), marginBottom:6 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontSize:13, fontWeight:700, color:medal||"rgba(255,255,255,0.4)", minWidth:22 }}>{i+1}.</span>
+                    <span style={{ fontWeight:700, fontSize:13, flex:1, color:"#fff" }}>{s.team_name}</span>
+                    <div style={{ width:7, height:7, borderRadius:"50%", background:answered?"#22c55e":"rgba(255,255,255,0.15)", flexShrink:0 }} />
+                    <span style={{ fontSize:17, fontWeight:800, color:"#BE26C1", minWidth:38, textAlign:"right" as const }}>{s.total_points}</span>
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", paddingLeft:28, marginTop:3, gap:6 }}>
+                    <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>Rd: +{s.round_points}</span>
+                    {answered && <span style={{ fontSize:11, color:"#22c55e", fontStyle:"italic", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>}
+                    {adjustTeam === s.team_name ? (
+                      <div style={{ display:"flex", gap:4, marginLeft:"auto" }}>
+                        <input type="number" value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="+/-" style={{ width:52, padding:"2px 4px", borderRadius:4, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:12, textAlign:"center" as const }} />
+                        <button onClick={() => adjustScore(s.team_name, Number(adjustAmount))} style={{ padding:"2px 8px", borderRadius:4, background:"#BE26C1", border:"none", color:"#fff", fontSize:11, cursor:"pointer" }}>OK</button>
+                        <button onClick={() => { setAdjustTeam(null); setAdjustAmount(""); }} style={{ padding:"2px 6px", borderRadius:4, background:"rgba(255,255,255,0.08)", border:"none", color:"#aaa", fontSize:11, cursor:"pointer" }}>X</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setAdjustTeam(s.team_name)} style={{ marginLeft:"auto", fontSize:10, padding:"2px 6px", borderRadius:4, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>+/- pts</button>
+                    )}
+                  </div>
                 </div>
               );
             })}
-          </div>
 
-          <div style={{ padding:"16px 20px", flex:1 }}>
-            <div style={{ fontSize:14, fontWeight:700, color:"#BE26C1", marginBottom:10, letterSpacing:2 }}>POWER CARDS PLAYED</div>
-            {unoCards.length===0 && <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)" }}>None yet</div>}
-            {unoCards.slice(0,10).map((c,i) => (
-              <div key={c.id||i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", borderRadius:8, background:"rgba(255,255,255,0.05)", marginBottom:6 }}>
-                <span style={{ color:cardColor[c.card_type], fontWeight:700, fontSize:13, minWidth:50 }}>{cardLabel[c.card_type]}</span>
-                <span style={{ color:"rgba(255,255,255,0.7)", fontSize:13 }}>{c.team_name}</span>
-                <span style={{ color:"rgba(255,255,255,0.3)", fontSize:11, marginLeft:"auto" }}>{c.played_at?new Date(c.played_at).toLocaleTimeString():""}</span>
+            {unoCards.length > 0 && (
+              <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid rgba(190,38,193,0.15)" }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"rgba(190,38,193,0.6)", marginBottom:6, letterSpacing:2 }}>POWER CARDS</div>
+                {unoCards.slice(0,5).map((card,i) => (
+                  <div key={card.id||i} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 8px", borderRadius:6, background:"rgba(255,255,255,0.04)", marginBottom:4 }}>
+                    <span style={{ color:cardColor[card.card_type], fontWeight:700, fontSize:11, minWidth:44 }}>{cardLabel[card.card_type]}</span>
+                    <span style={{ color:"rgba(255,255,255,0.6)", fontSize:11 }}>{card.team_name}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

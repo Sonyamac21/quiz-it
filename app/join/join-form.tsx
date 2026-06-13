@@ -67,7 +67,7 @@ const SONGS = [
 ];
 
 function cleanName(filename: string) {
-  return filename.replace(/[-_]SQS$/i, "").replace(/[-_]+$/, "").replace(/[-_]/g, " ").trim();
+  return filename.replace(/\s*SQS\s*$/i, "").replace(/[-_]+$/, "").replace(/[-_]/g, " ").trim();
 }
 
 export function JoinForm() {

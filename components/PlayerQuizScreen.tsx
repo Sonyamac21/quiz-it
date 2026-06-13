@@ -50,7 +50,7 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
 
 export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [phase, setPhase] = useState<Phase>("waiting");
-  const [question, setQuestion] = tate<Question | null>(null);
+  const [question, setQuestion] = useState<Question | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [answerText, setAnswerText] = useState("");

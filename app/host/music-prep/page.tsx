@@ -136,7 +136,7 @@ export default function MusicPrepPage() {
                 {r.questions?.filter(q => q.question_type === "audio").length} audio questions · {new Date(r.created_at).toLocaleDateString()}
               </div>
             </div>
-            <button onClick={() => openForPrep(r)} style={{ padding: "8px 20px", borderRadius: 8, background: "#BE26C1" border: "none", color: "#fff", cursor: "pointer", fontSize: 13, letterSpacing: 2 }}>Prep</button>
+            <button onClick={() => openForPrep(r)} style={{ padding: "8px 20px", borderRadius: 8, background: "#BE26C1", border: "none", color: "#fff", cursor: "pointer", fontSize: 13, letterSpacing: 2 }}>Prep</button>
           </div>
         </div>
       ))}

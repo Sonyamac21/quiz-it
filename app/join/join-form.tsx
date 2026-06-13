@@ -71,7 +71,10 @@ function cleanName(filename: string) {
 }
 
 export function JoinForm() {
-  const [step, setStep] = useState<"name" | "song">("name");
+  const [step, setStep] = useState<"pin" | "name" | "song">("pin");
+  const [pin, setPin] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
   const [teamName, setTeamName] = useState("");
   const [selectedSong, setSelectedSong] = useState("");
   const [search, setSearch] = useState("");
@@ -81,6 +84,24 @@ export function JoinForm() {
   const [preview, setPreview] = useState<HTMLAudioElement | null>(null);
 
   const filtered = SONGS.filter(s => cleanName(s).toLowerCase().includes(search.toLowerCase()));
+
+  async function handlePinNext() {
+    if (!pin.trim() || pin.length !== 4) { setPinError("Please enter a 4-digit PIN"); return; }
+    setPinLoading(true);
+    setPinError("");
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase
+        .from("sessions")
+        .select("id, status")
+        .eq("pin", pin.trim())
+        .single();
+      if (error || !data) { setPinError("PIN not found. Check with your host!"); return; }
+      if (data.status === "finished") { setPinError("This quiz has already ended."); return; }
+      setStep("name");
+    } catch { setPinError("Something went wrong. Try again."); }
+    finally { setPinLoading(false); }
+  }
 
   function handleNameNext() {
     if (!teamName.trim()) { setError("Please enter your team name"); return; }
@@ -105,7 +126,9 @@ export function JoinForm() {
       const supabase = createSupabaseBrowserClient();
       const { error: dbError } = await supabase.from("teams").insert({
         team_name: teamName.trim(),
+        name: teamName.trim(),
         victory_song: selectedSong,
+        session_pin: pin,
       });
       if (dbError) throw dbError;
       setDone(true);
@@ -127,6 +150,35 @@ export function JoinForm() {
         </div>
       );
     }
+
+  if (step === "pin") {
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:16, width:"100%", maxWidth:400 }}>
+        <div style={{ textAlign:"center", marginBottom:8 }}>
+          <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:22, fontWeight:700, color:"#BE26C1", letterSpacing:4, marginBottom:4 }}>Quiz-It</div>
+          <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:9, letterSpacing:3, color:"rgba(255,255,255,0.3)" }}>Enter your quiz PIN to join</div>
+        </div>
+        <input
+          value={pin}
+          onChange={e => setPin(e.target.value.replace(/\D/g,"").slice(0,4))}
+          onKeyDown={e => e.key === "Enter" && handlePinNext()}
+          placeholder="4-digit PIN"
+          autoFocus
+          maxLength={4}
+          style={{ padding:"20px", borderRadius:12, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:32, fontFamily:"monospace", outline:"none", letterSpacing:12, textAlign:"center" }}
+        />
+        {pinError && <p style={{ color:"#FF5555", fontSize:12, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1, textAlign:"center" }}>{pinError}</p>}
+        <button
+          type="button"
+          onClick={handlePinNext}
+          disabled={pinLoading || pin.length !== 4}
+          style={{ padding:"14px", borderRadius:12, background: pin.length === 4 ? "#BE26C1" : "#1a1a2e", color: pin.length === 4 ? "#fff" : "rgba(255,255,255,0.3)", border:"none", fontSize:16, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:3, cursor: pin.length === 4 ? "pointer" : "default" }}
+        >
+          {pinLoading ? "Checking..." : "Join Quiz"}
+        </button>
+      </div>
+    );
+  }
 
   if (step === "name") {
     return (

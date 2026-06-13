@@ -3,9 +3,9 @@ import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const CARDS = [
-  { type: "block",   label: "Block",   emoji: "X", color: "#3b82f6", desc: "Block all teams 10s" },
-  { type: "reverse", label: "Reverse", emoji: "R", color: "#ef4444", desc: "Flip the scoreboard" },
-  { type: "x2",      label: "x2",      emoji: "2x", color: "#eab308", desc: "Double your points" },
+  { type: "block",   label: "Block",   emoji: "X",  color: "#3b82f6", bg: "#1e3a8a", desc: "Block all teams for 10 seconds" },
+  { type: "reverse", label: "Reverse", emoji: "R",  color: "#ef4444", bg: "#7f1d1d", desc: "Flip the scoreboard" },
+  { type: "x2",      label: "x2",      emoji: "2x", color: "#eab308", bg: "#713f12", desc: "Double your points" },
 ];
 
 function getCardInfo(type: string) {
@@ -31,11 +31,11 @@ export function UnoPlayerCards({ teamName }: { teamName: string }) {
   };
 
   return (
-    <div style={{ padding: "16px", background: "#0d0520", borderRadius: 12, border: "1px solid rgba(190,38,193,0.3)" }}>
-      <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(190,38,193,0.7)", marginBottom: 12, textTransform: "uppercase" as const }}>
+    <div style={{ padding: "20px", background: "#1a0a2e", borderRadius: 16, border: "1px solid rgba(190,38,193,0.5)" }}>
+      <div style={{ fontSize: 13, letterSpacing: 3, color: "#BE26C1", marginBottom: 16, textTransform: "uppercase" as const, fontWeight: 700 }}>
         Your Power Cards
       </div>
-      <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
         {CARDS.map(card => {
           const isUsed = used.includes(card.type);
           const isPlaying = playing === card.type;
@@ -45,28 +45,32 @@ export function UnoPlayerCards({ teamName }: { teamName: string }) {
               onClick={() => playCard(card.type)}
               disabled={isUsed || !!playing}
               style={{
-                flex: 1,
-                padding: "14px 8px",
-                borderRadius: 10,
+                width: "100%",
+                padding: "18px 20px",
+                borderRadius: 14,
                 border: "2px solid " + (isUsed ? "rgba(255,255,255,0.1)" : card.color),
-                background: isUsed ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.4)",
-                color: isUsed ? "rgba(255,255,255,0.2)" : card.color,
+                background: isUsed ? "rgba(255,255,255,0.05)" : card.bg,
+                color: isUsed ? "rgba(255,255,255,0.3)" : "#fff",
                 cursor: isUsed ? "not-allowed" : "pointer",
                 display: "flex",
-                flexDirection: "column" as const,
+                flexDirection: "row" as const,
                 alignItems: "center",
-                gap: 6,
-                opacity: isUsed ? 0.4 : 1,
+                gap: 16,
+                opacity: isUsed ? 0.5 : 1,
                 transition: "all 0.2s",
-                boxShadow: isUsed ? "none" : "0 0 12px " + card.color + "44",
-                transform: isPlaying ? "scale(0.95)" : "scale(1)",
+                boxShadow: isUsed ? "none" : "0 4px 20px " + card.color + "55",
+                transform: isPlaying ? "scale(0.97)" : "scale(1)",
+                textAlign: "left" as const,
               }}
             >
-              <span style={{ fontSize: 22, fontWeight: 900 }}>{card.emoji}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>{card.label}</span>
-              <span style={{ fontSize: 9, opacity: 0.7, textAlign: "center" as const, lineHeight: 1.3 }}>
-                {isUsed ? "Used" : card.desc}
-              </span>
+              <span style={{ fontSize: 32, fontWeight: 900, minWidth: 48, textAlign: "center" as const, color: card.color }}>{card.emoji}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: 1, marginBottom: 3, color: isUsed ? "rgba(255,255,255,0.3)" : card.color }}>{card.label}</div>
+                <div style={{ fontSize: 13, color: isUsed ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.85)", lineHeight: 1.3 }}>
+                  {isUsed ? "Already used" : card.desc}
+                </div>
+              </div>
+              {!isUsed && <span style={{ fontSize: 24, color: card.color, opacity: 0.7 }}>›</span>}
             </button>
           );
         })}
@@ -90,7 +94,7 @@ export function UnoHostPanel() {
 
   useEffect(() => {
     fetchCards();
-    const supabase = createSupabaseBrowserClient();
+    const supabase = creeSupabaseBrowserClient();
     const channel = supabase
       .channel("uno-cards-host")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards" }, (payload) => {

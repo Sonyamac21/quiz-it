@@ -97,10 +97,11 @@ export default function DisplayScreen() {
         <img src="/me-logo.jpg" alt="ME" style={{ width: 80, height: 80, borderRadius: "50%", marginBottom: 24, border: "3px solid " + purple }} />
         <div style={{ fontSize: 52, fontWeight: 800, color: purple, letterSpacing: 6, marginBottom: 8, textShadow: "0 0 40px rgba(190,38,193,0.6)" }}>Quiz-It</div>
         <div style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", letterSpacing: 3, marginBottom: 48 }}>powered by Mac Entertainment</div>
-        <div style={{ padding: "16px 32px", borderRadius: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
-          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", letterSpacing: 2, textAlign: "center", marginBottom: 6 }}>JOIN AT</div>
-          <div style={{ fontSize: 22, color: "#fff", fontWeight: 700, letterSpacing: 2, textAlign: "center" }}>quiz-it-six.vercel.app/join</div>
-          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: 6 }}>PIN: {sessionPin}</div>
+        <div style={{ padding: "32px 64px", borderRadius: 20, background: "rgba(255,255,255,0.05)", border: "2px solid rgba(190,38,193,0.4)", textAlign: "center" }}>
+          <div style={{ fontSize: 18, color: "rgba(255,255,255,0.5)", letterSpacing: 4, marginBottom: 12 }}>JOIN AT</div>
+          <div style={{ fontSize: 32, color: "#fff", fontWeight: 700, letterSpacing: 2, marginBottom: 24 }}>quiz-it-six.vercel.app/join</div>
+          <div style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", letterSpacing: 3, marginBottom: 12 }}>ENTER PIN</div>
+          <div style={{ fontSize: 120, fontWeight: 900, color: "#fff", letterSpacing: 24, fontFamily: "monospace", lineHeight: 1, textShadow: "0 0 60px rgba(190,38,193,0.8)" }}>{sessionPin}</div>
         </div>
       </div>
     );

@@ -81,7 +81,7 @@ export default function SessionPage() {
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color: "#fff", padding: "32px 48px", fontFamily: "sans-serif" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
-        <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#2d0a5e", border: "2px solid #BE26C1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#BE26C1", fontWeight: 700 }}>ME</div>
+        <img src="/me-logo.jpg" alt="ME" style={{ width: 48, height: 48, borderRadius: "50%", border: "2px solid #BE26C1", objectFit: "cover" }} />
         <div>
           <div style={{ fontSize: 26, fontWeight: 700, color: "#BE26C1", letterSpacing: 4 }}>Quiz Session</div>
           <div style={{ fontSize: 14, color: "rgba(190,38,193,0.8)", letterSpacing: 2 }}>Quiz-It powered by Mac Entertainment</div>

@@ -165,14 +165,14 @@ export function JoinForm() {
           placeholder="4-digit PIN"
           autoFocus
           maxLength={4}
-          style={{ padding:"20px", borderRadius:12, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:32, fontFamily:"monospace", outline:"none", letterSpacing:12, textAlign:"center" }}
+          style={{ padding:"20px", borderRadius:12, background:"rgba(255,255,255,0.12)", color:"#fff", border:"2px solid rgba(190,38,193,0.7)", fontSize:36, fontFamily:"monospace", outline:"none", letterSpacing:12, textAlign:"center" }}
         />
         {pinError && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1, textAlign:"center" }}>{pinError}</p>}
         <button
           type="button"
           onClick={handlePinNext}
           disabled={pinLoading || pin.length !== 4}
-          style={{ padding:"14px", borderRadius:12, background: pin.length === 4 ? "#BE26C1" : "#1a1a2e", color: pin.length === 4 ? "#fff" : "rgba(255,255,255,0.3)", border:"none", fontSize:16, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:3, cursor: pin.length === 4 ? "pointer" : "default" }}
+          style={{ padding:"14px", borderRadius:12, background: pin.length === 4 ? "#BE26C1" : "rgba(255,255,255,0.08)", color: pin.length === 4 ? "#fff" : "rgba(255,255,255,0.4)", border:"none", fontSize:16, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:3, cursor: pin.length === 4 ? "pointer" : "default" }}
         >
           {pinLoading ? "Checking..." : "Join Quiz"}
         </button>
@@ -190,7 +190,7 @@ export function JoinForm() {
           onKeyDown={e => e.key === "Enter" && handleNameNext()}
           placeholder="Enter your team name..."
           autoFocus
-          style={{ padding:"14px 18px", borderRadius:12, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:22, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none", letterSpacing:1 }}
+          style={{ padding:"14px 18px", borderRadius:12, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1.5px solid rgba(190,38,193,0.6)", fontSize:22, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none", letterSpacing:1 }}
         />
         {error && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1 }}>{error}</p>}
         <button
@@ -213,7 +213,7 @@ export function JoinForm() {
         value={search}
         onChange={e => setSearch(e.target.value)}
         placeholder="Search songs..."
-        style={{ padding:"10px 14px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontSize:18, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none" }}
+        style={{ padding:"10px 14px", borderRadius:10, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1.5px solid rgba(190,38,193,0.5)", fontSize:20, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none" }}
       />
 
       <div style={{ maxHeight:340, overflowY:"auto", display:"flex", flexDirection:"column", gap:6, paddingRight:4 }}>

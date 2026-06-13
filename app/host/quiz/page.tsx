@@ -425,7 +425,7 @@ function QuizControllerInner() {
           ) : hostPhase === "celebration" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>
               <div style={{ fontSize:72, marginBottom:16 }}>🎉</div>
-              <div style={{ fontSize:14, letterSpacing:3, color:"rgba(255,255,255,0.4) marginBottom:12 }}>FASTEST CORRECT ANSWER</div>
+              <div style={{ fontSize:14, letterSpacing:3, color:"rgba(255,255,255,0.4)", marginBottom:12 }}>FASTEST CORRECT ANSWER</div>
               {fastestTeam ? (
                 <>
                   <div style={{ fontSize:42, fontWeight:800, color:"#BE26C1", letterSpacing:2, textShadow:"0 0 40px rgba(190,38,193,0.7)", marginBottom:8 }}>{fastestTeam}</div>

@@ -1,4 +1,5 @@
 'use client';
+import React from "react";
 import { useEffect, useState, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { UnoPlayerCards } from "@/components/UnoCards";
@@ -197,7 +198,33 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           </div>
         )}
 
-        {!isMultiChoice && !submitted && (
+        {question.question_type === "sequence" && !submitted && (() => {
+          const items = [question.option_a, question.option_b, question.option_c, question.option_d].filter(Boolean) as string[];
+          const [order, setOrder] = React.useState<string[]>(items);
+          function moveUp(i: number) { if (i === 0) return; const o = [...order]; [o[i-1], o[i]] = [o[i], o[i-1]]; setOrder(o); }
+          function moveDown(i: number) { if (i === order.length-1) return; const o = [...order]; [o[i], o[i+1]] = [o[i+1], o[i]]; setOrder(o); }
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", letterSpacing: 2, marginBottom: 4 }}>TAP ARROWS TO REORDER</div>
+              {order.map((item, i) => (
+                <div key={item} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderRadius: 12, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(190,38,193,0.25)" }}>
+                  <span style={{ color: purple, fontWeight: 800, minWidth: 24, fontSize: 15 }}>{i+1}.</span>
+                  <span style={{ flex: 1, color: "#fff", fontSize: 15, fontFamily: font }}>{item}</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <button type="button" onClick={() => moveUp(i)} disabled={i===0} style={{ padding: "4px 10px", borderRadius: 6, background: i===0?"rgba(255,255,255,0.04)":"rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.3)", color: i===0?"#444":purple, cursor: i===0?"default":"pointer", fontSize: 12 }}>▲</button>
+                    <button type="button" onClick={() => moveDown(i)} disabled={i===order.length-1} style={{ padding: "4px 10px",orderRadius: 6, background: i===order.length-1?"rgba(255,255,255,0.04)":"rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.3)", color: i===order.length-1?"#444":purple, cursor: i===order.length-1?"default":"pointer", fontSize: 12 }}>▼</button>
+                  </div>
+                </div>
+              ))}
+              <button type="button" onClick={() => submitAnswer(order.join(", "))}
+                style={{ marginTop: 8, padding: "14px", borderRadius: 12, background: purple, color: "#fff", border: "none", fontSize: 16, fontFamily: font, letterSpacing: 2, cursor: "pointer" }}>
+                Submit Order
+              </button>
+            </div>
+          );
+        })()}
+
+        {!isMultiChoice && question.question_type !== "sequence" && !submitted && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
             <input
               value={answerText}

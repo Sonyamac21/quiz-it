@@ -565,7 +565,7 @@ function QuizControllerInner() {
           <div style={{ padding:"12px 16px", flex:1, overflowY:"auto" as const }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <div style={{ fontSize:13, fontWeight:700, color:"#BE26C1", letterSpacing:2 }}>LEADERBOARD</div>
-              <button onClick={pushScoreboard} style={{ fontSize:11, padding:"4px 10px", borderRadius:6, background:showScoreboard?"rgba(34,197,94,0.3)":"rgba(190,38,193,0.3 border:"1px solid "+(showScoreboard?"#22c55e":"#BE26C1"), color:showScoreboard?"#22c55e":"#fff", cursor:"pointer" }}>{showScoreboard ? "Showing..." : "Show on Screen"}</button>
+              <button onClick={pushScoreboard} style={{ fontSize:11, padding:"4px 10px", borderRadius:6, background:showScoreboard?"rgba(34,197,94,0.3)":"rgba(190,38,193,0.3)", border:"1px solid "+(showScoreboard?"#22c55e":"#BE26C1"), color:showScoreboard?"#22c55e":"#fff", cursor:"pointer" }}>{showScoreboard ? "Showing..." : "Show on Screen"}</button>
             </div>
 
             {scores.length === 0 && teams.length > 0 && (

@@ -143,7 +143,7 @@ export function JoinForm() {
       return (
         <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: 36, fontWeight: 700, color: "#BE26C1", letterSpacing: 2 }}>You are In!</div>
+            <div style={{ fontSize: 42, fontWeight: 800, color: "#BE26C1", letterSpacing: 2, textShadow: "0 0 30px rgba(190,38,193,0.5)" }}>You are In!</div>
             <div style={{ fontSize: 22, color: "rgba(255,255,255,0.7)", marginTop: 8 }}>{teamName} - good luck!</div>
           </div>
           <UnoPlayerCards teamName={teamName} />

@@ -3,9 +3,9 @@ import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const CARDS = [
-  { type: "block",   label: "Block",   emoji: "X",  color: "#3b82f6", bg: "#1e3a8a", desc: "Block all teams for 10 seconds" },
-  { type: "reverse", label: "Reverse", emoji: "R",  color: "#ef4444", bg: "#7f1d1d", desc: "Flip the scoreboard" },
-  { type: "x2",      label: "x2",      emoji: "2x", color: "#eab308", bg: "#713f12", desc: "Double your points" },
+  { type: "block",   label: "Block",   emoji: "X",  color: "#60a5fa", bg: "rgba(59,130,246,0.25)", desc: "Block all teams for 10 seconds" },
+  { type: "reverse", label: "Reverse", emoji: "R",  color: "#f87171", bg: "rgba(239,68,68,0.25)", desc: "Flip the scoreboard" },
+  { type: "x2",      label: "x2",      emoji: "2x", color: "#facc15", bg: "rgba(234,179,8,0.2)", desc: "Double your points" },
 ];
 
 function getCardInfo(type: string) {
@@ -31,7 +31,7 @@ export function UnoPlayerCards({ teamName }: { teamName: string }) {
   };
 
   return (
-    <div style={{ padding: "20px", background: "#1a0a2e", borderRadius: 16, border: "1px solid rgba(190,38,193,0.5)" }}>
+    <div style={{ padding: "20px", background: "rgba(45,10,94,0.7)", borderRadius: 16, border: "1px solid rgba(190,38,193,0.5)" }}>
       <div style={{ fontSize: 13, letterSpacing: 3, color: "#BE26C1", marginBottom: 16, textTransform: "uppercase" as const, fontWeight: 700 }}>
         Your Power Cards
       </div>

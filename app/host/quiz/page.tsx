@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -77,6 +77,9 @@ function QuizControllerInner() {
   const [unoCards, setUnoCards] = useState<UnoCard[]>([]);
   const [revealed, setRevealed] = useState(false);
   const [pinInput, setPinInput] = useState("");
+  const [timerActive, setTimerActive] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(10);
+  const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
 
   const currentQ = selectedRound?.questions[qIdx] || null;
 
@@ -177,8 +180,31 @@ function QuizControllerInner() {
   async function showQuestion() {
     setRevealed(false);
     setAnswers([]);
+    setTimerActive(false);
+    setTimeLeft(10);
+    if (timerRef.current) clearInterval(timerRef.current);
     await pushPhase("question");
     if (sessionPin) loadAnswers(sessionPin, qIdx);
+  }
+
+  async function startTimer() {
+    if (!sessionId) return;
+    const supabase = createSupabaseBrowserClient();
+    const now = new Date().toISOString();
+    await supabase.from("sessions").update({ timer_started_at: now, timer_duration: 10 }).eq("id", sessionId);
+    setTimerActive(true);
+    setTimeLeft(10);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          setTimerActive(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   }
 
   async function revealAnswer() {
@@ -330,6 +356,10 @@ function QuizControllerInner() {
                 <button onClick={showQuestion}
                   style={{ padding:"12px 24px", borderRadius:10, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", cursor:"pointer", fontSize:15, letterSpacing:2 }}>
                   Show Question
+                </button>
+                <button onClick={startTimer} disabled={timerActive}
+                  style={{ padding:"12px 24px", borderRadius:10, background:timerActive?"#1a1a1a":"rgba(251,191,36,0.3)", border:"1px solid "+(timerActive?"#333":"rgba(251,191,36,0.6)"), color:timerActive?"#444":"#fbbf24", cursor:timerActive?"not-allowed":"pointer", fontSize:15, letterSpacing:2, minWidth:140 }}>
+                  {timerActive ? timeLeft + "s..." : "Start Timer"}
                 </button>
                 <button onClick={revealAnswer} disabled={revealed}
                   style={{ padding:"12px 24px", borderRadius:10, background:revealed?"#1a1a1a":"rgba(34,197,94,0.3)", border:"1px solid "+(revealed?"#333":"rgba(34,197,94,0.6)"), color:revealed?"#444":"#22c55e", cursor:revealed?"not-allowed":"pointer", fontSize:15, letterSpacing:2 }}>

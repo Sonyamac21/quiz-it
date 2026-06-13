@@ -218,12 +218,12 @@ export function HostDashboard() {
           </p>
         ) : null}
 
-        <button
-          type="button"
-          className="font-logo mt-auto w-full max-w-md shrink-0 rounded-lg bg-[#BE26C1] px-5 py-3 text-lg tracking-wide text-white transition-opacity hover:opacity-90"
+        
+          href="/host/quiz"
+          className="font-logo mt-auto w-full max-w-md shrink-0 rounded-lg bg-[#BE26C1] px-5 py-3 text-lg tracking-wide text-white transition-opacity hover:opacity-90 text-center no-underline block"
         >
           Start Quiz
-        </button>
+        </a>
       </section>
     </div>
   );

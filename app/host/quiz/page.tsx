@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Question = {
@@ -63,6 +64,7 @@ const cardLabel: Record<string,string> = {
 };
 
 export default function QuizController() {
+  const searchParams = useSearchParams();
   const [sessionPin, setSessionPin] = useState("");
   const [sessionId, setSessionId] = useState<string|null>(null);
   const [connected, setConnected] = useState(false);
@@ -80,10 +82,32 @@ export default function QuizController() {
 
   useEffect(() => { loadRounds(); }, []);
 
+  useEffect(() => {
+    const pinFromUrl = searchParams.get("pin");
+    if (pinFromUrl && pinFromUrl.length === 4 && !connected) {
+      setPinInput(pinFromUrl);
+      setTimeout(() => connectWithPin(pinFromUrl), 500);
+    }
+  }, [searchParams]);
+
   async function loadRounds() {
     const supabase = createSupabaseBrowserClient();
     const { data } = await supabase.from("rounds").select("id, name, questions").order("created_at", { ascending: false });
     if (data) setRounds(data);
+  }
+
+  async function connectWithPin(p: string) {
+    const supabase = createSupabaseBrowserClient();
+    const { data } = await supabase.from("sessions").select("*").eq("pin", p.trim()).single();
+    if (!data) return;
+    setSessionPin(p.trim());
+    setSessionId(data.id);
+    setPhase(data.phase || "waiting");
+    setConnected(true);
+    loadTeams(p.trim());
+    loadAnswers(p.trim(), 0);
+    loadUnoCards(p.trim());
+    subscribeToUpdates(p.trim());
   }
 
   async function connectToSession() {
@@ -97,7 +121,7 @@ export default function QuizController() {
     setConnected(true);
     loadTeams(pinInput.trim());
     loadAnswers(pinInput.trim(), 0);
-    loadUnoCards();
+    loadUnoCards(pinInput.trim());
     subscribeToUpdates(pinInput.trim());
   }
 
@@ -113,9 +137,10 @@ export default function QuizController() {
     if (data) setAnswers(data);
   }
 
-  async function loadUnoCards() {
+  async function loadUnoCards(pin?: string) {
     const supabase = createSupabaseBrowserClient();
-    const { data } = await supabase.from("uno_cards").select("*").order("played_at", { ascending: false });
+    let q = supabase.from("uno_cards").select("*").order("played_at", { ascending: false });
+    const { data } = await q;
     if (data) setUnoCards(data);
   }
 

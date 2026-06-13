@@ -127,6 +127,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             <div style={{ fontSize: 28, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 30px rgba(190,38,193,0.6)", marginBottom: 8 }}>{fastestTeamName}</div>
           ) : (
             <div style={{ fontSize: 18, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>No correct answers</div>
+          )}
         {fastestTeamName === teamName && <div style={{ fontSize: 14, color: "#22c55e", fontWeight: 700, marginBottom: 12 }}>{"That's you!"} 🏆</div>}
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", marginBottom: 20 }}>{teamName}</div>
         <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} />

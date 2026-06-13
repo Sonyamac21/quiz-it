@@ -241,7 +241,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           ))}
         </div>
       </div>
-      <UnoPlayerCards teamName={teamName} sessionPi{sessionPin} />
+      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} />
     </div>
   );
 }

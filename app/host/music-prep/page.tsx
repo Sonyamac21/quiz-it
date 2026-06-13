@@ -53,6 +53,9 @@ export default function MusicPrepPage() {
   const [timestamps, setTimestamps] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
+  const [activeTimer, setActiveTimer] = useState<number|null>(null);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const timerIntervalRef = { current: null as ReturnType<typeof setInterval>|null };
 
   useEffect(() => { loadRounds(); }, []);
 
@@ -176,17 +179,47 @@ export default function MusicPrepPage() {
                   ) : (
                     <span style={{ fontSize: 12, color: "#555", fontStyle: "italic" }}>No YouTube link — regenerate this question</span>
                   )}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const }}>
                     <label style={{ fontSize: 11, color: "rgba(190,38,193,0.6)", letterSpacing: 2 }}>HOOK AT</label>
                     <input
-                    value={currentTs}
+                      value={currentTs}
                       onChange={e => setTimestamps(prev => ({ ...prev, [qIdx]: e.target.value }))}
                       placeholder="0:32"
-                      style={{ width: 70, padding: "6px 10px", borderRadius: 8, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(190,38,193,0.4)", fontSize: 14, textAlign: "center", outline: "none" }}
+                      style={{ width: 70, padding: "6px 10px", borderRadius: 8, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(190,38,193,0.4)", fontSize: 14, textAlign: "center" as const, outline: "none" }}
                     />
+                    {activeTimer === qIdx ? (
+                      <>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#fb923c", minWidth: 40 }}>
+                          {Math.floor(timerSeconds/60)}:{String(timerSeconds%60).padStart(2,"0")}
+                        </span>
+                        <button onClick={() => {
+                          const mins = Math.floor(timerSeconds/60);
+                          const secs = timerSeconds%60;
+                          setTimestamps(prev => ({ ...prev, [qIdx]: mins+":"+String(secs).padStart(2,"0") }));
+                          setActiveTimer(null);
+                          setTimerSeconds(0);
+                        }} style={{ padding: "6px 14px", borderRadius: 8, background: "#22c55e", border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                          Mark Hook
+                        </button>
+                        <button onClick={() => { setActiveTimer(null); setTimerSeconds(0); }}
+                          style={{ padding: "6px 10px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid #333", color: "#aaa", fontSize: 12, cursor: "pointer" }}>
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => {
+                        setActiveTimer(qIdx);
+                        setTimerSeconds(0);
+                        let s = 0;
+                        const interval = setInterval(() => { s++; setTimerSeconds(s); }, 1000);
+                        timerIntervalRef.current = interval;
+                      }} style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(251,146,60,0.2)", border: "1px solid rgba(251,146,60,0.5)", color: "#fb923c", fontSize: 12, cursor: "pointer" }}>
+                        Start Timer
+                      </button>
+                    )}
                   </div>
                   {currentTs && parseTimestamp(currentTs) > 0 && (
-                    <span style={{ fontSize: 12, color: "#22c55e" }}>Will start at {currentTs}</span>
+                    <span style={{ fontSize: 12, color: "#22c55e" }}>Hook at {currentTs}</span>
                   )}
                 </div>
               </div>

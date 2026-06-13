@@ -79,23 +79,22 @@ export default function SessionPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#07030f", color: "#fff", padding: "24px", fontFamily: "sans-serif", maxWidth: "800px", margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#1a0530", border: "2px solid #BE26C1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#BE26C1", fontWeight: 700 }}>ME</div>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color: "#fff", padding: "24px", fontFamily: "sans-serif", maxWidth: "800px", margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
+        <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#2d0a5e", border: "2px solid #BE26C1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#BE26C1", fontWeight: 700 }}>ME</div>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#BE26C1", letterSpacing: 4 }}>Quiz Session</div>
-          <div style={{ fontSize: 11, color: "rgba(190,38,193,0.6)", letterSpacing: 2 }}>Quiz-It powered by Mac Entertainment</div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "#BE26C1", letterSpacing: 4 }}>Quiz Session</div>
+          <div style={{ fontSize: 14, color: "rgba(190,38,193,0.8)", letterSpacing: 2 }}>Quiz-It powered by Mac Entertainment</div>
         </div>
         <div style={{ flex: 1 }} />
-        <a href="/host/rounds" style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid rgba(190,38,193,0.4)", color: "#BE26C1", textDecoration: "none", fontSize: 12, letterSpacing: 2 }}>Rounds</a>
+        <a href="/host/rounds" style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid rgba(190,38,193,0.6)", color: "#BE26C1", textDecoration: "none", fontSize: 14, letterSpacing: 2 }}>Rounds</a>
       </div>
 
       {!pin && (
         <div style={{ textAlign: "center", marginTop: 80 }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🎯</div>
-          <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, letterSpacing: 4 }}>Ready to start?</div>
-          <div style={{ fontSize: 13, color: "#666", marginBottom: 32 }}>Create a session to get your PIN. Teams joiat quiz-it-six.vercel.app/join</div>
-          <button onClick={createSession} disabled={creating} style={{ padding: "16px 48px", borderRadius: 12, background: "#BE26C1", color: "#fff", border: "none", fontSize: 18, letterSpacing: 4, cursor: "pointer" }}>
+          <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 12, letterSpacing: 4, color: "#fff" }}>Ready to start?</div>
+          <div style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", marginBottom: 40, lineHeight: 1.6 }}>Create a session to get your PIN.<br/>Teams join at quiz-it-six.vercel.app/join</div>
+          <button onClick={createSession} disabled={creating} style={{ padding: "18px 56px", borderRadius: 12, background: "#BE26C1", color: "#fff", border: "none", fontSize: 20, letterSpacing: 4, cursor: "pointer", boxShadow: "0 0 30px rgba(190,38,193,0.5)" }}>
             {creating ? "Creating..." : "Create Session"}
           </button>
         </div>
@@ -103,47 +102,47 @@ export default function SessionPage() {
 
       {pin && (
         <div>
-          <div style={{ background: "#0d0520", border: "2px solid #BE26C1", borderRadius: 16, padding: 24, marginBottom: 24, textAlign: "center" }}>
-            <div style={{ fontSize: 11, letterSpacing: 4, color: "rgba(190,38,193,0.6)", marginBottom: 8 }}>TEAMS JOIN AT quiz-it-six.vercel.app/join WITH PIN</div>
-            <div style={{ fontSize: 80, fontWeight: 700, letterSpacing: 16, color: "#fff", textShadow: "0 0 30px rgba(190,38,193,0.8)", fontFamily: "monospace" }}>{pin}</div>
-            <div style={{ marginTop: 12, fontSize: 12, color: "#555" }}>
-              Status: <span style={{ color: status === "waiting" ? "#fbbf24" : status === "active" ? "#22c55e" : "#ef4444", fontWeight: 700 }}>{status.toUpperCase()}</span>
+          <div style={{ background: "rgba(45,10,94,0.7)", border: "2px solid #BE26C1", borderRadius: 16, padding: 28, marginBottom: 24, textAlign: "center", boxShadow: "0 0 40px rgba(190,38,193,0.3)" }}>
+            <div style={{ fontSize: 15, letterSpacing: 3, color: "rgba(255,255,255,0.8)", marginBottom: 10 }}>TEAMS JOIN AT quiz-it-six.vercel.app/join WITH PIN</div>
+            <div style={{ fontSize: 96, fontWeight: 700, letterSpacing: 20, color: "#fff", textShadow: "0 0 40px rgba(190,38,193,0.9)", fontFamily: "monospace", lineHeight: 1 }}>{pin}</div>
+            <div style={{ marginTop: 16, fontSize: 16, color: "rgba(255,255,255,0.7)" }}>
+              Status: <span style={{ color: status === "waiting" ? "#fbbf24" : status === "active" ? "#22c55e" : "#ef4444", fontWeight: 700, fontSize: 18 }}>{status.toUpperCase()}</span>
             </div>
           </div>
 
-          <div style={{ background: "#0d0520", border: "1px solid rgba(190,38,193,0.25)", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+          <div style={{ background: "rgba(45,10,94,0.5)", border: "1px solid rgba(190,38,193,0.4)", borderRadius: 12, padding: 20, marginBottom: 20 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ fontSize: 16, fontWeight: 700 }}>Teams Joined <span style={{ color: "#BE26C1" }}>{teams.length}</span></div>
-              <button onClick={() => loadTeams(pin)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(190,38,193,0.4)", background: "transparent", color: "#BE26C1", cursor: "pointer", fontSize: 12 }}>Refresh</button>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "#fff" }}>Teams Joined <span style={{ color: "#BE26C1" }}>{teams.length}</span></div>
+              <button onClick={() => loadTeams(pin)} style={{ padding: "8px 18px", borderRadius: 8, border: "1px solid rgba(190,38,193,0.6)", background: "transparent", color: "#BE26C1", cursor: "pointer", fontSize: 14, letterSpacing: 1 }}>Refresh</button>
             </div>
 
             {teams.length === 0 && (
-              <div style={{ textAlign: "center", color: "#555", padding: "32px 0", fontSize: 13 }}>
+              <div style={{ textAlign: "center", color: "rgba(255,255,255,0.4)", padding: "32px 0", fontSize: 16 }}>
                 Waiting for teams to join...
               </div>
             )}
 
             {teams.map((team, i) => (
-              <div key={team.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 8, background: "#0f0f1a", marginBottom: 6 }}>
-                <span style={{ color: "#BE26C1", fontWeight: 700, minWidth: 24 }}>{i + 1}.</span>
-                <span style={{ fontWeight: 600, flex: 1 }}>{team.team_name}</span>
-                <span style={{ fontSize: 11, color: "#555" }}>{team.victory_song?.replace(/[-_]SQS$/i, "").replace(/[-_]+$/, "").trim()}</span>
+              <div key={team.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 10, background: "rgba(255,255,255,0.08)", marginBottom: 8, border: "1px solid rgba(190,38,193,0.2)" }}>
+                <span style={{ color: "#BE26C1", fontWeight: 700, minWidth: 28, fontSize: 18 }}>{i + 1}.</span>
+                <span style={{ fontWeight: 600, flex: 1, fontSize: 18, color: "#fff" }}>{team.team_name}</span>
+                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>{team.victory_song?.replace(/\s*SQS\s*$/i, "").replace(/[-_]+$/, "").replace(/[-_]/g, " ").trim()}</span>
               </div>
             ))}
           </div>
 
           <div style={{ display: "flex", gap: 12 }}>
             {status === "waiting" && (
-              <button onClick={startQuiz} disabled={teams.length === 0} style={{ flex: 1, padding: 14, borderRadius: 10, background: teams.length > 0 ? "#22c55e" : "#1a1a1a", color: teams.length > 0 ? "#fff" : "#444", border: "none", fontSize: 16, letterSpacing: 4, cursor: teams.length > 0 ? "pointer" : "not-allowed" }}>
+              <button onClick={startQuiz} disabled={teams.length === 0} style={{ flex: 1, padding: 16, borderRadius: 10, background: teams.length > 0 ? "#22c55e" : "#1a1a1a", color: teams.length > 0 ? "#fff" : "#555", border: "none", fontSize: 18, letterSpacing: 4, cursor: teams.length > 0 ? "pointer" : "not-allowed", boxShadow: teams.length > 0 ? "0 0 20px rgba(34,197,94,0.4)" : "none" }}>
                 Start Quiz ({teams.length} teams)
               </button>
             )}
             {status === "active" && (
-              <button onClick={endQuiz} style={{ flex: 1, padding: 14, borderRadius: 10, background: "#ef4444", color: "#fff", border: "none", fontSize: 16, letterSpacing: 4, cursor: "pointer" }}>
+              <button onClick={endQuiz} style={{ flex: 1, padding: 16, borderRadius: 10, background: "#ef4444", color: "#fff", border: "none", fontSize: 18, letterSpacing: 4, cursor: "pointer" }}>
                 End Quiz
               </button>
             )}
-            <button onClick={createSession} style={{ padding: "14px 24px", borderRadius: 10, background: "transparent", border: "1px solid #333", color: "#555", fontSize: 13, cursor: "pointer" }}>
+            <button onClick={createSession} style={{ padding: "16px 24px", borderRadius: 10, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.7)", fontSize: 15, cursor: "pointer" }}>
               New Session
             </button>
           </div>

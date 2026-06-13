@@ -84,7 +84,20 @@ export default function QuestionsPage() {
     const prompt = "You are a professional pub quiz writer. Your audience is English-speaking expats who enjoy British and American pop culture. Generate exactly 1 pub quiz question. Topic: " + topic + ". Type: " + typeInstructions[type] + ". Difficulty: " + difficulty + ". Keep questions focused on UK, US and international culture. Do NOT make questions about UAE, Dubai or Arab culture unless the topic specifically requires it. Content must be safe for UAE - avoid alcohol, pork, sexual references, religion, and politically sensitive Middle East topics." + exclusionNote + " Include a brief explanation of the answer (1-2 sentences) in the explanation field. Return ONLY a valid JSON array with 1 item, no markdown: [{\"question_text\":\"...\",\"question_type\":\"" + type + "\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"correct_answer\":\"...\",\"explanation\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + roundType + "\"}]";
     try {
       const text = await callAPI(prompt);
-      return JSON.parse(text)[0];
+      const q = JSON.parse(text)[0];
+      if (q && q.question_type === "audio" && q.option_a) {
+        try {
+          const ytKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
+          const ytRes = await fetch(
+            "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=" +
+            encodeURIComponent(q.option_a) + "&key=" + ytKey
+          );
+          const ytData = await ytRes.json();
+          const videoId = ytData?.items?.[0]?.id?.videoId;
+          if (videoId) q.option_b = "https://www.youtube.com/watch?v=" + videoId;
+        } catch {}
+      }
+      return q;
     } catch {
       return null;
     }

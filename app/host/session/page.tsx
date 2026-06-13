@@ -79,7 +79,7 @@ export default function SessionPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color: "#fff", padding: "24px", fontFamily: "sans-serif", maxWidth: "800px", margin: "0 auto" }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color: "#fff", padding: "32px 48px", fontFamily: "sans-serif" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
         <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#2d0a5e", border: "2px solid #BE26C1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#BE26C1", fontWeight: 700 }}>ME</div>
         <div>

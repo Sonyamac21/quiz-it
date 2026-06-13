@@ -111,7 +111,7 @@ export default function DisplayScreen() {
       <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: font }}>
         <div style={{ fontSize: 96, marginBottom: 24 }}>🎉</div>
         <div style={{ fontSize: 64, fontWeight: 800, color: purple, letterSpacing: 4, textShadow: "0 0 60px rgba(190,38,193,0.8)" }}>Round Over!</div>
-        <div style={{ fontSize: 22, color: "rgba(255,255,255,0.5)", marginTop: 16, letterSpacing2 }}>Quiz-It · Mac Entertainment</div>
+        <div style={{ fontSize: 22, color: "rgba(255,255,255,0.5)", marginTop: 16, letterSpacing: 2 }}>Quiz-It · Mac Entertainment</div>
       </div>
     );
   }

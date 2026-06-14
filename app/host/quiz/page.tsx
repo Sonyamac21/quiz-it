@@ -737,7 +737,7 @@ function QuizControllerInner() {
               <button onClick={() => ensureScores(sessionPin, teams)} style={{ width:"100%", padding:"8px", borderRadius:8, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:13, cursor:"pointer", marginBottom:10 }}>Initialise Scores</button>
             )}
             {scores.map((s, i) => {
-              const answered = mHasAnswered(s.team_name);
+              const answered = teamHasAnswered(s.team_name);
               const ans = teamAnswer(s.team_name);
               const medal = i===0 ? "gold" : i===1 ? "silver" : i===2 ? "#cd7f32" : null;
               const isFastest = s.team_name === fastestTeam;

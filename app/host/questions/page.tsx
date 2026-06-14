@@ -124,11 +124,11 @@ export default function QuestionsPage() {
     if (roundType === "music") {
       types = Array(count).fill("audio");
     } else {
-      const mcCount = Math.round(count * 0.30);
+      const mcCount = Math.round(count * 0.25);
       const taCount = Math.round(count * 0.20);
       const numCount = Math.round(count * 0.15);
-      const seqCount = Math.round(count * 0.15);
-      const picCount = Math.round(count * 0.10);
+      const seqCount = Math.round(count * 0.10);
+      const picCount = Math.round(count * 0.20);
       const audCount = count - mcCount - taCount - numCount - seqCount - picCount;
       types = [
         ...Array(mcCount).fill("multiple_choice"),

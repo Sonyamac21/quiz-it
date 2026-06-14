@@ -74,6 +74,7 @@ function QuizControllerInner() {
 
   const currentQ = selectedRound?.questions[qIdx] || null;
   const isLastQ = selectedRound ? qIdx >= selectedRound.questions.length - 1 : false;
+  const [picSubPhase, setPicSubPhase] = useState<"image_only"|"question_visible">("image_only");
 
   useEffect(() => { loadRounds(); }, []);
   useEffect(() => {
@@ -108,7 +109,14 @@ function QuizControllerInner() {
     if (hostPhase === "waiting") { doStartRound(); }
     else if (hostPhase === "round_start") { doPreviewQuestion(qIdx); }
     else if (hostPhase === "preview") { doSendQuestion(); }
-    else if (hostPhase === "question") { doStartTimer(); }
+    else if (hostPhase === "question") {
+      if (currentQ?.question_type === "picture" && picSubPhase === "image_only") {
+        doRevealPictureQuestion();
+        setPicSubPhase("question_visible");
+      } else {
+        doStartTimer();
+      }
+    }
     else if (hostPhase === "timer") { doRevealAnswer(); }
     else if (hostPhase === "answer") { doCelebrate(); }
     else if (hostPhase === "celebration") {
@@ -204,6 +212,16 @@ function QuizControllerInner() {
     const b = normalise(correct);
     if (a === b) return true;
     if (a === "" || b === "") return false;
+    // Partial match: answer is contained in correct or vice versa
+    if (b.includes(a) && a.length >= 3) return true;
+    if (a.includes(b) && b.length >= 3) return true;
+    // Check each word of correct answer against answer
+    const bWords = b.split(" ");
+    if (bWords.length > 1) {
+      for (const word of bWords) {
+        if (word.length >= 4 && a === word) return true;
+      }
+    }
     const maxDist = Math.max(1, Math.floor(b.length * 0.3));
     return levenshtein(a, b) <= maxDist;
   }
@@ -370,6 +388,7 @@ function QuizControllerInner() {
     setFastestSong(null);
     setTimeLeft(timerDuration);
     setHostPhase("preview");
+    setPicSubPhase("image_only");
     // Display screen stays on holding/waiting — no Supabase push here
     if (sessionPin) loadAnswers(sessionPin, idx);
   }
@@ -378,8 +397,15 @@ function QuizControllerInner() {
     if (!selectedRound || !sessionId) return;
     const q = selectedRound.questions[qIdx];
     setHostPhase("question");
+    const isPicture = q.question_type === "picture";
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "question", current_question: q, current_question_index: qIdx, fastest_team: null, fastest_song: null }).eq("id", sessionId);
+    await supabase.from("sessions").update({ phase: "question", current_question: q, current_question_index: qIdx, fastest_team: null, fastest_song: null, picture_sub_phase: isPicture ? "image_only" : null }).eq("id", sessionId);
+  }
+
+  async function doRevealPictureQuestion() {
+    if (!sessionId || !currentQ) return;
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").update({ picture_sub_phase: "question_visible" }).eq("id", sessionId);
   }
 
   async function doStartTimer() {
@@ -462,6 +488,7 @@ function QuizControllerInner() {
     hostPhase === "waiting" ? "SPACE: Start Round" :
     hostPhase === "round_start" ? "SPACE: Preview First Question" :
     hostPhase === "preview" ? "SPACE: Send Question Live" :
+    hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "SPACE: Reveal Question Text" :
     hostPhase === "question" ? "SPACE: Start Timer" :
     hostPhase === "timer" ? "SPACE: Reveal Answer" :
     hostPhase === "answer" ? "SPACE: Celebrate Fastest Team" :

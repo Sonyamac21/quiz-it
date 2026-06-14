@@ -97,6 +97,19 @@ export default function QuestionsPage() {
           if (videoId) q.option_b = "https://www.youtube.com/watch?v=" + videoId;
         } catch {}
       }
+      if (q && q.question_type === "picture" && q.option_a) {
+        try {
+          const pixabayKey = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
+          const pixRes = await fetch(
+            "https://pixabay.com/api/?key=" + pixabayKey +
+            "&q=" + encodeURIComponent(q.option_a) +
+            "&image_type=photo&per_page=5&safesearch=true"
+          );
+          const pixData = await pixRes.json();
+          const hit = pixData?.hits?.[0];
+          if (hit) q.option_b = hit.largeImageURL || hit.webformatURL;
+        } catch {}
+      }
       return q;
     } catch {
       return null;

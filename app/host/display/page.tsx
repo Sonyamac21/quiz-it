@@ -58,6 +58,11 @@ export default function DisplayScreen() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [phase, revealedCount, quizEndScores, trophyVisible]);
 
+  // Track picture sub-phase: "image_only" -> "question_visible"
+  const [pictureSubPhase, setPictureSubPhase] = useState<"image_only"|"question_visible">("image_only");
+  const [answeredTeams, setAnsweredTeams] = useState<string[]>([]);
+  const [showAnsweredTeams, setShowAnsweredTeams] = useState(false);
+
   function handleRevealNext() {
     const sorted = [...quizEndScores].sort((a,b) => a.total_points - b.total_points);
     const nextCount = revealedCount + 1;
@@ -92,6 +97,28 @@ export default function DisplayScreen() {
 
     if (newPhase === "scoreboard") {
       setScoreboardData((data.scoreboard_data as Score[]) || []);
+    }
+
+    // Reset picture sub-phase when new question arrives
+    if (newPhase === "question") {
+      const q = data.current_question as {question_type?: string} | null;
+      if (q?.question_type === "picture") {
+        setPictureSubPhase("image_only");
+      }
+      setShowAnsweredTeams(false);
+      setAnsweredTeams([]);
+    }
+
+    // Show answered teams after timer ends
+    if (newPhase === "answer") {
+      const teams = (data.answered_teams as string[]) || [];
+      setAnsweredTeams(teams);
+      setShowAnsweredTeams(true);
+    }
+
+    // Picture sub-phase: advance from image_only to question_visible
+    if ((data as any).picture_sub_phase === "question_visible") {
+      setPictureSubPhase("question_visible");
     }
 
     if (newPhase === "quiz_end") {
@@ -370,6 +397,51 @@ export default function DisplayScreen() {
   if (phase === "question" && question) {
     const options = [{ key:"A", text:question.option_a },{ key:"B", text:question.option_b },{ key:"C", text:question.option_c },{ key:"D", text:question.option_d }].filter(o => o.text);
     const isMulti = question.question_type === "multiple_choice";
+    const isPicture = question.question_type === "picture";
+    const imageUrl = isPicture ? question.option_b : null;
+
+    // PICTURE ROUND - image only (first space)
+    if (isPicture && pictureSubPhase === "image_only" && imageUrl) {
+      return (
+        <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, position:"relative" }}>
+          <div style={{ position:"absolute", top:20, right:30, fontSize:14, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Q{questionIndex+1} · Quiz-It/div>
+          <img src={imageUrl} alt="Quiz image" style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:16, objectFit:"contain", boxShadow:"0 0 60px rgba(190,38,193,0.3)" }} />
+          <div style={{ position:"absolute", bottom:24, left:0, right:0, textAlign:"center", fontSize:13, color:"rgba(255,255,255,0.2)", letterSpacing:3 }}>PICTURE ROUND</div>
+        </div>
+      );
+    }
+
+    // PICTURE ROUND - image + question (second space)
+    if (isPicture && pictureSubPhase === "question_visible") {
+      return (
+        <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", fontFamily:font, color:"#fff" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:16, padding:"20px 48px", borderBottom:"1px solid rgba(190,38,193,0.2)" }}>
+            <div style={{ fontSize:13, letterSpacing:4, color:"rgba(255,255,255,0.3)" }}>Q{questionIndex+1}</div>
+            <div style={{ padding:"4px 16px", borderRadius:999, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", fontSize:13, color:purple, letterSpacing:2 }}>PICTURE ROUND</div>
+            <div style={{ flex:1 }} />
+            {timeLeft !== null && timeLeft > 0 && (
+              <div style={{ width:56, height:56, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"3px solid "+(timeLeft<=3?"#ef4444":purple), display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, fontWeight:800, color:timeLeft<=3?"#ef4444":purple }}>{timeLeft}</div>
+            )}
+            <div style={{ fontSize:14, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Quiz-It</div>
+          </div>
+          <div style={{ flex:1, display:"grid", gridTemplateColumns:"1fr 1fr", gap:0 }}>
+            {imageUrl && (
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:32, borderRight:"1px solid rgba(190,38,193,0.2)" }}>
+                <img src={imageUrl} alt="Quiz image" style={{ maxWidth:"100%", maxHeight:"70vh", borderRadius:12, objectFit:"contain" }} />
+              </div>
+            )}
+            <div style={{ display:"flex", flexDirection:"column", justifyContent:"center", padding:48 }}>
+              <div style={{ fontSize:36, fontWeight:700, lineHeight:1.4, marginBottom:24 }}>{question.question_text.replace(/^Show teams this image:\s*/i, "")}</div>
+              <div style={{ padding:"16px 20px", borderRadius:12, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", fontSize:18, color:"rgba(255,255,255,0.4)", fontStyle:"italic" }}>
+                Type your answer on your phone
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // STANDARD QUESTION
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", padding:"48px 80px", fontFamily:font, color:"#fff" }}>
         <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:32 }}>

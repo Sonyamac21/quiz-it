@@ -48,6 +48,65 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
   );
 }
 
+function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAnswerText, onSubmit, questionIndex, timeLeft, purple, font, bg, teamName, sessionPin }: {
+  imageUrl: string; questionText: string; submitted: boolean; answerText: string;
+  setAnswerText: (v: string) => void; onSubmit: (a: string) => void;
+  questionIndex: number; timeLeft: number | null; purple: string; font: string; bg: string;
+  teamName: string; sessionPin: string;
+}) {
+  const [imageDismissed, setImageDismissed] = React.useState(false);
+
+  if (!imageDismissed) {
+    return (
+      <div onClick={() => setImageDismissed(true)}
+        style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative", padding:16 }}>
+        <img src={imageUrl} alt="Quiz" style={{ maxWidth:"100%", maxHeight:"75vh", borderRadius:16, objectFit:"contain", boxShadow:"0 0 40px rgba(190,38,193,0.3)" }} />
+        <div style={{ marginTop:20, fontSize:13, color:"rgba(255,255,255,0.4)", letterSpacing:2, fontFamily:font }}>TAP TO ANSWER</div>
+        {timeLeft !== null && timeLeft > 0 && (
+          <div style={{ position:"absolute", top:20, right:20, width:44, height:44, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"2px solid "+(timeLeft<=3?"#ef4444":purple), display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:800, color:timeLeft<=3?"#ef4444":purple, fontFamily:font }}>
+            {timeLeft}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", padding:20, fontFamily:font, color:"#fff" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+        <div style={{ fontSize:11, letterSpacing:3, color:"rgba(255,255,255,0.3)" }}>Q{questionIndex+1} — PICTURE ROUND</div>
+      {timeLeft !== null && timeLeft > 0 && (
+          <div style={{ marginLeft:"auto", width:40, height:40, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"2px solid "+(timeLeft<=3?"#ef4444":purple), display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:timeLeft<=3?"#ef4444":purple }}>
+            {timeLeft}
+          </div>
+        )}
+      </div>
+      <img src={imageUrl} alt="Quiz" style={{ width:"100%", maxHeight:"35vh", objectFit:"contain", borderRadius:12, marginBottom:16 }} />
+      <div style={{ fontSize:16, fontWeight:700, lineHeight:1.4, marginBottom:16, color:"#fff" }}>{questionText}</div>
+      {!submitted ? (
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          <input value={answerText} onChange={e => setAnswerText(e.target.value)}
+            onKeyDown={e => e.key==="Enter" && onSubmit(answerText)}
+            placeholder="Type your answer..." autoFocus
+            style={{ padding:"12px 16px", borderRadius:12, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1.5px solid rgba(190,38,193,0.6)", fontSize:17, fontFamily:font, outline:"none" }} />
+          <button type="button" onClick={() => onSubmit(answerText)} disabled={!answerText.trim()}
+            style={{ padding:"12px", borderRadius:12, background:answerText.trim()?purple:"#1a1a2e", color:answerText.trim()?"#fff":"rgba(255,255,255,0.3)", border:"none", fontSize:15, fontFamily:font, letterSpacing:2, cursor:answerText.trim()?"pointer":"default" }}>
+            Submit Answer
+          </button>
+        </div>
+      ) : (
+        <div style={{ padding:"14px 18px", borderRadius:12, background:"rgba(190,38,193,0.15)", border:"1px solid rgba(190,38,193,0.4)", textAlign:"center" }}>
+          <div style={{ fontSize:15, color:purple, fontWeight:700 }}>Answer Submitted!</div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginTop:4 }}>Waiting for host...</div>
+        </div>
+      )}
+      <div style={{ marginTop:"auto", paddingTop:12 }}>
+        <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} />
+      </div>
+    </div>
+  );
+}
+
 export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [phase, setPhase] = useState<Phase>("waiting");
   const [question, setQuestion] = useState<Question | null>(null);
@@ -196,8 +255,29 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
 
   if ((phase === "question") && question) {
+    const isPicture = question.question_type === "picture";
     const isMultiChoice = question.question_type === "multiple_choice";
     const isSequence = question.question_type === "sequence";
+    const imageUrl = isPicture ? question.option_b : null;
+
+    // PICTURE ROUND - show image full screen, tap to dismiss
+    if (isPicture && imageUrl) {
+      return <PictureQuestion
+        imageUrl={imageUrl}
+        questionText={question.question_text.replace(/^Show teams this image:\s*/i, "")}
+        submitted={submitted}
+        answerText={answerText}
+        setAnswerText={setAnswerText}
+        onSubmit={submitAnswer}
+        questionIndex={questionIndex}
+        timeLeft={timeLeft}
+        purple={purple}
+        font={font}
+        bg={bg}
+        teamName={teamName}
+        sessionPin={sessionPin}
+      />;
+    }
     const options = [
       { key: "a", text: question.option_a },
       { key: "b", text: question.option_b },

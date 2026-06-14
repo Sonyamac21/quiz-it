@@ -571,7 +571,7 @@ function QuizControllerInner() {
             <div style={{ textAlign:"center", marginTop:60 }}>
               <div style={{ fontSize:48, marginBottom:16 }}>🏆</div>
               <div style={{ fontSize:32, fontWeight:800, color:"#fbbf24", letterSpacing:3, marginBottom:8 }}>Quiz Complete!</div>
-              <div style={{ fontSize:16, color(255,255,255,0.4)", marginBottom:32 }}>Leaderboard reveal is live on the display screen</div>
+              <div style={{ fontSize:16, color:"rgba(255,255,255,0.4)", marginBottom:32 }}>Leaderboard reveal is live on the display screen</div>
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>SPACE: reveal next team on display screen</div>
             </div>
           ) : hostPhase === "celebration" ? (

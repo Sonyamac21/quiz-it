@@ -286,7 +286,7 @@ export default function DisplayScreen() {
                   <div style={{ fontSize:22, fontWeight:800, color:"#fff", marginBottom:4 }}>{top3[2].team_name}</div>
                   <div style={{ fontSize:28, fontWeight:900, color:"#cd7f32" }}>{top3[2].total_points}</div>
                 </div>
-                <div style={{ width:"100%", height:50, background:"linear-gradient(180deg, rgba(205,127,50,0.3) 0%, rgba(205,127,50,0.1) 100%)", borderRadius:"8px 8px 0 0", border:"1px solid rgba(205,127,50,0.3)", borderBott:"none" }} />
+                <div style={{ width:"100%", height:50, background:"linear-gradient(180deg, rgba(205,127,50,0.3) 0%, rgba(205,127,50,0.1) 100%)", borderRadius:"8px 8px 0 0", border:"1px solid rgba(205,127,50,0.3)", borderBottom:"none" }} />
               </div>
             )}
           </div>

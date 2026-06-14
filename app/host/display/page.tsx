@@ -404,7 +404,7 @@ export default function DisplayScreen() {
     if (isPicture && pictureSubPhase === "image_only" && imageUrl) {
       return (
         <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, position:"relative" }}>
-          <div style={{ position:"absolute", top:20, right:30, fontSize:14, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Q{questionIndex+1} · Quiz-It/div>
+          <div style={{ position:"absolute", top:20, right:30, fontSize:14, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Q{questionIndex+1} - Quiz-It</div>
           <img src={imageUrl} alt="Quiz image" style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:16, objectFit:"contain", boxShadow:"0 0 60px rgba(190,38,193,0.3)" }} />
           <div style={{ position:"absolute", bottom:24, left:0, right:0, textAlign:"center", fontSize:13, color:"rgba(255,255,255,0.2)", letterSpacing:3 }}>PICTURE ROUND</div>
         </div>

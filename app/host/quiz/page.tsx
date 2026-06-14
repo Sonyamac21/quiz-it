@@ -414,7 +414,7 @@ function QuizControllerInner() {
     setHostPhase("timer");
     setTimeLeft(timerDuration);
     const supabase = createSupabaseBrowserClient();
-    const now = new Date().toISOString(
+    const now = new Date().toISOString();
     await supabase.from("sessions").update({ timer_started_at: now, timer_duration: timerDuration }).eq("id", sessionId);
     startTickAudio(timerDuration);
     if (timerRef.current) clearInterval(timerRef.current);

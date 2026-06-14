@@ -747,7 +747,7 @@ function QuizControllerInner() {
                     <span style={{ fontSize:13, fontWeight:700, color:medal||"rgba(255,255,255,0.4)", minWidth:22 }}>{i+1}.</span>
                     <span style={{ fontWeight:700, fontSize:13, flex:1, color:"#fff" }}>{s.team_name}{isFastest?" ⚡":""}</span>
                     <div style={{ width:7, height:7, borderRadius:"50%", background:answered?"#22c55e":"rgba(255,255,255,0.15)", flexShrink:0 }} />
-                    <span style={fontSize:17, fontWeight:800, color:"#BE26C1", minWidth:38, textAlign:"right" as const }}>{s.total_points}</span>
+                    <span style={{ fontSize:17, fontWeight:800, color:"#BE26C1", minWidth:38, textAlign:"right" as const }}>{s.total_points}</span>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", paddingLeft:28, marginTop:3, gap:6 }}>
                     <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>Rd: +{s.round_points}</span>

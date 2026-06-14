@@ -558,7 +558,7 @@ function QuizControllerInner() {
             <div style={{ textAlign:"center", marginTop:60 }}>
               <div style={{ fontSize:48, marginBottom:16 }}>🎵</div>
               <div style={{ fontSize:32, fontWeight:800, color:"#fb923c", letterSpacing:3, marginBottom:8 }}>{selectedRound.name}</div>
-              <div style={{ fontSize:18, color:"rgba(255,255,255,0.5)", marginBottom:32 }}>{selectedRound.quesons.length} questions</div>
+              <div style={{ fontSize:18, color:"rgba(255,255,255,0.5)", marginBottom:32 }}>{selectedRound.questions.length} questions</div>
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Announce the round — then SPACE to preview Q1</div>
             </div>
           ) : hostPhase === "round_end" ? (

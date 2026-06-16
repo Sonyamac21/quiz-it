@@ -145,6 +145,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     };
   }, []);
 
+  const applySessionDataRef = useRef<(data: Record<string, unknown>) => void>(() => {});
+
+  useEffect(() => {
+    applySessionDataRef.current = applySessionData;
+  });
+
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
 
@@ -154,7 +160,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team")
         .eq("pin", sessionPin)
         .single();
-      if (data) applySessionData(data);
+      if (data) applySessionDataRef.current(data as Record<string, unknown>);
     }
 
     fetchSession();
@@ -167,17 +173,11 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       .on("postgres_changes", {
         event: "UPDATE", schema: "public", table: "sessions",
       }, (payload) => {
-        addDebug("event received");
         if (payload.new && (payload.new as Record<string, unknown>).pin === sessionPin) {
-          addDebug("applying: " + (payload.new as Record<string, unknown>).phase);
-          applySessionData(payload.new as Record<string, unknown>);
-        } else {
-          addDebug("PIN mismatch");
+          applySessionDataRef.current(payload.new as Record<string, unknown>);
         }
       })
-      .subscribe((status) => {
-        addDebug("status: " + status);
-      });
+      .subscribe();
 
     return () => { supabase.removeChannel(channel); clearInterval(pollInterval); };
   }, [sessionPin]);

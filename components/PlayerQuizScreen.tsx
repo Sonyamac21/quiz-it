@@ -262,7 +262,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
         {fastestTeamName === teamName && <div style={{ fontSize: 14, color: "#22c55e", fontWeight: 700, marginBottom: 12 }}>{"That's you!"} 🏆</div>}
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", marginBottom: 20 }}>{teamName}</div>
-        <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} />
+        <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} compact={true} />
       </div>
     );
   }

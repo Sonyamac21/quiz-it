@@ -94,7 +94,7 @@ export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { team
                 <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: 1 }}>{card.label}</div>
                 <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{card.desc}</div>
               </div>
-              <span style={{ marginLeft: "auto", fontSize: 16, opacity: 0.5 }}>chevron</span>
+              <span style={{ marginLeft: "auto", fontSize: 16, opacity: 0.5 }}>›</span>
             </button>
           );
         })}

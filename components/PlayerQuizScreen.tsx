@@ -246,7 +246,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
   const PowerCards = () => (
     <div style={{ marginTop: "auto", paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} />
+      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} compact={true} />
     </div>
   );
 

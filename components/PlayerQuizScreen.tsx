@@ -120,6 +120,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const lastQIndexRef = useRef(-1);
   const lastPhaseRef = useRef<string>("");
 
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const addDebug = (msg: string) => setDebugLog(prev => [...prev.slice(-4), msg]);
+
   const bg = "#080810";
   const purple = "#BE26C1";
   const font = "'Bruno Ace SC', sans-serif";
@@ -143,16 +146,16 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       .on("postgres_changes", {
         event: "UPDATE", schema: "public", table: "sessions",
       }, (payload) => {
-        console.log("[Realtime] received:", payload.new);
+        addDebug("event received");
         if (payload.new && (payload.new as Record<string, unknown>).pin === sessionPin) {
-          console.log("[Realtime] applying session data");
+          addDebug("applying: " + (payload.new as Record<string, unknown>).phase);
           applySessionData(payload.new as Record<string, unknown>);
         } else {
-          console.log("[Realtime] PIN mismatch or no data", sessionPin);
+          addDebug("PIN mismatch");
         }
       })
       .subscribe((status) => {
-        console.log("[Realtime] subscription status:", status);
+        addDebug("status: " + status);
       });
 
     return () => { supabase.removeChannel(channel); };
@@ -362,6 +365,14 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         </div>
       </div>
       <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} />
+      {debugLog.length > 0 && (
+        <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: 2, marginBottom: 6 }}>DEBUG</div>
+          {debugLog.map((msg, i) => (
+            <div key={i} style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 2 }}>{msg}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

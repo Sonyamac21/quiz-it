@@ -142,8 +142,11 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       .channel("player-session-" + sessionPin)
       .on("postgres_changes", {
         event: "UPDATE", schema: "public", table: "sessions",
-        filter: "pin=eq." + sessionPin,
-      }, (payload) => { applySessionData(payload.new); })
+      }, (payload) => {
+        if (payload.new && (payload.new as Record<string, unknown>).pin === sessionPin) {
+          applySessionData(payload.new as Record<string, unknown>);
+        }
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };

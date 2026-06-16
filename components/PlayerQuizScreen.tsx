@@ -255,7 +255,10 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const confettiColors = ["#BE26C1","#fbbf24","#22c55e","#38bdf8","#f87171","#a78bfa"];
     return (
       <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, position: "relative", overflow: "hidden" }}>
-        <style>{`@keyframes fall { 0% { transform: translateY(-20px) rotate(0deg); opacity:1; } 100% { transform: translateY(110vh) rotate(720deg); opacity:0; } }`}</style>
+        <style>{`
+          @keyframes fall { 0% { transform: translateY(-20px) rotate(0deg); opacity:1; } 100% { transform: translateY(110vh) rotate(720deg); opacity:0; } }
+          @keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.15} }
+        `}</style>
         {isWinner && Array.from({length: 24}).map((_, i) => (
           <div key={i} style={{
             position: "absolute", top: "-10px",
@@ -267,13 +270,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             opacity: 0.9, pointerEvents: "none" as const,
           }} />
         ))}
+        <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", letterSpacing: 3, textAlign: "center", lineHeight: 1.2, marginBottom: 20, animation: "flash 0.8s ease-in-out infinite", textShadow: "0 0 20px rgba(255,255,255,0.6)" }}>FASTEST<br/>CORRECT ANSWER</div>
         {isWinner ? (
           <>
-            <div style={{ fontSize: 80, marginBottom: 8 }}>{"\uD83C\uDFC6"}</div>
-            <style>{`@keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.2} }`}</style>
-            <div style={{ fontSize: 28, fontWeight: 900, color: "#fff", letterSpacing: 3, textAlign: "center", lineHeight: 1.2, marginBottom: 14, animation: "flash 1s ease-in-out infinite", textShadow: "0 0 20px rgba(255,255,255,0.8)" }}>FASTEST<br/>CORRECT ANSWER</div>
-            <div style={{ fontSize: 34, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 40px rgba(190,38,193,0.8)", marginBottom: 6 }}>{fastestTeamName}</div>
-            <div style={{ fontSize: 16, color: "#22c55e", fontWeight: 800, letterSpacing: 2, marginBottom: 24 }}>{"That's you!"}</div>
+            <div style={{ fontSize: 80, marginBottom: 8 }}>{"🏆"}</div>
+            <div style={{ fontSize: 42, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 40px rgba(190,38,193,0.8)", marginBottom: 8 }}>{fastestTeamName}</div>
+            <div style={{ fontSize: 18, color: "#22c55e", fontWeight: 800, letterSpacing:  marginBottom: 24 }}>{"That's you! 🎉"}</div>
             <div style={{ padding: "20px 40px", borderRadius: 20, background: "rgba(34,197,94,0.15)", border: "2px solid rgba(34,197,94,0.5)", marginBottom: 32, textAlign: "center" }}>
               <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(34,197,94,0.7)", marginBottom: 4 }}>POINTS AWARDED</div>
               <div style={{ fontSize: 56, fontWeight: 900, color: "#22c55e", textShadow: "0 0 20px rgba(34,197,94,0.6)", lineHeight: 1 }}>+10</div>
@@ -281,16 +283,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           </>
         ) : fastestTeamName ? (
           <>
-            <div style={{ fontSize: 64, marginBottom: 8 }}>{"\uD83C\uDF89"}</div>
-            <div style={{ fontSize: 12, letterSpacing: 4, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>FASTEST CORRECT ANSWER</div>
-            <div style={{ fontSize: 30, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 30px rgba(190,38,193,0.6)", marginBottom: 24 }}>{fastestTeamName}</div>
+            <div style={{ fontSize: 48, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 30px rgba(190,38,193,0.6)", marginBottom: 24 }}>{fastestTeamName}</div>
           </>
         ) : (
           <>
-            <div style={{ fontSize: 64, marginBottom: 8 }}>{"\uD83D\uDE2C"}</div>
-            <div style={{ fontSize: 12, letterSpacing: 4, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>NO CORRECT ANSWERS</div>
-            <div style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", marginBottom: 24 }}>Better luck next time!</div>
-          </>
+            <div style={{ fontSize: 64, marginBottom: 8 }}>{"😬"}</div>
+            <div style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", marginBottom: 24 }}>Better luck next time!</di         </>
         )}
         <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} compact={true} />
       </div>
@@ -368,16 +366,22 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               const isSelected = selectedAnswer === opt.key;
               return (
                 <button key={opt.key} type="button"
-                  onClick={() => { if (!submitted) { setSelectedAnswer(opt.key); submitAnswer(opt.key); } }}
-                  disabled={submitted && !isSelected}
-                  style={{ padding: "12px 16px", borderRadius: 12, border: "1.5px solid", borderColor: isSelected ? "#22c55e" : "rgba(255,255,255,0.15)", background: isSelected ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.06)", color: isSelected ? "#22c55e" : submitted ? "rgba(255,255,255,0.3)" : "#fff", fontSize: 15, fontFamily: font, textAlign: "left" as const, cursor: submitted ? "default" : "pointer", display: "flex", alignItems: "center", gap: 10, opacity: submitted && !isSelected ? 0.4 : 1 }}>
-                  <span style={{ color: isSelected ? "#22c55e" : purple, fontWeight: 700, minWidth: 18 }}>{opt.key.toUpperCase()}.</span>
+                  onClick={() => { if (!submitted) setSelectedAnswer(opt.key); }}
+                style={{ padding: "12px 16px", borderRadius: 12, border: "1.5px solid", borderColor: isSelected ? purple : "rgba(255,255,255,0.15)", background: isSelected ? "rgba(190,38,193,0.25)" : "rgba(255,255,255,0.06)", color: "#fff", fontSize: 15, fontFamily: font, textAlign: "left" as const, cursor: submitted ? "default" : "pointer", display: "flex", alignItems: "center", gap: 10, opacity: submitted && !isSelected ? 0.35 : 1 }}>
+                  <span style={{ color: isSelected ? "#fff" : purple, fontWeight: 700, minWidth: 18 }}>{opt.key.toUpperCase()}.</span>
                   {opt.text}
-                  {isSelected && <span style={{ marginLeft: "auto", fontSize: 16 }}>✓</span>}
+                  {isSelected && !submitted && <span style={{ marginLeft: "auto", fontSize: 14, color: purple }}>●</span>}
+                  {isSelected && submitted && <span style={{ marginLeft: "auto", fontSize: 14, color: "#22c55e" }}>✓</span>}
                 </button>
               );
             })}
-            {submitted && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", textAlign: "center" as const, marginTop: 4, letterSpacing: 2 }}>ANSWER LOCKED IN</div>}
+            {!submitted && selectedAnswer && (
+              <button type="button" onClick={() => submitAnswer(selectedAr)}
+                style={{ padding: "12px", borderRadius: 12, background: purple, color: "#fff", border: "none", fontSize: 15, fontFamily: font, letterSpacing: 2, cursor: "pointer", marginTop: 4 }}>
+                LOCK IN ANSWER
+              </button>
+            )}
+            {submitted && <div style={{ fontSize: 12, color: "#22c55e", textAlign: "center" as const, marginTop: 4, letterSpacing: 2 }}>ANSWER LOCKED IN ✓</div>}
           </div>
         )}
 

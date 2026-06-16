@@ -102,3 +102,6 @@ export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { team
     </div>
   );
 }
+
+// Legacy export kept for compatibility
+export function UnoHostPanel() { return null; }

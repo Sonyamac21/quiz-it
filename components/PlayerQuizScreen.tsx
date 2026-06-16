@@ -377,7 +377,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               );
             })}
             {!submitted && selectedAnswer && (
-              <button type="button" onClick={() => submitAnswer(selectedAr)}
+              <button type="button" onClick={() => submitAnswer(selectedAnswer)}
                 style={{ padding: "12px", borderRadius: 12, background: purple, color: "#fff", border: "none", fontSize: 15, fontFamily: font, letterSpacing: 2, cursor: "pointer", marginTop: 4 }}>
                 LOCK IN ANSWER
               </button>

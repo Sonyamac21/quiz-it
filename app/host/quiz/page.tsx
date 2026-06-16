@@ -207,7 +207,12 @@ function QuizControllerInner() {
     return dp[m][n];
   }
 
-  function isFuzzyMatch(answer: string, correct: string): boolean {
+  function isFuzzyMatch(answer: string, correct: string, q?: Question): boolean {
+    // For multiple choice, also accept the letter key
+    if (q && q.question_type === "multiple_choice") {
+      const key = answer.trim().toLowerCase();
+      if (key === q.correct_answer.toLowerCase()) return true;
+    }
     const a = normalise(answer);
     const b = normalise(correct);
     if (a === b) return true;
@@ -241,7 +246,7 @@ function QuizControllerInner() {
     for (const team of teamList) {
       const ans = currentAnswers.find(a => a.team_name === team.team_name);
       if (!ans) continue;
-      const isCorrect = isFuzzyMatch(ans.answer_text, correctText);
+      const isCorrect = isFuzzyMatch(ans.answer_text, correctText, q);
       const isWrong = !isCorrect && ans.answer_text.trim() !== "";
       if (!isCorrect && !(isWrong && dangerZone)) continue;
       const answerTime = new Date(ans.submitted_at).getTime();
@@ -439,7 +444,7 @@ function QuizControllerInner() {
   async function doCelebrate() {
     if (!sessionId) return;
     const correctAnswers = answers.filter(a =>
-      currentQ && isFuzzyMatch(a.answer_text, getCorrectAnswerText(currentQ))
+      currentQ && isFuzzyMatch(a.answer_text, getCorrectAnswerText(currentQ), currentQ)
     ).sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
     const fastest = correctAnswers[0] || null;
     const fastestTeamName = fastest?.team_name || null;

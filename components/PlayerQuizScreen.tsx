@@ -141,6 +141,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
     fetchSession();
 
+    // Polling fallback every 2 seconds in case realtime events are missed
+    const pollInterval = setInterval(fetchSession, 2000);
+
     const channel = supabase
       .channel("player-session-" + sessionPin)
       .on("postgres_changes", {
@@ -158,7 +161,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         addDebug("status: " + status);
       });
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { supabase.removeChannel(channel); clearInterval(pollInterval); };
   }, [sessionPin]);
 
   function applySessionData(data: Record<string, unknown>) {

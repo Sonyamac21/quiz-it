@@ -275,7 +275,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           <>
             <div style={{ fontSize: 80, marginBottom: 8 }}>{"🏆"}</div>
             <div style={{ fontSize: 42, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 40px rgba(190,38,193,0.8)", marginBottom: 8 }}>{fastestTeamName}</div>
-            <div style={{ fontSize: 18, color: "#22c55e", fontWeight: 800, letterSpacing:  marginBottom: 24 }}>{"That's you! 🎉"}</div>
+            <div style={{ fontSize: 18, color: "#22c55e", fontWeight: 800, letterSpacing: 2, marginBottom: 24 }}>{"That's you!"}</div>
             <div style={{ padding: "20px 40px", borderRadius: 20, background: "rgba(34,197,94,0.15)", border: "2px solid rgba(34,197,94,0.5)", marginBottom: 32, textAlign: "center" }}>
               <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(34,197,94,0.7)", marginBottom: 4 }}>POINTS AWARDED</div>
               <div style={{ fontSize: 56, fontWeight: 900, color: "#22c55e", textShadow: "0 0 20px rgba(34,197,94,0.6)", lineHeight: 1 }}>+10</div>

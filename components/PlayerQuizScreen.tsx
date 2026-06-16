@@ -251,17 +251,46 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   );
 
   if (phase === "celebration") {
+    const isWinner = fastestTeamName === teamName;
+    const confettiColors = ["#BE26C1","#fbbf24","#22c55e","#38bdf8","#f87171","#a78bfa"];
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-        <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>FASTEST CORRECT ANSWER</div>
-        {fastestTeamName ? (
-          <div style={{ fontSize: 28, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 30px rgba(190,38,193,0.6)", marginBottom: 8 }}>{fastestTeamName}</div>
+      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, position: "relative", overflow: "hidden" }}>
+        <style>{`@keyframes fall { 0% { transform: translateY(-20px) rotate(0deg); opacity:1; } 100% { transform: translateY(110vh) rotate(720deg); opacity:0; } }`}</style>
+        {isWinner && Array.from({length: 24}).map((_, i) => (
+          <div key={i} style={{
+            position: "absolute", top: "-10px",
+            left: (4 + (i * 17) % 92) + "%",
+            width: 8 + (i % 4) * 3, height: 8 + (i % 3) * 3,
+            borderRadius: i % 3 === 0 ? "50%" : 2,
+            background: confettiColors[i % confettiColors.length],
+            animation: `fall ${1.5 + (i % 8) * 0.3}s ease-in ${(i % 6) * 0.2}s infinite`,
+            opacity: 0.9, pointerEvents: "none" as const,
+          }} />
+        ))}
+        {isWinner ? (
+          <>
+            <div style={{ fontSize: 80, marginBottom: 8 }}>{"\uD83C\uDFC6"}</div>
+            <div style={{ fontSize: 12, letterSpacing: 4, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>FASTEST CORRECT ANSWER</div>
+            <div style={{ fontSize: 34, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 40px rgba(190,38,193,0.8)", marginBottom: 6 }}>{fastestTeamName}</div>
+            <div style={{ fontSize: 16, color: "#22c55e", fontWeight: 800, letterSpacing: 2, marginBottom: 24 }}>{"That's you!"}</div>
+            <div style={{ padding: "20px 40px", borderRadius: 20, background: "rgba(34,197,94,0.15)", border: "2px solid rgba(34,197,94,0.5)", marginBottom: 32, textAlign: "center" }}>
+              <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(34,197,94,0.7)", marginBottom: 4 }}>POINTS AWARDED</div>
+              <div style={{ fontSize: 56, fontWeight: 900, color: "#22c55e", textShadow: "0 0 20px rgba(34,197,94,0.6)", lineHeight: 1 }}>+10</div>
+            </div>
+          </>
+        ) : fastestTeamName ? (
+          <>
+            <div style={{ fontSize: 64, marginBottom: 8 }}>{"\uD83C\uDF89"}</div>
+            <div style={{ fontSize: 12, letterSpacing: 4, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>FASTEST CORRECT ANSWER</div>
+            <div style={{ fontSize: 30, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 30px rgba(190,38,193,0.6)", marginBottom: 24 }}>{fastestTeamName}</div>
+          </>
         ) : (
-          <div style={{ fontSize: 18, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>No correct answers</div>
+          <>
+            <div style={{ fontSize: 64, marginBottom: 8 }}>{"\uD83D\uDE2C"}</div>
+            <div style={{ fontSize: 12, letterSpacing: 4, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>NO CORRECT ANSWERS</div>
+            <div style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", marginBottom: 24 }}>Better luck next time!</div>
+          </>
         )}
-        {fastestTeamName === teamName && <div style={{ fontSize: 14, color: "#22c55e", fontWeight: 700, marginBottom: 12 }}>{"That's you!"} 🏆</div>}
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", marginBottom: 20 }}>{teamName}</div>
         <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} compact={true} />
       </div>
     );

@@ -40,7 +40,7 @@ export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { team
               disabled={isUsed || !!playing}
               title={card.desc}
               style={{
-                width: 64, height: 64, borderRadius: 12,
+                width: 80, height: 80, borderRadius: 14,
                 border: "2px solid " + (isUsed ? "rgba(255,255,255,0.1)" : card.color),
                 background: isUsed ? "rgba(255,255,255,0.04)" : card.bg,
                 color: isUsed ? "rgba(255,255,255,0.2)" : card.color,

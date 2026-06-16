@@ -127,6 +127,24 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const purple = "#BE26C1";
   const font = "'Bruno Ace SC', sans-serif";
 
+  // Keep screen awake
+  useEffect(() => {
+    let wakeLock: WakeLockSentinel | null = null;
+    async function requestWakeLock() {
+      try {
+        if ("wakeLock" in navigator) {
+          wakeLock = await (navigator as Navigator & { wakeLock: { request: (type: string) => Promise<WakeLockSentinel> } }).wakeLock.request("screen");
+        }
+      } catch {}
+    }
+    requestWakeLock();
+    document.addEventListener("visibilitychange", requestWakeLock);
+    return () => {
+      document.removeEventListener("visibilitychange", requestWakeLock);
+      if (wakeLock) wakeLock.release().catch(() => {});
+    };
+  }, []);
+
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
 
@@ -141,8 +159,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
     fetchSession();
 
-    // Polling fallback every 2 seconds in case realtime events are missed
-    const pollInterval = setInterval(fetchSession, 2000);
+    // Polling every 500ms to keep handset in sync
+    const pollInterval = setInterval(fetchSession, 500);
 
     const channel = supabase
       .channel("player-session-" + sessionPin)

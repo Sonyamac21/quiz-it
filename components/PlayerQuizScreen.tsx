@@ -270,7 +270,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         {isWinner ? (
           <>
             <div style={{ fontSize: 80, marginBottom: 8 }}>{"\uD83C\uDFC6"}</div>
-            <div style={{ fontSize: 12, letterSpacing: 4, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>FASTEST CORRECT ANSWER</div>
+            <style>{`@keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.2} }`}</style>
+            <div style={{ fontSize: 28, fontWeight: 900, color: "#fff", letterSpacing: 3, textAlign: "center", lineHeight: 1.2, marginBottom: 14, animation: "flash 1s ease-in-out infinite", textShadow: "0 0 20px rgba(255,255,255,0.8)" }}>FASTEST<br/>CORRECT ANSWER</div>
             <div style={{ fontSize: 34, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 40px rgba(190,38,193,0.8)", marginBottom: 6 }}>{fastestTeamName}</div>
             <div style={{ fontSize: 16, color: "#22c55e", fontWeight: 800, letterSpacing: 2, marginBottom: 24 }}>{"That's you!"}</div>
             <div style={{ padding: "20px 40px", borderRadius: 20, background: "rgba(34,197,94,0.15)", border: "2px solid rgba(34,197,94,0.5)", marginBottom: 32, textAlign: "center" }}>
@@ -361,16 +362,22 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
         <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.45, marginBottom: 20, color: "#fff" }}>{question.question_text}</div>
 
-        {isMultiChoice && !submitted && (
+        {isMultiChoice && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-            {options.map(opt => (
-              <button key={opt.key} type="button"
-                onClick={() => { setSelectedAnswer(opt.key); submitAnswer(opt.key); }}
-                style={{ padding: "12px 16px", borderRadius: 12, border: "1.5px solid", borderColor: selectedAnswer === opt.key ? purple : "rgba(255,255,255,0.15)", background: selectedAnswer === opt.key ? "rgba(190,38,193,0.25)" : "rgba(255,255,255,0.06)", color: "#fff", fontSize: 15, fontFamily: font, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ color: purple, fontWeight: 700, minWidth: 18 }}>{opt.key.toUpperCase()}.</span>
-                {opt.text}
-              </button>
-            ))}
+            {options.map(opt => {
+              const isSelected = selectedAnswer === opt.key;
+              return (
+                <button key={opt.key} type="button"
+                  onClick={() => { if (!submitted) { setSelectedAnswer(opt.key); submitAnswer(opt.key); } }}
+                  disabled={submitted && !isSelected}
+                  style={{ padding: "12px 16px", borderRadius: 12, border: "1.5px solid", borderColor: isSelected ? "#22c55e" : "rgba(255,255,255,0.15)", background: isSelected ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.06)", color: isSelected ? "#22c55e" : submitted ? "rgba(255,255,255,0.3)" : "#fff", fontSize: 15, fontFamily: font, textAlign: "left" as const, cursor: submitted ? "default" : "pointer", display: "flex", alignItems: "center", gap: 10, opacity: submitted && !isSelected ? 0.4 : 1 }}>
+                  <span style={{ color: isSelected ? "#22c55e" : purple, fontWeight: 700, minWidth: 18 }}>{opt.key.toUpperCase()}.</span>
+                  {opt.text}
+                  {isSelected && <span style={{ marginLeft: "auto", fontSize: 16 }}>✓</span>}
+                </button>
+              );
+            })}
+            {submitted && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", textAlign: "center" as const, marginTop: 4, letterSpacing: 2 }}>ANSWER LOCKED IN</div>}
           </div>
         )}
 

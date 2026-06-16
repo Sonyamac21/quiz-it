@@ -143,11 +143,17 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       .on("postgres_changes", {
         event: "UPDATE", schema: "public", table: "sessions",
       }, (payload) => {
+        console.log("[Realtime] received:", payload.new);
         if (payload.new && (payload.new as Record<string, unknown>).pin === sessionPin) {
+          console.log("[Realtime] applying session data");
           applySessionData(payload.new as Record<string, unknown>);
+        } else {
+          console.log("[Realtime] PIN mismatch or no data", sessionPin);
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log("[Realtime] subscription status:", status);
+      });
 
     return () => { supabase.removeChannel(channel); };
   }, [sessionPin]);

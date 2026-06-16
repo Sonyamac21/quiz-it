@@ -394,14 +394,12 @@ function QuizControllerInner() {
   }
 
   async function doSendQuestion() {
-    if (!selectedRound || !sessionId) { alert("doSendQuestion: no sessionId! " + sessionId); return; }
+    if (!selectedRound || !sessionId) return;
     const q = selectedRound.questions[qIdx];
     setHostPhase("question");
     const isPicture = q.question_type === "picture";
     const supabase = createSupabaseBrowserClient();
-    const { error } = await supabase.from("sessions").update({ phase: "question", current_question: q, current_question_index: qIdx, fastest_team: null, fastest_song: null, picture_sub_phase: isPicture ? "image_only" : null }).eq("id", sessionId);
-    if (error) alert("Supabase error: " + JSON.stringify(error));
-    else alert("doSendQuestion OK - sessionId: " + sessionId);
+    await supabase.from("sessions").update({ phase: "question", current_question: q, current_question_index: qIdx, fastest_team: null, fastest_song: null, picture_sub_phase: isPicture ? "image_only" : null }).eq("id", sessionId);
   }
 
   async function doRevealPictureQuestion() {

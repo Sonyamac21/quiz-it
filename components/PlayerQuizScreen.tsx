@@ -290,6 +290,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             <div style={{ fontSize: 64, marginBottom: 8 }}>{"😬"}</div>
             <div style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", marginBottom: 24 }}>Better luck next time!</div>
           </>
+        )}
+        )}
         <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} compact={true} />
       </div>
     );

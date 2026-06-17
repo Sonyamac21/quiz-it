@@ -67,7 +67,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
         <button type="button" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}
           style={{ flex: 2, padding: "12px", borderRadius: 10, background: value.trim() ? purple : "#1a1a2e", color: value.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: "none", fontSize: 15, fontFamily: font, letterSpacing: 2, cursor: value.trim() ? "pointer" : "default" }}>
           SUBMIT
-        </buon>
+        </button>
       </div>
     </div>
   );

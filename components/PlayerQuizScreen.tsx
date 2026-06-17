@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { UnoPlayerCards } from "@/components/UnoCards";
+import { AnswerKeypad } from "@/components/AnswerKeypad";
 
 type Question = {
   question_text: string;
@@ -84,16 +85,7 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
       <img src={imageUrl} alt="Quiz" style={{ width:"100%", maxHeight:"35vh", objectFit:"contain", borderRadius:12, marginBottom:16 }} />
       <div style={{ fontSize:16, fontWeight:700, lineHeight:1.4, marginBottom:16, color:"#fff" }}>{questionText}</div>
       {!submitted ? (
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-          <input value={answerText} onChange={e => setAnswerText(e.target.value)}
-            onKeyDown={e => e.key==="Enter" && onSubmit(answerText)}
-            placeholder="Type your answer..." autoFocus
-            style={{ padding:"12px 16px", borderRadius:12, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1.5px solid rgba(190,38,193,0.6)", fontSize:17, fontFamily:font, outline:"none" }} />
-          <button type="button" onClick={() => onSubmit(answerText)} disabled={!answerText.trim()}
-            style={{ padding:"12px", borderRadius:12, background:answerText.trim()?purple:"#1a1a2e", color:answerText.trim()?"#fff":"rgba(255,255,255,0.3)", border:"none", fontSize:15, fontFamily:font, letterSpacing:2, cursor:answerText.trim()?"pointer":"default" }}>
-            Submit Answer
-          </button>
-        </div>
+        <AnswerKeypad mode="text" onSubmit={onSubmit} />
       ) : (
         <div style={{ padding:"14px 18px", borderRadius:12, background:"rgba(190,38,193,0.15)", border:"1px solid rgba(190,38,193,0.4)", textAlign:"center" }}>
           <div style={{ fontSize:15, color:purple, fontWeight:700 }}>Answer Submitted!</div>
@@ -391,15 +383,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
 
         {!isMultiChoice && !isSequence && !submitted && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-            <input value={answerText} onChange={e => setAnswerText(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && submitAnswer(answerText)}
-              placeholder="Type your answer..." autoFocus
-              style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(255,255,255,0.1)", color: "#fff", border: "1.5px solid rgba(190,38,193,0.6)", fontSize: 17, fontFamily: font, outline: "none" }} />
-            <button type="button" onClick={() => submitAnswer(answerText)} disabled={!answerText.trim()}
-              style={{ padding: "12px", borderRadius: 12, background: answerText.trim() ? purple : "#1a1a2e", color: answerText.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: "none", fontSize: 15, fontFamily: font, letterSpacing: 2, cursor: answerText.trim() ? "pointer" : "default" }}>
-              Submit Answer
-            </button>
+          <div style={{ marginBottom: 16 }}>
+            <AnswerKeypad mode={question.question_type === "number" ? "number" : "text"} onSubmit={submitAnswer} />
           </div>
         )}
 

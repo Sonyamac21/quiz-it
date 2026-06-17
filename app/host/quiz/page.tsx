@@ -382,11 +382,11 @@ function QuizControllerInner() {
     setHostPhase("round_start");
     playSound("round-start.mp3");
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "round_start", round_name: selectedRound.name, round_number: roundNumber }).eq("id", sessionId);
+    await supabase.from("sessions").update({ phase: "round_start", round_name: selectedRound.name, round_number: roundNumber, fastest_team: null, fastest_song: null }).eq("id", sessionId);
   }
 
-  async function doPreviewQuestion(idx: number) {
-    if (!selectedRound) return;
+  async function doPreviewQuestion(i: number) {
+    if (!selectedRound || !sessionId) return;
     setQIdx(idx);
     setAnswers([]);
     setFastestTeam(null);
@@ -394,7 +394,11 @@ function QuizControllerInner() {
     setTimeLeft(timerDuration);
     setHostPhase("preview");
     setPicSubPhase("image_only");
-    // Display screen stays on holding/waiting — no Supabase push here
+    // Display screen stays on holding/waiting visually on the host side, but we
+    // push phase: "waiting" to Supabase so player handsets reset off the
+    // celebration screen back to the Quiz-It idle/logo screen during preview.
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").update({ phase: "waiting", fastest_team: null, fastest_song: null }).eq("id", sessionId);
     if (sessionPin) loadAnswers(sessionPin, idx);
   }
 

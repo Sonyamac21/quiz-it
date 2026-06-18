@@ -394,7 +394,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
                   <span style={{ color: isSelected ? "#fff" : purple, fontWeight: 700, minWidth: 16 }}>{opt.key.toUpperCase()}.</span>
                   {opt.text}
                   {isSelected && !submitted && <span style={{ marginLeft: "auto", fontSize: 13, color: purple }}>●</span>}
-                  {isSelected && submitted && <span style={{arginLeft: "auto", fontSize: 13, color: "#22c55e" }}>✓</span>}
+                  {isSelected && submitted && <span style={{ marginLeft: "auto", fontSize: 13, color: "#22c55e" }}>✓</span>}
                 </button>
               );
             })}

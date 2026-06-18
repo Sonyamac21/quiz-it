@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { HardDeckPanel } from "@/components/HardDeckPanel";
 
 type Question = {
   id?: string;
@@ -547,6 +548,7 @@ function QuizControllerInner() {
           {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
         <a href={fastestTeam ? "/host/spin?team=" + encodeURIComponent(fastestTeam) + (fastestSong ? "&song=" + encodeURIComponent(fastestSong) : "") : "/host/spin"} target="_blank" style={{ padding:"5px 12px", borderRadius:8, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", textDecoration:"none", fontSize:11 }}>Spin{fastestTeam ? " (" + fastestTeam + ")" : ""}</a>
+        {sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} />}
         <a href="/host/display" target="_blank" style={{ padding:"5px 12px", borderRadius:8, background:"#BE26C1", color:"#fff", textDecoration:"none", fontSize:11 }}>Display</a>
       </div>
 

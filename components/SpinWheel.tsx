@@ -30,9 +30,9 @@ export function buildTeamSegments(teamNames: string[]): WheelSegment[] {
 }
 
 type Seg = WheelSegment;
-type Props = { onResult: (seg: Seg) => void; size?: number; teamName?: string; segments?: WheelSegment[] };
+type Props = { onResult: (seg: Seg) => void; size?: number; teamName?: string; segments?: WheelSegment[]; forceResultIndex?: number; autoSpin?: boolean };
 
-export function SpinWheel({ onResult, size = 400, segments }: Props) {
+export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, autoSpin }: Props) {
   const SEGS = segments && segments.length > 0 ? segments : DEFAULT_SEGS;
   const N = SEGS.length;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -157,13 +157,30 @@ export function SpinWheel({ onResult, size = 400, segments }: Props) {
     return () => cancelAnimationFrame(lightRaf.current);
   }, []);
 
+  useEffect(() => {
+    if (autoSpin) spin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSpin]);
+
   function spin() {
     if (spinning) return;
     setSpinning(true);
     cancelAnimationFrame(lightRaf.current);
     lastTickOffset.current = offsetRef.current;
-    const extra = -(30 + Math.floor(Math.random()*10)) - Math.random();
-    const target = offsetRef.current + extra;
+    const extraRotations = -(30 + Math.floor(Math.random()*10));
+    let target: number;
+    if (forceResultIndex !== undefined) {
+      // Land exactly on forceResultIndex: round(target) % N must equal forceResultIndex
+      const base = offsetRef.current + extraRotations;
+      const baseMod = ((Math.round(base) % N) + N) % N;
+      let diff = forceResultIndex - baseMod;
+      // Normalize diff to the smallest adjustment so we don't overshoot by a near-full lap
+      if (diff > N / 2) diff -= N;
+      if (diff < -N / 2) diff += N;
+      target = base + diff;
+    } else {
+      target = offsetRef.current + extraRotations - Math.random();
+    }
     const dur = 9000 + Math.random()*2000;
     const t0 = performance.now(), o0 = offsetRef.current;
     function ease(t: number) { return 1 - Math.pow(1 - t, 5); }
@@ -195,9 +212,11 @@ export function SpinWheel({ onResult, size = 400, segments }: Props) {
         <div style={{ position:"absolute", left:0, right:0, top:"50%", height:2, background:"linear-gradient(90deg,transparent,rgba(190,38,193,0.6),transparent)", transform:"translateY(-50%)", zIndex:5 }} />
         <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", maxWidth:"90vw" }} />
       </div>
-      <button onClick={spin} disabled={spinning} style={{ padding:"14px 52px", background:spinning?"#1a1a2e":"#BE26C1", color:"#fff", border:"none", borderRadius:50, fontSize:18, fontFamily:"sans-serif", letterSpacing:3, cursor:spinning?"not-allowed":"pointer", boxShadow:spinning?"none":"0 0 24px rgba(190,38,193,0.5)", opacity:spinning?0.4:1, transition:"all 0.2s" }}>
-        {spinning ? "Spinning..." : "Spin The Wheel"}
-      </button>
+      {!autoSpin && (
+        <button onClick={spin} disabled={spinning} style={{ padding:"14px 52px", background:spinning?"#1a1a2e":"#BE26C1", color:"#fff", border:"none", borderRadius:50, fontSize:18, fontFamily:"sans-serif", letterSpacing:3, cursor:spinning?"not-allowed":"pointer", boxShadow:spinning?"none":"0 0 24px rgba(190,38,193,0.5)", opacity:spinning?0.4:1, transition:"all 0.2s" }}>
+          {spinning ? "Spinning..." : "Spin The Wheel"}
+        </button>
+      )}
     </div>
   );
 }

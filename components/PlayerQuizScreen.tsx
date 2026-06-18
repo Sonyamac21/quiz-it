@@ -14,7 +14,7 @@ type Question = {
   correct_answer: string;
 };
 
-type Phase = "waiting" | "question" | "answer" | "celebration";
+type Phase = "waiting" | "question" | "answer" | "celebration" | "hard_deck";
 
 interface Props {
   teamName: string;
@@ -138,6 +138,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [fastestTeamName, setFastestTeamName] = useState<string | null>(null);
+  const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
+  const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
+  const [hardDeckPotential, setHardDeckPotential] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastQIndexRef = useRef(-1);
   const lastPhaseRef = useRef<string>("");
@@ -211,6 +214,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setPhase(newPhase);
     setQuestion(newQ);
     setFastestTeamName(ft);
+    setHardDeckTeam((data.hard_deck_team as string) || null);
+    setHardDeckStatus((data.hard_deck_status as string) || "idle");
+    setHardDeckPotential((data.hard_deck_potential as number) || 0);
 
     // Reset answer state when phase changes to question OR question index changes
     if (newPhase === "question" && (newIdx !== lastQIndexRef.current || lastPhaseRef.current !== "question")) {
@@ -255,6 +261,21 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     });
   }
 
+  async function submitHardDeckGuess(guess: "higher" | "lower") {
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").update({ hard_deck_guess: guess }).eq("session_pin", sessionPin);
+  }
+
+  async function submitHardDeckStick() {
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").update({ hard_deck_status: "won" }).eq("session_pin", sessionPin);
+  }
+
+  async function submitHardDeckGamble() {
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").update({ hard_deck_status: "awaiting_guess" }).eq("session_pin", sessionPin);
+  }
+
   function getCorrectAnswerText(q: Question): string {
     if (q.question_type === "multiple_choice") {
       const key = q.correct_answer.toLowerCase();
@@ -269,6 +290,48 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} compact={true} />
     </div>
   );
+
+  if (phase === "hard_deck") {
+    const isSelected = hardDeckTeam === teamName;
+    return (
+      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 20, textAlign: "center" as const }}>
+        <div style={{ fontFamily: font, fontSize: 22, color: purple, letterSpacing: 3 }}>THE HARD DECK</div>
+        {!isSelected && (
+          <div style={{ fontSize: 16, color: "rgba(255,255,255,0.6)" }}>
+            {hardDeckTeam ? hardDeckTeam + " is playing — watch the big screen!" : "Watch the big screen!"}
+          </div>
+        )}
+        {isSelected && hardDeckStatus === "awaiting_guess" && (
+          <>
+            <div style={{ fontSize: 16, color: "#fff" }}>Higher or Lower?</div>
+            <div style={{ display: "flex", gap: 16 }}>
+              <button onClick={() => submitHardDeckGuess("higher")} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "2px solid #22c55e", color: "#fff", fontSize: 18, fontWeight: 700, cursor: "pointer" }}>HIGHER</button>
+              <button onClick={() => submitHardDeckGuess("lower")} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(239,68,68,0.25)", border: "2px solid #ef4444", color: "#fff", fontSize: 18, fontWeight: 700, cursor: "pointer" }}>LOWER</button>
+            </div>
+          </>
+        )}
+        {isSelected && hardDeckStatus === "decision" && (
+          <>
+            <div style={{ fontSize: 16, color: "#facc15" }}>You have {hardDeckPotential} points!</div>
+            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>Stick with what you've got, or gamble for more?</div>
+            <div style={{ display: "flex", gap: 16 }}>
+              <button onClick={submitHardDeckStick} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "2px solid #22c55e", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>STICK</button>
+              <button onClick={submitHardDeckGamble} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(190,38,193,0.25)", border: "2px solid " + purple, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>GAMBLE</button>
+            </div>
+          </>
+        )}
+        {isSelected && hardDeckStatus === "won" && (
+          <div style={{ fontSize: 22, color: "#22c55e" }}>You won {hardDeckPotential} points! 🎉</div>
+        )}
+        {isSelected && hardDeckStatus === "lost" && (
+          <div style={{ fontSize: 22, color: "#ef4444" }}>Busted — better luck next time!</div>
+        )}
+        {isSelected && (hardDeckStatus === "wheel" || hardDeckStatus === "base_revealed") && (
+          <div style={{ fontSize: 16, color: "rgba(255,255,255,0.6)" }}>Watch the big screen!</div>
+        )}
+      </div>
+    );
+  }
 
   if (phase === "celebration") {
     const isWinner = fastestTeamName === teamName;

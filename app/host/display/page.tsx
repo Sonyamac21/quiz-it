@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 
 type Question = {
   question_text: string;
@@ -13,7 +14,7 @@ type Question = {
   explanation?: string;
 };
 type Score = { team_name: string; total_points: number; };
-type Phase = "waiting" | "round_start" | "question" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end";
+type Phase = "waiting" | "round_start" | "question" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck";
 
 function playSound(file: string, volume = 1.0) {
   try { const a = new Audio("/sounds/" + file); a.volume = volume; a.play().catch(() => {}); return a; } catch { return null; }
@@ -29,6 +30,12 @@ export default function DisplayScreen() {
   const [sessionPin, setSessionPin] = useState("");
   const [fastestTeam, setFastestTeam] = useState<string|null>(null);
   const [fastestSong, setFastestSong] = useState<string|null>(null);
+  const [hardDeckTeam, setHardDeckTeam] = useState<string|null>(null);
+  const [hardDeckCards, setHardDeckCards] = useState<{ rank: number; suit: string }[]>([]);
+  const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
+  const [hardDeckPotential, setHardDeckPotential] = useState(0);
+  const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number|null>(null);
+  const [teams, setTeams] = useState<{ team_name: string }[]>([]);
   const [flash, setFlash] = useState(false);
   const [roundName, setRoundName] = useState("");
   const [roundNumber, setRoundNumber] = useState(1);
@@ -94,6 +101,11 @@ export default function DisplayScreen() {
     const fs = (data.fastest_song as string) || null;
     setFastestTeam(ft);
     setFastestSong(fs);
+    setHardDeckTeam((data.hard_deck_team as string) || null);
+    setHardDeckCards((data.hard_deck_cards as { rank: number; suit: string }[]) || []);
+    setHardDeckStatus((data.hard_deck_status as string) || "idle");
+    setHardDeckPotential((data.hard_deck_potential as number) || 0);
+    setHardDeckWheelTarget((data.hard_deck_wheel_target as number) ?? null);
 
     if (newPhase === "scoreboard") {
       setScoreboardData((data.scoreboard_data as Score[]) || []);
@@ -177,9 +189,14 @@ export default function DisplayScreen() {
     setSessionPin(pinInput);
     setConnected(true);
     applySession(data);
+    const { data: teamData } = await supabase.from("teams").select("*").eq("session_pin", pinInput).order("created_at", { ascending: true });
+    if (teamData) setTeams(teamData);
     supabase.channel("display-" + pinInput)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: "pin=eq." + pinInput }, (payload) => {
         applySession(payload.new as Record<string, unknown>);
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams", filter: "session_pin=eq." + pinInput }, (payload) => {
+        setTeams(prev => [...prev, payload.new as { team_name: string }]);
       })
       .subscribe();
   }
@@ -203,6 +220,54 @@ export default function DisplayScreen() {
   }
 
   // WAITING / HOLDING SCREEN
+  // THE HARD DECK
+  if (phase === "hard_deck") {
+    const rankLabels: Record<number,string> = { 1:"A", 11:"J", 12:"Q", 13:"K" };
+    const rankLabel = (r: number) => rankLabels[r] || String(r);
+    return (
+      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, gap:32 }}>
+        <div style={{ fontSize:60, fontWeight:800, color:purple, letterSpacing:6, textShadow:"0 0 40px rgba(190,38,193,0.6)" }}>THE HARD DECK</div>
+        {hardDeckStatus === "wheel" && teams.length > 0 && hardDeckWheelTarget !== null && (
+          <SpinWheel
+            segments={buildTeamSegments(teams.map(t => t.team_name))}
+            onResult={() => {}}
+            size={420}
+            forceResultIndex={hardDeckWheelTarget}
+            autoSpin={true}
+          />
+        )}
+        {hardDeckTeam && (
+          <div style={{ fontSize:38, color:"#fff", fontWeight:700, letterSpacing:2 }}>{hardDeckTeam}</div>
+        )}
+        {hardDeckCards.length > 0 && (
+          <div style={{ display:"flex", gap:24 }}>
+            {hardDeckCards.map((c, i) => (
+              <div key={i} style={{ width:140, height:200, borderRadius:18, background:"#fff", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontSize:48, fontWeight:900, color:(c.suit==="♥"||c.suit==="♦")?"#dc2626":"#111", boxShadow:"0 8px 30px rgba(0,0,0,0.5)" }}>
+                <div>{rankLabel(c.rank)}</div>
+                <div style={{ fontSize:60 }}>{c.suit}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {hardDeckPotential > 0 && (hardDeckStatus === "decision" || hardDeckStatus === "won") && (
+          <div style={{ fontSize:32, color:"#facc15", fontWeight:700 }}>{hardDeckPotential} POINTS</div>
+        )}
+        {hardDeckStatus === "decision" && (
+          <div style={{ fontSize:22, color:"rgba(255,255,255,0.6)" }}>Stick or Gamble?</div>
+        )}
+        {hardDeckStatus === "awaiting_guess" && hardDeckCards.length > 0 && (
+          <div style={{ fontSize:22, color:"rgba(255,255,255,0.6)" }}>Higher or Lower?</div>
+        )}
+        {hardDeckStatus === "won" && (
+          <div style={{ fontSize:44, color:"#22c55e", fontWeight:800 }}>WINNER! 🎉</div>
+        )}
+        {hardDeckStatus === "lost" && (
+          <div style={{ fontSize:44, color:"#ef4444", fontWeight:800 }}>BUSTED!</div>
+        )}
+      </div>
+    );
+  }
+
   if (phase === "waiting" || phase === "round_start" || phase === "round_end") {
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font }}>

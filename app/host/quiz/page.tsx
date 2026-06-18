@@ -25,7 +25,7 @@ type Score = { team_name: string; total_points: number; round_points: number; };
 const typeColor: Record<string,string> = { multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6", picture:"#38bdf8", audio:"#fb923c" };
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune" };
 const cardColor: Record<string,string> = { block:"#60a5fa", reverse:"#f87171", x2:"#facc15" };
-const cardLabel: Record<string,string> = { block:"Block", reverse:"Reverse", x2:"x2" };
+const cardLabel: Record<string,string> = { block:"Time-Out", reverse:"Reverse", x2:"Boost" };
 
 type HostPhase = "waiting" | "round_start" | "preview" | "question" | "timer" | "answer" | "celebration" | "round_end" | "quiz_end";
 

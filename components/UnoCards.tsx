@@ -3,9 +3,9 @@ import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const CARDS = [
-  { type: "block",   label: "Block",   emoji: "X",  color: "#60a5fa", bg: "rgba(59,130,246,0.25)", desc: "Block all teams for 10 seconds" },
-  { type: "reverse", label: "Reverse", emoji: "R",  color: "#f87171", bg: "rgba(239,68,68,0.25)",  desc: "Flip the scoreboard" },
-  { type: "x2",      label: "x2",      emoji: "2x", color: "#facc15", bg: "rgba(234,179,8,0.2)",   desc: "Double your points" },
+  { type: "block",   label: "Time-Out", emoji: "X",  color: "#60a5fa", bg: "rgba(59,130,246,0.25)", desc: "Block all teams for 10 seconds" },
+  { type: "reverse", label: "Reverse",  emoji: "R",  color: "#f87171", bg: "rgba(239,68,68,0.25)",  desc: "Flip the scoreboard" },
+  { type: "x2",      label: "Boost",    emoji: "2x", color: "#facc15", bg: "rgba(234,179,8,0.2)",   desc: "Double your points" },
 ];
 
 export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { teamName: string; sessionPin?: string; compact?: boolean }) {

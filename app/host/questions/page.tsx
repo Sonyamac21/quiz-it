@@ -75,7 +75,7 @@ export default function QuestionsPage() {
       text_answer: "text_answer: short word or phrase answer, all options must be null",
       number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
       sequence: "sequence: 4 items in correct order in option_a/b/c/d, correct_answer must be exactly \"a,b,c,d\"",
-      picture: "picture: question_text must say \"Show teams this image:\" then describe what to search for (famous person, landmark, logo). option_a must be a short Google Images search query (3-5 words). option_b/c/d must be null. correct_answer is what teams write down.",
+      picture: "picture: question_text must say \"Show teams this image:\" then describe what to search for. The subject MUST be one of: a famous landmark or building, an animal or species, a national flag, a well-known food or dish, a company/brand logo, or a sports venue/stadium. Do NOT use famous people, movie stills, album covers, TV characters, or any copyrighted artwork or photography - these will not be found on stock photo sites. option_a must be a short, generic Google Images search query (3-5 words) likely to return real stock photography, e.g. \"Eiffel Tower Paris\" or \"red panda animal\" or \"Italian flag\" rather than a specific named individual or scene. option_b/c/d must be null. correct_answer is what teams write down.",
       audio: "audio: question_text must say \"Play this track:\" then the song name and artist. option_a must be a YouTube search query to find it (e.g. \"Bohemian Rhapsody Queen official\"). option_b/c/d must be null. correct_answer is what teams must write down.",
     };
     console.log("usedRef has", usedRef.current.length, "entries");

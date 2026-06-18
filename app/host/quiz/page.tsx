@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HardDeckPanel } from "@/components/HardDeckPanel";
+import { SpinToWinPanel } from "@/components/SpinToWinPanel";
 
 type Question = {
   id?: string;
@@ -65,6 +66,8 @@ function QuizControllerInner() {
   const [timeLeft, setTimeLeft] = useState(10);
   const [fastestTeam, setFastestTeam] = useState<string|null>(null);
   const [fastestSong, setFastestSong] = useState<string|null>(null);
+  const [spinToWinOpen, setSpinToWinOpen] = useState(false);
+  const [spinUsed, setSpinUsed] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
   const tickAudioRef = useRef<AudioContext|null>(null);
@@ -457,9 +460,10 @@ function QuizControllerInner() {
     const song = team?.victory_song || null;
     setFastestTeam(fastestTeamName);
     setFastestSong(song);
+    setSpinUsed(false);
     setHostPhase("celebration");
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "celebration", fastest_team: fastestTeamName, fastest_song: song }).eq("id", sessionId);
+    await supabase.from("sessions").update({ phase: "celebration", fastest_team: fastestTeamName, fastest_song: song, spin_used: false }).eq("id", sessionId);
     if (song) playVictorySong(song);
   }
 
@@ -547,8 +551,26 @@ function QuizControllerInner() {
           <option value="">Select round...</option>
           {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
-        <a href={fastestTeam ? "/host/spin?team=" + encodeURIComponent(fastestTeam) + (fastestSong ? "&song=" + encodeURIComponent(fastestSong) : "") : "/host/spin"} target="_blank" style={{ padding:"5px 12px", borderRadius:8, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", textDecoration:"none", fontSize:11 }}>Spin{fastestTeam ? " (" + fastestTeam + ")" : ""}</a>
+        {fastestTeam && (
+          <button
+            onClick={async () => {
+              setSpinUsed(true);
+              setSpinToWinOpen(true);
+              if (sessionId) {
+                const supabase = createSupabaseBrowserClient();
+                await supabase.from("sessions").update({ spin_used: true }).eq("id", sessionId);
+              }
+            }}
+            disabled={spinUsed}
+            style={{ padding:"5px 12px", borderRadius:8, background:spinUsed?"rgba(255,255,255,0.08)":"rgba(190,38,193,0.3)", border:"1px solid "+(spinUsed?"rgba(255,255,255,0.2)":"#BE26C1"), color:spinUsed?"rgba(255,255,255,0.4)":"#fff", fontSize:11, cursor:spinUsed?"not-allowed":"pointer" }}
+          >
+            {spinUsed ? "Spin Used" : "Spin to Win (" + fastestTeam + ")"}
+          </button>
+        )}
         {sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} />}
+        {spinToWinOpen && fastestTeam && (
+          <SpinToWinPanel teamName={fastestTeam} victorySong={fastestSong} onClose={() => setSpinToWinOpen(false)} />
+        )}
         <a href="/host/display" target="_blank" style={{ padding:"5px 12px", borderRadius:8, background:"#BE26C1", color:"#fff", textDecoration:"none", fontSize:11 }}>Display</a>
       </div>
 

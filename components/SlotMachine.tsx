@@ -39,10 +39,15 @@ function OverlayPanel({ seg, teamName, onDismiss }: { seg: Seg; teamName: string
   );
 }
 
-export default function SlotMachine() {
-  const [teamName, setTeamName] = useState("Loading...");
-  const [victorySong, setVictorySong] = useState("");
-  const [teamLoading, setTeamLoading] = useState(true);
+type SlotMachineProps = {
+  initialTeamName?: string;
+  initialVictorySong?: string;
+};
+
+export default function SlotMachine({ initialTeamName, initialVictorySong }: SlotMachineProps = {}) {
+  const [teamName, setTeamName] = useState(initialTeamName || "Loading...");
+  const [victorySong, setVictorySong] = useState(initialVictorySong || "");
+  const [teamLoading, setTeamLoading] = useState(!initialTeamName);
   const [teamError, setTeamError] = useState(false);
   const r0 = useRef<HTMLDivElement>(null);
   const r1 = useRef<HTMLDivElement>(null);
@@ -92,7 +97,7 @@ export default function SlotMachine() {
     finally { setTeamLoading(false); }
   }, []);
 
-  useEffect(() => { fetchLatestTeam(); }, [fetchLatestTeam]);
+  useEffect(() => { if (!initialTeamName) fetchLatestTeam(); }, [fetchLatestTeam, initialTeamName]);
 
   const stopBulbs = useCallback(() => {
     if (bulbRef.current) clearInterval(bulbRef.current);

@@ -546,7 +546,7 @@ function QuizControllerInner() {
           <option value="">Select round...</option>
           {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
-        <a href="/host/spin" target="_blank" style={{ padding:"5px 12px", borderRadius:8, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", textDecoration:"none", fontSize:11 }}>Spin</a>
+        <a href={fastestTeam ? "/host/spin?team=" + encodeURIComponent(fastestTeam) + (fastestSong ? "&song=" + encodeURIComponent(fastestSong) : "") : "/host/spin"} target="_blank" style={{ padding:"5px 12px", borderRadius:8, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", textDecoration:"none", fontSize:11 }}>Spin{fastestTeam ? " (" + fastestTeam + ")" : ""}</a>
         <a href="/host/display" target="_blank" style={{ padding:"5px 12px", borderRadius:8, background:"#BE26C1", color:"#fff", textDecoration:"none", fontSize:11 }}>Display</a>
       </div>
 

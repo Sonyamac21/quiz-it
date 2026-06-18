@@ -22,29 +22,59 @@ interface Props {
 }
 
 function SequenceQuestion({ options, onSubmit, submitted }: { options: string[]; onSubmit: (ans: string) => void; submitted: boolean }) {
-  const [order, setOrder] = useState<string[]>(options);
-  function moveUp(i: number) { if (i === 0) return; const o = [...order]; [o[i-1], o[i]] = [o[i], o[i-1]]; setOrder(o); }
-  function moveDown(i: number) { if (i === order.length-1) return; const o = [...order]; [o[i], o[i+1]] = [o[i+1], o[i]]; setOrder(o); }
+  const [picked, setPicked] = useState<number[]>([]);
   const purple = "#BE26C1";
   const font = "'Bruno Ace SC', sans-serif";
   if (submitted) return null;
+
+  function tapItem(i: number) {
+    if (picked.includes(i)) return;
+    setPicked(prev => [...prev, i]);
+  }
+  function resetPicks() { setPicked([]); }
+  function submitOrder() {
+    const ordered = picked.map(i => options[i]);
+    onSubmit(ordered.join(", "));
+  }
+  const allPicked = picked.length === options.length;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", letterSpacing: 2, marginBottom: 4 }}>TAP ARROWS TO REORDER</div>
-      {order.map((item, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 12, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(190,38,193,0.25)" }}>
-          <span style={{ color: purple, fontWeight: 800, minWidth: 20, fontSize: 14 }}>{i+1}.</span>
-          <span style={{ flex: 1, color: "#fff", fontSize: 14, fontFamily: font }}>{item}</span>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <button type="button" onClick={() => moveUp(i)} disabled={i===0} style={{ padding: "3px 8px", borderRadius: 4, background: i===0?"rgba(255,255,255,0.04)":"rgba(190,38,193,0.2)", border: "none", color: i===0?"#444":purple, cursor: i===0?"default":"pointer", fontSize: 11 }}>▲</button>
-            <button type="button" onClick={() => moveDown(i)} disabled={i===order.length-1} style={{ padding: "3px 8px", borderRadius: 4, background: i===order.length-1?"rgba(255,255,255,0.04)":"rgba(190,38,193,0.2)", border: "none", color: i===order.length-1?"#444":purple, cursor: i===order.length-1?"default":"pointer", fontSize: 11 }}>▼</button>
-          </div>
-        </div>
-      ))}
-      <button type="button" onClick={() => onSubmit(order.join(", "))}
-        style={{ marginTop: 4, padding: "12px", borderRadius: 12, background: purple, color: "#fff", border: "none", fontSize: 15, fontFamily: font, letterSpacing: 2, cursor: "pointer" }}>
-        Submit Order
-      </button>
+      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", letterSpacing: 2, marginBottom: 4 }}>TAP IN THE CORRECT ORDER</div>
+      {options.map((item, i) => {
+        const pickedIndex = picked.indexOf(i);
+        const isPicked = pickedIndex !== -1;
+        return (
+          <button key={i} type="button" onClick={() => tapItem(i)} disabled={isPicked}
+            style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12,
+              background: isPicked ? "rgba(190,38,193,0.18)" : "rgba(255,255,255,0.07)",
+              border: "1.5px solid " + (isPicked ? purple : "rgba(190,38,193,0.25)"),
+              textAlign: "left" as const, cursor: isPicked ? "default" : "pointer", width: "100%",
+            }}>
+            <span style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+              background: isPicked ? purple : "rgba(255,255,255,0.08)",
+              color: isPicked ? "#fff" : "rgba(255,255,255,0.3)",
+              fontWeight: 800, fontSize: 13,
+            }}>
+              {isPicked ? pickedIndex + 1 : ""}
+            </span>
+            <span style={{ flex: 1, color: "#fff", fontSize: 14, fontFamily: font }}>{item}</span>
+          </button>
+        );
+      })}
+      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+        <button type="button" onClick={resetPicks} disabled={picked.length === 0}
+          style={{ flex: 1, padding: "12px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: picked.length ? "#fff" : "rgba(255,255,255,0.3)", fontSize: 13, fontFamily: font, cursor: picked.length ? "pointer" : "default" }}>
+          RESET
+        </button>
+        <button type="button" onClick={submitOrder} disabled={!allPicked}
+          style={{ flex: 2, padding: "12px", borderRadius: 10, background: allPicked ? purple : "#1a1a2e", color: allPicked ? "#fff" : "rgba(255,255,255,0.3)", border: "none", fontSize: 15, fontFamily: font, letterSpacing: 2, cursor: allPicked ? "pointer" : "default" }}>
+          SUBMIT ORDER
+        </button>
+      </div>
     </div>
   );
 }

@@ -262,7 +262,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             opacity: 0.9, pointerEvents: "none" as const,
           }} />
         ))}
-        <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", letterSpacing: 3, textAlign: "center", lineHeight: 1.2, marginBottom: 20, animation: "flash 0.8s ease-in-out infinite", textShadow: "0 0 20px rgba(255,255,255,0.6)" }}>FASTEST<br/>CORRECT ANSWER</div>
+        {fastestTeamName && (
+          <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", letterSpacing: 3, textAlign: "center", lineHeight: 1.2, marginBottom: 20, animation: "flash 0.8s ease-in-out infinite", textShadow: "0 0 20px rgba(255,255,255,0.6)" }}>FASTEST<br/>CORRECT ANSWER</div>
+        )}
         {isWinner ? (
           <>
             <div style={{ fontSize: 80, marginBottom: 8 }}>{"🏆"}</div>

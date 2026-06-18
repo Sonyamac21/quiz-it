@@ -385,7 +385,7 @@ function QuizControllerInner() {
     await supabase.from("sessions").update({ phase: "round_start", round_name: selectedRound.name, round_number: roundNumber, fastest_team: null, fastest_song: null }).eq("id", sessionId);
   }
 
-  async function doPreviewQuestion(i: number) {
+  async function doPreviewQuestion(idx: number) {
     if (!selectedRound || !sessionId) return;
     setQIdx(idx);
     setAnswers([]);
@@ -586,14 +586,14 @@ function QuizControllerInner() {
           ) : hostPhase === "celebration" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>
               <div style={{ fontSize:72, marginBottom:16 }}>🎉</div>
-              <div style={{ fontSize:14, letterSpacing:3, color:"rgba(255,255,255,0.4)", marginBottom:12 }}>FASTEST CORRECT ANSWER</div>
+              {fastestTeam && <div style={{ fontSize:14, letterSpacing:3, color:"rgba(255,255,255,0.4)", marginBottom:12 }}>FASTEST CORRECT ANSWER</div>}
               {fastestTeam ? (
                 <>
                   <div style={{ fontSize:42, fontWeight:800, color:"#BE26C1", letterSpacing:2, textShadow:"0 0 40px rgba(190,38,193,0.7)", marginBottom:8 }}>{fastestTeam}</div>
                   <div style={{ fontSize:16, color:"rgba(255,255,255,0.5)", marginBottom:32 }}>Victory song playing...</div>
                 </>
               ) : (
-                <div style={{ fontSize:24, color:"rgba(255,25255,0.4)", marginBottom:32 }}>No correct answers this round</div>
+                <div style={{ fontSize:24, color:"rgba(255,255,255,0.4)", marginBottom:32 }}>No correct answers this round</div>
               )}
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>{isLastQ ? "SPACE: End Round" : "SPACE: Preview Next Question"}</div>
             </div>

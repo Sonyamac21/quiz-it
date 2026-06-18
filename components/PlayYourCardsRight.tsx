@@ -46,8 +46,11 @@ interface UsePlayYourCardsRight {
   cards: PlayingCard[];
   cardIndex: number;
   potential: number;
-  status: "dealing_base" | "awaiting_guess" | "revealing" | "decision" | "won" | "lost";
+  status: "dealing_base" | "base_revealed" | "awaiting_guess" | "revealing" | "decision" | "won" | "lost";
+  hasSwapped: boolean;
   drawBaseCard: () => void;
+  keepBaseCard: () => void;
+  swapBaseCard: () => void;
   submitGuess: (guess: Guess) => void;
   revealNext: () => RoundOutcome;
   stick: () => number;
@@ -60,6 +63,7 @@ export function usePlayYourCardsRight(): UsePlayYourCardsRight {
   const [cards, setCards] = useState<PlayingCard[]>([]);
   const [potential, setPotential] = useState(0);
   const [status, setStatus] = useState<UsePlayYourCardsRight["status"]>("dealing_base");
+  const [hasSwapped, setHasSwapped] = useState(false);
   const guessRef = useRef<Guess | null>(null);
 
   function reset() {
@@ -67,6 +71,7 @@ export function usePlayYourCardsRight(): UsePlayYourCardsRight {
     setCards([]);
     setPotential(0);
     setStatus("dealing_base");
+    setHasSwapped(false);
     guessRef.current = null;
   }
 
@@ -74,6 +79,20 @@ export function usePlayYourCardsRight(): UsePlayYourCardsRight {
     if (deckRef.current.length === 0) deckRef.current = buildDeck();
     const card = deckRef.current.pop()!;
     setCards([card]);
+    setStatus("base_revealed");
+  }
+
+  function keepBaseCard() {
+    setStatus("awaiting_guess");
+  }
+
+  function swapBaseCard() {
+    if (hasSwapped) return;
+    const oldCard = cards[0];
+    const newCard = deckRef.current.pop()!;
+    void oldCard;
+    setCards([newCard]);
+    setHasSwapped(true);
     setStatus("awaiting_guess");
   }
 
@@ -118,5 +137,5 @@ export function usePlayYourCardsRight(): UsePlayYourCardsRight {
     setStatus("awaiting_guess");
   }
 
-  return { cards, cardIndex: cards.length - 1, potential, status, drawBaseCard, submitGuess, revealNext, stick, gamble, reset };
+  return { cards, cardIndex: cards.length - 1, potential, status, hasSwapped, drawBaseCard, keepBaseCard, swapBaseCard, submitGuess, revealNext, stick, gamble, reset };
 }

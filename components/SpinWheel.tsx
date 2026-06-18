@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
-const SEGS = [
+export type WheelSegment = { label: string; type: string; bg: string; accent: string; text: string };
+
+const DEFAULT_SEGS: WheelSegment[] = [
   { label:"1st Place", type:"place", bg:"#BE26C1", accent:"#E050E3", text:"#fff" },
   { label:"-10 pts",   type:"neg",   bg:"#1A0A2E", accent:"#7C3AED", text:"#FF8888" },
   { label:"2nd Place", type:"place", bg:"#7C3AED", accent:"#A855F7", text:"#fff" },
@@ -12,11 +14,27 @@ const SEGS = [
   { label:"Last Place",type:"last",  bg:"#200A0A", accent:"#991B1B", text:"#FCA5A5" },
 ];
 
-const N = SEGS.length;
-type Seg = typeof SEGS[0];
-type Props = { onResult: (seg: Seg) => void; size?: number; teamName?: string };
+const TEAM_PALETTE: { bg: string; accent: string; text: string }[] = [
+  { bg:"#1A0A2E", accent:"#BE26C1", text:"#fff" },
+  { bg:"#0D0820", accent:"#7C3AED", text:"#fff" },
+  { bg:"#150818", accent:"#A855F7", text:"#fff" },
+  { bg:"#200A1A", accent:"#E050E3", text:"#fff" },
+];
 
-export function SpinWheel({ onResult, size = 400 }: Props) {
+export function buildTeamSegments(teamNames: string[]): WheelSegment[] {
+  return teamNames.map((name, i) => ({
+    label: name,
+    type: "team",
+    ...TEAM_PALETTE[i % TEAM_PALETTE.length],
+  }));
+}
+
+type Seg = WheelSegment;
+type Props = { onResult: (seg: Seg) => void; size?: number; teamName?: string; segments?: WheelSegment[] };
+
+export function SpinWheel({ onResult, size = 400, segments }: Props) {
+  const SEGS = segments && segments.length > 0 ? segments : DEFAULT_SEGS;
+  const N = SEGS.length;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [spinning, setSpinning] = useState(false);
   const offsetRef = useRef(0);

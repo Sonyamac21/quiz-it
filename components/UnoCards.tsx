@@ -29,7 +29,7 @@ export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { team
 
   if (compact) {
     return (
-      <div style={{ display: "flex", gap: 10, justifyContent: "center", paddingTop: 8 }}>
+      <div style={{ display: "flex", gap: 8, justifyContent: "center", paddingTop: 6 }}>
         {CARDS.map(card => {
           const isUsed = used.includes(card.type);
           const isPlaying = playing === card.type;
@@ -40,21 +40,21 @@ export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { team
               disabled={isUsed || !!playing}
               title={card.desc}
               style={{
-                width: 80, height: 80, borderRadius: 14,
+                width: 56, height: 56, borderRadius: 12,
                 border: "2px solid " + (isUsed ? "rgba(255,255,255,0.1)" : card.color),
                 background: isUsed ? "rgba(255,255,255,0.04)" : card.bg,
                 color: isUsed ? "rgba(255,255,255,0.2)" : card.color,
                 cursor: isUsed ? "not-allowed" : "pointer",
                 display: "flex", flexDirection: "column" as const,
-                alignItems: "center", justifyContent: "center", gap: 2,
+                alignItems: "center", justifyContent: "center", gap: 1,
                 opacity: isUsed ? 0.4 : 1,
                 boxShadow: isUsed ? "none" : "0 0 12px " + card.color + "44",
                 transform: isPlaying ? "scale(0.93)" : "scale(1)",
                 transition: "all 0.15s", padding: 0,
               }}
             >
-              <span style={{ fontSize: 20, fontWeight: 900, lineHeight: 1 }}>{card.emoji}</span>
-              <span style={{ fontSize: 9, letterSpacing: 1, fontWeight: 700, opacity: 0.8 }}>{card.label.toUpperCase()}</span>
+              <span style={{ fontSize: 15, fontWeight: 900, lineHeight: 1 }}>{card.emoji}</span>
+              <span style={{ fontSize: 7, letterSpacing: 0.5, fontWeight: 700, opacity: 0.8 }}>{card.label.toUpperCase()}</span>
             </button>
           );
         })}

@@ -58,6 +58,7 @@ function QuizControllerInner() {
   const [timerDuration, setTimerDuration] = useState(10);
   const [dangerZone, setDangerZone] = useState(false);
   const [dangerPenalty, setDangerPenalty] = useState(5);
+  const [wipeoutMode, setWipeoutMode] = useState(false);
   const [roundSettingsOpen, setRoundSettingsOpen] = useState(false);
   const [adjustTeam, setAdjustTeam] = useState<string|null>(null);
   const [adjustAmount, setAdjustAmount] = useState("");
@@ -102,7 +103,7 @@ function QuizControllerInner() {
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [hostPhase, selectedRound, qIdx, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, timerDuration, dangerZone, dangerPenalty, timeLeft, isLastQ]);
+  }, [hostPhase, selectedRound, qIdx, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, timerDuration, dangerZone, dangerPenalty, wipeoutMode, timeLeft, isLastQ]);
 
   function handleSpacebar() {
     if (!connected || !selectedRound) return;
@@ -250,6 +251,27 @@ function QuizControllerInner() {
     for (const team of teamList) {
       const ans = currentAnswers.find(a => a.team_name === team.team_name);
       if (!ans) continue;
+      if (q.question_type === "multi_tap") {
+        const correctKeys = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+        const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+        const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
+        const wrongTaps = tappedKeys.filter(k => !correctKeys.includes(k));
+        const gotAllCorrect = correctTaps.length === correctKeys.length && correctKeys.length > 0;
+        let mtBasePts = correctTaps.length * pointsPerQ;
+        if (wipeoutMode && qIdx >= 5 && wrongTaps.length > 0) mtBasePts = 0;
+        const answerTime = new Date(ans.submitted_at).getTime();
+        const timerStartMs = Date.now() - (timerDuration - timeLeft) * 1000;
+        const elapsed = Math.max(0, (answerTime - timerStartMs) / 1000);
+        const secsRemaining = Math.max(0, timerDuration - elapsed);
+        const mtTimeBonus = gotAllCorrect ? Math.round((secsRemaining / timerDuration) * timeBonus) : 0;
+        const mtDelta = mtBasePts + mtTimeBonus;
+        if (mtDelta === 0) continue;
+        const { data: existingMT } = await supabase.from("scores").select("total_points, round_points").eq("session_pin", sessionPin).eq("team_name", team.team_name).single();
+        const currentTotalMT = existingMT?.total_points ?? 0;
+        const currentRoundMT = existingMT?.round_points ?? 0;
+        await supabase.from("scores").upsert({ session_pin: sessionPin, team_name: team.team_name, total_points: currentTotalMT + mtDelta, round_points: currentRoundMT + mtDelta, updated_at: new Date().toISOString() }, { onConflict: "session_pin,team_name" });
+        continue;
+      }
       const isCorrect = isFuzzyMatch(ans.answer_text, correctText, q);
       const isWrong = !isCorrect && ans.answer_text.trim() !== "";
       if (!isCorrect && !(isWrong && dangerZone)) continue;
@@ -653,6 +675,23 @@ function QuizControllerInner() {
                 </div>
               )}
 
+              {currentQ.question_type==="multi_tap" && (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
+                  {(["a","b","c","d","e","f"] as const).map(l => {
+                    const opt = currentQ[("option_"+l) as keyof Question] as string | null;
+                    if (!opt) return null;
+                    const isCorrect = (currentQ.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).includes(l);
+                    const showCorrect = (hostPhase==="answer"||hostPhase==="preview") && isCorrect;
+                    return (
+                      <div key={l} style={{ padding:"12px 16px", borderRadius:10, background:showCorrect?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.07)", border:"1px solid "+(showCorrect?"rgba(34,197,94,0.6)":"rgba(255,255,255,0.15)"), fontSize:15 }}>
+                        <span style={{ color:"#BE26C1", fontWeight:700, marginRight:8 }}>{l.toUpperCase()}.</span>
+                        <span style={{ color:showCorrect?"#22c55e":"#fff" }}>{opt}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               {currentQ.question_type==="sequence" && (
                 <div style={{ marginBottom:20 }}>
                   {[currentQ.option_a,currentQ.option_b,currentQ.option_c,currentQ.option_d].filter(Boolean).map((item,i) => (
@@ -754,6 +793,13 @@ function QuizControllerInner() {
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                     <label style={{ fontSize:12, color:"rgba(255,255,255,0.6)", minWidth:110 }}>Penalty pts</label>
                     <input type="number" value={dangerPenalty} onChange={e => setDangerPenalty(Number(e.target.value))} style={{ width:60, padding:"4px 8px", borderRadius:6, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(239,68,68,0.4)", fontSize:14, textAlign:"center" as const }} />
+                  </div>
+                )}
+                {currentQ?.question_type === "multi_tap" && (
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <label style={{ fontSize:12, color:"rgba(255,255,255,0.6)", minWidth:110 }}>Wipeout Mode</label>
+                    <button onClick={() => setWipeoutMode((p: boolean) => !p)} style={{ padding:"4px 12px", borderRadius:6, background:wipeoutMode?"rgba(239,68,68,0.3)":"rgba(255,255,255,0.08)", border:"1px solid "+(wipeoutMode?"#ef4444":"rgba(255,255,255,0.2)"), color:wipeoutMode?"#ef4444":"#aaa", fontSize:12, cursor:"pointer" }}>{wipeoutMode ? "ON" : "OFF"}</button>
+                    <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Q6-10 only: wrong tap zeroes that question</span>
                   </div>
                 )}
                 <button onClick={resetRoundPoints} style={{ padding:"6px 12px", borderRadius:6, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.5)", fontSize:12, cursor:"pointer", marginTop:4 }}>Reset Round Points</button>

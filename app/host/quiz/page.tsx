@@ -69,6 +69,9 @@ function QuizControllerInner() {
   const [fastestSong, setFastestSong] = useState<string|null>(null);
   const [spinToWinOpen, setSpinToWinOpen] = useState(false);
   const [spinUsed, setSpinUsed] = useState(false);
+  const [spinOffered, setSpinOffered] = useState(false);
+  const [spinChoice, setSpinChoice] = useState<string|null>(null);
+  const [decisionMade, setDecisionMade] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
   const tickAudioRef = useRef<AudioContext|null>(null);
@@ -355,6 +358,14 @@ function QuizControllerInner() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards" }, (payload) => {
         setUnoCards(prev => [payload.new as UnoCard, ...prev]);
       })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions" }, (payload) => {
+        const s = payload.new as Record<string, unknown>;
+        if (s.pin !== pin) return;
+        const choice = (s.spin_choice as string) || null;
+        setSpinChoice(choice);
+        setSpinOffered(!!s.spin_offered);
+        if (choice === "spin") setSpinToWinOpen(true);
+      })
       .subscribe();
   }
 
@@ -483,10 +494,25 @@ function QuizControllerInner() {
     setFastestTeam(fastestTeamName);
     setFastestSong(song);
     setSpinUsed(false);
+    setSpinOffered(false);
+    setSpinChoice(null);
+    setDecisionMade(false);
     setHostPhase("celebration");
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "celebration", fastest_team: fastestTeamName, fastest_song: song, spin_used: false }).eq("id", sessionId);
+    await supabase.from("sessions").update({ phase: "celebration", fastest_team: fastestTeamName, fastest_song: song, spin_used: false, spin_offered: false, spin_choice: null }).eq("id", sessionId);
     if (song) playVictorySong(song);
+  }
+
+  async function doOfferSpinToWin() {
+    if (!sessionId) return;
+    setSpinOffered(true);
+    setDecisionMade(true);
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").update({ spin_offered: true, spin_choice: null }).eq("id", sessionId);
+  }
+
+  function doCelebratePlain() {
+    setDecisionMade(true);
   }
 
   async function doEndRound() {
@@ -573,7 +599,7 @@ function QuizControllerInner() {
           <option value="">Select round...</option>
           {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
-        {fastestTeam && (
+        {false && fastestTeam && (
           <button
             onClick={async () => {
               setSpinUsed(true);
@@ -637,6 +663,21 @@ function QuizControllerInner() {
                 <>
                   <div style={{ fontSize:42, fontWeight:800, color:"#BE26C1", letterSpacing:2, textShadow:"0 0 40px rgba(190,38,193,0.7)", marginBottom:8 }}>{fastestTeam}</div>
                   <div style={{ fontSize:16, color:"rgba(255,255,255,0.5)", marginBottom:32 }}>Victory song playing...</div>
+                  {!decisionMade && (
+                    <div style={{ display:"flex", gap:12, justifyContent:"center", marginBottom:24 }}>
+                      <button onClick={doCelebratePlain} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", fontSize:14, cursor:"pointer" }}>Just Celebrate</button>
+                      <button onClick={doOfferSpinToWin} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>Offer Spin to Win</button>
+                    </div>
+                  )}
+                  {spinOffered && !spinChoice && (
+                    <div style={{ fontSize:18, color:"#facc15", fontWeight:700, marginBottom:24 }}>{fastestTeam}, Spin to Win?</div>
+                  )}
+                  {spinChoice === "spin" && (
+                    <div style={{ fontSize:18, color:"#22c55e", fontWeight:700, marginBottom:24 }}>Spinning...</div>
+                  )}
+                  {spinChoice === "pass" && (
+                    <div style={{ fontSize:16, color:"rgba(255,255,255,0.5)", marginBottom:24 }}>{fastestTeam} passed</div>
+                  )}
                 </>
               ) : (
                 <div style={{ fontSize:24, color:"rgba(255,255,255,0.4)", marginBottom:32 }}>No correct answers this round</div>

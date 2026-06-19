@@ -9,6 +9,8 @@ type Question = {
   option_b: string | null;
   option_c: string | null;
   option_d: string | null;
+  option_e: string | null;
+  option_f: string | null;
   correct_answer: string;
   explanation: string;
   difficulty: string;
@@ -16,9 +18,9 @@ type Question = {
 };
 
 const TOPICS = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","UK and US pop culture","art","literature","technology","mathematics","famous people","transport","space","medicine","animals","architecture","inventions","TV shows","famous films","celebrity and entertainment","video games","fashion and style","world records","science fiction","comedy and humour","books and authors","classic cartoons"];
-const typeBg: Record<string,string> = { multiple_choice:"#1e1040", text_answer:"#0f2a1a", number:"#2a1a00", sequence:"#1a002a", picture:"#0a1a2a", audio:"#1a0a00" };
-const typeColor: Record<string,string> = { multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6", picture:"#38bdf8", audio:"#fb923c" };
-const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune" };
+const typeBg: Record<string,string> = { multi_tap:"#002a1a", multiple_choice:"#1e1040", text_answer:"#0f2a1a", number:"#2a1a00", sequence:"#1a002a", picture:"#0a1a2a", audio:"#1a0a00" };
+const typeColor: Record<string,string> = { multi_tap:"#4ade80", multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6", picture:"#38bdf8", audio:"#fb923c" };
+const typeLabel: Record<string,string> = { multi_tap:"Multi Tap", multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune" };
 
 export default function QuestionsPage() {
   const [roundType, setRoundType] = useState("regular");
@@ -71,6 +73,7 @@ export default function QuestionsPage() {
 
   async function generateOne(type: string, topic: string): Promise<Question|null> {
     const typeInstructions: Record<string,string> = {
+      multi_tap: "multi_tap: exactly 6 options in option_a through option_f. Some are correct answers, some are decoys (wrong). Mix the count - between 2 and 4 of the 6 should be correct. correct_answer must be a comma-separated list of the correct option letters in order, e.g. \"b,d,f\" or \"a,c\". Make decoys plausible, not obviously wrong.",
       multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
       text_answer: "text_answer: short word or phrase answer, all options must be null",
       number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
@@ -81,7 +84,7 @@ export default function QuestionsPage() {
     console.log("usedRef has", usedRef.current.length, "entries");
     const exclusions = usedRef.current.slice(-60).map((q,i) => (i+1)+". "+q).join("; ");
     const exclusionNote = exclusions ? " Do NOT generate any of these already-used questions: " + exclusions + "." : "";
-    const prompt = "You are a professional pub quiz writer. Your audience is English-speaking expats who enjoy British and American pop culture. Generate exactly 1 pub quiz question. Topic: " + topic + ". Type: " + typeInstructions[type] + ". Difficulty: " + difficulty + ". Keep questions focused on UK, US and international culture. Do NOT make questions about UAE, Dubai or Arab culture unless the topic specifically requires it. Content must be safe for UAE - avoid alcohol, pork, sexual references, religion, and politically sensitive Middle East topics." + exclusionNote + " Include a brief explanation of the answer (1-2 sentences) in the explanation field. Return ONLY a valid JSON array with 1 item, no markdown: [{\"question_text\":\"...\",\"question_type\":\"" + type + "\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"correct_answer\":\"...\",\"explanation\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + roundType + "\"}]";
+    const prompt = "You are a professional pub quiz writer. Your audience is English-speaking expats who enjoy British and American pop culture. Generate exactly 1 pub quiz question. Topic: " + topic + ". Type: " + typeInstructions[type] + ". Difficulty: " + difficulty + ". Keep questions focused on UK, US and international culture. Do NOT make questions about UAE, Dubai or Arab culture unless the topic specifically requires it. Content must be safe for UAE - avoid alcohol, pork, sexual references, religion, and politically sensitive Middle East topics." + exclusionNote + " Include a brief explanation of the answer (1-2 sentences) in the explanation field. Return ONLY a valid JSON array with 1 item, no markdown: [{\"question_text\":\"...\",\"question_type\":\"" + type + "\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"option_e\":\"...\",\"option_f\":\"...\",\"correct_answer\":\"...\",\"explanation\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + roundType + "\"}]";
     try {
       const text = await callAPI(prompt);
       const q = JSON.parse(text)[0];
@@ -328,6 +331,21 @@ export default function QuestionsPage() {
                       <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{q[("option_"+l) as keyof Question] as string}
                     </div>
                   ))}
+                </div>
+              )}
+              {q.question_type==="multi_tap" && (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginTop:6 }}>
+                  {["a","b","c","d","e","f"].map(l => {
+                    const optKey = "option_"+l as keyof Question;
+                    const optText = q[optKey] as string | null;
+                    if (!optText) return null;
+                    const isCorrect = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).includes(l);
+                    return (
+                      <div key={l} style={{ fontSize:12, padding:"5px 10px", borderRadius:6, background:isCorrect?"rgba(34,197,94,0.15)":"#0f0f1a", color:isCorrect?"#22c55e":"#aaa", border:"1px solid "+(isCorrect?"rgba(34,197,94,0.3)":"transparent") }}>
+                        {l.toUpperCase()}. {optText}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               {q.question_type==="sequence" && (

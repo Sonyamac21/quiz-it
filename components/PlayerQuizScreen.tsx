@@ -11,6 +11,8 @@ type Question = {
   option_b: string | null;
   option_c: string | null;
   option_d: string | null;
+  option_e: string | null;
+  option_f: string | null;
   correct_answer: string;
 };
 
@@ -134,6 +136,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [question, setQuestion] = useState<Question | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState("");
+  const [tappedItems, setTappedItems] = useState<string[]>([]);
   const [answerText, setAnswerText] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -225,6 +228,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       setSelectedAnswer("");
       setAnswerText("");
       setSubmitted(false);
+      setTappedItems([]);
     }
     lastPhaseRef.current = newPhase;
 
@@ -405,6 +409,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const isPicture = question.question_type === "picture";
     const isMultiChoice = question.question_type === "multiple_choice";
     const isSequence = question.question_type === "sequence";
+    const isMultiTap = question.question_type === "multi_tap";
     const imageUrl = isPicture ? question.option_b : null;
 
     // PICTURE ROUND - show image full screen, tap to dismiss
@@ -432,6 +437,14 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       { key: "d", text: question.option_d },
     ].filter(o => o.text) as { key: string; text: string }[];
     const seqItems = [question.option_a, question.option_b, question.option_c, question.option_d].filter(Boolean) as string[];
+    const multiTapOptions = [
+      { key: "a", text: question.option_a },
+      { key: "b", text: question.option_b },
+      { key: "c", text: question.option_c },
+      { key: "d", text: question.option_d },
+      { key: "e", text: question.option_e },
+      { key: "f", text: question.option_f },
+    ].filter(o => o.text) as { key: string; text: string }[];
 
     return (
       <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff" }}>
@@ -468,6 +481,33 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               </button>
             )}
             {submitted && <div style={{ fontSize: 11, color: "#22c55e", textAlign: "center" as const, marginTop: 2, letterSpacing: 2 }}>ANSWER LOCKED IN ✓</div>}
+          </div>
+        )}
+
+        {isMultiTap && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+              {multiTapOptions.map(opt => {
+                const isTapped = tappedItems.includes(opt.key);
+                return (
+                  <button key={opt.key} type="button"
+                    onClick={() => { if (!submitted) setTappedItems(prev => isTapped ? prev.filter(k => k !== opt.key) : [...prev, opt.key]); }}
+                    style={{ padding: "9px 12px", borderRadius: 10, border: "1.5px solid", borderColor: isTapped ? purple : "rgba(255,255,255,0.15)", background: isTapped ? "rgba(190,38,193,0.25)" : "rgba(255,255,255,0.06)", color: "#fff", fontSize: 13, fontFamily: font, textAlign: "left" as const, cursor: submitted ? "default" : "pointer", display: "flex", alignItems: "center", gap: 8, opacity: submitted && !isTapped ? 0.35 : 1 }}>
+                    <span style={{ color: isTapped ? "#fff" : purple, fontWeight: 700, minWidth: 16 }}>{opt.key.toUpperCase()}.</span>
+                    {opt.text}
+                    {isTapped && !submitted && <span style={{ marginLeft: "auto", fontSize: 13, color: purple }}>●</span>}
+                    {isTapped && submitted && <span style={{ marginLeft: "auto", fontSize: 13, color: "#22c55e" }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {!submitted && tappedItems.length > 0 && (
+              <button type="button" onClick={() => submitAnswer(tappedItems.join(","))}
+                style={{ padding: "10px", borderRadius: 10, background: purple, color: "#fff", border: "none", fontSize: 13, fontFamily: font, letterSpacing: 2, cursor: "pointer", marginTop: 2, width: "100%" }}>
+                LOCK IN ANSWERS
+              </button>
+            )}
+            {submitted && <div style={{ fontSize: 11, color: "#22c55e", textAlign: "center" as const, marginTop: 2, letterSpacing: 2 }}>ANSWERS LOCKED IN ✓</div>}
           </div>
         )}
 

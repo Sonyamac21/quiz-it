@@ -463,6 +463,8 @@ export default function DisplayScreen() {
     const options = [{ key:"A", text:question.option_a },{ key:"B", text:question.option_b },{ key:"C", text:question.option_c },{ key:"D", text:question.option_d }].filter(o => o.text);
     const isMulti = question.question_type === "multiple_choice";
     const isPicture = question.question_type === "picture";
+      const isMultiTap = question.question_type === "multi_tap";
+      const multiTapOptions = [{ key:"A", text:question.option_a },{ key:"B", text:question.option_b },{ key:"C", text:question.option_c },{ key:"D", text:question.option_d },{ key:"E", text:(question as any).option_e },{ key:"F", text:(question as any).option_f }].filter(o => o.text);
     const imageUrl = isPicture ? question.option_b : null;
 
     // PICTURE ROUND - image only (first space)
@@ -529,7 +531,17 @@ export default function DisplayScreen() {
             ))}
           </div>
         )}
-        {!isMulti && (
+        {isMultiTap && (
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+            {multiTapOptions.map(opt => (
+              <div key={opt.key} style={{ padding:"20px 28px", borderRadius:16, background:"rgba(255,255,255,0.06)", border:"2px solid rgba(190,38,193,0.25)", fontSize:26, display:"flex", alignItems:"center", gap:14 }}>
+                <span style={{ color:purple, fontWeight:800, fontSize:24 }}>{opt.key}.</span>
+                <span>{opt.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {!isMulti && !isMultiTap && (
           <div style={{ padding:"20px 28px", borderRadius:16, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", fontSize:25, color:"rgba(255,255,255,0.4)", fontStyle:"italic" }}>
             Type your answer on your phone
           </div>

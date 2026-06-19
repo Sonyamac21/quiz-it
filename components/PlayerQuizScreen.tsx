@@ -143,6 +143,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [fastestTeamName, setFastestTeamName] = useState<string | null>(null);
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
+  const [spinOffered, setSpinOffered] = useState(false);
+  const [spinChoice, setSpinChoice] = useState<string|null>(null);
   const [hardDeckPotential, setHardDeckPotential] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastQIndexRef = useRef(-1);
@@ -220,6 +222,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setHardDeckTeam((data.hard_deck_team as string) || null);
     setHardDeckStatus((data.hard_deck_status as string) || "idle");
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
+    setSpinOffered(!!data.spin_offered);
+    setSpinChoice((data.spin_choice as string) || null);
 
     // Reset answer state when phase changes to question OR question index changes
     if (newPhase === "question" && (newIdx !== lastQIndexRef.current || lastPhaseRef.current !== "question")) {
@@ -278,6 +282,16 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   async function submitHardDeckGamble() {
     const supabase = createSupabaseBrowserClient();
     await supabase.from("sessions").update({ hard_deck_status: "awaiting_guess" }).eq("session_pin", sessionPin);
+  }
+
+  async function chooseSpin() {
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").update({ spin_choice: "spin" }).eq("session_pin", sessionPin);
+  }
+
+  async function choosePass() {
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").update({ spin_choice: "pass" }).eq("session_pin", sessionPin);
   }
 
   function getCorrectAnswerText(q: Question): string {
@@ -358,7 +372,24 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           }} />
         ))}
         {fastestTeamName && (
+          <>
+            {isWinner && spinOffered && !spinChoice && (
+              <div style={{ marginBottom: 20, textAlign: "center" as const }}>
+                <div style={{ fontSize: 16, color: "#facc15", fontWeight: 700, marginBottom: 12 }}>Spin to Win?</div>
+                <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+                  <button onClick={chooseSpin} style={{ padding: "14px 28px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "2px solid #22c55e", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>SPIN</button>
+                  <button onClick={choosePass} style={{ padding: "14px 28px", borderRadius: 12, background: "rgba(255,255,255,0.08)", border: "2px solid rgba(255,255,255,0.3)", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>PASS</button>
+                </div>
+              </div>
+            )}
+            {isWinner && spinChoice === "spin" && (
+              <div style={{ fontSize: 16, color: "#22c55e", fontWeight: 700, marginBottom: 20, textAlign: "center" as const }}>Spinning... watch the big screen!</div>
+            )}
+            {isWinner && spinChoice === "pass" && (
+              <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginBottom: 20, textAlign: "center" as const }}>You passed on the spin</div>
+            )}
           <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", letterSpacing: 3, textAlign: "center", lineHeight: 1.2, marginBottom: 20, animation: "flash 0.8s ease-in-out infinite", textShadow: "0 0 20px rgba(255,255,255,0.6)" }}>FASTEST<br/>CORRECT ANSWER</div>
+          </>
         )}
         {isWinner ? (
           <>

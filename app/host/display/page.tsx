@@ -518,7 +518,7 @@ export default function DisplayScreen() {
           )}
           <div style={{ fontSize:18, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Quiz-It</div>
         </div>
-        <div style={{ fontSize:55, fontWeight:700, lineHeight:1.35, marginBottom:40, maxWidth:"85%" }}>{question.question_text}</div>
+        <div style={{ fontSize:"clamp(28px,4.2vw,55px)", fontWeight:700, lineHeight:1.35, marginBottom:40, maxWidth:"85%" }}>{question.question_text}</div>
         {isMulti && (
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
             {options.map(opt => (

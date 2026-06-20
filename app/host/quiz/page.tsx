@@ -691,7 +691,10 @@ function QuizControllerInner() {
                     <div style={{ fontSize:18, color:"#facc15", fontWeight:700, marginBottom:24 }}>{fastestTeam}, Spin to Win?</div>
                   )}
                   {spinChoice === "spin" && (
-                    <div style={{ fontSize:18, color:"#22c55e", fontWeight:700, marginBottom:24 }}>Spinning...</div>
+                    <>
+                      <div style={{ fontSize:18, color:"#22c55e", fontWeight:700, marginBottom:16 }}>Spinning... watch the display!</div>
+                      <button onClick={() => { if (isLastQ) doEndRound(); else doPreviewQuestion(qIdx + 1); }} style={{ padding:"10px 24px", borderRadius:10, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", marginBottom:24 }}>Continue ▶</button>
+                    </>
                   )}
                   {spinChoice === "pass" && (
                     <div style={{ fontSize:16, color:"rgba(255,255,255,0.5)", marginBottom:24 }}>{fastestTeam} passed</div>

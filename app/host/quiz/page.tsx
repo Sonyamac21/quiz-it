@@ -698,7 +698,7 @@ function QuizControllerInner() {
                 )}
               </div>
 
-              <div style={{ fontSize:26, fontWeight:700, lineHeight:1.4, marginBottom:24, color:"#fff" }}>{currentQ.question_text}</div>
+              <div style={{ fontSize:26, fontWeight:700, lineHeight:1.4, marginBottom:24, color:"#fff" }}>{currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
 
               {currentQ.question_type==="multiple_choice" && (
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>

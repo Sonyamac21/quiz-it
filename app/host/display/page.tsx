@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 
@@ -20,7 +21,9 @@ function playSound(file: string, volume = 1.0) {
   try { const a = new Audio("/sounds/" + file); a.volume = volume; a.play().catch(() => {}); return a; } catch { return null; }
 }
 
-export default function DisplayScreen() {
+function DisplayScreenInner() {
+  const searchParams = useSearchParams();
+  const autoConnectedRef = useRef(false);
   const [phase, setPhase] = useState<Phase>("waiting");
   const [question, setQuestion] = useState<Question | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -207,6 +210,31 @@ export default function DisplayScreen() {
       .subscribe();
   }
 
+  useEffect(() => {
+    const pinFromUrl = searchParams.get("pin");
+    if (pinFromUrl && pinFromUrl.length === 4 && !autoConnectedRef.current) {
+      autoConnectedRef.current = true;
+      setPinInput(pinFromUrl);
+      const supabase = createSupabaseBrowserClient();
+      supabase.from("sessions").select("*").eq("pin", pinFromUrl).single().then(({ data }) => {
+        if (!data) return;
+        setSessionPin(pinFromUrl);
+        setConnected(true);
+        applySession(data);
+        supabase.from("teams").select("*").eq("session_pin", pinFromUrl).order("created_at", { ascending: true }).then(({ data: teamData }) => {
+          if (teamData) setTeams(teamData);
+        });
+        supabase.channel("display-" + pinFromUrl)
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: "pin=eq." + pinFromUrl }, (payload) => {
+            applySession(payload.new as Record<string, unknown>);
+          })
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams", filter: "session_pin=eq." + pinFromUrl }, (payload) => {
+            setTeams(prev => [...prev, payload.new as { team_name: string }]);
+          })
+          .subscribe();
+      });
+    }
+  }, [searchParams]);
   if (!connected) {
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:font }}>
@@ -593,4 +621,12 @@ export default function DisplayScreen() {
   }
 
   return null;
+}
+
+export default function DisplayScreen() {
+  return (
+    <Suspense fallback={<div style={{ minHeight:"100vh", background:"#0d0225" }} />}>
+      <DisplayScreenInner />
+    </Suspense>
+  );
 }

@@ -115,36 +115,24 @@ export default function SlotMachine({ initialTeamName, initialVictorySong }: Slo
 
   useEffect(() => () => { stopBulbs(); }, [stopBulbs]);
 
+  const spinAudioElRef = useRef<HTMLAudioElement | null>(null);
   const startSpinSound = () => {
     try {
-      const ac = new (window.AudioContext || (window as any).webkitAudioContext)();
-      let interval = 40;
-      const playTick = () => {
-        const buf = ac.createBuffer(1, ac.sampleRate * 0.015, ac.sampleRate);
-        const data = buf.getChannelData(0);
-        for (let i = 0; i < data.length; i++) {
-          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ac.sampleRate * 0.003));
-        }
-        const src = ac.createBufferSource();
-        const g = ac.createGain();
-        src.buffer = buf;
-        src.connect(g); g.connect(ac.destination);
-        g.gain.value = 0.35;
-        src.start();
-      };
-      const schedule = () => {
-        playTick();
-        interval = Math.min(interval + 1.5, 120);
-        spinSoundRef.current = setTimeout(schedule, interval) as unknown as ReturnType<typeof setInterval>;
-      };
-      schedule();
+      const audio = new Audio("/sounds/slot-spin.mp3");
+      audio.loop = true;
+      audio.volume = 0.6;
+      audio.play().catch(() => {});
+      spinAudioElRef.current = audio;
     } catch {}
   };
-
   const stopSpinSound = () => {
+    if (spinAudioElRef.current) {
+      spinAudioElRef.current.pause();
+      spinAudioElRef.current.currentTime = 0;
+      spinAudioElRef.current = null;
+    }
     if (spinSoundRef.current) { clearTimeout(spinSoundRef.current as unknown as ReturnType<typeof setTimeout>); spinSoundRef.current = null; }
   };
-
   const animReel = (reelIdx: number, fromTop: number, toTop: number, dur: number, delay: number, easePow: number, cb?: () => void) => {
     let t0: number | null = null;
     setTimeout(() => {

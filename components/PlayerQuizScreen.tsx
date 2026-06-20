@@ -16,7 +16,7 @@ type Question = {
   correct_answer: string;
 };
 
-type Phase = "waiting" | "question" | "answer" | "celebration" | "hard_deck";
+type Phase = "waiting" | "question" | "answer" | "celebration" | "hard_deck" | "intermission";
 
 interface Props {
   teamName: string;
@@ -146,6 +146,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
   const [hardDeckPotential, setHardDeckPotential] = useState(0);
+  const [intermissionOffers, setIntermissionOffers] = useState("");
+  const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
+  const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastQIndexRef = useRef(-1);
   const lastPhaseRef = useRef<string>("");
@@ -185,7 +188,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, hard_deck_team, hard_deck_status, hard_deck_potential, spin_offered, spin_choice")
+        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, hard_deck_team, hard_deck_status, hard_deck_potential, spin_offered, spin_choice, intermission_offers, intermission_whatsapp, intermission_other_quizzes")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -224,6 +227,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
     setSpinOffered(!!data.spin_offered);
     setSpinChoice((data.spin_choice as string) || null);
+    setIntermissionOffers((data.intermission_offers as string) || "");
+    setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
+    setIntermissionOtherQuizzes((data.intermission_other_quizzes as string) || "");
 
     // Reset answer state when phase changes to question OR question index changes
     if (newPhase === "question" && (newIdx !== lastQIndexRef.current || lastPhaseRef.current !== "question")) {
@@ -351,6 +357,36 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     );
   }
 
+  if (phase === "intermission") {
+    const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes;
+    return (
+      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
+        <div style={{ fontSize: 22, color: purple, letterSpacing: 4, fontWeight: 700 }}>INTERMISSION</div>
+        <div style={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }}>Next round starting soon...</div>
+        {!hasContent && (
+          <img src="/me-logo.jpg" alt="ME" style={{ width: 70, height: 70, borderRadius: "50%", border: "2px solid " + purple, marginTop: 12 }} />
+        )}
+        {intermissionOffers && (
+          <div style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1.5px solid rgba(190,38,193,0.4)", width: "100%", maxWidth: 340 }}>
+            <div style={{ fontSize: 11, color: purple, letterSpacing: 2, marginBottom: 6 }}>TONIGHT'S OFFERS</div>
+            <div style={{ fontSize: 15, color: "#fff", lineHeight: 1.4 }}>{intermissionOffers}</div>
+          </div>
+        )}
+        {intermissionWhatsapp && (
+          <div style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1.5px solid rgba(190,38,193,0.4)", width: "100%", maxWidth: 340 }}>
+            <div style={{ fontSize: 11, color: purple, letterSpacing: 2, marginBottom: 10 }}>JOIN OUR WHATSAPP</div>
+            <img src={"https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + encodeURIComponent(intermissionWhatsapp)} alt="WhatsApp QR" style={{ width: 140, height: 140, borderRadius: 10, background: "#fff", padding: 6 }} />
+          </div>
+        )}
+        {intermissionOtherQuizzes && (
+          <div style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1.5px solid rgba(190,38,193,0.4)", width: "100%", maxWidth: 340 }}>
+            <div style={{ fontSize: 11, color: purple, letterSpacing: 2, marginBottom: 6 }}>MORE QUIZ NIGHTS</div>
+            <div style={{ fontSize: 14, color: "#fff", lineHeight: 1.4 }}>{intermissionOtherQuizzes}</div>
+          </div>
+        )}
+      </div>
+    );
+  }
   if (phase === "celebration") {
     const isWinner = fastestTeamName === teamName;
     const confettiColors = ["#BE26C1","#fbbf24","#22c55e","#38bdf8","#f87171","#a78bfa"];

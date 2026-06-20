@@ -522,7 +522,7 @@ function QuizControllerInner() {
     setHostPhase("round_end");
     playSound("round-end.mp3");
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "round_end" }).eq("id", sessionId);
+    await supabase.from("sessions").update({ phase: "intermission" }).eq("id", sessionId);
     setRoundNumber(prev => prev + 1);
   }
 

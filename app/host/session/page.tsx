@@ -20,6 +20,10 @@ export default function SessionPage() {
   const [status, setStatus] = useState<"waiting" | "active" | "finished">("waiting");
   const [creating, setCreating] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [intermissionOffers, setIntermissionOffers] = useState("");
+  const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
+  const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
+  const [savingIntermission, setSavingIntermission] = useState(false);
 
   const loadTeams = useCallback(async (sessionPin: string) => {
     const supabase = createSupabaseBrowserClient();
@@ -60,10 +64,24 @@ export default function SessionPage() {
       setSessionId(data.id);
       setTeams([]);
       setStatus("waiting");
+      setIntermissionOffers(data.intermission_offers || "");
+      setIntermissionWhatsapp(data.intermission_whatsapp || "");
+      setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
     }
     setCreating(false);
   }
 
+  async function saveIntermission() {
+    if (!sessionId) return;
+    setSavingIntermission(true);
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").update({
+      intermission_offers: intermissionOffers,
+      intermission_whatsapp: intermissionWhatsapp,
+      intermission_other_quizzes: intermissionOtherQuizzes,
+    }).eq("id", sessionId);
+    setSavingIntermission(false);
+  }
   async function startQuiz() {
     if (!sessionId) return;
     const supabase = createSupabaseBrowserClient();
@@ -109,6 +127,15 @@ export default function SessionPage() {
             <div style={{ marginTop: 16, fontSize: 16, color: "rgba(255,255,255,0.7)" }}>
               Status: <span style={{ color: status === "waiting" ? "#fbbf24" : status === "active" ? "#22c55e" : "#ef4444", fontWeight: 700, fontSize: 18 }}>{status.toUpperCase()}</span>
             </div>
+          </div>
+
+          <div style={{ background: "rgba(45,10,94,0.5)", border: "1px solid rgba(190,38,193,0.4)", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#fff", marginBottom: 12 }}>Intermission Screen</div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 12 }}>Shown automatically between rounds on the display and player phones.</div>
+            <textarea value={intermissionOffers} onChange={e => setIntermissionOffers(e.target.value)} placeholder="Venue offers..." rows={2} style={{ width:"100%", padding:"10px 12px", borderRadius:8, background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontSize:14, marginBottom:10, fontFamily:"sans-serif" }} />
+            <input value={intermissionWhatsapp} onChange={e => setIntermissionWhatsapp(e.target.value)} placeholder="WhatsApp number or link" style={{ width:"100%", padding:"10px 12px", borderRadius:8, background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontSize:14, marginBottom:10 }} />
+            <textarea value={intermissionOtherQuizzes} onChange={e => setIntermissionOtherQuizzes(e.target.value)} placeholder="Other quiz nights..." rows={2} style={{ width:"100%", padding:"10px 12px", borderRadius:8, background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontSize:14, marginBottom:10, fontFamily:"sans-serif" }} />
+            <button onClick={saveIntermission} disabled={savingIntermission} style={{ padding:"8px 18px", borderRadius:8, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>{savingIntermission ? "Saving..." : "Save Intermission Content"}</button>
           </div>
 
           <div style={{ background: "rgba(45,10,94,0.5)", border: "1px solid rgba(190,38,193,0.4)", borderRadius: 12, padding: 20, marginBottom: 20 }}>

@@ -185,7 +185,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team")
+        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, hard_deck_team, hard_deck_status, hard_deck_potential, spin_offered, spin_choice")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);

@@ -97,8 +97,8 @@ export default function QuestionsPage() {
           );
           const ytData = await ytRes.json();
           const videoId = ytData?.items?.[0]?.id?.videoId;
-          if (videoId) q.option_b = "https://www.youtube.com/watch?v=" + videoId;
-        } catch {}
+          if (videoId) { q.option_b = "https://www.youtube.com/watch?v=" + videoId; } else { return null; }
+        } catch { return null; }
       }
       if (q && q.question_type === "picture" && q.option_a) {
         try {
@@ -110,8 +110,8 @@ export default function QuestionsPage() {
           );
           const pixData = await pixRes.json();
           const hit = pixData?.hits?.[0];
-          if (hit) q.option_b = hit.largeImageURL || hit.webformatURL;
-        } catch {}
+          if (hit) { q.option_b = hit.largeImageURL || hit.webformatURL; } else { return null; }
+        } catch { return null; }
       }
       return q;
     } catch {

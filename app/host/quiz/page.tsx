@@ -78,6 +78,7 @@ function QuizControllerInner() {
   const tickIntervalRef = useRef<ReturnType<typeof setInterval>|null>(null);
   const victorySongRef = useRef<HTMLAudioElement|null>(null);
   const advancingRef = useRef(false);
+  const spinTriggeredRef = useRef(false);
   const roundQuestionsRef = useRef<Question[]>([]);
 
   const currentQ = selectedRound?.questions[qIdx] || null;
@@ -364,7 +365,11 @@ function QuizControllerInner() {
         const choice = (s.spin_choice as string) || null;
         setSpinChoice(choice);
         setSpinOffered(!!s.spin_offered);
-        if (choice === "spin") setSpinToWinOpen(true);
+        if (choice === "spin" && !spinTriggeredRef.current) {
+          spinTriggeredRef.current = true;
+          const winIdx = Math.floor(Math.random() * 8);
+          createSupabaseBrowserClient().from("sessions").update({ phase: "spin_to_win", spin_target_idx: winIdx }).eq("id", sessionId);
+        }
       })
       .subscribe();
   }
@@ -505,6 +510,7 @@ function QuizControllerInner() {
 
   async function doOfferSpinToWin() {
     if (!sessionId) return;
+    spinTriggeredRef.current = false;
     setSpinOffered(true);
     setDecisionMade(true);
     const supabase = createSupabaseBrowserClient();

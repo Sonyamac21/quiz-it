@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
+import { SlotReels } from "@/components/SlotReels";
 
 type Question = {
   question_text: string;
@@ -15,7 +16,7 @@ type Question = {
   explanation?: string;
 };
 type Score = { team_name: string; total_points: number; };
-type Phase = "waiting" | "round_start" | "question" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission";
+type Phase = "waiting" | "round_start" | "question" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission" | "spin_to_win";
 
 function playSound(file: string, volume = 1.0) {
   try { const a = new Audio("/sounds/" + file); a.volume = volume; a.play().catch(() => {}); return a; } catch { return null; }
@@ -49,6 +50,7 @@ function DisplayScreenInner() {
   const [intermissionOffers, setIntermissionOffers] = useState("");
   const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
+  const [spinTargetIdx, setSpinTargetIdx] = useState<number|null>(null);
   const victorySongRef = useRef<HTMLAudioElement|null>(null);
   const clappingRef = useRef<HTMLAudioElement|null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
@@ -115,6 +117,7 @@ function DisplayScreenInner() {
     setIntermissionOffers((data.intermission_offers as string) || "");
     setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
     setIntermissionOtherQuizzes((data.intermission_other_quizzes as string) || "");
+    setSpinTargetIdx((data.spin_target_idx as number) ?? null);
 
     if (newPhase === "scoreboard") {
       setScoreboardData((data.scoreboard_data as Score[]) || []);
@@ -351,6 +354,16 @@ function DisplayScreenInner() {
             )}
           </div>
         )}
+      </div>
+    );
+  }
+  // SPIN TO WIN
+  if (phase === "spin_to_win") {
+    return (
+      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, padding:40 }}>
+        <div style={{ width:"100%", maxWidth:900 }}>
+          <SlotReels targetIdx={spinTargetIdx} teamName={fastestTeam || "Team"} victorySong={fastestSong || undefined} size="full" />
+        </div>
       </div>
     );
   }

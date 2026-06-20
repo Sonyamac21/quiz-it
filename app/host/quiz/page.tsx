@@ -500,7 +500,7 @@ function QuizControllerInner() {
     setHostPhase("celebration");
     const supabase = createSupabaseBrowserClient();
     await supabase.from("sessions").update({ phase: "celebration", fastest_team: fastestTeamName, fastest_song: song, spin_used: false, spin_offered: false, spin_choice: null }).eq("id", sessionId);
-    if (song) playVictorySong(song);
+    // Victory song now plays only on the display screen to avoid duplicate/echoing audio
   }
 
   async function doOfferSpinToWin() {

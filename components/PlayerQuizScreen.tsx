@@ -277,27 +277,27 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
   async function submitHardDeckGuess(guess: "higher" | "lower") {
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ hard_deck_guess: guess }).eq("session_pin", sessionPin);
+    await supabase.from("sessions").update({ hard_deck_guess: guess }).eq("pin", sessionPin);
   }
 
   async function submitHardDeckStick() {
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ hard_deck_status: "won" }).eq("session_pin", sessionPin);
+    await supabase.from("sessions").update({ hard_deck_status: "won" }).eq("pin", sessionPin);
   }
 
   async function submitHardDeckGamble() {
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ hard_deck_status: "awaiting_guess" }).eq("session_pin", sessionPin);
+    await supabase.from("sessions").update({ hard_deck_status: "awaiting_guess" }).eq("pin", sessionPin);
   }
 
   async function chooseSpin() {
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ spin_choice: "spin" }).eq("session_pin", sessionPin);
+    await supabase.from("sessions").update({ spin_choice: "spin" }).eq("pin", sessionPin);
   }
 
   async function choosePass() {
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ spin_choice: "pass" }).eq("session_pin", sessionPin);
+    await supabase.from("sessions").update({ spin_choice: "pass" }).eq("pin", sessionPin);
   }
 
   function getCorrectAnswerText(q: Question): string {

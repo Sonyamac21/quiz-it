@@ -487,7 +487,6 @@ function DisplayScreenInner() {
         ) : (
           <div style={{ fontSize:60, color:"rgba(255,255,255,0.3)", fontFamily:font }}>No correct answers</div>
         )}
-        {fastestSong && <div style={{ marginTop:32, fontSize:25, color:"rgba(255,255,255,0.25)", letterSpacing:3, fontFamily:font }}>{fastestSong.replace(/\s*SQS\s*$/i,"").replace(/[-_]+$/,"").replace(/[-_]/g," ").trim()}</div>}
       </div>
     );
   }

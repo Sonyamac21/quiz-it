@@ -545,6 +545,18 @@ function QuizControllerInner() {
 
   const teamHasAnswered = (teamName: string) => answers.some(a => a.team_name === teamName);
   const teamAnswer = (teamName: string) => answers.find(a => a.team_name === teamName)?.answer_text || "";
+  const teamCardsUsed = (teamName: string) => new Set(unoCards.filter(c => c.team_name === teamName).map(c => c.card_type));
+  const PowerCardDots = ({ teamName }: { teamName: string }) => {
+    const used = teamCardsUsed(teamName);
+    return (
+      <div style={{ display:"flex", gap:4 }}>
+        {(["block","reverse","x2"] as const).map(ct => (
+          <span key={ct} title={cardLabel[ct] + (used.has(ct) ? " (used)" : " (available)")}
+            style={{ width:8, height:8, borderRadius:"50%", background: used.has(ct) ? "rgba(255,255,255,0.12)" : cardColor[ct], border: used.has(ct) ? "1px solid rgba(255,255,255,0.15)" : "none" }} />
+        ))}
+      </div>
+    );
+  };
 
   const spacebarHint =
     hostPhase === "waiting" ? "SPACE: Start Round" :
@@ -854,7 +866,21 @@ function QuizControllerInner() {
           <div style={{ padding:"12px 16px", flex:1, overflowY:"auto" as const }}>
             <div style={{ fontSize:13, fontWeight:700, color:"#BE26C1", letterSpacing:2, marginBottom:10 }}>LEADERBOARD</div>
             {scores.length === 0 && teams.length > 0 && (
-              <button onClick={() => ensureScores(sessionPin, teams)} style={{ width:"100%", padding:"8px", borderRadius:8, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:13, cursor:"pointer", marginBottom:10 }}>Initialise Scores</button>
+              <>
+                <button onClick={() => ensureScores(sessionPin, teams)} style={{ width:"100%", padding:"8px", borderRadius:8, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:13, cursor:"pointer", marginBottom:10 }}>Initialise Scores</button>
+                {teams.map(t => (
+                  <div key={t.id} style={{ padding:"8px 10px", borderRadius:10, background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", marginBottom:6 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <div style={{ width:7, height:7, borderRadius:"50%", background:"#22c55e", flexShrink:0 }} />
+                      <span style={{ fontWeight:700, fontSize:13, flex:1, color:"#fff" }}>{t.team_name}</span>
+                      <PowerCardDots teamName={t.team_name} />
+                    </div>
+                    {t.victory_song && (
+                      <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", paddingLeft:13, marginTop:3 }}>♪ {t.victory_song.replace(/\s*SQS\s*$/i,"").replace(/[-_]+$/,"").replace(/[-_]/g," ").trim()}</div>
+                    )}
+                  </div>
+                ))}
+              </>
             )}
             {scores.map((s, i) => {
               const answered = teamHasAnswered(s.team_name);
@@ -872,6 +898,7 @@ function QuizControllerInner() {
                   <div style={{ display:"flex", alignItems:"center", paddingLeft:28, marginTop:3, gap:6 }}>
                     <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>Rd: +{s.round_points}</span>
                     {answered && <span style={{ fontSize:11, color:"#22c55e", fontStyle:"italic", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>}
+                    <PowerCardDots teamName={s.team_name} />
                     {adjustTeam === s.team_name ? (
                       <div style={{ display:"flex", gap:4, marginLeft:"auto" }}>
                         <input type="number" value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="+/-" style={{ width:52, padding:"2px 4px", borderRadius:4, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:12, textAlign:"center" as const }} />

@@ -110,7 +110,21 @@ export default function SessionPage() {
         <a href="/host/rounds" style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid rgba(190,38,193,0.6)", color: "#BE26C1", textDecoration: "none", fontSize: 14, letterSpacing: 2 }}>Rounds</a>
         <a href={"/host/quiz?pin=" + (pin || "")} style={{ padding: "10px 20px", borderRadius: 8, background: "#BE26C1", color: "#fff", textDecoration: "none", fontSize: 14, letterSpacing: 2 }}>Quiz Controller</a>
           <a href="/host/questions" style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid rgba(190,38,193,0.6)", color: "#BE26C1", textDecoration: "none", fontSize: 14, letterSpacing: 2 }}>Questions</a>
-          <button onClick={() => { if (pin) window.open("/host/display?pin=" + pin, "display", "width=1920,height=1080"); }} disabled={!pin}
+          <button onClick={async () => {
+              if (!pin) return;
+              try {
+                if ("getScreenDetails" in window) {
+                  const details = await (window as any).getScreenDetails();
+                  const screens = details.screens;
+                  const target = screens.find((s: any) => !s.isPrimary) || screens[screens.length - 1];
+                  if (target && screens.length > 1) {
+                    window.open("/host/display?pin=" + pin, "display", "left=" + target.left + ",top=" + target.top + ",width=" + target.width + ",height=" + target.height);
+                    return;
+                  }
+                }
+              } catch {}
+              window.open("/host/display?pin=" + pin, "display", "width=1920,height=1080");
+            }} disabled={!pin}
             style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid rgba(190,38,193,0.6)", background: "transparent", color: pin ? "#BE26C1" : "rgba(190,38,193,0.3)", fontSize: 14, letterSpacing: 2, cursor: pin ? "pointer" : "not-allowed" }}>Launch Display Screen</button>
       </div>
 

@@ -28,6 +28,24 @@ function DisplayScreenInner() {
   const [phase, setPhase] = useState<Phase>("waiting");
   const [question, setQuestion] = useState<Question | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
+  useEffect(() => {
+    const btn = document.createElement("button");
+    btn.textContent = "Fullscreen";
+    btn.style.cssText = "position:fixed;bottom:16px;right:16px;z-index:9999;padding:10px 18px;border-radius:8px;background:rgba(190,38,193,0.85);color:#fff;border:none;font-family:sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,0.4);";
+    btn.onclick = () => {
+      const el = document.documentElement;
+      if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    };
+    document.body.appendChild(btn);
+    const onFsChange = () => {
+      btn.style.display = document.fullscreenElement ? "none" : "block";
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFsChange);
+      if (btn.parentNode) btn.parentNode.removeChild(btn);
+    };
+  }, []);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [pinInput, setPinInput] = useState("");
   const [connected, setConnected] = useState(false);

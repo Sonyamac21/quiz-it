@@ -142,6 +142,27 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [blockUntil, setBlockUntil] = useState<string | null>(null);
   const [blockTeam, setBlockTeam] = useState<string | null>(null);
   const [blockSecondsLeft, setBlockSecondsLeft] = useState(0);
+  const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
+  const cardFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cardFlashElRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = document.createElement("div");
+    el.style.cssText = "position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;display:none;padding:10px 20px;border-radius:10px;background:rgba(20,5,40,0.95);border:2px solid #BE26C1;color:#fff;font-family:sans-serif;font-size:13px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 16px rgba(190,38,193,0.5);max-width:90vw;text-align:center;";
+    document.body.appendChild(el);
+    cardFlashElRef.current = el;
+    return () => { if (el.parentNode) el.parentNode.removeChild(el); };
+  }, []);
+  useEffect(() => {
+    const el = cardFlashElRef.current;
+    if (!el) return;
+    if (cardFlash) {
+      const label = cardFlash.type === "block" ? "Time-Out" : cardFlash.type === "reverse" ? "Reverse" : "Boost";
+      el.textContent = cardFlash.team + " played " + label + "!";
+      el.style.display = "block";
+    } else {
+      el.style.display = "none";
+    }
+  }, [cardFlash]);
   const [answerText, setAnswerText] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -224,6 +245,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         if (payload.new && (payload.new as Record<string, unknown>).pin === sessionPin) {
           applySessionDataRef.current(payload.new as Record<string, unknown>);
         }
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + sessionPin }, (payload) => {
+        const c = payload.new as { team_name: string; card_type: string };
+        if (cardFlashTimerRef.current) clearTimeout(cardFlashTimerRef.current);
+        setCardFlash({ team: c.team_name, type: c.card_type });
+        cardFlashTimerRef.current = setTimeout(() => setCardFlash(null), 3000);
       })
       .subscribe();
 

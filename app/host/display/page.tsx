@@ -69,6 +69,27 @@ function DisplayScreenInner() {
   const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
   const [spinTargetIdx, setSpinTargetIdx] = useState<number|null>(null);
+  const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
+  const cardFlashElRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = document.createElement("div");
+    el.style.cssText = "position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;display:none;padding:14px 32px;border-radius:12px;background:rgba(20,5,40,0.95);border:2px solid #BE26C1;color:#fff;font-family:sans-serif;font-size:18px;font-weight:700;letter-spacing:1px;box-shadow:0 4px 24px rgba(190,38,193,0.5);";
+    document.body.appendChild(el);
+    cardFlashElRef.current = el;
+    return () => { if (el.parentNode) el.parentNode.removeChild(el); };
+  }, []);
+  useEffect(() => {
+    const el = cardFlashElRef.current;
+    if (!el) return;
+    if (cardFlash) {
+      const label = cardFlash.type === "block" ? "Time-Out" : cardFlash.type === "reverse" ? "Reverse" : "Boost";
+      el.textContent = cardFlash.team + " played " + label + "!";
+      el.style.display = "block";
+    } else {
+      el.style.display = "none";
+    }
+  }, [cardFlash]);
+  const cardFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const victorySongRef = useRef<HTMLAudioElement|null>(null);
   const clappingRef = useRef<HTMLAudioElement|null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
@@ -116,6 +137,11 @@ function DisplayScreenInner() {
     if (clappingRef.current) { clappingRef.current.pause(); clappingRef.current.currentTime = 0; clappingRef.current = null; }
   }
 
+  function triggerCardFlash(team: string, type: string) {
+    if (cardFlashTimerRef.current) clearTimeout(cardFlashTimerRef.current);
+    setCardFlash({ team, type });
+    cardFlashTimerRef.current = setTimeout(() => setCardFlash(null), 3000);
+  }
   function applySession(data: Record<string, unknown>) {
     const newPhase = (data.phase as Phase) || "waiting";
     setPhase(newPhase);
@@ -228,6 +254,10 @@ function DisplayScreenInner() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams", filter: "session_pin=eq." + pinInput }, (payload) => {
         setTeams(prev => [...prev, payload.new as { team_name: string }]);
       })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + pinInput }, (payload) => {
+        const c = payload.new as { team_name: string; card_type: string };
+        triggerCardFlash(c.team_name, c.card_type);
+      })
       .subscribe();
   }
 
@@ -251,6 +281,10 @@ function DisplayScreenInner() {
           })
           .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams", filter: "session_pin=eq." + pinFromUrl }, (payload) => {
             setTeams(prev => [...prev, payload.new as { team_name: string }]);
+          })
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + pinFromUrl }, (payload) => {
+            const c = payload.new as { team_name: string; card_type: string };
+            triggerCardFlash(c.team_name, c.card_type);
           })
           .subscribe();
       });

@@ -80,6 +80,8 @@ function QuizControllerInner() {
   const advancingRef = useRef(false);
   const spinTriggeredRef = useRef(false);
   const roundStartedRef = useRef<number>(0);
+  const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
+  const cardFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundQuestionsRef = useRef<Question[]>([]);
 
   const currentQ = selectedRound?.questions[qIdx] || null;
@@ -360,6 +362,10 @@ function QuizControllerInner() {
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards" }, (payload) => {
         setUnoCards(prev => [payload.new as UnoCard, ...prev]);
+        const c = payload.new as UnoCard;
+        if (cardFlashTimerRef.current) clearTimeout(cardFlashTimerRef.current);
+        setCardFlash({ team: c.team_name, type: c.card_type });
+        cardFlashTimerRef.current = setTimeout(() => setCardFlash(null), 3000);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions" }, (payload) => {
         const s = payload.new as Record<string, unknown>;
@@ -603,6 +609,11 @@ function QuizControllerInner() {
 
   return (
     <div style={{ minHeight:"100vh", background:"linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", fontFamily:"sans-serif", color:"#fff", display:"flex", flexDirection:"column" as const }}>
+      {cardFlash && (
+        <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, padding:"12px 28px", borderRadius:12, background:"rgba(20,5,40,0.95)", border:"2px solid #BE26C1", color:"#fff", fontSize:16, fontWeight:700, letterSpacing:1, boxShadow:"0 4px 24px rgba(190,38,193,0.5)" }}>
+          {cardFlash.team} played {cardFlash.type === "block" ? "Time-Out" : cardFlash.type === "reverse" ? "Reverse" : "Boost"}!
+        </div>
+      )}
       {/* HEADER */}
       <div style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 20px", borderBottom:"1px solid rgba(190,38,193,0.3)", background:"rgba(45,10,94,0.5)", flexWrap:"wrap" as const }}>
         <div style={{ fontSize:16, fontWeight:700, color:"#BE26C1", letterSpacing:3 }}>Quiz Controller</div>

@@ -138,6 +138,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [tappedItems, setTappedItems] = useState<string[]>([]);
+  const [mySubmittedDisplay, setMySubmittedDisplay] = useState("");
   const [answerText, setAnswerText] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -244,6 +245,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       setAnswerText("");
       setSubmitted(false);
       setTappedItems([]);
+      setMySubmittedDisplay("");
     }
     lastPhaseRef.current = newPhase;
 
@@ -315,7 +317,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
 
   const PowerCards = () => (
-    <div style={{ marginTop: "auto", paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+    <div style={{ position: "sticky" as const, bottom: 0, marginTop: "auto", paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
       <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} compact={true} />
     </div>
   );
@@ -458,16 +460,34 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               <div style={{ fontSize: 56, fontWeight: 900, color: "#22c55e", textShadow: "0 0 20px rgba(34,197,94,0.6)", lineHeight: 1 }}>+10</div>
             </div>
           </>
-        ) : fastestTeamName ? (
-          <>
-            <div style={{ fontSize: 48, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 30px rgba(190,38,193,0.6)", marginBottom: 24 }}>{fastestTeamName}</div>
-          </>
-        ) : (
-          <>
-            <div style={{ fontSize: 64, marginBottom: 8 }}>{"😬"}</div>
-            <div style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", marginBottom: 24 }}>Better luck next time!</div>
-          </>
-        )}
+        ) : (() => {
+          const correctText = question ? getCorrectAnswerText(question) : "";
+          const myAnswerCorrect = !!mySubmittedDisplay && mySubmittedDisplay.trim().toLowerCase() === correctText.trim().toLowerCase();
+          return (
+            <>
+              {fastestTeamName && (
+                <div style={{ fontSize: 32, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 24px rgba(190,38,193,0.6)", marginBottom: 16 }}>{fastestTeamName}</div>
+              )}
+              {myAnswerCorrect ? (
+                <>
+                <div style={{ fontSize: 16, color: "#22c55e", fontWeight: 700, marginBottom: 6 }}>Your answer was correct</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginBottom: 24 }}>{fastestTeamName ? "Just not the fastest this time" : "Nice work!"}</div>
+                </>
+              ) : (
+                <div style={{ width: "100%", maxWidth: 340, display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
+                  <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 14px" }}>
+                    <div style={{ fontSize: 10, letterSpacing: 1, color: "rgba(255,255,255,0.35)", marginBottom: 4 }}>YOUR ANSWER</div>
+                    <div style={{ fontSize: 14, color: "#fff" }}>{mySubmittedDisplay || "(no answer submitted)"}</div>
+                  </div>
+                  <div style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.4)", borderRadius: 10, padding: "10px 14px" }}>
+                    <div style={{ fontSize: 10, letterSpacing: 1, color: "rgba(134,239,172,0.7)", marginBottom: 4 }}>CORRECT ANSWER</div>
+                    <div style={{ fontSize: 14, color: "#86efac" }}>{correctText}</div>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
         <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} compact={true} />
       </div>
     );
@@ -485,7 +505,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         </div>
         {submitted && (
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 12 }}>
-            Your answer: {selectedAnswer ? selectedAnswer.toUpperCase() + ". " + (question[("option_" + selectedAnswer) as keyof Question] as string) : answerText}
+            Your answer: {mySubmittedDisplay || "(no answer submitted)"}
           </div>
         )}
         <PowerCards />
@@ -535,7 +555,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     ].filter(o => o.text) as { key: string; text: string }[];
 
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff" }}>
+      <div style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", overflowY: "auto" as const, boxSizing: "border-box" as const }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
           <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
           {timeLeft !== null && timeLeft > 0 && (
@@ -563,7 +583,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               );
             })}
             {!submitted && selectedAnswer && (
-              <button type="button" onClick={() => submitAnswer(selectedAnswer)}
+              <button type="button" onClick={() => { const opt = options.find(o => o.key === selectedAnswer); setMySubmittedDisplay(opt?.text || selectedAnswer); submitAnswer(selectedAnswer); }}
                 style={{ padding: "10px", borderRadius: 10, background: purple, color: "#fff", border: "none", fontSize: 13, fontFamily: font, letterSpacing: 2, cursor: "pointer", marginTop: 2 }}>
                 LOCK IN ANSWER
               </button>
@@ -590,7 +610,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               })}
             </div>
             {!submitted && tappedItems.length > 0 && (
-              <button type="button" onClick={() => submitAnswer(tappedItems.join(","))}
+              <button type="button" onClick={() => { const texts = tappedItems.map(k => multiTapOptions.find(o => o.key === k)?.text || k).join(", "); setMySubmittedDisplay(texts); submitAnswer(tappedItems.join(",")); }}
                 style={{ padding: "10px", borderRadius: 10, background: purple, color: "#fff", border: "none", fontSize: 13, fontFamily: font, letterSpacing: 2, cursor: "pointer", marginTop: 2, width: "100%" }}>
                 LOCK IN ANSWERS
               </button>
@@ -600,12 +620,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
 
         {isSequence && (
-          <SequenceQuestion options={seqItems} onSubmit={submitAnswer} submitted={submitted} />
+          <SequenceQuestion options={seqItems} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} submitted={submitted} />
         )}
 
         {!isMultiChoice && !isSequence && !submitted && (
           <div style={{ marginBottom: 16 }}>
-            <AnswerKeypad mode={question.question_type === "number" ? "number" : "text"} onSubmit={submitAnswer} />
+            <AnswerKeypad mode={question.question_type === "number" ? "number" : "text"} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
           </div>
         )}
 

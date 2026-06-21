@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { UnoPlayerCards } from "@/components/UnoCards";
 import { AnswerKeypad } from "@/components/AnswerKeypad";
+import { SlotReels } from "@/components/SlotReels";
 
 type Question = {
   question_text: string;
@@ -16,7 +17,7 @@ type Question = {
   correct_answer: string;
 };
 
-type Phase = "waiting" | "question" | "answer" | "celebration" | "hard_deck" | "intermission";
+type Phase = "waiting" | "question" | "answer" | "celebration" | "hard_deck" | "intermission" | "spin_to_win";
 
 interface Props {
   teamName: string;
@@ -141,6 +142,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [fastestTeamName, setFastestTeamName] = useState<string | null>(null);
+  const [fastestSongName, setFastestSongName] = useState<string | null>(null);
+  const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
   const [spinOffered, setSpinOffered] = useState(false);
@@ -188,7 +191,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, hard_deck_team, hard_deck_status, hard_deck_potential, spin_offered, spin_choice, intermission_offers, intermission_whatsapp, intermission_other_quizzes")
+        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, hard_deck_team, hard_deck_status, hard_deck_potential, spin_offered, spin_choice, spin_target_idx, intermission_offers, intermission_whatsapp, intermission_other_quizzes")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -222,6 +225,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setPhase(newPhase);
     setQuestion(newQ);
     setFastestTeamName(ft);
+    setFastestSongName((data.fastest_song as string) || null);
+    setSpinTargetIdx((data.spin_target_idx as number) ?? null);
     setHardDeckTeam((data.hard_deck_team as string) || null);
     setHardDeckStatus((data.hard_deck_status as string) || "idle");
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
@@ -315,6 +320,22 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     </div>
   );
 
+  if (phase === "spin_to_win") {
+    const isWinner = fastestTeamName === teamName;
+    return (
+      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16, gap: 16, textAlign: "center" as const }}>
+        {isWinner ? (
+          <div style={{ width: "100%" }}>
+            <SlotReels targetIdx={spinTargetIdx} teamName={teamName} victorySong={fastestSongName || undefined} size="compact" />
+          </div>
+        ) : (
+          <div style={{ fontSize: 16, color: "rgba(255,255,255,0.6)" }}>
+            {fastestTeamName ? fastestTeamName + " is spinning — watch the big screen!" : "Watch the big screen!"}
+          </div>
+        )}
+      </div>
+    );
+  }
   if (phase === "hard_deck") {
     const isSelected = hardDeckTeam === teamName;
     return (

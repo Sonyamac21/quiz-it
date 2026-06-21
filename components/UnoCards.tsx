@@ -23,6 +23,21 @@ export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { team
       played_at: new Date().toISOString(),
       session_pin: sessionPin || "",
     });
+    if (cardType === "block" && sessionPin) {
+      await supabase.from("sessions").update({
+        block_until: new Date(Date.now() + 10000).toISOString(),
+        block_team: teamName,
+      }).eq("pin", sessionPin);
+    }
+    if (cardType === "reverse" && sessionPin) {
+      const { data: existing } = await supabase.from("scores").select("total_points").eq("session_pin", sessionPin).eq("team_name", teamName).maybeSingle();
+      if (existing) {
+        const current = existing.total_points || 0;
+        const sign = current < 0 ? -1 : 1;
+        const reversed = sign * parseInt(Math.abs(current).toString().split("").reverse().join("") || "0", 10);
+        await supabase.from("scores").update({ total_points: reversed }).eq("session_pin", sessionPin).eq("team_name", teamName);
+      }
+    }
     setUsed(prev => [...prev, cardType]);
     setPlaying(null);
   };

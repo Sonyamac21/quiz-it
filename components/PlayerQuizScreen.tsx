@@ -139,6 +139,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [tappedItems, setTappedItems] = useState<string[]>([]);
   const [mySubmittedDisplay, setMySubmittedDisplay] = useState("");
+  const [blockUntil, setBlockUntil] = useState<string | null>(null);
+  const [blockTeam, setBlockTeam] = useState<string | null>(null);
+  const [blockSecondsLeft, setBlockSecondsLeft] = useState(0);
   const [answerText, setAnswerText] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -163,6 +166,16 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const font = "'Bruno Ace SC', sans-serif";
 
   // Keep screen awake
+  useEffect(() => {
+    if (!blockUntil) { setBlockSecondsLeft(0); return; }
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((new Date(blockUntil).getTime() - Date.now()) / 1000));
+      setBlockSecondsLeft(remaining);
+    };
+    tick();
+    const interval = setInterval(tick, 500);
+    return () => clearInterval(interval);
+  }, [blockUntil]);
   useEffect(() => {
     let wakeLock: WakeLockSentinel | null = null;
     async function requestWakeLock() {
@@ -192,7 +205,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, hard_deck_team, hard_deck_status, hard_deck_potential, spin_offered, spin_choice, spin_target_idx, intermission_offers, intermission_whatsapp, intermission_other_quizzes")
+        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, hard_deck_team, hard_deck_status, hard_deck_potential, spin_offered, spin_choice, spin_target_idx, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -228,6 +241,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setFastestTeamName(ft);
     setFastestSongName((data.fastest_song as string) || null);
     setSpinTargetIdx((data.spin_target_idx as number) ?? null);
+    setBlockUntil((data.block_until as string) || null);
+    setBlockTeam((data.block_team as string) || null);
     setHardDeckTeam((data.hard_deck_team as string) || null);
     setHardDeckStatus((data.hard_deck_status as string) || "idle");
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
@@ -520,6 +535,16 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const isMultiTap = question.question_type === "multi_tap";
     const imageUrl = isPicture ? question.option_b : null;
 
+    const isBlocked = !!blockUntil && blockTeam !== teamName && new Date(blockUntil).getTime() > Date.now();
+    if (isBlocked && !submitted) {
+      return (
+        <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 12, textAlign: "center" as const, fontFamily: font }}>
+          <div style={{ fontSize: 40 }}>TIME-OUT</div>
+          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>{blockTeam} played Time-Out</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", marginTop: 8 }}>{blockSecondsLeft}s</div>
+        </div>
+      );
+    }
     // PICTURE ROUND - show image full screen, tap to dismiss
     if (isPicture && imageUrl) {
       return <PictureQuestion

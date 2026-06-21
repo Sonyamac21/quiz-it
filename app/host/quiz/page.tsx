@@ -381,8 +381,9 @@ function QuizControllerInner() {
 
   function startTickAudio(duration: number) {
     try {
-      const ctx = new AudioContext();
+      const ctx = tickAudioRef.current && tickAudioRef.current.state !== "closed" ? tickAudioRef.current : new AudioContext();
       tickAudioRef.current = ctx;
+      ctx.resume();
       let tick = 0;
       tickIntervalRef.current = setInterval(() => {
         tick++;

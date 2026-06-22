@@ -339,9 +339,9 @@ function DisplayScreenInner() {
         {hardDeckCards.length > 0 && (
           <div style={{ display:"flex", gap:24 }}>
             {hardDeckCards.map((c, i) => (
-              <div key={i} style={{ width:140, height:200, borderRadius:18, background:"#fff", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontSize:48, fontWeight:900, color:(c.suit==="♥"||c.suit==="♦")?"#dc2626":"#111", boxShadow:"0 8px 30px rgba(0,0,0,0.5)" }}>
+              <div key={i} style={{ width:280, height:400, borderRadius:28, background:"#fff", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontSize:96, fontWeight:900, color:(c.suit==="♥"||c.suit==="♦")?"#dc2626":"#111", boxShadow:"0 12px 50px rgba(0,0,0,0.5)" }}>
                 <div>{rankLabel(c.rank)}</div>
-                <div style={{ fontSize:60 }}>{c.suit}</div>
+                <div style={{ fontSize:120 }}>{c.suit}</div>
               </div>
             ))}
           </div>
@@ -359,7 +359,7 @@ function DisplayScreenInner() {
           <div style={{ fontSize:44, color:"#22c55e", fontWeight:800 }}>WINNER! 🎉</div>
         )}
         {hardDeckStatus === "lost" && (
-          <div style={{ fontSize:44, color:"#ef4444", fontWeight:800 }}>BUSTED!</div>
+          <div style={{ fontSize:44, color:"#ef4444", fontWeight:800 }}>BUST!</div>
         )}
       </div>
     );

@@ -425,7 +425,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           <div style={{ fontSize: 22, color: "#22c55e" }}>You won {hardDeckPotential} points! 🎉</div>
         )}
         {isSelected && hardDeckStatus === "lost" && (
-          <div style={{ fontSize: 22, color: "#ef4444" }}>Busted — better luck next time!</div>
+          <div style={{ fontSize: 22, color: "#ef4444" }}>Bust — better luck next time!</div>
         )}
         {isSelected && (hardDeckStatus === "wheel" || hardDeckStatus === "base_revealed") && (
           <>

@@ -239,7 +239,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams }: Props) {
           )}
 
           {status === "lost" && (
-            <div style={{ fontSize: 22, color: "#ef4444" }}>Busted — 0 points</div>
+            <div style={{ fontSize: 22, color: "#ef4444" }}>Bust — 0 points</div>
           )}
 
           {(status === "won" || status === "lost") && (

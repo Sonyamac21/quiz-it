@@ -264,6 +264,10 @@ function QuizControllerInner() {
       const key = answer.trim().toLowerCase();
       if (key === q.correct_answer.toLowerCase()) return true;
     }
+    // Numbers must match exactly - no fuzzy/typo tolerance, a wrong digit is just wrong
+    if (q && q.question_type === "number") {
+      return answer.trim() === correct.trim();
+    }
     const a = normalise(answer);
     const b = normalise(correct);
     if (a === b) return true;

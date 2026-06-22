@@ -426,7 +426,10 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           <div style={{ fontSize: 22, color: "#ef4444" }}>Busted — better luck next time!</div>
         )}
         {isSelected && (hardDeckStatus === "wheel" || hardDeckStatus === "base_revealed") && (
-          <div style={{ fontSize: 16, color: "rgba(255,255,255,0.6)" }}>Watch the big screen!</div>
+          <>
+            <div style={{ fontSize: 26, fontWeight: 900, color: "#facc15", letterSpacing: 1 }}>{"\u{1F3AF} IT'S YOU!"}</div>
+            <div style={{ fontSize: 16, color: "rgba(255,255,255,0.6)" }}>Get ready — watch the big screen!</div>
+          </>
         )}
       </div>
     );

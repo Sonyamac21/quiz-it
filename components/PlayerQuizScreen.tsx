@@ -168,6 +168,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [fastestTeamName, setFastestTeamName] = useState<string | null>(null);
   const [fastestSongName, setFastestSongName] = useState<string | null>(null);
+  const [fastestPoints, setFastestPoints] = useState(0);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
@@ -227,7 +228,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, hard_deck_team, hard_deck_status, hard_deck_potential, spin_offered, spin_choice, spin_target_idx, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team")
+        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, spin_offered, spin_choice, spin_target_idx, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -268,6 +269,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setQuestion(newQ);
     setFastestTeamName(ft);
     setFastestSongName((data.fastest_song as string) || null);
+    setFastestPoints((data.fastest_points as number) || 0);
     setSpinTargetIdx((data.spin_target_idx as number) ?? null);
     setBlockUntil((data.block_until as string) || null);
     setBlockTeam((data.block_team as string) || null);
@@ -512,7 +514,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             <div style={{ fontSize: 18, color: "#22c55e", fontWeight: 800, letterSpacing: 2, marginBottom: 24 }}>{"That's you!"}</div>
             <div style={{ padding: "20px 40px", borderRadius: 20, background: "rgba(34,197,94,0.15)", border: "2px solid rgba(34,197,94,0.5)", marginBottom: 32, textAlign: "center" }}>
               <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(34,197,94,0.7)", marginBottom: 4 }}>POINTS AWARDED</div>
-              <div style={{ fontSize: 56, fontWeight: 900, color: "#22c55e", textShadow: "0 0 20px rgba(34,197,94,0.6)", lineHeight: 1 }}>+10</div>
+              <div style={{ fontSize: 56, fontWeight: 900, color: "#22c55e", textShadow: "0 0 20px rgba(34,197,94,0.6)", lineHeight: 1 }}>{fastestPoints >= 0 ? "+" : ""}{fastestPoints}</div>
             </div>
           </>
         ) : (() => {

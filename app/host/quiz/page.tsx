@@ -119,6 +119,7 @@ function QuizControllerInner() {
   const spinTriggeredRef = useRef(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const roundStartedRef = useRef<number>(0);
+  const lastDeltasRef = useRef<Record<string, number>>({});
   const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
   const cardFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundQuestionsRef = useRef<Question[]>([]);
@@ -303,6 +304,7 @@ function QuizControllerInner() {
 
   async function autoScore(teamList: Team[], q: Question, currentAnswers: Answer[]) {
     if (!sessionPin) return;
+    lastDeltasRef.current = {};
     const correctText = getCorrectAnswerText(q);
     const supabase = createSupabaseBrowserClient();
     const hasBoost = (teamName: string) => unoCards.some(c => c.team_name === teamName && c.card_type === "x2" && new Date(c.played_at).getTime() >= roundStartedRef.current);
@@ -323,6 +325,7 @@ function QuizControllerInner() {
         const secsRemaining = Math.max(0, timerDuration - elapsed);
         const mtTimeBonus = gotAllCorrect ? Math.round((secsRemaining / timerDuration) * timeBonus) : 0;
         const mtDelta = (mtBasePts + mtTimeBonus) * (hasBoost(team.team_name) ? 2 : 1);
+        lastDeltasRef.current[team.team_name] = mtDelta;
         if (mtDelta === 0) continue;
         const { data: existingMT } = await supabase.from("scores").select("total_points, round_points").eq("session_pin", sessionPin).eq("team_name", team.team_name).single();
         const currentTotalMT = existingMT?.total_points ?? 0;
@@ -341,6 +344,7 @@ function QuizControllerInner() {
       const basePts = isCorrect ? pointsPerQ : 0;
       const penalty = isWrong && dangerZone ? -dangerPenalty : 0;
       const delta = (basePts + timeBonusPts) * (hasBoost(team.team_name) ? 2 : 1) + penalty;
+      lastDeltasRef.current[team.team_name] = delta;
       if (delta === 0) continue;
       const { data: existing } = await supabase.from("scores").select("total_points, round_points").eq("session_pin", sessionPin).eq("team_name", team.team_name).single();
       const currentTotal = existing?.total_points ?? 0;
@@ -556,6 +560,7 @@ function QuizControllerInner() {
     const fastestTeamName = fastest?.team_name || null;
     const team = teams.find(t => t.team_name === fastestTeamName);
     const song = team?.victory_song || null;
+    const fastestPoints = fastestTeamName ? (lastDeltasRef.current[fastestTeamName] ?? 0) : 0;
     setFastestTeam(fastestTeamName);
     setFastestSong(song);
     setSpinUsed(false);
@@ -564,7 +569,7 @@ function QuizControllerInner() {
     setDecisionMade(false);
     setHostPhase("celebration");
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "celebration", fastest_team: fastestTeamName, fastest_song: song, spin_used: false, spin_offered: false, spin_choice: null }).eq("id", sessionId);
+    await supabase.from("sessions").update({ phase: "celebration", fastest_team: fastestTeamName, fastest_song: song, fastest_points: fastestPoints, spin_used: false, spin_offered: false, spin_choice: null }).eq("id", sessionId);
     // Victory song now plays only on the display screen to avoid duplicate/echoing audio
   }
 

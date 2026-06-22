@@ -14,18 +14,48 @@ function generatePin(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
 
+const HOST_STORAGE_KEY = "quizit_host_session";
+
 export default function SessionPage() {
   const [pin, setPin] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [status, setStatus] = useState<"waiting" | "active" | "finished">("waiting");
   const [creating, setCreating] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [restoringHost, setRestoringHost] = useState(true);
   const [intermissionOffers, setIntermissionOffers] = useState("");
   const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
   const [savingIntermission, setSavingIntermission] = useState(false);
   const [intermissionOpen, setIntermissionOpen] = useState(false);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = localStorage.getItem(HOST_STORAGE_KEY);
+        if (!saved) { setRestoringHost(false); return; }
+        const parsed = JSON.parse(saved);
+        if (!parsed?.pin || !parsed?.sessionId) { setRestoringHost(false); return; }
+        const supabase = createSupabaseBrowserClient();
+        const { data } = await supabase.from("sessions").select("*").eq("id", parsed.sessionId).single();
+        if (data && data.status !== "finished") {
+          setPin(parsed.pin);
+          setSessionId(parsed.sessionId);
+          setStatus(data.status);
+          setIntermissionOffers(data.intermission_offers || "");
+          setIntermissionWhatsapp(data.intermission_whatsapp || "");
+          setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
+          const { data: teamData } = await supabase.from("teams").select("*").eq("session_pin", parsed.pin).order("created_at", { ascending: true });
+          if (teamData) setTeams(teamData);
+        } else {
+          localStorage.removeItem(HOST_STORAGE_KEY);
+        }
+      } catch {
+      } finally {
+        setRestoringHost(false);
+      }
+    })();
+  }, []);
   const loadTeams = useCallback(async (sessionPin: string) => {
     const supabase = createSupabaseBrowserClient();
     const { data } = await supabase
@@ -63,6 +93,7 @@ export default function SessionPage() {
     if (!error && data) {
       setPin(newPin);
       setSessionId(data.id);
+      localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify({ pin: newPin, sessionId: data.id }));
       setTeams([]);
       setStatus("waiting");
       setIntermissionOffers(data.intermission_offers || "");
@@ -98,6 +129,13 @@ export default function SessionPage() {
     setStatus("finished");
   }
 
+  if (restoringHost) {
+    return (
+      <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.5)", fontFamily: "sans-serif" }}>
+        Reconnecting...
+      </div>
+    );
+  }
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color: "#fff", padding: "32px 48px", fontFamily: "sans-serif" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>

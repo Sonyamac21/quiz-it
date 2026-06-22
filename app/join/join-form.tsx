@@ -1,7 +1,9 @@
 "use client";
 import { PlayerQuizScreen } from "@/components/PlayerQuizScreen";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+
+const STORAGE_KEY = "quizit_player_session";
 
 const SONGS = [
   "BELIEVE-Cher-",
@@ -83,6 +85,30 @@ export function JoinForm() {
   const [done, setDone] = useState(false);
   const [sessionPin, setSessionPin] = useState("");
   const [preview, setPreview] = useState<HTMLAudioElement | null>(null);
+  const [restoring, setRestoring] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) { setRestoring(false); return; }
+        const parsed = JSON.parse(saved);
+        if (!parsed?.teamName || !parsed?.sessionPin) { setRestoring(false); return; }
+        const supabase = createSupabaseBrowserClient();
+        const { data } = await supabase.from("sessions").select("status").eq("pin", parsed.sessionPin).single();
+        if (data && data.status !== "finished") {
+          setTeamName(parsed.teamName);
+          setSessionPin(parsed.sessionPin);
+          setDone(true);
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      } catch {
+      } finally {
+        setRestoring(false);
+      }
+    })();
+  }, []);
 
   const filtered = SONGS.filter(s => cleanName(s).toLowerCase().includes(search.toLowerCase()));
 
@@ -132,6 +158,7 @@ export function JoinForm() {
         session_pin: pin,
       });
       setSessionPin(pin);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin }));
       if (dbError) throw dbError;
       setDone(true);
     } catch {
@@ -141,6 +168,9 @@ export function JoinForm() {
     }
   }
 
+    if (restoring) {
+      return <div style={{ textAlign: "center", padding: 40, color: "rgba(255,255,255,0.4)", fontFamily: "'Bruno Ace SC',sans-serif", fontSize: 13, letterSpacing: 2 }}>Reconnecting...</div>;
+    }
     if (done) {
       return <PlayerQuizScreen teamName={teamName} sessionPin={sessionPin} />;
     }

@@ -82,7 +82,7 @@ export default function QuestionsPage() {
       audio: "audio: question_text must say \"Play this track:\" then the song name and artist. option_a must be a YouTube search query to find it (e.g. \"Bohemian Rhapsody Queen official\"). option_b/c/d must be null. correct_answer is what teams must write down.",
     };
     console.log("usedRef has", usedRef.current.length, "entries");
-    const exclusions = usedRef.current.slice(-60).map((q,i) => (i+1)+". "+q).join("; ");
+    const exclusions = usedRef.current.slice(-150).map((q,i) => (i+1)+". "+q).join("; ");
     const exclusionNote = exclusions ? " Do NOT generate any of these already-used questions: " + exclusions + "." : "";
     const prompt = "You are a professional pub quiz writer. Your audience is English-speaking expats who enjoy British and American pop culture. Generate exactly 1 pub quiz question. Topic: " + topic + ". Type: " + typeInstructions[type] + ". Difficulty: " + difficulty + ". Keep questions focused on UK, US and international culture. Do NOT make questions about UAE, Dubai or Arab culture unless the topic specifically requires it. Content must be safe for UAE - avoid alcohol, pork, sexual references, religion, and politically sensitive Middle East topics." + exclusionNote + " Include a brief explanation of the answer (1-2 sentences) in the explanation field. Return ONLY a valid JSON array with 1 item, no markdown: [{\"question_text\":\"...\",\"question_type\":\"" + type + "\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"option_e\":\"...\",\"option_f\":\"...\",\"correct_answer\":\"...\",\"explanation\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + roundType + "\"}]";
     try {
@@ -156,7 +156,8 @@ export default function QuestionsPage() {
       if (!q) { i++; continue; }
       setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
       const check = await checkQuestion(q);
-      const isDuplicate = good.some(g => g.question_text.toLowerCase().trim() === q.question_text.toLowerCase().trim());
+      const normalisedNew = q.question_text.toLowerCase().trim();
+      const isDuplicate = good.some(g => g.question_text.toLowerCase().trim() === normalisedNew) || usedRef.current.some(t => t.toLowerCase().trim() === normalisedNew);
       if (check.ok && !isDuplicate) {
         good.push(q);
         usedRef.current = [...usedRef.current, q.question_text];

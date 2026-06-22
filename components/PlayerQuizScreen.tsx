@@ -50,7 +50,7 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
         return (
           <button key={i} type="button" onClick={() => tapItem(i)} disabled={isPicked}
             style={{
-              display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12,
+              display: "flex", alignItems: "center", gap: 10, padding: "16px 16px", borderRadius: 12,
               background: isPicked ? "rgba(190,38,193,0.18)" : "rgba(255,255,255,0.07)",
               border: "1.5px solid " + (isPicked ? purple : "rgba(190,38,193,0.25)"),
               textAlign: "left" as const, cursor: isPicked ? "default" : "pointer", width: "100%",
@@ -633,7 +633,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               return (
                 <button key={opt.key} type="button"
                   onClick={() => { if (!submitted) setSelectedAnswer(opt.key); }}
-                style={{ padding: "9px 12px", borderRadius: 10, border: "1.5px solid", borderColor: isSelected ? purple : "rgba(255,255,255,0.15)", background: isSelected ? "rgba(190,38,193,0.25)" : "rgba(255,255,255,0.06)", color: "#fff", fontSize: 13, fontFamily: font, textAlign: "left" as const, cursor: submitted ? "default" : "pointer", display: "flex", alignItems: "center", gap: 8, opacity: submitted && !isSelected ? 0.35 : 1 }}>
+                style={{ padding: "16px 16px", borderRadius: 12, border: "1.5px solid", borderColor: isSelected ? purple : "rgba(255,255,255,0.15)", background: isSelected ? "rgba(190,38,193,0.25)" : "rgba(255,255,255,0.06)", color: "#fff", fontSize: 16, fontFamily: font, textAlign: "left" as const, cursor: submitted ? "default" : "pointer", display: "flex", alignItems: "center", gap: 10, opacity: submitted && !isSelected ? 0.35 : 1 }}>
                   <span style={{ color: isSelected ? "#fff" : purple, fontWeight: 700, minWidth: 16 }}>{opt.key.toUpperCase()}.</span>
                   {opt.text}
                   {isSelected && !submitted && <span style={{ marginLeft: "auto", fontSize: 13, color: purple }}>●</span>}
@@ -659,7 +659,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
                 return (
                   <button key={opt.key} type="button"
                     onClick={() => { if (!submitted) setTappedItems(prev => isTapped ? prev.filter(k => k !== opt.key) : [...prev, opt.key]); }}
-                    style={{ padding: "9px 12px", borderRadius: 10, border: "1.5px solid", borderColor: isTapped ? purple : "rgba(255,255,255,0.15)", background: isTapped ? "rgba(190,38,193,0.25)" : "rgba(255,255,255,0.06)", color: "#fff", fontSize: 13, fontFamily: font, textAlign: "left" as const, cursor: submitted ? "default" : "pointer", display: "flex", alignItems: "center", gap: 8, opacity: submitted && !isTapped ? 0.35 : 1 }}>
+                    style={{ padding: "16px 16px", borderRadius: 12, border: "1.5px solid", borderColor: isTapped ? purple : "rgba(255,255,255,0.15)", background: isTapped ? "rgba(190,38,193,0.25)" : "rgba(255,255,255,0.06)", color: "#fff", fontSize: 16, fontFamily: font, textAlign: "left" as const, cursor: submitted ? "default" : "pointer", display: "flex", alignItems: "center", gap: 10, opacity: submitted && !isTapped ? 0.35 : 1 }}>
                     <span style={{ color: isTapped ? "#fff" : purple, fontWeight: 700, minWidth: 16 }}>{opt.key.toUpperCase()}.</span>
                     {opt.text}
                     {isTapped && !submitted && <span style={{ marginLeft: "auto", fontSize: 13, color: purple }}>●</span>}

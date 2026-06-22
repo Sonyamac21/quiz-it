@@ -57,7 +57,7 @@ function DisplayScreenInner() {
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
   const [hardDeckPotential, setHardDeckPotential] = useState(0);
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number|null>(null);
-  const [teams, setTeams] = useState<{ team_name: string }[]>([]);
+  const [teams, setTeams] = useState<{ team_name: string; victory_song?: string }[]>([]);
   const [flash, setFlash] = useState(false);
   const [roundName, setRoundName] = useState("");
   const [roundNumber, setRoundNumber] = useState(1);
@@ -124,10 +124,18 @@ function DisplayScreenInner() {
     const isFirst = nextCount === sorted.length;
     playSound("crowd-cheer.mp3", 0.7);
     if (isFirst) {
+      stopClapping();
       setTimeout(() => playSound("airhorn.mp3", 1.0), 800);
       const winner = sorted[sorted.length - 1];
       if (winner) {
-        // find victory song - stored in quizEndScores if we add it, for now just cheer
+        const winnerTeam = teams.find(t => t.team_name === winner.team_name);
+        if (winnerTeam?.victory_song) {
+          setTimeout(() => {
+            const song = new Audio("/sounds/" + encodeURIComponent(winnerTeam.victory_song!) + ".mp3");
+            song.volume = 0.85;
+            song.play().catch(() => {});
+          }, 1200);
+        }
       }
       setTimeout(() => setTrophyVisible(true), 3000);
     }

@@ -179,6 +179,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastQIndexRef = useRef(-1);
+  const lastQTextRef = useRef("");
   const lastPhaseRef = useRef<string>("");
 
 
@@ -279,9 +280,11 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
     setIntermissionOtherQuizzes((data.intermission_other_quizzes as string) || "");
 
-    // Reset answer state when phase changes to question OR question index changes
-    if (newPhase === "question" && (newIdx !== lastQIndexRef.current || lastPhaseRef.current !== "question")) {
+    // Reset answer state when phase changes to question, question index changes, OR the question content itself changes (e.g. host used Dump Question to swap content without changing the index)
+    const newQText = newQ?.question_text || "";
+    if (newPhase === "question" && (newIdx !== lastQIndexRef.current || lastPhaseRef.current !== "question" || newQText !== lastQTextRef.current)) {
       lastQIndexRef.current = newIdx;
+      lastQTextRef.current = newQText;
       setQuestionIndex(newIdx);
       setSelectedAnswer("");
       setAnswerText("");

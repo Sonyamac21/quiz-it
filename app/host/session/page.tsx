@@ -74,12 +74,14 @@ export default function SessionPage() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams" }, (payload) => {
         const newTeam = payload.new as Team;
         if (newTeam.session_pin === pin) {
-          setTeams(prev => [...prev, newTeam]);
+          setTeams(prev => prev.some(t => t.id === newTeam.id) ? prev : [...prev, newTeam]);
         }
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [pin]);
+    // Safety-net polling in case realtime delivery is missed
+    const pollInterval = setInterval(() => { loadTeams(pin); }, 4000);
+    return () => { supabase.removeChannel(channel); clearInterval(pollInterval); };
+  }, [pin, loadTeams]);
 
   async function createSession() {
     setCreating(true);

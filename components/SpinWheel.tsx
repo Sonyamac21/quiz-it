@@ -158,9 +158,9 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
   }, []);
 
   useEffect(() => {
-    if (autoSpin) spin();
+    if (autoSpin && forceResultIndex !== undefined && forceResultIndex !== null) spin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoSpin]);
+  }, [autoSpin, forceResultIndex]);
 
   function spin() {
     if (spinning) return;

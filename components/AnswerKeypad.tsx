@@ -10,6 +10,7 @@ const NUMBERS = ["1","2","3","4","5","6","7","8","9","0"];
 
 export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: string) => void; mode?: "text" | "number" }) {
   const [value, setValue] = useState("");
+  const [pressedKey, setPressedKey] = useState<string | null>(null);
   const purple = "#BE26C1";
   const font = "'Bruno Ace SC', sans-serif";
 
@@ -26,7 +27,11 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
     cursor: "pointer",
   };
 
-  const addChar = (c: string) => setValue(prev => prev + c);
+  const addChar = (c: string) => {
+    setValue(prev => prev + c);
+    setPressedKey(c);
+    setTimeout(() => setPressedKey(prev => prev === c ? null : prev), 150);
+  };
   const backspace = () => setValue(prev => prev.slice(0, -1));
 
   return (
@@ -44,7 +49,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
       {mode === "number" ? (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
           {NUMBERS.map(n => (
-            <button key={n} type="button" onClick={() => addChar(n)} style={{ ...keyStyle, flexBasis: "18%" }}>{n}</button>
+            <button key={n} type="button" onClick={() => addChar(n)} style={{ ...keyStyle, flexBasis: "18%", background: pressedKey === n ? purple : keyStyle.background, transform: pressedKey === n ? "scale(0.92)" : "scale(1)", transition: "all 0.1s" }}>{n}</button>
           ))}
         </div>
       ) : (
@@ -52,7 +57,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
           {ROWS.map((row, i) => (
             <div key={i} style={{ display: "flex", gap: 6, justifyContent: "center" }}>
               {row.map(letter => (
-                <button key={letter} type="button" onClick={() => addChar(letter)} style={keyStyle}>{letter}</button>
+                <button key={letter} type="button" onClick={() => addChar(letter)} style={{ ...keyStyle, background: pressedKey === letter ? purple : keyStyle.background, transform: pressedKey === letter ? "scale(0.92)" : "scale(1)", transition: "all 0.1s" }}>{letter}</button>
               ))}
             </div>
           ))}

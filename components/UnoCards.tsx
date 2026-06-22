@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const CARDS = [
@@ -10,6 +10,15 @@ const CARDS = [
 
 export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { teamName: string; sessionPin?: string; compact?: boolean }) {
   const [used, setUsed] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!sessionPin) return;
+    (async () => {
+      const supabase = createSupabaseBrowserClient();
+      const { data } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin);
+      if (data) setUsed(data.map(d => d.card_type));
+    })();
+  }, [teamName, sessionPin]);
   const [playing, setPlaying] = useState<string | null>(null);
 
   const playCard = async (cardType: string) => {

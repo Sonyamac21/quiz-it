@@ -73,7 +73,7 @@ function cleanName(filename: string) {
 }
 
 export function JoinForm() {
-  const [step, setStep] = useState<"pin" | "name" | "song">("pin");
+  const [step, setStep] = useState<"pin" | "name" | "song" | "photo">("pin");
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [pinLoading, setPinLoading] = useState(false);
@@ -86,6 +86,8 @@ export function JoinForm() {
   const [sessionPin, setSessionPin] = useState("");
   const [preview, setPreview] = useState<HTMLAudioElement | null>(null);
   const [restoring, setRestoring] = useState(true);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -145,17 +147,38 @@ export function JoinForm() {
     setPreview(audio);
   }
 
-  async function handleJoin() {
+  function handleSongNext() {
     if (!selectedSong) { setError("Please pick your victory song!"); return; }
+    setError("");
+    setStep("photo");
+  }
+
+  function handlePhotoSelect(file: File) {
+    setPhotoFile(file);
+    setPhotoPreviewUrl(URL.createObjectURL(file));
+  }
+
+  async function handleJoin() {
     setLoading(true);
     setError("");
     try {
       const supabase = createSupabaseBrowserClient();
+      let photoUrl: string | null = null;
+      if (photoFile) {
+        const ext = photoFile.name.split(".").pop() || "jpg";
+        const path = pin + "-" + teamName.trim().replace(/\s+/g, "-").toLowerCase() + "-" + Date.now() + "." + ext;
+        const { error: uploadError } = await supabase.storage.from("team-photos").upload(path, photoFile);
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from("team-photos").getPublicUrl(path);
+          photoUrl = urlData?.publicUrl || null;
+        }
+      }
       const { error: dbError } = await supabase.from("teams").insert({
         team_name: teamName.trim(),
         name: teamName.trim(),
         victory_song: selectedSong,
         session_pin: pin,
+        photo_url: photoUrl,
       });
       setSessionPin(pin);
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin }));
@@ -228,6 +251,7 @@ export function JoinForm() {
     );
   }
 
+  if (step === "song") {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12, width:"100%", maxWidth:480 }}>
       <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Choose Your Victory Song</div>
@@ -272,11 +296,50 @@ export function JoinForm() {
 
       <button
         type="button"
-        onClick={handleJoin}
-        disabled={loading || !selectedSong}
+        onClick={handleSongNext}
+        disabled={!selectedSong}
         style={{ padding:"14px", borderRadius:12, background: selectedSong ? "#BE26C1" : "#1a1a2e", color: selectedSong ? "#fff" : "rgba(255,255,255,0.3)", border:"none", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:3, cursor: selectedSong ? "pointer" : "default", boxShadow: selectedSong ? "0 0 20px rgba(190,38,193,0.4)" : "none", transition:"all 0.2s" }}
       >
+        Next
+      </button>
+    </div>
+  );
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16, width:"100%", maxWidth:400, alignItems:"center" }}>
+      <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Add a Team Photo</div>
+      <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:13, letterSpacing:1, color:"rgba(255,255,255,0.6)", textAlign:"center" as const }}>Optional — shown when you win, and on the shareable results graphic!</div>
+
+      {photoPreviewUrl ? (
+        <img src={photoPreviewUrl} alt="Team" style={{ width:160, height:160, borderRadius:"50%", objectFit:"cover", border:"3px solid #BE26C1" }} />
+      ) : (
+        <div style={{ width:160, height:160, borderRadius:"50%", background:"rgba(255,2,255,0.06)", border:"2px dashed rgba(190,38,193,0.5)", display:"flex", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.3)", fontSize:13, textAlign:"center" as const, fontFamily:"'Bruno Ace SC',sans-serif" }}>No photo yet</div>
+      )}
+
+      <label style={{ padding:"12px 24px", borderRadius:12, background:"rgba(190,38,193,0.2)", border:"1.5px solid #BE26C1", color:"#fff", fontSize:14, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1, cursor:"pointer" }}>
+        {photoFile ? "Change Photo" : "Choose Photo"}
+        <input type="file" accept="image/*" capture="environment" style={{ display:"none" }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoSelect(f); }} />
+      </label>
+
+      {error && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1 }}>{error}</p>}
+
+      <button
+        type="button"
+        onClick={handleJoin}
+        disabled={loading}
+        style={{ width:"100%", padding:"14px", borderRadius:12, background:"#BE26C1", color:"#fff", border:"none", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:3, cursor:"pointer", boxShadow:"0 0 20px rgba(190,38,193,0.4)" }}
+      >
         {loading ? "Joining..." : "Join Game"}
+      </button>
+      <button
+        type="button"
+        onClick={handleJoin}
+        disabled={loading}
+        style={{ width:"100%", padding:"10px", borderRadius:12, background:"transparent", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.5)", fontSize:13, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:2, cursor:"pointer" }}
+      >
+        Skip Photo
       </button>
     </div>
   );

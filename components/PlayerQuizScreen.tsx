@@ -468,6 +468,16 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     );
   }
   if (phase === "celebration") {
+    const isWinnerForSpin = fastestTeamName === teamName;
+    if (isWinnerForSpin && spinOffered && !spinChoice) {
+      return (
+        <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24, textAlign: "center" as const, fontFamily: font }}>
+          <div style={{ fontSize: 22, color: "#facc15", fontWeight: 900, letterSpacing: 2 }}>SPIN TO WIN?</div>
+          <button onClick={chooseSpin} style={{ width: "100%", maxWidth: 320, padding: "32px 0", borderRadius: 20, background: "rgba(34,197,94,0.25)", border: "3px solid #22c55e", color: "#fff", fontSize: 32, fontWeight: 900, letterSpacing: 4, cursor: "pointer" }}>SPIN</button>
+          <button onClick={choosePass} style={{ width: "100%", maxWidth: 320, padding: "24px 0", borderRadius: 20, background: "rgba(255,255,255,0.08)", border: "2px solid rgba(255,255,255,0.3)", color: "#fff", fontSize: 22, fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>PASS</button>
+        </div>
+      );
+    }
     const isWinner = fastestTeamName === teamName;
     const confettiColors = ["#BE26C1","#fbbf24","#22c55e","#38bdf8","#f87171","#a78bfa"];
     return (

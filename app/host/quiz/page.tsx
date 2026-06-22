@@ -229,9 +229,9 @@ function QuizControllerInner() {
     const b = normalise(correct);
     if (a === b) return true;
     if (a === "" || b === "") return false;
-    // Partial match: answer is contained in correct or vice versa
-    if (b.includes(a) && a.length >= 3) return true;
-    if (a.includes(b) && b.length >= 3) return true;
+    // Partial match: answer is contained in correct or vice versa - require a meaningful fraction, not just 3+ chars, to avoid false positives like "her" matching inside "Cher"
+    if (b.includes(a) && a.length >= 4 && a.length >= b.length * 0.6) return true;
+    if (a.includes(b) && b.length >= 4 && b.length >= a.length * 0.6) return true;
     // Check each word of correct answer against answer
     const bWords = b.split(" ");
     if (bWords.length > 1) {
@@ -247,6 +247,13 @@ function QuizControllerInner() {
     if (q.question_type === "multiple_choice") {
       const map: Record<string, string|null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
       return map[q.correct_answer.toLowerCase()] || q.correct_answer;
+    }
+    if (q.question_type === "sequence") {
+      const map: Record<string, string|null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
+      const order = q.correct_answer.split(",").map(s => s.trim().toLowerCase());
+      const texts = order.map(key => map[key]).filter((t): t is string => !!t);
+      if (texts.length === order.length) return texts.join(", ");
+      return q.correct_answer;
     }
     return q.correct_answer;
   }

@@ -355,6 +355,13 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       const map: Record<string, string | null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
       return map[key] || q.correct_answer;
     }
+    if (q.question_type === "sequence") {
+      const map: Record<string, string | null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
+      const order = q.correct_answer.split(",").map(s => s.trim().toLowerCase());
+      const texts = order.map(key => map[key]).filter((t): t is string => !!t);
+      if (texts.length === order.length) return texts.join(", ");
+      return q.correct_answer;
+    }
     return q.correct_answer;
   }
 

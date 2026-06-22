@@ -29,6 +29,44 @@ const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", te
 const cardColor: Record<string,string> = { block:"#60a5fa", reverse:"#f87171", x2:"#facc15" };
 const cardLabel: Record<string,string> = { block:"Time-Out", reverse:"Reverse", x2:"Boost" };
 
+const RULES = {
+  house: [
+    "Welcome to Quiz-It! Get your team ready on your phones \u2014 join with the PIN on screen.",
+    "Answers lock in the moment you submit \u2014 no changing your mind after.",
+    "You've got 15 seconds per question, so don't overthink it.",
+    "Power cards (Time-Out, Boost, Reverse) can be played once per game \u2014 use them wisely!",
+    "Have fun, play fair, and good luck!",
+  ],
+  regular: [
+    "Standard quiz questions \u2014 multiple choice, type-in, sequence, or tap-all-that-apply.",
+    "Fastest correct answer each question gets a speed bonus on top of normal points.",
+    "15 seconds per question. No answers accepted once the timer hits zero.",
+  ],
+  multi_tap: [
+    "Each question has several correct answers hidden among decoys.",
+    "Tap every option you think is correct \u2014 wrong taps cost nothing, so tap freely!",
+    "Fastest team to find ALL correct answers gets the speed bonus.",
+    "Watch out \u2014 in the last 5 questions of this round, a single wrong tap zeroes that question's score (Wipeout Mode).",
+  ],
+  music: [
+    "Listen to the track, then answer the question about it.",
+    "Same scoring as a normal round \u2014 fastest correct answer gets the speed bonus.",
+  ],
+  hard_deck: [
+    "One team gets picked by the wheel to play.",
+    "Guess Higher or Lower than the card shown \u2014 get it right, score points and keep going.",
+    "After the first card, you can Stick with your points or Gamble for more.",
+    "Wrong guess or a tie loses everything \u2014 bank it before it's too late!",
+  ],
+  spin_to_win: [
+    "A bonus feature the host can offer manually after any correct answer \u2014 usually saved for the final question, giving the fastest team one last chance to steal a prize!",
+    "Spin for a shot at big points... or a big penalty. Your choice \u2014 spin or pass!",
+  ],
+};
+
+const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "Multi Tap", music: "Music Round" };
+
+
 type HostPhase = "waiting" | "round_start" | "preview" | "question" | "timer" | "answer" | "celebration" | "round_end" | "quiz_end";
 
 function playSound(file: string, volume = 1.0) {
@@ -79,6 +117,7 @@ function QuizControllerInner() {
   const victorySongRef = useRef<HTMLAudioElement|null>(null);
   const advancingRef = useRef(false);
   const spinTriggeredRef = useRef(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const roundStartedRef = useRef<number>(0);
   const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
   const cardFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -639,6 +678,51 @@ function QuizControllerInner() {
           <option value="">Select round...</option>
           {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
+        <button onClick={() => setRulesOpen(true)} style={{ padding:"5px 12px", borderRadius:8, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:12, cursor:"pointer" }}>{"\u{1F4CB}"} Rules</button>
+        {rulesOpen && (
+          <div onClick={() => setRulesOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background:"#1a0535", border:"2px solid #BE26C1", borderRadius:16, padding:28, maxWidth:560, maxHeight:"80vh", overflowY:"auto" as const, color:"#fff" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                <div style={{ fontSize:20, fontWeight:700, color:"#BE26C1", letterSpacing:2 }}>Rules</div>
+                <button onClick={() => setRulesOpen(false)} style={{ background:"transparent", border:"none", color:"rgba(255,255,255,0.5)", fontSize:20, cursor:"pointer" }}>{"\u00D7"}</button>
+              </div>
+
+              <div style={{ marginBottom:20 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>HOUSE RULES</div>
+                <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
+                  {RULES.house.map((r,i) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
+
+              {selectedRound && (() => {
+                const rt = selectedRound.questions[0]?.round_type || "regular";
+                const key = (rt === "multi_tap" || rt === "music") ? rt : "regular";
+                return (
+                  <div style={{ marginBottom:20 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>{(ROUND_TYPE_LABEL[key]||"GENERAL KNOWLEDGE").toUpperCase()} \u2014 CURRENT ROUND</div>
+                    <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
+                      {RULES[key as keyof typeof RULES].map((r,i) => <li key={i}>{r}</li>)}
+                    </ul>
+                  </div>
+                );
+              })()}
+
+              <div style={{ marginBottom:20 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>THE HARD DECK</div>
+                <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
+                  {RULES.hard_deck.map((r,i) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
+
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>SPIN TO WIN</div>
+                <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
+                  {RULES.spin_to_win.map((r,i) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
         {false && fastestTeam && (
           <button
             onClick={async () => {

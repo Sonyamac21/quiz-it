@@ -57,6 +57,7 @@ function DisplayScreenInner() {
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
   const [hardDeckPotential, setHardDeckPotential] = useState(0);
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number|null>(null);
+  const prevHardDeckStatusRef = useRef<string>("idle");
   const [teams, setTeams] = useState<{ team_name: string; victory_song?: string }[]>([]);
   const [flash, setFlash] = useState(false);
   const [roundName, setRoundName] = useState("");
@@ -166,6 +167,25 @@ function DisplayScreenInner() {
     setHardDeckStatus((data.hard_deck_status as string) || "idle");
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
     setHardDeckWheelTarget((data.hard_deck_wheel_target as number) ?? null);
+    {
+      const newHDStatus = (data.hard_deck_status as string) || "idle";
+      const newHDPotential = (data.hard_deck_potential as number) || 0;
+      if (newHDStatus !== prevHardDeckStatusRef.current) {
+        if (newHDStatus === "decision") {
+          playSound("crowd-cheer.mp3", 0.6);
+        } else if (newHDStatus === "won") {
+          if (newHDPotential >= 40) {
+            playSound("airhorn.mp3", 1.0);
+            setTimeout(() => playSound("crowd-cheer.mp3", 0.8), 200);
+          } else {
+            playSound("crowd-cheer.mp3", 0.6);
+          }
+        } else if (newHDStatus === "lost") {
+          playSound("sad-trombone.mp3", 0.9);
+        }
+        prevHardDeckStatusRef.current = newHDStatus;
+      }
+    }
     setIntermissionOffers((data.intermission_offers as string) || "");
     setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
     setIntermissionOtherQuizzes((data.intermission_other_quizzes as string) || "");
@@ -323,6 +343,7 @@ function DisplayScreenInner() {
     const rankLabel = (r: number) => rankLabels[r] || String(r);
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, gap:32 }}>
+        <style>{`@keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.15} }`}</style>
         <div style={{ fontSize:60, fontWeight:800, color:purple, letterSpacing:6, textShadow:"0 0 40px rgba(190,38,193,0.6)" }}>THE HARD DECK</div>
         {hardDeckStatus === "wheel" && teams.length > 0 && hardDeckWheelTarget !== null && (
           <SpinWheel
@@ -346,7 +367,13 @@ function DisplayScreenInner() {
             ))}
           </div>
         )}
-        {hardDeckPotential > 0 && (hardDeckStatus === "decision" || hardDeckStatus === "won") && (
+        {hardDeckPotential > 0 && hardDeckStatus === "decision" && (
+          <div style={{ fontSize:32, color:"#facc15", fontWeight:700 }}>{hardDeckPotential} POINTS</div>
+        )}
+        {hardDeckPotential > 0 && hardDeckStatus === "won" && hardDeckPotential >= 40 && (
+          <div style={{ fontSize:72, color:"#facc15", fontWeight:900, animation:"flash 0.6s ease-in-out infinite", textShadow:"0 0 40px rgba(250,204,21,0.8)" }}>{hardDeckPotential} POINTS</div>
+        )}
+        {hardDeckPotential > 0 && hardDeckStatus === "won" && hardDeckPotential < 40 && (
           <div style={{ fontSize:32, color:"#facc15", fontWeight:700 }}>{hardDeckPotential} POINTS</div>
         )}
         {hardDeckStatus === "decision" && (
@@ -355,7 +382,10 @@ function DisplayScreenInner() {
         {hardDeckStatus === "awaiting_guess" && hardDeckCards.length > 0 && (
           <div style={{ fontSize:22, color:"rgba(255,255,255,0.6)" }}>Higher or Lower?</div>
         )}
-        {hardDeckStatus === "won" && (
+        {hardDeckStatus === "won" && hardDeckPotential >= 40 && (
+          <div style={{ fontSize:80, color:"#22c55e", fontWeight:900, letterSpacing:4, animation:"flash 0.6s ease-in-out infinite", textShadow:"0 0 40px rgba(34,197,94,0.8)" }}>WINNER! 🎉</div>
+        )}
+        {hardDeckStatus === "won" && hardDeckPotential < 40 && (
           <div style={{ fontSize:44, color:"#22c55e", fontWeight:800 }}>WINNER! 🎉</div>
         )}
         {hardDeckStatus === "lost" && (

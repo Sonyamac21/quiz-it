@@ -58,7 +58,9 @@ function DisplayScreenInner() {
   const [hardDeckPotential, setHardDeckPotential] = useState(0);
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number|null>(null);
   const prevHardDeckStatusRef = useRef<string>("idle");
-  const [teams, setTeams] = useState<{ team_name: string; victory_song?: string }[]>([]);
+  const [teams, setTeams] = useState<{ team_name: string; victory_song?: string; photo_url?: string }[]>([]);
+  const [showWinnerPhoto, setShowWinnerPhoto] = useState(false);
+  const winnerPhotoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [flash, setFlash] = useState(false);
   const [roundName, setRoundName] = useState("");
   const [roundNumber, setRoundNumber] = useState(1);
@@ -161,6 +163,13 @@ function DisplayScreenInner() {
     const ft = (data.fastest_team as string) || null;
     const fs = (data.fastest_song as string) || null;
     setFastestTeam(ft);
+    if (ft && newPhase === "celebration") {
+      setShowWinnerPhoto(false);
+      if (winnerPhotoTimerRef.current) clearTimeout(winnerPhotoTimerRef.current);
+      winnerPhotoTimerRef.current = setTimeout(() => setShowWinnerPhoto(true), 2000);
+    } else if (newPhase !== "celebration") {
+      setShowWinnerPhoto(false);
+    }
     setFastestSong(fs);
     setHardDeckTeam((data.hard_deck_team as string) || null);
     setHardDeckCards((data.hard_deck_cards as { rank: number; suit: string }[]) || []);
@@ -583,10 +592,16 @@ function DisplayScreenInner() {
 
   // CELEBRATION
   if (phase === "celebration") {
+    const winnerTeam = teams.find(t => t.team_name === fastestTeam);
     return (
-      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font }}>
+      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, gap:32 }}>
         {fastestTeam ? (
-          <div style={{ fontSize:"clamp(80px,12vw,180px)", fontWeight:900, letterSpacing:4, textAlign:"center", padding:"0 60px", color:flash?"#fff":purple, textShadow:flash?"0 0 80px rgba(190,38,193,1), 0 0 160px rgba(190,38,193,0.6)":"0 0 40px rgba(190,38,193,0.3)", transition:"color 0.3s, text-shadow 0.3s" }}>{fastestTeam}</div>
+          <>
+            <div style={{ fontSize:"clamp(80px,12vw,180px)", fontWeight:900, letterSpacing:4, textAlign:"center", padding:"0 60px", color:flash?"#fff":purple, textShadow:flash?"0 0 80px rgba(190,38,193,1), 0 0 160px rgba(190,38,193,0.6)":"0 0 40px rgba(190,38,193,0.3)", transition:"color 0.3s, text-shadow 0.3s" }}>{fastestTeam}</div>
+            {showWinnerPhoto && winnerTeam?.photo_url && (
+              <img src={winnerTeam.photo_url} alt={fastestTeam} style={{ width:260, height:260, borderRadius:"50%", objectFit:"cover", border:"6px solid "+purple, boxShadow:"0 0 60px rgba(190,38,193,0.6)" }} />
+            )}
+          </>
         ) : (
           <div style={{ fontSize:60, color:"rgba(255,255,255,0.3)", fontFamily:font }}>No correct answers</div>
         )}

@@ -59,6 +59,13 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
         </div>
       )}
 
+        {mode === "text" && (
+          <button type="button" onClick={() => addChar(" ")}
+            style={{ width: "100%", padding: "14px 0", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontSize: 14, fontFamily: font, letterSpacing: 3, cursor: "pointer" }}>
+            SPACE
+          </button>
+        )}
+
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
         <button type="button" onClick={backspace} disabled={!value}
           style={{ flex: 1, padding: "16px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: value ? "#fff" : "rgba(255,255,255,0.3)", fontSize: 16, fontFamily: font, cursor: value ? "pointer" : "default" }}>

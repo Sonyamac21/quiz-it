@@ -313,7 +313,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
 
   async function submitAnswer(answer: string) {
-    if (submitted || !answer.trim()) return;
+    if (submitted || !answer.trim() || (timeLeft !== null && timeLeft <= 0)) return;
     setSubmitted(true);
     const supabase = createSupabaseBrowserClient();
     await supabase.from("answers").insert({

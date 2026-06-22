@@ -169,6 +169,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [fastestTeamName, setFastestTeamName] = useState<string | null>(null);
   const [fastestSongName, setFastestSongName] = useState<string | null>(null);
   const [fastestPoints, setFastestPoints] = useState(0);
+  const [showScoreboardOnPhone, setShowScoreboardOnPhone] = useState(false);
+  const [phoneScoreboardData, setPhoneScoreboardData] = useState<{team_name:string; total_points:number}[]>([]);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
@@ -228,7 +230,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, spin_offered, spin_choice, spin_target_idx, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team")
+        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, spin_offered, spin_choice, spin_target_idx, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -270,6 +272,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setFastestTeamName(ft);
     setFastestSongName((data.fastest_song as string) || null);
     setFastestPoints((data.fastest_points as number) || 0);
+    setShowScoreboardOnPhone(!!data.show_scoreboard);
+    setPhoneScoreboardData((data.scoreboard_data as {team_name:string; total_points:number}[]) || []);
     setSpinTargetIdx((data.spin_target_idx as number) ?? null);
     setBlockUntil((data.block_until as string) || null);
     setBlockTeam((data.block_team as string) || null);
@@ -376,6 +380,23 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     </div>
   );
 
+  if (showScoreboardOnPhone) {
+    const sorted = [...phoneScoreboardData].sort((a,b) => b.total_points - a.total_points);
+    return (
+      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", padding: 24, fontFamily: font, color: "#fff" }}>
+        <div style={{ fontSize: 18, fontWeight: 900, color: purple, letterSpacing: 3, textAlign: "center" as const, marginBottom: 20 }}>LEADERBOARD</div>
+        <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+          {sorted.map((s, i) => (
+            <div key={s.team_name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 10, background: s.team_name === teamName ? "rgba(190,38,193,0.2)" : "rgba(255,255,255,0.05)", border: s.team_name === teamName ? "1.5px solid " + purple : "1px solid rgba(255,255,255,0.1)" }}>
+              <span style={{ fontWeight: 800, color: i === 0 ? "#facc15" : "rgba(255,255,255,0.4)", minWidth: 24 }}>{i+1}.</span>
+              <span style={{ flex: 1, fontWeight: 700 }}>{s.team_name}</span>
+              <span style={{ fontWeight: 900, color: purple, fontSize: 18 }}>{s.total_points}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
   if (phase === "spin_to_win") {
     const isWinner = fastestTeamName === teamName;
     return (

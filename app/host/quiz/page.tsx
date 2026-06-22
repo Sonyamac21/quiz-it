@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HardDeckPanel } from "@/components/HardDeckPanel";
+import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { SpinToWinPanel } from "@/components/SpinToWinPanel";
 
 type Question = {
@@ -786,7 +787,11 @@ function QuizControllerInner() {
               <div style={{ fontSize:48, marginBottom:16 }}>🏆</div>
               <div style={{ fontSize:32, fontWeight:800, color:"#fbbf24", letterSpacing:3, marginBottom:8 }}>Quiz Complete!</div>
               <div style={{ fontSize:16, color:"rgba(255,255,255,0.4)", marginBottom:32 }}>Leaderboard reveal is live on the display screen</div>
-              <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>SPACE: reveal next team on display screen</div>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2, marginBottom:24 }}>SPACE: reveal next team on display screen</div>
+              <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+                <button onClick={() => downloadWinnerCard(scores, "vertical")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Story)</button>
+                <button onClick={() => downloadWinnerCard(scores, "square")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Post)</button>
+              </div>
             </div>
           ) : hostPhase === "celebration" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>

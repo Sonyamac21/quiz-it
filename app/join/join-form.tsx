@@ -88,6 +88,7 @@ export function JoinForm() {
   const [restoring, setRestoring] = useState(true);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [takenSongs, setTakenSongs] = useState<string[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -112,7 +113,7 @@ export function JoinForm() {
     })();
   }, []);
 
-  const filtered = SONGS.filter(s => cleanName(s).toLowerCase().includes(search.toLowerCase()));
+  const filtered = SONGS.filter(s => !takenSongs.includes(s) && cleanName(s).toLowerCase().includes(search.toLowerCase()));
 
   async function handlePinNext() {
     if (!pin.trim() || pin.length !== 4) { setPinError("Please enter a 4-digit PIN"); return; }
@@ -132,9 +133,14 @@ export function JoinForm() {
     finally { setPinLoading(false); }
   }
 
-  function handleNameNext() {
+  async function handleNameNext() {
     if (!teamName.trim()) { setError("Please enter your team name"); return; }
     setError("");
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data } = await supabase.from("teams").select("victory_song").eq("session_pin", pin);
+      if (data) setTakenSongs(data.map(t => t.victory_song).filter(Boolean));
+    } catch {}
     setStep("song");
   }
 
@@ -163,6 +169,14 @@ export function JoinForm() {
     setError("");
     try {
       const supabase = createSupabaseBrowserClient();
+      const { data: existingSongs } = await supabase.from("teams").select("victory_song").eq("session_pin", pin);
+      if (existingSongs && existingSongs.some(t => t.victory_song === selectedSong)) {
+        setError("That song was just taken by another team! Please pick a different one.");
+        setSelectedSong("");
+        setStep("song");
+        setLoading(false);
+        return;
+      }
       let photoUrl: string | null = null;
       if (photoFile) {
         const ext = photoFile.name.split(".").pop() || "jpg";

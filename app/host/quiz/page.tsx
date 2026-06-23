@@ -311,6 +311,31 @@ function QuizControllerInner() {
     const correctText = getCorrectAnswerText(q);
     const supabase = createSupabaseBrowserClient();
     const hasBoost = (teamName: string) => unoCards.some(c => c.team_name === teamName && c.card_type === "x2" && new Date(c.played_at).getTime() >= roundStartedRef.current);
+
+    // Determine rank order of correct answers (by submission time) for rank-based bonus:
+    // 1st correct = full bonus, 2nd = bonus-1, 3rd = bonus-2, etc., floored at 0.
+    const correctEntries = teamList
+      .map(team => {
+        const ans = currentAnswers.find(a => a.team_name === team.team_name);
+        if (!ans) return null;
+        if (q.question_type === "multi_tap") {
+          const correctKeys = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+          const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+          const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
+          const gotAllCorrect = correctTaps.length === correctKeys.length && correctKeys.length > 0;
+          return gotAllCorrect ? { teamName: team.team_name, submittedAt: new Date(ans.submitted_at).getTime() } : null;
+        }
+        const isCorrect = isFuzzyMatch(ans.answer_text, correctText, q);
+        return isCorrect ? { teamName: team.team_name, submittedAt: new Date(ans.submitted_at).getTime() } : null;
+      })
+      .filter((e): e is { teamName: string; submittedAt: number } => e !== null)
+      .sort((a, b) => a.submittedAt - b.submittedAt);
+
+    const rankBonus: Record<string, number> = {};
+    correctEntries.forEach((entry, idx) => {
+      rankBonus[entry.teamName] = Math.max(0, timeBonus - idx);
+    });
+
     for (const team of teamList) {
       const ans = currentAnswers.find(a => a.team_name === team.team_name);
       if (!ans) continue;
@@ -319,14 +344,9 @@ function QuizControllerInner() {
         const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
         const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
         const wrongTaps = tappedKeys.filter(k => !correctKeys.includes(k));
-        const gotAllCorrect = correctTaps.length === correctKeys.length && correctKeys.length > 0;
         let mtBasePts = correctTaps.length * pointsPerQ;
         if (wipeoutMode && qIdx >= 5 && wrongTaps.length > 0) mtBasePts = 0;
-        const answerTime = new Date(ans.submitted_at).getTime();
-        const timerStartMs = Date.now() - (timerDuration - timeLeft) * 1000;
-        const elapsed = Math.max(0, (answerTime - timerStartMs) / 1000);
-        const secsRemaining = Math.max(0, timerDuration - elapsed);
-        const mtTimeBonus = gotAllCorrect ? Math.round((secsRemaining / timerDuration) * timeBonus) : 0;
+        const mtTimeBonus = rankBonus[team.team_name] ?? 0;
         const mtDelta = (mtBasePts + mtTimeBonus) * (hasBoost(team.team_name) ? 2 : 1);
         lastDeltasRef.current[team.team_name] = mtDelta;
         if (mtDelta === 0) continue;
@@ -339,11 +359,7 @@ function QuizControllerInner() {
       const isCorrect = isFuzzyMatch(ans.answer_text, correctText, q);
       const isWrong = !isCorrect && ans.answer_text.trim() !== "";
       if (!isCorrect && !(isWrong && dangerZone)) continue;
-      const answerTime = new Date(ans.submitted_at).getTime();
-      const timerStartMs = Date.now() - (timerDuration - timeLeft) * 1000;
-      const elapsed = Math.max(0, (answerTime - timerStartMs) / 1000);
-      const secsRemaining = Math.max(0, timerDuration - elapsed);
-      const timeBonusPts = isCorrect ? Math.round((secsRemaining / timerDuration) * timeBonus) : 0;
+      const timeBonusPts = rankBonus[team.team_name] ?? 0;
       const basePts = isCorrect ? pointsPerQ : 0;
       const penalty = isWrong && dangerZone ? -dangerPenalty : 0;
       const delta = (basePts + timeBonusPts) * (hasBoost(team.team_name) ? 2 : 1) + penalty;

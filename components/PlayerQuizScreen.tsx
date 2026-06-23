@@ -139,6 +139,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [tappedItems, setTappedItems] = useState<string[]>([]);
   const [mySubmittedDisplay, setMySubmittedDisplay] = useState("");
+  const [error, setError] = useState("");
   const [blockUntil, setBlockUntil] = useState<string | null>(null);
   const [blockTeam, setBlockTeam] = useState<string | null>(null);
   const [blockSecondsLeft, setBlockSecondsLeft] = useState(0);
@@ -322,7 +323,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
 
   async function submitAnswer(answer: string) {
-    if (submitted || !answer.trim() || (timeLeft !== null && timeLeft <= 0)) return;
+    if (submitted || !answer.trim()) return;
+    if (timeLeft !== null && timeLeft <= -2) {
+      setError("Time's up! No more answers accepted for this question.");
+      setTimeout(() => setError(""), 2500);
+      return;
+    }
     setSubmitted(true);
     const supabase = createSupabaseBrowserClient();
     await supabase.from("answers").insert({
@@ -664,6 +670,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         </div>
 
         <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3, marginBottom: 12, color: "#fff" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+        {error && (
+          <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, marginBottom: 10, textAlign: "center" as const }}>{error}</div>
+        )}
 
         {isMultiChoice && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>

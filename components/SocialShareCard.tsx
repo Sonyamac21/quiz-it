@@ -1,6 +1,7 @@
 "use client";
 
 type Score = { team_name: string; total_points: number };
+type TeamInfo = { team_name: string; photo_url?: string | null };
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -22,12 +23,18 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
-export async function downloadWinnerCard(scores: Score[], format: "vertical" | "square" = "vertical") {
+export async function downloadWinnerCard(
+  scores: Score[],
+  teams: TeamInfo[] = [],
+  venueName: string | null = null,
+  format: "vertical" | "square" = "vertical"
+) {
   const sorted = [...scores].sort((a, b) => b.total_points - a.total_points);
   const winner = sorted[0];
   if (!winner) return;
+  const winnerTeam = teams.find(t => t.team_name === winner.team_name);
 
-  const W = format === "vertical" ? 1080 : 1080;
+  const W = 1080;
   const H = format === "vertical" ? 1920 : 1080;
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -42,54 +49,93 @@ export async function downloadWinnerCard(scores: Score[], format: "vertical" | "
   ctx.fillRect(0, 0, W, H);
 
   const cx = W / 2;
-  let logoBottom = H * 0.18;
+  let logoBottom = H * 0.13;
   try {
     const logo = await loadImage("/me-logo.jpg");
-    const logoSize = 140;
-    const logoY = H * 0.08;
+    const logoSize = 120;
+    const logoY = H * 0.05;
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, logoY + logoSize / 2, logoSize / 2, 0, Math.PI * 2);
     ctx.closePath();
     ctx.strokeStyle = "#BE26C1";
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 5;
     ctx.stroke();
     ctx.clip();
     ctx.drawImage(logo, cx - logoSize / 2, logoY, logoSize, logoSize);
     ctx.restore();
-    logoBottom = logoY + logoSize + 40;
+    logoBottom = logoY + logoSize + 36;
   } catch {}
 
   ctx.textAlign = "center";
   ctx.fillStyle = "#ffffff";
-  ctx.font = "700 64px sans-serif";
+  ctx.font = "700 56px sans-serif";
   ctx.fillText("Quiz-It", cx, logoBottom);
 
   ctx.fillStyle = "rgba(190,38,193,0.8)";
-  ctx.font = "500 26px sans-serif";
-  ctx.fillText("powered by Mac Entertainment", cx, logoBottom + 44);
+  ctx.font = "500 24px sans-serif";
+  ctx.fillText("powered by Mac Entertainment", cx, logoBottom + 40);
 
-  const trophyY = format === "vertical" ? H * 0.42 : H * 0.32;
-  ctx.font = "180px sans-serif";
-  ctx.fillText("\u{1F3C6}", cx, trophyY);
+  if (venueName) {
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.font = "500 22px sans-serif";
+    ctx.letterSpacing = "2px";
+    ctx.fillText(venueName.toUpperCase(), cx, logoBottom + 76);
+    ctx.letterSpacing = "0px";
+  }
+
+  // Photo (big, circular) - falls back to a trophy emoji if no team photo
+  const photoY = format === "vertical" ? H * 0.27 : H * 0.18;
+  const photoSize = format === "vertical" ? 420 : 320;
+  let photoBottom = photoY + photoSize;
+  let drewPhoto = false;
+  if (winnerTeam?.photo_url) {
+    try {
+      const photo = await loadImage(winnerTeam.photo_url);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, photoY + photoSize / 2, photoSize / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = "#facc15";
+      ctx.stroke();
+      ctx.shadowColor = "rgba(250,204,21,0.6)";
+      ctx.shadowBlur = 40;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.clip();
+      // cover-fit the photo into the circle
+      const scale = Math.max(photoSize / photo.width, photoSize / photo.height);
+      const dw = photo.width * scale;
+      const dh = photo.height * scale;
+      ctx.drawImage(photo, cx - dw / 2, photoY + photoSize / 2 - dh / 2, dw, dh);
+      ctx.restore();
+      drewPhoto = true;
+    } catch {}
+  }
+  if (!drewPhoto) {
+    ctx.font = (format === "vertical" ? "180px" : "140px") + " sans-serif";
+    ctx.fillText("\u{1F3C6}", cx, photoY + photoSize * 0.75);
+    photoBottom = photoY + photoSize * 0.6;
+  }
 
   ctx.fillStyle = "rgba(255,255,255,0.5)";
-  ctx.font = "600 32px sans-serif";
+  ctx.font = "600 30px sans-serif";
   ctx.letterSpacing = "6px";
-  ctx.fillText("WINNER", cx, trophyY + 80);
+  ctx.fillText("WINNER", cx, photoBottom + 60);
   ctx.letterSpacing = "0px";
 
   ctx.fillStyle = "#BE26C1";
-  ctx.font = "900 96px sans-serif";
-  let teamName = winner.team_name;
+  ctx.font = "900 90px sans-serif";
+  const teamName = winner.team_name;
   if (ctx.measureText(teamName).width > W * 0.85) {
-    ctx.font = "900 72px sans-serif";
+    ctx.font = "900 68px sans-serif";
   }
-  ctx.fillText(teamName, cx, trophyY + 180);
+  ctx.fillText(teamName, cx, photoBottom + 150);
 
-  const boxW = 460;
-  const boxH = 160;
-  const boxY = trophyY + 240;
+  const boxW = 440;
+  const boxH = 150;
+  const boxY = photoBottom + 200;
   roundRect(ctx, cx - boxW / 2, boxY, boxW, boxH, 24);
   ctx.fillStyle = "rgba(34,197,94,0.15)";
   ctx.fill();
@@ -98,23 +144,23 @@ export async function downloadWinnerCard(scores: Score[], format: "vertical" | "
   ctx.stroke();
 
   ctx.fillStyle = "rgba(34,197,94,0.7)";
-  ctx.font = "600 22px sans-serif";
+  ctx.font = "600 20px sans-serif";
   ctx.letterSpacing = "3px";
-  ctx.fillText("FINAL SCORE", cx, boxY + 50);
+  ctx.fillText("FINAL SCORE", cx, boxY + 48);
   ctx.letterSpacing = "0px";
 
   ctx.fillStyle = "#22c55e";
-  ctx.font = "900 64px sans-serif";
-  ctx.fillText(String(winner.total_points), cx, boxY + 120);
+  ctx.font = "900 60px sans-serif";
+  ctx.fillText(String(winner.total_points), cx, boxY + 116);
 
   ctx.fillStyle = "rgba(255,255,255,0.3)";
-  ctx.font = "500 24px sans-serif";
+  ctx.font = "500 22px sans-serif";
   ctx.letterSpacing = "3px";
-  ctx.fillText("QUIZ-IT POWERED BY MAC ENTERTAINMENT", cx, H - 60);
+  ctx.fillText("QUIZ-IT POWERED BY MAC ENTERTAINMENT", cx, H - 56);
   ctx.letterSpacing = "0px";
-  ctx.font = "400 18px sans-serif";
+  ctx.font = "400 17px sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.2)";
-  ctx.fillText("by Sonya Mac", cx, H - 30);
+  ctx.fillText("by Sonya Mac", cx, H - 28);
 
   canvas.toBlob((blob) => {
     if (!blob) return;

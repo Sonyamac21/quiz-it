@@ -121,6 +121,7 @@ function QuizControllerInner() {
   const [rulesOpen, setRulesOpen] = useState(false);
   const roundStartedRef = useRef<number>(0);
   const quizEndRevealedRef = useRef<number>(0);
+  const [venueName, setVenueName] = useState<string | null>(null);
   const lastDeltasRef = useRef<Record<string, number>>({});
   const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
   const cardFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -193,6 +194,7 @@ function QuizControllerInner() {
     if (!data) return;
     setSessionPin(p.trim());
     setSessionId(data.id);
+    setVenueName(data.venue_name || null);
     setConnected(true);
     loadTeams(p.trim());
     loadAnswers(p.trim(), 0);
@@ -208,6 +210,7 @@ function QuizControllerInner() {
     if (!data) { alert("Session not found!"); return; }
     setSessionPin(pinInput.trim());
     setSessionId(data.id);
+    setVenueName(data.venue_name || null);
     setConnected(true);
     loadTeams(pinInput.trim());
     loadAnswers(pinInput.trim(), 0);
@@ -822,8 +825,8 @@ function QuizControllerInner() {
               <button onClick={doRevealNextTeam} style={{ padding:"16px 40px", borderRadius:14, background:"#BE26C1", border:"none", color:"#fff", fontSize:18, fontWeight:700, letterSpacing:2, cursor:"pointer", marginBottom:12, boxShadow:"0 0 24px rgba(190,38,193,0.5)" }}>Reveal Next Team</button>
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2, marginBottom:24 }}>or press SPACE</div>
               <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
-                <button onClick={() => downloadWinnerCard(scores, "vertical")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Story)</button>
-                <button onClick={() => downloadWinnerCard(scores, "square")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Post)</button>
+                <button onClick={() => downloadWinnerCard(scores, teams, venueName, "vertical")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Story)</button>
+                <button onClick={() => downloadWinnerCard(scores, teams, venueName, "square")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Post)</button>
               </div>
             </div>
           ) : hostPhase === "celebration" ? (

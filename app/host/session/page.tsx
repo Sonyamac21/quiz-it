@@ -28,6 +28,8 @@ export default function SessionPage() {
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
   const [savingIntermission, setSavingIntermission] = useState(false);
   const [intermissionOpen, setIntermissionOpen] = useState(false);
+  const [venueName, setVenueName] = useState("");
+  const [venueLogoUrl, setVenueLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -45,6 +47,8 @@ export default function SessionPage() {
           setIntermissionOffers(data.intermission_offers || "");
           setIntermissionWhatsapp(data.intermission_whatsapp || "");
           setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
+          setVenueName(data.venue_name || "");
+          setVenueLogoUrl(data.venue_logo_url || null);
           const { data: teamData } = await supabase.from("teams").select("*").eq("session_pin", parsed.pin).order("created_at", { ascending: true });
           if (teamData) setTeams(teamData);
         } else {
@@ -87,9 +91,16 @@ export default function SessionPage() {
     setCreating(true);
     const newPin = generatePin();
     const supabase = createSupabaseBrowserClient();
+    const today = new Date().getDay();
+    const { data: venueData } = await supabase.from("venues").select("*").eq("day_of_week", today).maybeSingle();
     const { data, error } = await supabase
       .from("sessions")
-      .insert({ pin: newPin, status: "waiting" })
+      .insert({
+        pin: newPin,
+        status: "waiting",
+        venue_name: venueData?.venue_name || null,
+        venue_logo_url: venueData?.venue_logo_url || null,
+      })
       .select()
       .single();
     if (!error && data) {
@@ -101,6 +112,8 @@ export default function SessionPage() {
       setIntermissionOffers(data.intermission_offers || "");
       setIntermissionWhatsapp(data.intermission_whatsapp || "");
       setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
+      setVenueName(data.venue_name || "");
+      setVenueLogoUrl(data.venue_logo_url || null);
     }
     setCreating(false);
   }
@@ -113,6 +126,8 @@ export default function SessionPage() {
       intermission_offers: intermissionOffers,
       intermission_whatsapp: intermissionWhatsapp,
       intermission_other_quizzes: intermissionOtherQuizzes,
+      venue_name: venueName,
+      venue_logo_url: venueLogoUrl,
     }).eq("id", sessionId);
     setSavingIntermission(false);
   }

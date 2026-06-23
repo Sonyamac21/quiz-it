@@ -11,6 +11,12 @@ const brunoAceSC = Bruno_Ace_SC({
 export const metadata: Metadata = {
   title: "Quiz-It",
   description: "Quiz-It by MAC Entertainment",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Quiz-It",
+  },
 };
 
 export const viewport: Viewport = {

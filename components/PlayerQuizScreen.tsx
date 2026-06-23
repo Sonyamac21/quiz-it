@@ -218,6 +218,25 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       if (wakeLock) wakeLock.release().catch(() => {});
     };
   }, []);
+  // Backup: a silent looping audio track discourages most mobile browsers from sleeping the screen,
+  // since actively playing media is treated differently from an idle tab.
+  useEffect(() => {
+    const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+    const audio = new Audio(SILENT_WAV);
+    audio.loop = true;
+    audio.volume = 0.01;
+    const tryPlay = () => { audio.play().catch(() => {}); };
+    tryPlay();
+    document.addEventListener("click", tryPlay, { once: true });
+    document.addEventListener("touchstart", tryPlay, { once: true });
+    document.addEventListener("visibilitychange", tryPlay);
+    return () => {
+      audio.pause();
+      document.removeEventListener("click", tryPlay);
+      document.removeEventListener("touchstart", tryPlay);
+      document.removeEventListener("visibilitychange", tryPlay);
+    };
+  }, []);
 
   const applySessionDataRef = useRef<(data: Record<string, unknown>) => void>(() => {});
 

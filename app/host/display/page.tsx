@@ -558,8 +558,8 @@ function DisplayScreenInner() {
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, padding:"48px 80px" }}>
         <div style={{ fontSize:22, color:"rgba(255,255,255,0.4)", letterSpacing:6, marginBottom:48 }}>FINAL LEADERBOARD</div>
         <div style={{ width:"100%", maxWidth:700 }}>
-          {revealed.map((s, i) => {
-            const pos = sorted.length - i;
+          {[...revealed].reverse().map((s, i) => {
+            const pos = sorted.length - revealed.length + 1 + i;
             const isTop = pos <= 3;
             const medal = pos===1?"gold":pos===2?"silver":pos===3?"#cd7f32":null;
             return (

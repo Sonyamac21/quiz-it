@@ -102,29 +102,18 @@ function DisplayScreenInner() {
   const purple = "#BE26C1";
   const bg = "#080810";
 
-  // Spacebar for quiz_end reveal
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.code !== "Space" && e.key !== " ") return;
-      e.preventDefault();
-      if (phase === "quiz_end" && !trophyVisible) {
-        handleRevealNext();
-      }
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [phase, revealedCount, quizEndScores, trophyVisible]);
 
   // Track picture sub-phase: "image_only" -> "question_visible"
   const [pictureSubPhase, setPictureSubPhase] = useState<"image_only"|"question_visible">("image_only");
   const [answeredTeams, setAnsweredTeams] = useState<string[]>([]);
   const [showAnsweredTeams, setShowAnsweredTeams] = useState(false);
 
-  function handleRevealNext() {
+  const prevQuizEndRevealedRef = useRef<number>(0);
+  const prevPhaseForQuizEndRef = useRef<string>("");
+  function handleRevealNext(nextCount: number) {
     const sorted = [...quizEndScores].sort((a,b) => a.total_points - b.total_points);
-    const nextCount = revealedCount + 1;
     setRevealedCount(nextCount);
-    const isFirst = nextCount === sorted.length;
+    const isFirst = nextCount === sorted.length && sorted.length > 0;
     playSound("crowd-cheer.mp3", 0.7);
     if (isFirst) {
       stopClapping();
@@ -140,7 +129,6 @@ function DisplayScreenInner() {
           }, 1200);
         }
       }
-      setTimeout(() => setTrophyVisible(true), 3000);
     }
   }
 
@@ -229,15 +217,25 @@ function DisplayScreenInner() {
     if (newPhase === "quiz_end") {
       const scores = (data.scoreboard_data as Score[]) || [];
       setQuizEndScores(scores);
-      setRevealedCount(0);
-      setTrophyVisible(false);
-      stopClapping();
-      const clap = new Audio("/sounds/clapping-scores.mp3");
-      clap.volume = 0.5;
-      clap.loop = true;
-      clap.play().catch(() => {});
-      clappingRef.current = clap;
+      const syncedCount = (data.quiz_end_revealed_count as number) || 0;
+      const syncedTrophy = !!data.quiz_end_trophy_visible;
+      if (prevPhaseForQuizEndRef.current !== "quiz_end") {
+        prevQuizEndRevealedRef.current = 0;
+        setRevealedCount(0);
+        setTrophyVisible(false);
+        stopClapping();
+        const clap = new Audio("/sounds/clapping-scores.mp3");
+        clap.volume = 0.5;
+        clap.loop = true;
+        clap.play().catch(() => {});
+        clappingRef.current = clap;
+      } else if (syncedCount > prevQuizEndRevealedRef.current) {
+        prevQuizEndRevealedRef.current = syncedCount;
+        handleRevealNext(syncedCount);
+      }
+      if (syncedTrophy) setTrophyVisible(true);
     }
+    prevPhaseForQuizEndRef.current = newPhase;
 
     if (newPhase === "celebration" && ft && fs) {
       if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }

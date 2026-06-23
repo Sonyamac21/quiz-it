@@ -120,6 +120,7 @@ function QuizControllerInner() {
   const spinTriggeredRef = useRef(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const roundStartedRef = useRef<number>(0);
+  const quizEndRevealedRef = useRef<number>(0);
   const lastDeltasRef = useRef<Record<string, number>>({});
   const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
   const cardFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -177,6 +178,7 @@ function QuizControllerInner() {
       else { doPreviewQuestion(qIdx + 1); }
     }
     else if (hostPhase === "round_end") { doStartRound(); }
+    else if (hostPhase === "quiz_end") { doRevealNextTeam(); }
   }
 
   async function loadRounds() {
@@ -399,9 +401,23 @@ function QuizControllerInner() {
 
   async function doEndOfQuiz() {
     if (!sessionId) return;
+    quizEndRevealedRef.current = 0;
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "quiz_end", scoreboard_data: scores }).eq("id", sessionId);
+    await supabase.from("sessions").update({ phase: "quiz_end", scoreboard_data: scores, quiz_end_revealed_count: 0, quiz_end_trophy_visible: false }).eq("id", sessionId);
     setHostPhase("quiz_end");
+  }
+  async function doRevealNextTeam() {
+    if (!sessionId) return;
+    const total = scores.length;
+    const nextCount = Math.min(quizEndRevealedRef.current + 1, total);
+    quizEndRevealedRef.current = nextCount;
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").update({ quiz_end_revealed_count: nextCount }).eq("id", sessionId);
+    if (nextCount >= total) {
+      setTimeout(async () => {
+        await supabase.from("sessions").update({ quiz_end_trophy_visible: true }).eq("id", sessionId);
+      }, 3000);
+    }
   }
 
   function subscribeToUpdates(pin: string) {
@@ -786,8 +802,9 @@ function QuizControllerInner() {
             <div style={{ textAlign:"center", marginTop:60 }}>
               <div style={{ fontSize:48, marginBottom:16 }}>🏆</div>
               <div style={{ fontSize:32, fontWeight:800, color:"#fbbf24", letterSpacing:3, marginBottom:8 }}>Quiz Complete!</div>
-              <div style={{ fontSize:16, color:"rgba(255,255,255,0.4)", marginBottom:32 }}>Leaderboard reveal is live on the display screen</div>
-              <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2, marginBottom:24 }}>SPACE: reveal next team on display screen</div>
+              <div style={{ fontSize:16, color:"rgba(255,255,255,0.4)", marginBottom:24 }}>Leaderboard reveal is live on the display screen</div>
+              <button onClick={doRevealNextTeam} style={{ padding:"16px 40px", borderRadius:14, background:"#BE26C1", border:"none", color:"#fff", fontSize:18, fontWeight:700, letterSpacing:2, cursor:"pointer", marginBottom:12, boxShadow:"0 0 24px rgba(190,38,193,0.5)" }}>Reveal Next Team</button>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2, marginBottom:24 }}>or press SPACE</div>
               <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
                 <button onClick={() => downloadWinnerCard(scores, "vertical")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Story)</button>
                 <button onClick={() => downloadWinnerCard(scores, "square")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Post)</button>

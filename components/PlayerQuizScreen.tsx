@@ -706,7 +706,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     ].filter(o => o.text) as { key: string; text: string }[];
 
     return (
-      <div style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", overflowY: "auto" as const, boxSizing: "border-box" as const }}>
+      <div style={{ minHeight: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
           <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
           {timeLeft !== null && timeLeft > 0 && (

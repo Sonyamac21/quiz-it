@@ -4,6 +4,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { UnoPlayerCards } from "@/components/UnoCards";
 import { AnswerKeypad } from "@/components/AnswerKeypad";
 import { SlotReels } from "@/components/SlotReels";
+import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 
 type Question = {
   question_text: string;
@@ -194,6 +195,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
   const [hardDeckPotential, setHardDeckPotential] = useState(0);
+  const [hardDeckCards, setHardDeckCards] = useState<{rank:number; suit:string}[]>([]);
+  const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number | null>(null);
+  const [allTeamNames, setAllTeamNames] = useState<string[]>([]);
   const [intermissionOffers, setIntermissionOffers] = useState("");
   const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
@@ -266,13 +270,19 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, spin_offered, spin_choice, spin_target_idx, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data")
+        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, spin_offered, spin_choice, spin_target_idx, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
     }
 
+    async function fetchTeamOrder() {
+      const { data: teamRows } = await supabase.from("teams").select("team_name").eq("session_pin", sessionPin).order("created_at", { ascending: true });
+      if (teamRows) setAllTeamNames(teamRows.map((t: { team_name: string }) => t.team_name));
+    }
+
     fetchSession();
+    fetchTeamOrder();
 
     // Polling every 500ms to keep handset in sync
     const pollInterval = setInterval(fetchSession, 500);
@@ -315,6 +325,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setBlockTeam((data.block_team as string) || null);
     setHardDeckTeam((data.hard_deck_team as string) || null);
     setHardDeckStatus((data.hard_deck_status as string) || "idle");
+    setHardDeckCards((data.hard_deck_cards as {rank:number; suit:string}[]) || []);
+    setHardDeckWheelTarget((data.hard_deck_wheel_target as number) ?? null);
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
     setSpinOffered(!!data.spin_offered);
     setSpinChoice((data.spin_choice as string) || null);
@@ -469,44 +481,69 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
   if (phase === "hard_deck") {
     const isSelected = hardDeckTeam === teamName;
+    const rankLabels: Record<number,string> = { 1:"A", 11:"J", 12:"Q", 13:"K" };
+    const rankLabel = (r: number) => rankLabels[r] || String(r);
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 20, textAlign: "center" as const }}>
-        <div style={{ fontFamily: font, fontSize: 22, color: purple, letterSpacing: 3 }}>THE HARD DECK</div>
-        {!isSelected && (
-          <div style={{ fontSize: 16, color: "rgba(255,255,255,0.6)" }}>
-            {hardDeckTeam ? hardDeckTeam + " is playing — watch the big screen!" : "Watch the big screen!"}
+      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const }}>
+        <div style={{ fontFamily: font, fontSize: 20, color: purple, letterSpacing: 3 }}>THE HARD DECK</div>
+
+        {/* Everyone sees the same team-select wheel and card faces, not just text -
+            so remote players who can't see the venue display can still follow along. */}
+        {hardDeckStatus === "wheel" && hardDeckWheelTarget !== null && (
+          <div style={{ width: "100%", maxWidth: 280 }}>
+            <SpinWheel
+              segments={buildTeamSegments(allTeamNames)}
+              onResult={() => {}}
+              size={240}
+              forceResultIndex={hardDeckWheelTarget}
+              autoSpin={true}
+            />
           </div>
         )}
+
+        {hardDeckTeam && hardDeckStatus !== "wheel" && (
+          <div style={{ fontSize: isSelected ? 24 : 18, color: isSelected ? "#facc15" : "#fff", fontWeight: 800, letterSpacing: 1 }}>
+            {isSelected ? "🎯 IT'S YOU!" : hardDeckTeam}
+          </div>
+        )}
+
+        {hardDeckCards.length > 0 && (
+          <div style={{ display: "flex", gap: 12 }}>
+            {hardDeckCards.map((c, i) => (
+              <div key={i} style={{ width: 90, height: 128, borderRadius: 12, background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 900, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111", boxShadow: "0 6px 20px rgba(0,0,0,0.4)" }}>
+                <div>{rankLabel(c.rank)}</div>
+                <div style={{ fontSize: 36 }}>{c.suit}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!isSelected && hardDeckStatus !== "wheel" && (
+          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)" }}>
+            {hardDeckStatus === "awaiting_guess" ? "Higher or Lower?" : hardDeckStatus === "decision" ? "Stick or Gamble?" : ""}
+          </div>
+        )}
+
         {isSelected && hardDeckStatus === "awaiting_guess" && (
-          <>
-            <div style={{ fontSize: 16, color: "#fff" }}>Higher or Lower?</div>
-            <div style={{ display: "flex", gap: 16 }}>
-              <button onClick={() => submitHardDeckGuess("higher")} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "2px solid #22c55e", color: "#fff", fontSize: 18, fontWeight: 700, cursor: "pointer" }}>HIGHER</button>
-              <button onClick={() => submitHardDeckGuess("lower")} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(239,68,68,0.25)", border: "2px solid #ef4444", color: "#fff", fontSize: 18, fontWeight: 700, cursor: "pointer" }}>LOWER</button>
-            </div>
-          </>
+          <div style={{ display: "flex", gap: 16 }}>
+            <button onClick={() => submitHardDeckGuess("higher")} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "2px solid #22c55e", color: "#fff", fontSize: 18, fontWeight: 700, cursor: "pointer" }}>HIGHER</button>
+            <button onClick={() => submitHardDeckGuess("lower")} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(239,68,68,0.25)", border: "2px solid #ef4444", color: "#fff", fontSize: 18, fontWeight: 700, cursor: "pointer" }}>LOWER</button>
+          </div>
         )}
         {isSelected && hardDeckStatus === "decision" && (
           <>
             <div style={{ fontSize: 16, color: "#facc15" }}>You have {hardDeckPotential} points!</div>
-            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>Stick with what you've got, or gamble for more?</div>
             <div style={{ display: "flex", gap: 16 }}>
               <button onClick={submitHardDeckStick} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "2px solid #22c55e", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>STICK</button>
               <button onClick={submitHardDeckGamble} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(190,38,193,0.25)", border: "2px solid " + purple, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>GAMBLE</button>
             </div>
           </>
         )}
-        {isSelected && hardDeckStatus === "won" && (
-          <div style={{ fontSize: 22, color: "#22c55e" }}>You won {hardDeckPotential} points! 🎉</div>
+        {hardDeckStatus === "won" && (
+          <div style={{ fontSize: 20, color: "#22c55e", fontWeight: 800 }}>{isSelected ? "You won" : hardDeckTeam + " won"} {hardDeckPotential} points! 🎉</div>
         )}
-        {isSelected && hardDeckStatus === "lost" && (
-          <div style={{ fontSize: 22, color: "#ef4444" }}>Bust — better luck next time!</div>
-        )}
-        {isSelected && (hardDeckStatus === "wheel" || hardDeckStatus === "base_revealed") && (
-          <>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "#facc15", letterSpacing: 1 }}>{"\u{1F3AF} IT'S YOU!"}</div>
-            <div style={{ fontSize: 16, color: "rgba(255,255,255,0.6)" }}>Get ready — watch the big screen!</div>
-          </>
+        {hardDeckStatus === "lost" && (
+          <div style={{ fontSize: 20, color: "#ef4444", fontWeight: 800 }}>{isSelected ? "Bust — better luck next time!" : hardDeckTeam + " busted!"}</div>
         )}
       </div>
     );

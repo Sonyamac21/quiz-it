@@ -73,6 +73,12 @@ function DisplayScreenInner() {
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
   const [spinTargetIdx, setSpinTargetIdx] = useState<number|null>(null);
   const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
+  useEffect(() => {
+    const styleEl = document.createElement("style");
+    styleEl.textContent = "@keyframes reverseFlash { 0% { transform: translateX(-50%) scale(1); } 100% { transform: translateX(-50%) scale(1.05); } }";
+    document.head.appendChild(styleEl);
+    return () => { if (styleEl.parentNode) styleEl.parentNode.removeChild(styleEl); };
+  }, []);
   const cardFlashElRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = document.createElement("div");
@@ -86,8 +92,14 @@ function DisplayScreenInner() {
     if (!el) return;
     if (cardFlash) {
       const label = cardFlash.type === "block" ? "Time-Out" : cardFlash.type === "reverse" ? "Reverse" : "Boost";
-      el.textContent = cardFlash.team + " played " + label + "!";
-      el.style.display = "block";
+      if (cardFlash.type === "reverse") {
+        // Reverse flips a score - make this one unmissable, distinct from the other two cards
+        el.textContent = "\u21BB  " + cardFlash.team + " PLAYED REVERSE!  \u21BB";
+        el.style.cssText = "position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;display:block;padding:22px 56px;border-radius:18px;background:rgba(239,68,68,0.25);border:3px solid #ef4444;color:#fff;font-family:sans-serif;font-size:32px;font-weight:900;letter-spacing:2px;box-shadow:0 0 50px rgba(239,68,68,0.7);animation:reverseFlash 0.5s ease-in-out infinite alternate;";
+      } else {
+        el.textContent = cardFlash.team + " played " + label + "!";
+        el.style.cssText = "position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;display:block;padding:14px 32px;border-radius:12px;background:rgba(20,5,40,0.95);border:2px solid #BE26C1;color:#fff;font-family:sans-serif;font-size:18px;font-weight:700;letter-spacing:1px;box-shadow:0 4px 24px rgba(190,38,193,0.5);";
+      }
     } else {
       el.style.display = "none";
     }

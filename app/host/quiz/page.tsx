@@ -707,9 +707,15 @@ function QuizControllerInner() {
   return (
     <div style={{ minHeight:"100vh", background:"linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", fontFamily:"sans-serif", color:"#fff", display:"flex", flexDirection:"column" as const }}>
       {cardFlash && (
-        <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, padding:"12px 28px", borderRadius:12, background:"rgba(20,5,40,0.95)", border:"2px solid #BE26C1", color:"#fff", fontSize:16, fontWeight:700, letterSpacing:1, boxShadow:"0 4px 24px rgba(190,38,193,0.5)" }}>
-          {cardFlash.team} played {cardFlash.type === "block" ? "Time-Out" : cardFlash.type === "reverse" ? "Reverse" : "Boost"}!
-        </div>
+        cardFlash.type === "reverse" ? (
+          <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, padding:"18px 40px", borderRadius:16, background:"rgba(239,68,68,0.22)", border:"3px solid #ef4444", color:"#fff", fontSize:22, fontWeight:900, letterSpacing:1.5, boxShadow:"0 0 40px rgba(239,68,68,0.6)" }}>
+            ↻ {cardFlash.team} PLAYED REVERSE! ↻
+          </div>
+        ) : (
+          <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, padding:"12px 28px", borderRadius:12, background:"rgba(20,5,40,0.95)", border:"2px solid #BE26C1", color:"#fff", fontSize:16, fontWeight:700, letterSpacing:1, boxShadow:"0 4px 24px rgba(190,38,193,0.5)" }}>
+            {cardFlash.team} played {cardFlash.type === "block" ? "Time-Out" : "Boost"}!
+          </div>
+        )
       )}
       {/* HEADER */}
       <div style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 20px", borderBottom:"1px solid rgba(190,38,193,0.3)", background:"rgba(45,10,94,0.5)", flexWrap:"wrap" as const }}>

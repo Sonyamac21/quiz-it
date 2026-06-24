@@ -126,6 +126,8 @@ export default function QuestionsPage() {
     let types: string[];
     if (roundType === "music") {
       types = Array(count).fill("audio");
+    } else if (roundType === "multi_tap") {
+      types = Array(count).fill("multi_tap");
     } else {
       const mcCount = Math.round(count * 0.25);
       const taCount = Math.round(count * 0.20);
@@ -281,6 +283,7 @@ export default function QuestionsPage() {
               <option value="regular">Regular round</option>
               <option value="bonus">Bonus / themed</option>
               <option value="music">Music round</option>
+              <option value="multi_tap">Multi Tap round</option>
             </select>
           </div>
           <div>

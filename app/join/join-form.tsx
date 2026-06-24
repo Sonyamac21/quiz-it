@@ -97,6 +97,13 @@ export function JoinForm() {
         if (!saved) { setRestoring(false); return; }
         const parsed = JSON.parse(saved);
         if (!parsed?.teamName || !parsed?.sessionPin) { setRestoring(false); return; }
+        const MAX_SESSION_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours - a quiz night is a bounded event
+        const isStale = !parsed.savedAt || (Date.now() - parsed.savedAt) > MAX_SESSION_AGE_MS;
+        if (isStale) {
+          localStorage.removeItem(STORAGE_KEY);
+          setRestoring(false);
+          return;
+        }
         const supabase = createSupabaseBrowserClient();
         const { data } = await supabase.from("sessions").select("status").eq("pin", parsed.sessionPin).single();
         if (data && data.status !== "finished") {
@@ -195,7 +202,7 @@ export function JoinForm() {
         photo_url: photoUrl,
       });
       setSessionPin(pin);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin, savedAt: Date.now() }));
       if (dbError) throw dbError;
       setDone(true);
     } catch {

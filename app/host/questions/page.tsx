@@ -77,6 +77,7 @@ export default function QuestionsPage() {
   const [saving, setSaving] = useState(false);
   const [roundName, setRoundName] = useState("");
   const usedRef = useRef<string[]>([]);
+  const lastApiErrorRef = useRef<string>("");
   const dragIdx = useRef<number|null>(null);
 
   useEffect(() => { loadUsedQuestions(); }, []);
@@ -100,6 +101,13 @@ export default function QuestionsPage() {
       body: JSON.stringify({ prompt }),
     });
     const data = await res.json();
+    // Anthropic returns an error object (no "content" field) on auth failures, rate
+    // limits, etc. Surface the real reason instead of crashing on .filter() of
+    // undefined and silently failing through every retry with no useful message.
+    if (!data?.content) {
+      const reason = data?.error?.message || "Unknown API error";
+      throw new Error("API error: " + reason);
+    }
     const text = data.content.filter((b:{type:string}) => b.type==="text").map((b:{text:string}) => b.text).join("");
     return text.replace(/```json/g,"").replace(/```/g,"").trim();
   }
@@ -116,6 +124,7 @@ export default function QuestionsPage() {
   }
 
   async function generateOne(type: string, topic: string): Promise<Question|null> {
+    // (lastApiError set inside try/catch below, surfaced by callers)
     const typeInstructions: Record<string,string> = {
       multi_tap: "multi_tap: exactly 6 options in option_a through option_f. Some are correct answers, some are decoys (wrong). Mix the count - between 2 and 4 of the 6 should be correct. correct_answer must be a comma-separated list of the correct option letters in order, e.g. \"b,d,f\" or \"a,c\". Make decoys plausible, not obviously wrong.",
       multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
@@ -160,7 +169,8 @@ export default function QuestionsPage() {
         } catch { return null; }
       }
       return q;
-    } catch {
+    } catch (e) {
+      lastApiErrorRef.current = e instanceof Error ? e.message : "Unknown error";
       return null;
     }
   }
@@ -253,7 +263,7 @@ export default function QuestionsPage() {
         replaced = true;
       }
     }
-    if (!replaced) setStatus("Could not find replacement - try generating again.");
+    if (!replaced) setStatus(lastApiErrorRef.current ? "Generation failed: " + lastApiErrorRef.current : "Could not find replacement - try generating again.");
   }
 
   async function topUp() {

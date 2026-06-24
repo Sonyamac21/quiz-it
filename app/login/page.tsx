@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/host";
@@ -37,51 +37,59 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm space-y-4 rounded-lg border border-white/10 p-6"
+    <form
+      onSubmit={handleSubmit}
+      className="w-full max-w-sm space-y-4 rounded-lg border border-white/10 p-6"
+    >
+      <h1 className="text-xl font-semibold">Host login</h1>
+
+      <div className="space-y-1">
+        <label htmlFor="email" className="text-sm">
+          Email
+        </label>
+        <input
+          id="email"
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full rounded border border-white/20 bg-transparent px-3 py-2"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label htmlFor="password" className="text-sm">
+          Password
+        </label>
+        <input
+          id="password"
+          type="password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full rounded border border-white/20 bg-transparent px-3 py-2"
+        />
+      </div>
+
+      {error && <p className="text-sm text-red-400">{error}</p>}
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full rounded bg-white px-3 py-2 font-medium text-black disabled:opacity-50"
       >
-        <h1 className="text-xl font-semibold">Host login</h1>
+        {loading ? "Signing in..." : "Sign in"}
+      </button>
+    </form>
+  );
+}
 
-        <div className="space-y-1">
-          <label htmlFor="email" className="text-sm">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded border border-white/20 bg-transparent px-3 py-2"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label htmlFor="password" className="text-sm">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border border-white/20 bg-transparent px-3 py-2"
-          />
-        </div>
-
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded bg-white px-3 py-2 font-medium text-black disabled:opacity-50"
-        >
-          {loading ? "Signing in..." : "Sign in"}
-        </button>
-      </form>
+export default function LoginPage() {
+  return (
+    <div className="flex min-h-screen items-center justify-center p-6">
+      <Suspense fallback={null}>
+        <LoginForm />
+      </Suspense>
     </div>
   );
 }

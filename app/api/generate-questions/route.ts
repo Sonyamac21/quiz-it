@@ -33,14 +33,14 @@ export async function POST(req: NextRequest) {
   //    reaches the Claude API.
   const { data, error: authError } = await supabase.auth.getUser();
   if (authError || !data.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: { message: "Not logged in - please log in again." } }, { status: 401 });
   }
 
   // 2. Rate limit per logged-in user (not just per IP, since a host could
   //    be on a shared venue network).
   if (isRateLimited(data.user.id)) {
     return NextResponse.json(
-      { error: "Too many requests, slow down." },
+      { error: { message: "Too many requests, slow down." } },
       { status: 429 },
     );
   }
@@ -48,26 +48,59 @@ export async function POST(req: NextRequest) {
   // 3. Validate the prompt.
   const { prompt } = await req.json();
   if (!prompt || typeof prompt !== "string") {
-    return NextResponse.json({ error: "Missing prompt" }, { status: 400 });
+    return NextResponse.json({ error: { message: "Missing prompt" } }, { status: 400 });
   }
   if (prompt.length > 8000) {
-    return NextResponse.json({ error: "Prompt too long" }, { status: 400 });
+    return NextResponse.json({ error: { message: "Prompt too long" } }, { status: 400 });
   }
 
-  const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY!,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4000,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json(
+      { error: { message: "ANTHROPIC_API_KEY is missing on the server - check Vercel env vars (Production scope)." } },
+      { status: 500 },
+    );
+  }
 
-  const responseData = await apiRes.json();
-  return NextResponse.json(responseData, { headers: res.headers });
+  try {
+    const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 4000,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    const text = await apiRes.text();
+    let responseData;
+    try {
+      responseData = JSON.parse(text);
+    } catch {
+      // Anthropic (or a proxy/gateway in between) returned a non-JSON body -
+      // surface the raw text instead of crashing with no useful information.
+      return NextResponse.json(
+        { error: { message: "Non-JSON response from Anthropic API (status " + apiRes.status + "): " + text.slice(0, 300) } },
+        { status: 502 },
+      );
+    }
+
+    if (!apiRes.ok) {
+      return NextResponse.json(
+        { error: { message: responseData?.error?.message || ("Anthropic API error (status " + apiRes.status + ")") } },
+        { status: apiRes.status },
+      );
+    }
+
+    return NextResponse.json(responseData, { headers: res.headers });
+  } catch (e) {
+    return NextResponse.json(
+      { error: { message: e instanceof Error ? e.message : "Unknown server error calling Anthropic" } },
+      { status: 500 },
+    );
+  }
 }

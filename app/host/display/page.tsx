@@ -96,9 +96,12 @@ function DisplayScreenInner() {
         // Reverse flips a score - make this one unmissable, distinct from the other two cards
         el.textContent = "\u21BB  " + cardFlash.team + " PLAYED REVERSE!  \u21BB";
         el.style.cssText = "position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;display:block;padding:22px 56px;border-radius:18px;background:rgba(239,68,68,0.25);border:3px solid #ef4444;color:#fff;font-family:sans-serif;font-size:32px;font-weight:900;letter-spacing:2px;box-shadow:0 0 50px rgba(239,68,68,0.7);animation:reverseFlash 0.5s ease-in-out infinite alternate;";
+      } else if (cardFlash.type === "block") {
+        el.textContent = "\u23F8  " + cardFlash.team + " PLAYED TIME-OUT!  \u23F8";
+        el.style.cssText = "position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;display:block;padding:20px 48px;border-radius:18px;background:rgba(59,130,246,0.25);border:3px solid #3b82f6;color:#fff;font-family:sans-serif;font-size:28px;font-weight:900;letter-spacing:2px;box-shadow:0 0 50px rgba(59,130,246,0.7);";
       } else {
-        el.textContent = cardFlash.team + " played " + label + "!";
-        el.style.cssText = "position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;display:block;padding:14px 32px;border-radius:12px;background:rgba(20,5,40,0.95);border:2px solid #BE26C1;color:#fff;font-family:sans-serif;font-size:18px;font-weight:700;letter-spacing:1px;box-shadow:0 4px 24px rgba(190,38,193,0.5);";
+        el.textContent = "\u26A1  " + cardFlash.team + " PLAYED BOOST!  \u26A1";
+        el.style.cssText = "position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;display:block;padding:20px 48px;border-radius:18px;background:rgba(234,179,8,0.25);border:3px solid #eab308;color:#fff;font-family:sans-serif;font-size:28px;font-weight:900;letter-spacing:2px;box-shadow:0 0 50px rgba(234,179,8,0.7);";
       }
     } else {
       el.style.display = "none";
@@ -180,6 +183,7 @@ function DisplayScreenInner() {
   function triggerCardFlash(team: string, type: string) {
     if (cardFlashTimerRef.current) clearTimeout(cardFlashTimerRef.current);
     setCardFlash({ team, type });
+    playSound("round-start.mp3", 0.9);
     cardFlashTimerRef.current = setTimeout(() => setCardFlash(null), 3000);
   }
   function applySession(data: Record<string, unknown>) {

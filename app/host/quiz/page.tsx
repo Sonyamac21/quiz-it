@@ -461,6 +461,9 @@ function QuizControllerInner() {
         const c = payload.new as UnoCard;
         if (cardFlashTimerRef.current) clearTimeout(cardFlashTimerRef.current);
         setCardFlash({ team: c.team_name, type: c.card_type });
+        const cardSound = new Audio("/sounds/round-start.mp3");
+        cardSound.volume = 0.7;
+        cardSound.play().catch(() => {});
         cardFlashTimerRef.current = setTimeout(() => setCardFlash(null), 3000);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions" }, (payload) => {
@@ -711,9 +714,13 @@ function QuizControllerInner() {
           <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, padding:"18px 40px", borderRadius:16, background:"rgba(239,68,68,0.22)", border:"3px solid #ef4444", color:"#fff", fontSize:22, fontWeight:900, letterSpacing:1.5, boxShadow:"0 0 40px rgba(239,68,68,0.6)" }}>
             ↻ {cardFlash.team} PLAYED REVERSE! ↻
           </div>
+        ) : cardFlash.type === "block" ? (
+          <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, padding:"16px 36px", borderRadius:14, background:"rgba(59,130,246,0.22)", border:"3px solid #3b82f6", color:"#fff", fontSize:19, fontWeight:900, letterSpacing:1.2, boxShadow:"0 0 32px rgba(59,130,246,0.6)" }}>
+            ⏸ {cardFlash.team} PLAYED TIME-OUT! ⏸
+          </div>
         ) : (
-          <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, padding:"12px 28px", borderRadius:12, background:"rgba(20,5,40,0.95)", border:"2px solid #BE26C1", color:"#fff", fontSize:16, fontWeight:700, letterSpacing:1, boxShadow:"0 4px 24px rgba(190,38,193,0.5)" }}>
-            {cardFlash.team} played {cardFlash.type === "block" ? "Time-Out" : "Boost"}!
+          <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, padding:"16px 36px", borderRadius:14, background:"rgba(234,179,8,0.22)", border:"3px solid #eab308", color:"#fff", fontSize:19, fontWeight:900, letterSpacing:1.2, boxShadow:"0 0 32px rgba(234,179,8,0.6)" }}>
+            ⚡ {cardFlash.team} PLAYED BOOST! ⚡
           </div>
         )
       )}

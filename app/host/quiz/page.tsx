@@ -94,7 +94,7 @@ function QuizControllerInner() {
   const [scores, setScores] = useState<Score[]>([]);
   const [pointsPerQ, setPointsPerQ] = useState(10);
   const [timeBonus, setTimeBonus] = useState(5);
-  const [timerDuration, setTimerDuration] = useState(15);
+  const [timerDuration, setTimerDuration] = useState(30);
   const [dangerZone, setDangerZone] = useState(false);
   const [dangerPenalty, setDangerPenalty] = useState(5);
   const [wipeoutMode, setWipeoutMode] = useState(false);
@@ -103,7 +103,7 @@ function QuizControllerInner() {
   const [adjustAmount, setAdjustAmount] = useState("");
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [pinInput, setPinInput] = useState("");
-  const [timeLeft, setTimeLeft] = useState(15);
+  const [timeLeft, setTimeLeft] = useState(30);
   const [fastestTeam, setFastestTeam] = useState<string|null>(null);
   const [fastestSong, setFastestSong] = useState<string|null>(null);
   const [spinToWinOpen, setSpinToWinOpen] = useState(false);

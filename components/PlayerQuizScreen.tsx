@@ -453,16 +453,17 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   if (phase === "spin_to_win") {
     const isWinner = fastestTeamName === teamName;
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16, gap: 16, textAlign: "center" as const }}>
-        {isWinner ? (
-          <div style={{ width: "100%" }}>
-            <SlotReels targetIdx={spinTargetIdx} teamName={teamName} victorySong={fastestSongName || undefined} size="compact" />
-          </div>
-        ) : (
-          <div style={{ fontSize: 16, color: "rgba(255,255,255,0.6)" }}>
-            {fastestTeamName ? fastestTeamName + " is spinning — watch the big screen!" : "Watch the big screen!"}
+      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16, gap: 12, textAlign: "center" as const }}>
+        {!isWinner && (
+          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
+            {fastestTeamName ? fastestTeamName + " is spinning..." : "Spinning..."}
           </div>
         )}
+        {/* Every player sees their own synced mini wheel - not just the spinning team -
+            so remote players who can't see the venue display still see the result live. */}
+        <div style={{ width: "100%" }}>
+          <SlotReels targetIdx={spinTargetIdx} teamName={fastestTeamName || teamName} victorySong={isWinner ? (fastestSongName || undefined) : undefined} size="compact" />
+        </div>
       </div>
     );
   }

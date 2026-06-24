@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
+import { SlotReels } from "@/components/SlotReels";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HardDeckPanel } from "@/components/HardDeckPanel";
@@ -110,6 +111,7 @@ function QuizControllerInner() {
   const [spinUsed, setSpinUsed] = useState(false);
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
+  const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
   const [decisionMade, setDecisionMade] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
@@ -471,6 +473,7 @@ function QuizControllerInner() {
         if (s.pin !== pin) return;
         const choice = (s.spin_choice as string) || null;
         setSpinChoice(choice);
+        setSpinTargetIdx((s.spin_target_idx as number) ?? null);
         setSpinOffered(!!s.spin_offered);
         if (choice === "spin" && !spinTriggeredRef.current) {
           spinTriggeredRef.current = true;
@@ -873,7 +876,9 @@ function QuizControllerInner() {
                   )}
                   {spinChoice === "spin" && (
                     <>
-                      <div style={{ fontSize:18, color:"#22c55e", fontWeight:700, marginBottom:16 }}>Spinning... watch the display!</div>
+                      <div style={{ width:"100%", maxWidth:420, margin:"0 auto 16px" }}>
+                        <SlotReels targetIdx={spinTargetIdx} teamName={fastestTeam || "Team"} size="compact" />
+                      </div>
                       <button onClick={() => { if (isLastQ) doEndRound(); else doPreviewQuestion(qIdx + 1); }} style={{ padding:"10px 24px", borderRadius:10, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", marginBottom:24 }}>Continue ▶</button>
                     </>
                   )}

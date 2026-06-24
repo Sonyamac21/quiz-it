@@ -223,10 +223,32 @@ export function HardDeckPanel({ sessionId, sessionPin, teams }: Props) {
 
           {status === "awaiting_guess" && (
             <>
-              <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>
-                {guess ? "Guess locked in: " + guess.toUpperCase() + " — press Reveal" : "Waiting for team's guess on their phone..."}
-              </div>
-              <button onClick={revealNextCard} disabled={!guess} style={{ padding: "10px 24px", borderRadius: 8, background: guess ? "rgba(190,38,193,0.3)" : "rgba(255,255,255,0.08)", border: "1px solid " + (guess ? "#BE26C1" : "rgba(255,255,255,0.2)"), color: "#fff", cursor: guess ? "pointer" : "not-allowed" }}>Reveal Next Card</button>
+              {!guess ? (
+                <div style={{ fontSize: 20, fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: 1 }}>
+                  Waiting for {team}&rsquo;s guess on their phone&hellip;
+                </div>
+              ) : (
+                <div style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                  padding: "20px 48px", borderRadius: 16,
+                  background: guess === "higher" ? "rgba(34,197,94,0.22)" : "rgba(239,68,68,0.22)",
+                  border: "3px solid " + (guess === "higher" ? "#22c55e" : "#ef4444"),
+                  boxShadow: "0 0 32px " + (guess === "higher" ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"),
+                  animation: "hdGuessPulse 0.6s ease-out"
+                }}>
+                  <div style={{ fontSize: 13, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>GUESS LOCKED IN</div>
+                  <div style={{
+                    fontSize: 44, fontWeight: 800, letterSpacing: 2, lineHeight: 1,
+                    color: guess === "higher" ? "#22c55e" : "#ef4444",
+                    display: "flex", alignItems: "center", gap: 14
+                  }}>
+                    <span style={{ fontSize: 48 }}>{guess === "higher" ? "▲" : "▼"}</span>
+                    {guess.toUpperCase()}
+                  </div>
+                </div>
+              )}
+              <style>{"@keyframes hdGuessPulse { 0% { transform: scale(0.85); opacity: 0.4; } 60% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }"}</style>
+              <button onClick={revealNextCard} disabled={!guess} style={{ padding: "14px 32px", borderRadius: 10, fontSize: 16, fontWeight: 700, background: guess ? "rgba(190,38,193,0.3)" : "rgba(255,255,255,0.08)", border: "1px solid " + (guess ? "#BE26C1" : "rgba(255,255,255,0.2)"), color: "#fff", cursor: guess ? "pointer" : "not-allowed" }}>Reveal Next Card</button>
             </>
           )}
 

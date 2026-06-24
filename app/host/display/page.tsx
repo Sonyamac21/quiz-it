@@ -356,7 +356,7 @@ function DisplayScreenInner() {
           <SpinWheel
             segments={buildTeamSegments(teams.map(t => t.team_name))}
             onResult={() => {}}
-            size={420}
+            size={760}
             forceResultIndex={hardDeckWheelTarget}
             autoSpin={true}
           />

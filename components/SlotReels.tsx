@@ -2,14 +2,14 @@
 import { useEffect, useRef, useState } from "react";
 
 export const SLOT_SEGS = [
-  { label: "1st Place",  color: "#F5C842", bg: "#2a1e00", positive: true  },
-  { label: "-10 Points", color: "#f87171", bg: "#2a0808", positive: false },
-  { label: "2nd Place",  color: "#c8c8d8", bg: "#181828", positive: true  },
-  { label: "-20 Points", color: "#fb923c", bg: "#2a1200", positive: false },
-  { label: "3rd Place",  color: "#d946ef", bg: "#2a0535", positive: true  },
-  { label: "-30 Points", color: "#ef4444", bg: "#2a0404", positive: false },
-  { label: "+50 Points", color: "#22c55e", bg: "#042010", positive: true  },
-  { label: "Last Place", color: "#dc2626", bg: "#200202", positive: false },
+  { label: "1st Place",  color: "#1a1200", bg: "#F5C842", positive: true  },
+  { label: "-10 Points", color: "#ffffff", bg: "#DC2626", positive: false },
+  { label: "2nd Place",  color: "#1a1a2e", bg: "#A8B4D8", positive: true  },
+  { label: "-20 Points", color: "#1a0e00", bg: "#FB923C", positive: false },
+  { label: "3rd Place",  color: "#2a0535", bg: "#E879F9", positive: true  },
+  { label: "-30 Points", color: "#ffffff", bg: "#B91C1C", positive: false },
+  { label: "+50 Points", color: "#042010", bg: "#4ADE80", positive: true  },
+  { label: "Last Place", color: "#ffffff", bg: "#991B1B", positive: false },
 ];
 
 const SEG_H = 120;
@@ -281,7 +281,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full" }: S
     </div>
   );
 
-  const REEL_H = size === "compact" ? 160 : 360;
+  const REEL_H = size === "compact" ? 160 : 480;
 
   return (
     <div style={{ background: "#07030f", borderRadius: 16, border: "2px solid #7a107e", overflow: "hidden", position: "relative", width: "100%" }}>
@@ -298,7 +298,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full" }: S
             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 60, background: "linear-gradient(to top, #06040f, transparent)", zIndex: 4, pointerEvents: "none" }} />
             <div ref={reelRefs[i]} style={{ position: "absolute", width: "100%", top: 0, display: "flex", flexDirection: "column" }}>
               {STRIP.map((s, j) => (
-                <div key={j} style={{ height: SEG_H, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size === "compact" ? "clamp(10px,1.5vw,16px)" : "clamp(14px,2vw,26px)", letterSpacing: 2, textAlign: "center", padding: "0 8px", lineHeight: 1.2, color: s.color, background: s.bg, fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                <div key={j} style={{ height: SEG_H, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size === "compact" ? "clamp(10px,1.5vw,16px)" : "clamp(18px,2.6vw,34px)", letterSpacing: 2, textAlign: "center", padding: "0 8px", lineHeight: 1.2, color: s.color, background: s.bg, fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                   {s.label}
                 </div>
               ))}

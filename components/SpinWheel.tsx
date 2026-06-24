@@ -15,10 +15,10 @@ const DEFAULT_SEGS: WheelSegment[] = [
 ];
 
 const TEAM_PALETTE: { bg: string; accent: string; text: string }[] = [
-  { bg:"#1A0A2E", accent:"#BE26C1", text:"#fff" },
-  { bg:"#0D0820", accent:"#7C3AED", text:"#fff" },
-  { bg:"#150818", accent:"#A855F7", text:"#fff" },
-  { bg:"#200A1A", accent:"#E050E3", text:"#fff" },
+  { bg:"#BE26C1", accent:"#FF6EFF", text:"#fff" },
+  { bg:"#7C3AED", accent:"#C4A2FF", text:"#fff" },
+  { bg:"#0EA5E9", accent:"#7DD3FC", text:"#fff" },
+  { bg:"#E0309F", accent:"#FFA6E0", text:"#fff" },
 ];
 
 export function buildTeamSegments(teamNames: string[]): WheelSegment[] {
@@ -86,7 +86,7 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
       const segCY = CY + (i - frac) * SH;
       if (segCY < dy - SH || segCY > dy + DH + SH) continue;
       const norm = Math.min(Math.abs(segCY - CY) / (DH/2), 1);
-      const shade = 1 - norm * 0.72;
+      const shade = 1 - norm * 0.45;
       const segTop = segCY - SH/2, segBot = segCY + SH/2;
       const cTop = Math.max(segTop, dy), cBot = Math.min(segBot, dy+DH);
       if (cTop >= cBot) continue;

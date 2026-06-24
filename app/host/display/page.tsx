@@ -50,6 +50,8 @@ function DisplayScreenInner() {
   const [pinInput, setPinInput] = useState("");
   const [connected, setConnected] = useState(false);
   const [sessionPin, setSessionPin] = useState("");
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState("");
   const [fastestTeam, setFastestTeam] = useState<string|null>(null);
   const [fastestSong, setFastestSong] = useState<string|null>(null);
   const [hardDeckTeam, setHardDeckTeam] = useState<string|null>(null);
@@ -321,10 +323,29 @@ function DisplayScreenInner() {
   }
 
   async function connect() {
-    if (pinInput.length !== 4) return;
+    if (pinInput.length !== 4 || connecting) return;
+    setConnecting(true);
+    setConnectError("");
     const supabase = createSupabaseBrowserClient();
-    const { data } = await supabase.from("sessions").select("*").eq("pin", pinInput).single();
-    if (!data) { alert("Session not found"); return; }
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000));
+    let data;
+    try {
+      const result = await Promise.race([
+        supabase.from("sessions").select("*").eq("pin", pinInput).single(),
+        timeoutPromise,
+      ]) as { data: Record<string, unknown> | null };
+      data = result.data;
+    } catch {
+      setConnecting(false);
+      setConnectError("Connection timed out - check wifi and try again");
+      return;
+    }
+    if (!data) {
+      setConnecting(false);
+      setConnectError("Session not found - check the PIN");
+      return;
+    }
+    setConnecting(false);
     setSessionPin(pinInput);
     setConnected(true);
     applySession(data);
@@ -345,13 +366,31 @@ function DisplayScreenInner() {
   }
 
   useEffect(() => {
+    if (!connected || !sessionPin) return;
+    const supabase = createSupabaseBrowserClient();
+    const poll = setInterval(async () => {
+      const { data } = await supabase.from("sessions").select("*").eq("pin", sessionPin).single();
+      if (data) applySession(data);
+    }, 2000);
+    return () => clearInterval(poll);
+  }, [connected, sessionPin]);
+
+  useEffect(() => {
     const pinFromUrl = searchParams.get("pin");
     if (pinFromUrl && pinFromUrl.length === 4 && !autoConnectedRef.current) {
       autoConnectedRef.current = true;
       setPinInput(pinFromUrl);
+      setConnecting(true);
       const supabase = createSupabaseBrowserClient();
-      supabase.from("sessions").select("*").eq("pin", pinFromUrl).single().then(({ data }) => {
-        if (!data) return;
+      const tryAutoConnect = (attempt: number) => {
+        supabase.from("sessions").select("*").eq("pin", pinFromUrl).single().then(({ data }) => {
+        if (!data) {
+          if (attempt < 3) { setTimeout(() => tryAutoConnect(attempt + 1), 2000); return; }
+          setConnecting(false);
+          setConnectError("Could not connect - check wifi and reload");
+          return;
+        }
+        setConnecting(false);
         setSessionPin(pinFromUrl);
         setConnected(true);
         applySession(data);
@@ -370,7 +409,9 @@ function DisplayScreenInner() {
             triggerCardFlash(c.team_name, c.card_type);
           })
           .subscribe();
-      });
+        });
+      };
+      tryAutoConnect(0);
     }
   }, [searchParams]);
   if (!connected) {
@@ -382,6 +423,8 @@ function DisplayScreenInner() {
           <input value={pinInput} onChange={e => setPinInput(e.target.value.replace(/\D/g,"").slice(0,4))}
             onKeyDown={e => e.key==="Enter" && connect()} placeholder="PIN" maxLength={4}
             style={{ width:"100%", padding:"16px", borderRadius:12, background:"rgba(255,255,255,0.1)", color:"#fff", border:"2px solid rgba(190,38,193,0.6)", fontSize:40, fontFamily:"monospace", textAlign:"center", letterSpacing:12, outline:"none", marginBottom:16, boxSizing:"border-box" }} />
+          {connecting && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:14, marginBottom:12 }}>Connecting...</div>}
+          {connectError && <div style={{ color:"#ef4444", fontSize:13, marginBottom:12 }}>{connectError}</div>}
           <button onClick={connect} disabled={pinInput.length!==4}
             style={{ width:"100%", padding:14, borderRadius:12, background:pinInput.length===4?purple:"#333", color:"#fff", border:"none", fontSize:20, letterSpacing:3, cursor:pinInput.length===4?"pointer":"not-allowed", fontFamily:font }}>
             Connect

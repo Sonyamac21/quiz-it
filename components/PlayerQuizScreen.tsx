@@ -357,21 +357,33 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     }, 1000);
   }
 
-  async function submitAnswer(answer: string) {
+  async function submitAnswer(answer: string, retryCount = 0) {
     if (submitted || !answer.trim()) return;
     if (timeLeft !== null && timeLeft <= -2) {
       setError("Time's up! No more answers accepted for this question.");
       setTimeout(() => setError(""), 2500);
       return;
     }
+    // Optimistically show locked-in, but verify the write actually succeeded -
+    // on flaky venue wifi the insert can silently fail while the UI still says "locked in".
     setSubmitted(true);
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("answers").insert({
+    const { error } = await supabase.from("answers").insert({
       session_pin: sessionPin,
       team_name: teamName,
       question_index: questionIndex,
       answer_text: answer.trim(),
     });
+    if (error) {
+      if (retryCount < 2) {
+        // Quick silent retry first (covers brief connection blips)
+        setTimeout(() => { setSubmitted(false); submitAnswer(answer, retryCount + 1); }, 800);
+      } else {
+        setSubmitted(false);
+        setError("Connection issue - your answer didn't save. Please try again.");
+        setTimeout(() => setError(""), 4000);
+      }
+    }
   }
 
   async function submitHardDeckGuess(guess: "higher" | "lower") {

@@ -230,6 +230,12 @@ function QuizControllerInner() {
     const { data } = await supabase.from("answers").select("*").eq("session_pin", pin).eq("question_index", idx).order("submitted_at", { ascending: true });
     if (data) setAnswers(data);
   }
+  // Safety-net polling in case a realtime answer INSERT event is missed
+  useEffect(() => {
+    if (!sessionPin || (hostPhase !== "question" && hostPhase !== "answer")) return;
+    const interval = setInterval(() => { loadAnswers(sessionPin, qIdx); }, 2500);
+    return () => clearInterval(interval);
+  }, [sessionPin, qIdx, hostPhase]);
 
   async function loadUnoCards(pin?: string) {
     const supabase = createSupabaseBrowserClient();

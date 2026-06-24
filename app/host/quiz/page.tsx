@@ -802,7 +802,7 @@ function QuizControllerInner() {
         <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)", letterSpacing:2, marginRight:4 }}>SCOREBOARD:</span>
         <button onClick={pushScoreboardToHandsets} style={{ padding:"5px 14px", borderRadius:6, background:"rgba(56,189,248,0.2)", border:"1px solid rgba(56,189,248,0.5)", color:"#38bdf8", fontSize:11, cursor:"pointer" }}>Send to Handsets</button>
         <button onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen} style={{ padding:"5px 14px", borderRadius:6, background:showScoreboard?"rgba(34,197,94,0.3)":"rgba(190,38,193,0.3)", border:"1px solid "+(showScoreboard?"#22c55e":"#BE26C1"), color:showScoreboard?"#22c55e":"#fff", fontSize:11, cursor:"pointer" }}>{showScoreboard ? "Hide from Screen" : "Show on Screen"}</button>
-        <button onClick={doEndOfQuiz} style={{ padding:"5px 14px", borderRadius:6, background:"rgba(251,191,36,0.2)", border:"1px solid rgba(251,191,36,0.5)", color:"#fbbf24", fontSize:11, cursor:"pointer", marginLeft:"auto" }}>End of Quiz Reveal</button>
+        <button onClick={doEndOfQuiz} style={{ padding:"10px 20px", borderRadius:8, background:"rgba(251,191,36,0.25)", border:"2px solid #fbbf24", color:"#fbbf24", fontSize:14, fontWeight:700, letterSpacing:1, cursor:"pointer", marginLeft:"auto", boxShadow:"0 0 16px rgba(251,191,36,0.3)" }}>{"\u{1F3C1}"} End Quiz</button>
       </div>
 
       {/* MAIN CONTENT */}

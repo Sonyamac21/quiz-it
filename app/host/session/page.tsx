@@ -186,7 +186,7 @@ export default function SessionPage() {
       {!pin && (
         <div style={{ textAlign: "center", marginTop: 80 }}>
           <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 12, letterSpacing: 4, color: "#fff" }}>Ready to start?</div>
-          <div style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", marginBottom: 40, lineHeight: 1.6 }}>Create a session to get your PIN.<br/>Teams join at quiz-it-six.vercel.app/join</div>
+          <div style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", marginBottom: 40, lineHeight: 1.6 }}>Create a session to get your PIN.<br/>Teams join at {typeof window !== "undefined" ? window.location.host : "quiz-it.macentertainmentuae.com"}/join</div>
           <button onClick={createSession} disabled={creating} style={{ padding: "18px 56px", borderRadius: 12, background: "#BE26C1", color: "#fff", border: "none", fontSize: 20, letterSpacing: 4, cursor: "pointer", boxShadow: "0 0 30px rgba(190,38,193,0.5)" }}>
             {creating ? "Creating..." : "Create Session"}
           </button>
@@ -196,7 +196,7 @@ export default function SessionPage() {
       {pin && (
         <div>
           <div style={{ background: "rgba(45,10,94,0.7)", border: "2px solid #BE26C1", borderRadius: 16, padding: 28, marginBottom: 24, textAlign: "center", boxShadow: "0 0 40px rgba(190,38,193,0.3)" }}>
-            <div style={{ fontSize: 15, letterSpacing: 3, color: "rgba(255,255,255,0.8)", marginBottom: 10 }}>TEAMS JOIN AT quiz-it-six.vercel.app/join WITH PIN</div>
+            <div style={{ fontSize: 15, letterSpacing: 3, color: "rgba(255,255,255,0.8)", marginBottom: 10 }}>TEAMS JOIN AT {typeof window !== "undefined" ? window.location.host : "quiz-it.macentertainmentuae.com"}/join WITH PIN</div>
             <div style={{ fontSize: 96, fontWeight: 700, letterSpacing: 20, color: "#fff", textShadow: "0 0 40px rgba(190,38,193,0.9)", fontFamily: "monospace", lineHeight: 1 }}>{pin}</div>
             <div style={{ marginTop: 16, fontSize: 16, color: "rgba(255,255,255,0.7)" }}>
               Status: <span style={{ color: status === "waiting" ? "#fbbf24" : status === "active" ? "#22c55e" : "#ef4444", fontWeight: 700, fontSize: 18 }}>{status.toUpperCase()}</span>

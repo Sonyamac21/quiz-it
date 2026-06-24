@@ -28,11 +28,19 @@ const typeBg: Record<string,string> = { multiple_choice:"#1e1040", text_answer:"
 const typeColor: Record<string,string> = { multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6" };
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence" };
 
+const ROUND_LAUNCHER_TYPES: { key: string; label: string; color: string; bg: string }[] = [
+  { key: "regular",   label: "General Knowledge", color: "#3b82f6", bg: "rgba(59,130,246,0.16)" },
+  { key: "bonus",     label: "Bonus / Themed",     color: "#a78bfa", bg: "rgba(167,139,250,0.16)" },
+  { key: "music",     label: "Music",              color: "#fb923c", bg: "rgba(251,146,60,0.16)" },
+  { key: "multi_tap", label: "Multi Tap",          color: "#22c55e", bg: "rgba(34,197,94,0.16)" },
+];
+
 export default function RoundsPage() {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
   const [openRound, setOpenRound] = useState<Round | null>(null);
   const [status, setStatus] = useState("");
+  const [cardSelections, setCardSelections] = useState<Record<string,string>>({});
 
   useEffect(() => { loadRounds(); }, []);
 
@@ -49,6 +57,26 @@ export default function RoundsPage() {
     await supabase.from("rounds").delete().eq("id", id);
     setRounds(prev => prev.filter(r => r.id !== id));
     if (openRound?.id === id) setOpenRound(null);
+    setCardSelections(prev => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) if (next[k] === id) delete next[k];
+      return next;
+    });
+  }
+
+  async function duplicateRound(round: Round) {
+    const supabase = createSupabaseBrowserClient();
+    const { data, error } = await supabase.from("rounds").insert({
+      name: round.name + " (Copy)",
+      round_type: round.round_type,
+      difficulty: round.difficulty,
+      questions: round.questions,
+    }).select().single();
+    if (!error && data) {
+      setRounds(prev => [data, ...prev]);
+      setStatus("Round duplicated!");
+      setTimeout(() => setStatus(""), 2000);
+    }
   }
 
   async function sendToBank(roundId: string, qIdx: number) {
@@ -88,18 +116,73 @@ export default function RoundsPage() {
       {loading && <p style={{ textAlign:"center", color:"#666" }}>Loading rounds...</p>}
       {!loading && rounds.length === 0 && <p style={{ textAlign:"center", color:"#666" }}>No rounds saved yet. Generate your first round!</p>}
 
-      {!openRound && rounds.map(r => (
-        <div key={r.id} style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.25)", borderRadius:12, padding:16, marginBottom:12 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>{r.name}</div>
-              <div style={{ fontSize:12, color:"#666" }}>{r.questions?.length || 0} questions · {r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
-            </div>
-            <button onClick={() => setOpenRound(r)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", background:"transparent", color:"#BE26C1", cursor:"pointer", fontSize:12 }}>View</button>
-            <button onClick={() => deleteRound(r.id)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:12 }}>Delete</button>
-          </div>
+      {!openRound && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))", gap:16, marginBottom:24 }}>
+          {ROUND_LAUNCHER_TYPES.map(rt => {
+            const roundsOfType = rounds.filter(r => r.round_type === rt.key);
+            const selectedId = cardSelections[rt.key] || "";
+            const selectedRound = roundsOfType.find(r => r.id === selectedId) || null;
+            return (
+              <div key={rt.key} style={{ background: rt.bg, border: "2px solid " + rt.color, borderRadius: 14, padding: 16 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: rt.color, letterSpacing: 1, marginBottom: 10 }}>{rt.label}</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <select
+                    value={selectedId}
+                    onChange={e => {
+                      const id = e.target.value;
+                      setCardSelections(prev => ({ ...prev, [rt.key]: id }));
+                      const found = roundsOfType.find(r => r.id === id);
+                      if (found) setOpenRound(found);
+                    }}
+                    style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(255,255,255,0.2)", fontSize: 13, minWidth: 0 }}
+                  >
+                    <option value="">-- select round --</option>
+                    {roundsOfType.map(r => (
+                      <option key={r.id} value={r.id}>{r.name} ({r.questions?.length || 0}q)</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!selectedRound}
+                    onClick={() => selectedRound && duplicateRound(selectedRound)}
+                    title="Duplicate selected round"
+                    style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.06)", color: selectedRound ? "#fff" : "rgba(255,255,255,0.3)", cursor: selectedRound ? "pointer" : "not-allowed", fontSize: 14 }}
+                  >⧉</button>
+                  <button
+                    type="button"
+                    disabled={!selectedRound}
+                    onClick={() => selectedRound && deleteRound(selectedRound.id)}
+                    title="Delete selected round"
+                    style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.06)", color: selectedRound ? "#fff" : "rgba(255,255,255,0.3)", cursor: selectedRound ? "pointer" : "not-allowed", fontSize: 14 }}
+                  >🗑</button>
+                </div>
+                {roundsOfType.length === 0 && (
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 8 }}>No {rt.label.toLowerCase()} rounds saved yet</div>
+                )}
+              </div>
+            );
+          })}
         </div>
-      ))}
+      )}
+
+      {!openRound && rounds.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 12, letterSpacing: 2, color: "rgba(190,38,193,0.6)", marginBottom: 10 }}>ALL ROUNDS</div>
+          {rounds.map(r => (
+            <div key={r.id} style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.25)", borderRadius:12, padding:16, marginBottom:12 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>{r.name}</div>
+                  <div style={{ fontSize:12, color:"#666" }}>{r.questions?.length || 0} questions · {r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
+                </div>
+                <button onClick={() => setOpenRound(r)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", background:"transparent", color:"#BE26C1", cursor:"pointer", fontSize:12 }}>View</button>
+                <button onClick={() => duplicateRound(r)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #333", background:"transparent", color:"#aaa", cursor:"pointer", fontSize:12 }}>Duplicate</button>
+                <button onClick={() => deleteRound(r.id)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:12 }}>Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {openRound && (
         <div>

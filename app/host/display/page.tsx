@@ -95,6 +95,7 @@ function DisplayScreenInner() {
   const cardFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const victorySongRef = useRef<HTMLAudioElement|null>(null);
   const clappingRef = useRef<HTMLAudioElement|null>(null);
+  const quizEndCrowdRef = useRef<HTMLAudioElement|null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
   const flashRef = useRef<ReturnType<typeof setInterval>|null>(null);
 
@@ -121,13 +122,40 @@ function DisplayScreenInner() {
       const winner = sorted[sorted.length - 1];
       if (winner) {
         const winnerTeam = teams.find(t => t.team_name === winner.team_name);
-        if (winnerTeam?.victory_song) {
-          setTimeout(() => {
-            const song = new Audio("/sounds/" + encodeURIComponent(winnerTeam.victory_song!) + ".mp3");
+        setTimeout(() => {
+          // Same horn/cheer/victory-song celebration sequence used in Spin to Win (SlotReels.tsx)
+          const crowd = new Audio("/sounds/crowd-cheer.mp3");
+          crowd.volume = 0.9;
+          crowd.play().catch(() => {});
+          quizEndCrowdRef.current = crowd;
+
+          if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
+          if (winnerTeam?.victory_song) {
+            const song = new Audio("/sounds/" + encodeURIComponent(winnerTeam.victory_song) + ".mp3");
             song.volume = 0.85;
             song.play().catch(() => {});
-          }, 1200);
-        }
+            victorySongRef.current = song;
+          }
+
+          // Quiz is finished after this - fade the crowd cheer out, then stop everything
+          setTimeout(() => {
+            if (quizEndCrowdRef.current) {
+              const crowdEl = quizEndCrowdRef.current;
+              const fadeInterval = setInterval(() => {
+                if (crowdEl && crowdEl.volume > 0.05) {
+                  crowdEl.volume = Math.max(0, crowdEl.volume - 0.05);
+                } else {
+                  crowdEl.pause();
+                  clearInterval(fadeInterval);
+                  if (quizEndCrowdRef.current === crowdEl) quizEndCrowdRef.current = null;
+                }
+              }, 200);
+            }
+            setTimeout(() => {
+              if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
+            }, 14000);
+          }, 4000);
+        }, 1200);
       }
     }
   }
@@ -224,6 +252,8 @@ function DisplayScreenInner() {
         setRevealedCount(0);
         setTrophyVisible(false);
         stopClapping();
+        if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
+        if (quizEndCrowdRef.current) { quizEndCrowdRef.current.pause(); quizEndCrowdRef.current = null; }
         const clap = new Audio("/sounds/clapping-scores.mp3");
         clap.volume = 0.5;
         clap.loop = true;

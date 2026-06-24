@@ -16,15 +16,18 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
   const purple = "#BE26C1";
   const font = "'Bruno Ace SC', sans-serif";
 
+  // Text mode has 5 rows of keys (full A-Z) vs number mode's 1 row, so it needs to
+  // scale down on shorter screens (e.g. iPhone SE) to avoid pushing Submit off-screen.
+  const isCompact = mode === "text";
   const keyStyle = {
     flex: 1,
     minWidth: 0,
-    padding: "22px 0",
+    padding: isCompact ? "clamp(8px, 1.6vh, 18px) 0" : "clamp(14px, 2.6vh, 22px) 0",
     borderRadius: 12,
     background: "rgba(255,255,255,0.08)",
     border: "1px solid rgba(255,255,255,0.15)",
     color: "#fff",
-    fontSize: 24,
+    fontSize: isCompact ? "clamp(14px, 2.6vh, 22px)" : "clamp(18px, 3.2vh, 24px)",
     fontWeight: 700 as const,
     fontFamily: font,
     cursor: "pointer",
@@ -42,10 +45,10 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
   return (
     <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
       <div style={{
-        padding: "14px 16px", borderRadius: 12,
+        padding: isCompact ? "10px 14px" : "14px 16px", borderRadius: 12,
         background: "rgba(255,255,255,0.06)", border: "1.5px solid " + purple,
-        minHeight: 50, display: "flex", alignItems: "center",
-        fontSize: 20, fontFamily: font, color: "#fff", letterSpacing: 2,
+        minHeight: isCompact ? 38 : 50, display: "flex", alignItems: "center",
+        fontSize: isCompact ? 17 : 20, fontFamily: font, color: "#fff", letterSpacing: 2,
         wordBreak: "break-word" as const,
       }}>
         {value || <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>Tap letters to answer...</span>}
@@ -61,9 +64,9 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
           ))}
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column" as const, gap: 5 }}>
           {ROWS.map((row, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <div key={i} style={{ display: "flex", gap: 5, justifyContent: "center" }}>
               {row.map(letter => (
                 <button key={letter} type="button" onClick={() => addChar(letter)}
                   style={{ ...keyStyle, background: pressedKey === letter ? purple : keyStyle.background, transform: pressedKey === letter ? "scale(0.92)" : "scale(1)", transition: "all 0.1s" }}>
@@ -78,10 +81,10 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
       {mode === "text" && (
         <button type="button" onClick={() => addChar(" ")}
           style={{
-            width: "100%", padding: "18px 0", borderRadius: 12,
+            width: "100%", padding: "clamp(8px, 1.6vh, 16px) 0", borderRadius: 12,
             background: pressedKey === " " ? purple : "rgba(190,38,193,0.18)",
             border: "1.5px solid " + purple,
-            color: "#fff", fontSize: 16, fontWeight: 700 as const, fontFamily: font, letterSpacing: 4,
+            color: "#fff", fontSize: 14, fontWeight: 700 as const, fontFamily: font, letterSpacing: 4,
             cursor: "pointer", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent",
             transform: pressedKey === " " ? "scale(0.97)" : "scale(1)", transition: "all 0.1s",
           }}>
@@ -91,11 +94,11 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
 
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
         <button type="button" onClick={backspace} disabled={!value}
-          style={{ flex: 1, padding: "18px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: value ? "#fff" : "rgba(255,255,255,0.3)", fontSize: 16, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
+          style={{ flex: 1, padding: isCompact ? "clamp(10px, 1.8vh, 18px)" : "18px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: value ? "#fff" : "rgba(255,255,255,0.3)", fontSize: 15, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
           {"\u232B"} DELETE
         </button>
         <button type="button" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}
-          style={{ flex: 2, padding: "18px", borderRadius: 10, background: value.trim() ? purple : "#1a1a2e", color: value.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: "none", fontSize: 17, fontFamily: font, letterSpacing: 2, cursor: value.trim() ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
+          style={{ flex: 2, padding: isCompact ? "clamp(10px, 1.8vh, 18px)" : "18px", borderRadius: 10, background: value.trim() ? purple : "#1a1a2e", color: value.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: "none", fontSize: 16, fontFamily: font, letterSpacing: 2, cursor: value.trim() ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
           SUBMIT
         </button>
       </div>

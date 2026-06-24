@@ -89,12 +89,21 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
   teamName: string; sessionPin: string;
 }) {
   const [imageDismissed, setImageDismissed] = React.useState(false);
+  const [imageFailed, setImageFailed] = React.useState(false);
 
   if (!imageDismissed) {
     return (
       <div onClick={() => setImageDismissed(true)}
         style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative", padding:16 }}>
-        <img src={imageUrl} alt="Quiz" style={{ maxWidth:"100%", maxHeight:"75vh", borderRadius:16, objectFit:"contain", boxShadow:"0 0 40px rgba(190,38,193,0.3)" }} />
+        {!imageFailed ? (
+          <img src={imageUrl} alt="Quiz" onError={() => setImageFailed(true)} style={{ maxWidth:"100%", maxHeight:"75vh", borderRadius:16, objectFit:"contain", boxShadow:"0 0 40px rgba(190,38,193,0.3)" }} />
+        ) : (
+          <div style={{ width:"80%", maxWidth:340, padding:"40px 24px", borderRadius:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", textAlign:"center" as const }}>
+            <div style={{ fontSize:36, marginBottom:12 }}>🖼️</div>
+            <div style={{ fontSize:14, color:"rgba(255,255,255,0.6)", fontFamily:font }}>Image could not be loaded</div>
+            <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)", marginTop:6, fontFamily:font }}>Listen for the host to read the question</div>
+          </div>
+        )}
         <div style={{ marginTop:20, fontSize:13, color:"rgba(255,255,255,0.4)", letterSpacing:2, fontFamily:font }}>TAP TO ANSWER</div>
         {timeLeft !== null && timeLeft > 0 && (
           <div style={{ position:"absolute", top:20, right:20, width:44, height:44, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"2px solid "+(timeLeft<=3?"#ef4444":purple), display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:800, color:timeLeft<=3?"#ef4444":purple, fontFamily:font }}>
@@ -115,7 +124,14 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
           </div>
         )}
       </div>
-      <img src={imageUrl} alt="Quiz" style={{ width:"100%", maxHeight:"35vh", objectFit:"contain", borderRadius:12, marginBottom:16 }} />
+      {!imageFailed ? (
+        <img src={imageUrl} alt="Quiz" onError={() => setImageFailed(true)} style={{ width:"100%", maxHeight:"35vh", objectFit:"contain", borderRadius:12, marginBottom:16 }} />
+      ) : (
+        <div style={{ width:"100%", padding:"24px 16px", borderRadius:12, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", textAlign:"center" as const, marginBottom:16 }}>
+          <div style={{ fontSize:28, marginBottom:8 }}>🖼️</div>
+          <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", fontFamily:font }}>Image could not be loaded — listen for the host</div>
+        </div>
+      )}
       <div style={{ fontSize:16, fontWeight:700, lineHeight:1.4, marginBottom:16, color:"#fff" }}>{questionText}</div>
       {!submitted ? (
         <AnswerKeypad mode="text" onSubmit={onSubmit} />

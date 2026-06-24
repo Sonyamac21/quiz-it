@@ -106,6 +106,7 @@ function DisplayScreenInner() {
 
   // Track picture sub-phase: "image_only" -> "question_visible"
   const [pictureSubPhase, setPictureSubPhase] = useState<"image_only"|"question_visible">("image_only");
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const [answeredTeams, setAnsweredTeams] = useState<string[]>([]);
   const [showAnsweredTeams, setShowAnsweredTeams] = useState(false);
 
@@ -225,6 +226,7 @@ function DisplayScreenInner() {
       const q = data.current_question as {question_type?: string} | null;
       if (q?.question_type === "picture") {
         setPictureSubPhase("image_only");
+        setImageLoadFailed(false);
       }
       setShowAnsweredTeams(false);
       setAnsweredTeams([]);
@@ -687,7 +689,13 @@ function DisplayScreenInner() {
       return (
         <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, position:"relative" }}>
           <div style={{ position:"absolute", top:20, right:30, fontSize:18, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Q{questionIndex+1} - Quiz-It</div>
-          <img src={imageUrl} alt="Quiz image" style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:16, objectFit:"contain", boxShadow:"0 0 60px rgba(190,38,193,0.3)" }} />
+          <img src={imageUrl} alt="Quiz image" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; setImageLoadFailed(true); }} style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:16, objectFit:"contain", boxShadow:"0 0 60px rgba(190,38,193,0.3)", display: imageLoadFailed ? "none" : "block" }} />
+          {imageLoadFailed && (
+            <div style={{ padding:"60px 80px", borderRadius:20, background:"rgba(255,255,255,0.06)", border:"2px solid rgba(255,255,255,0.15)", textAlign:"center" }}>
+              <div style={{ fontSize:48, marginBottom:16 }}>🖼️</div>
+              <div style={{ fontSize:22, color:"rgba(255,255,255,0.5)" }}>Image could not be loaded</div>
+            </div>
+          )}
           <div style={{ position:"absolute", bottom:24, left:0, right:0, textAlign:"center", fontSize:16, color:"rgba(255,255,255,0.2)", letterSpacing:3 }}>PICTURE ROUND</div>
         </div>
       );
@@ -709,7 +717,14 @@ function DisplayScreenInner() {
           <div style={{ flex:1, display:"grid", gridTemplateColumns:"1fr 1fr", gap:0 }}>
             {imageUrl && (
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:32, borderRight:"1px solid rgba(190,38,193,0.2)" }}>
-                <img src={imageUrl} alt="Quiz image" style={{ maxWidth:"100%", maxHeight:"70vh", borderRadius:12, objectFit:"contain" }} />
+                {!imageLoadFailed ? (
+                  <img src={imageUrl} alt="Quiz image" onError={() => setImageLoadFailed(true)} style={{ maxWidth:"100%", maxHeight:"70vh", borderRadius:12, objectFit:"contain" }} />
+                ) : (
+                  <div style={{ padding:"40px 60px", borderRadius:16, background:"rgba(255,255,255,0.06)", border:"2px solid rgba(255,255,255,0.15)", textAlign:"center" as const }}>
+                    <div style={{ fontSize:40, marginBottom:12 }}>🖼️</div>
+                    <div style={{ fontSize:18, color:"rgba(255,255,255,0.5)" }}>Image could not be loaded</div>
+                  </div>
+                )}
               </div>
             )}
             <div style={{ display:"flex", flexDirection:"column", justifyContent:"center", padding:48 }}>

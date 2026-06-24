@@ -210,8 +210,19 @@ export default function QuestionsPage() {
       const topic = theme || shuffledTopics[(i + good.length) % shuffledTopics.length];
       setStatus("Generating question " + (good.length + 1) + " of " + count + "...");
       attempts++;
+      lastApiErrorRef.current = "";
       const q = await generateOne(type, topic);
-      if (!q) { i++; continue; }
+      if (!q) {
+        // An API-level error (bad key, rate limit, etc) won't be fixed by retrying -
+        // fail fast with the real reason instead of silently burning through up to
+        // count*8 attempts and leaving the host staring at "Generating..." forever.
+        if (lastApiErrorRef.current) {
+          setStatus("Generation failed: " + lastApiErrorRef.current);
+          setLoading(false);
+          return;
+        }
+        i++; continue;
+      }
       setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
       const check = await checkQuestion(q);
       const normalisedNew = q.question_text.toLowerCase().trim();

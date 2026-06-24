@@ -475,7 +475,12 @@ function QuizControllerInner() {
         if (choice === "spin" && !spinTriggeredRef.current) {
           spinTriggeredRef.current = true;
           const winIdx = Math.floor(Math.random() * 8);
-          createSupabaseBrowserClient().from("sessions").update({ phase: "spin_to_win", spin_target_idx: winIdx }).eq("id", sessionId);
+          // Use pin (already verified above) rather than sessionId, which can be a stale
+          // closure value if this listener was set up before sessionId finished loading -
+          // that stale value was silently breaking the spin_to_win transition.
+          createSupabaseBrowserClient().from("sessions").update({ phase: "spin_to_win", spin_target_idx: winIdx }).eq("pin", pin).then(({ error }) => {
+            if (error) console.error("Failed to start Spin to Win:", error);
+          });
         }
       })
       .subscribe();
@@ -643,6 +648,7 @@ function QuizControllerInner() {
   }
 
   async function doDumpQuestion() {
+    if (!confirm("Permanently remove this question from the round? This can't be undone.")) return;
     if (!selectedRound || !sessionId) return;
     const updated = { ...selectedRound, questions: selectedRound.questions.filter((_, i) => i !== qIdx) };
     setSelectedRound(updated);
@@ -981,10 +987,12 @@ function QuizControllerInner() {
                   style={{ padding:"10px 20px", borderRadius:8, background:"rgba(251,191,36,0.2)", border:"1px solid rgba(251,191,36,0.5)", color:"#fbbf24", cursor:"pointer", fontSize:13 }}>
                   Celebrate
                 </button>
-                <button onClick={doDumpQuestion}
-                  style={{ padding:"10px 20px", borderRadius:8, background:"rgba(239,68,68,0.2)", border:"1px solid rgba(239,68,68,0.5)", color:"#ef4444", cursor:"pointer", fontSize:13 }}>
+                <div style={{ width:1, height:24, background:"rgba(255,255,255,0.15)", margin:"0 6px" }} />
+                <button onClick={doDumpQuestion} title="Permanently remove this question from the round"
+                  style={{ padding:"8px 14px", borderRadius:8, background:"transparent", border:"1px solid rgba(239,68,68,0.35)", color:"rgba(239,68,68,0.7)", cursor:"pointer", fontSize:11 }}>
                   Dump Q
                 </button>
+                <div style={{ width:1, height:24, background:"rgba(255,255,255,0.15)", margin:"0 6px" }} />
                 {isLastQ ? (
                   <button onClick={doEndRound}
                     style={{ padding:"10px 20px", borderRadius:8, background:"rgba(248,113,113,0.3)", border:"1px solid #f87171", color:"#f87171", cursor:"pointer", fontSize:13, marginLeft:"auto" }}>

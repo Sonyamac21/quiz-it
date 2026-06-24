@@ -111,6 +111,7 @@ function DisplayScreenInner() {
   }, [cardFlash]);
   const cardFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const victorySongRef = useRef<HTMLAudioElement|null>(null);
+  const celebrationPlayingForRef = useRef<string | null>(null);
   const clappingRef = useRef<HTMLAudioElement|null>(null);
   const quizEndCrowdRef = useRef<HTMLAudioElement|null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
@@ -129,6 +130,7 @@ function DisplayScreenInner() {
 
   const prevQuizEndRevealedRef = useRef<number>(0);
   const prevPhaseForQuizEndRef = useRef<string>("");
+  const trophyCelebrationFiredRef = useRef(false);
   function handleRevealNext(nextCount: number) {
     const sorted = [...quizEndScores].sort((a,b) => a.total_points - b.total_points);
     setRevealedCount(nextCount);
@@ -271,6 +273,7 @@ function DisplayScreenInner() {
         prevQuizEndRevealedRef.current = 0;
         setRevealedCount(0);
         setTrophyVisible(false);
+        trophyCelebrationFiredRef.current = false;
         stopClapping();
         if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
         if (quizEndCrowdRef.current) { quizEndCrowdRef.current.pause(); quizEndCrowdRef.current = null; }
@@ -283,21 +286,74 @@ function DisplayScreenInner() {
         prevQuizEndRevealedRef.current = syncedCount;
         handleRevealNext(syncedCount);
       }
-      if (syncedTrophy) setTrophyVisible(true);
+      if (syncedTrophy) {
+        setTrophyVisible(true);
+        // Safety net: the trophy podium showing means the quiz is finished -
+        // guarantee clapping stops and the winner celebration fires here too,
+        // even if the per-team reveal count didn't land exactly on the last team.
+        stopClapping();
+        if (!trophyCelebrationFiredRef.current) {
+          trophyCelebrationFiredRef.current = true;
+          const sorted = [...scores].sort((a,b) => a.total_points - b.total_points);
+          const winner = sorted[sorted.length - 1];
+          const winnerTeam = winner ? teams.find(t => t.team_name === winner.team_name) : null;
+          playSound("airhorn.mp3", 1.0);
+          const crowd = new Audio("/sounds/crowd-cheer.mp3");
+          crowd.volume = 0.9;
+          crowd.play().catch(() => {});
+          quizEndCrowdRef.current = crowd;
+          if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
+          if (winnerTeam?.victory_song) {
+            const song = new Audio("/sounds/" + encodeURIComponent(winnerTeam.victory_song) + ".mp3");
+            song.volume = 0.85;
+            song.play().catch(() => {});
+            victorySongRef.current = song;
+          }
+          setTimeout(() => {
+            if (quizEndCrowdRef.current) {
+              const crowdEl = quizEndCrowdRef.current;
+              const fadeInterval = setInterval(() => {
+                if (crowdEl && crowdEl.volume > 0.05) {
+                  crowdEl.volume = Math.max(0, crowdEl.volume - 0.05);
+                } else {
+                  crowdEl.pause();
+                  clearInterval(fadeInterval);
+                  if (quizEndCrowdRef.current === crowdEl) quizEndCrowdRef.current = null;
+                }
+              }, 200);
+            }
+            setTimeout(() => {
+              if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
+            }, 14000);
+          }, 4000);
+        }
+      }
     }
     prevPhaseForQuizEndRef.current = newPhase;
 
     if (newPhase === "celebration" && ft && fs) {
-      if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
-      const audio = new Audio("/sounds/" + encodeURIComponent(fs) + ".mp3");
-      audio.volume = 0.8;
-      audio.play().catch(() => {});
-      victorySongRef.current = audio;
-      if (flashRef.current) clearInterval(flashRef.current);
-      let f = false;
-      flashRef.current = setInterval(() => { f = !f; setFlash(f); }, 500);
-      setTimeout(() => { if (flashRef.current) clearInterval(flashRef.current); }, 15000);
+      // Only (re)start the song if this is a genuinely new celebration (different team),
+      // not just another applySession call (polling/realtime) for the same one already playing.
+      if (celebrationPlayingForRef.current !== ft) {
+        celebrationPlayingForRef.current = ft;
+        if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
+        const audio = new Audio("/sounds/" + encodeURIComponent(fs) + ".mp3");
+        audio.volume = 0.8;
+        audio.play().catch(() => {});
+        victorySongRef.current = audio;
+        if (flashRef.current) clearInterval(flashRef.current);
+        let f = false;
+        flashRef.current = setInterval(() => { f = !f; setFlash(f); }, 500);
+        setTimeout(() => { if (flashRef.current) clearInterval(flashRef.current); }, 15000);
+      }
     } else {
+      // Left celebration (e.g. moved to Spin to Win, Hard Deck, next question) -
+      // make sure nothing keeps playing in the background.
+      if (celebrationPlayingForRef.current !== null) {
+        celebrationPlayingForRef.current = null;
+        if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
+        if (flashRef.current) { clearInterval(flashRef.current); flashRef.current = null; }
+      }
       setFlash(false);
     }
 

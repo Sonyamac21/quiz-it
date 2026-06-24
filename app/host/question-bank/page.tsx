@@ -29,6 +29,7 @@ export default function QuestionBankPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
 
   useEffect(() => { loadAll(); }, []);
 
@@ -65,7 +66,11 @@ export default function QuestionBankPage() {
     setTimeout(() => setStatus(""), 2000);
   }
 
-  const filtered = filter === "all" ? questions : questions.filter(q => q.question_type === filter);
+  const byType = filter === "all" ? questions : questions.filter(q => q.question_type === filter);
+  const filtered = search.trim().length < 2 ? byType : byType.filter(q => {
+    const haystack = (q.question_text + " " + (q.topic || "") + " " + q.correct_answer).toLowerCase();
+    return haystack.includes(search.trim().toLowerCase());
+  });
 
   return (
     <div style={{ minHeight:"100vh", background:"#07030f", color:"#fff", padding:"24px", fontFamily:"sans-serif", maxWidth:"960px", margin:"0 auto" }}>
@@ -81,6 +86,14 @@ export default function QuestionBankPage() {
 
       {status && <p style={{ textAlign:"center", color:"#22c55e", fontSize:13, marginBottom:16 }}>{status}</p>}
 
+      <input
+        type="text"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="Type here to search (2 or more characters)..."
+        style={{ width:"100%", padding:"12px 16px", borderRadius:10, background:"#0d0520", border:"1px solid rgba(190,38,193,0.3)", color:"#fff", fontSize:14, marginBottom:14, boxSizing:"border-box" as const }}
+      />
+
       <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
         {["all","multiple_choice","text_answer","number","sequence"].map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{ padding:"6px 14px", borderRadius:999, border:"1px solid rgba(190,38,193,0.3)", background:filter===f?"#BE26C1":"transparent", color:"#fff", cursor:"pointer", fontSize:12 }}>
@@ -90,7 +103,11 @@ export default function QuestionBankPage() {
       </div>
 
       {loading && <p style={{ textAlign:"center", color:"#666" }}>Loading...</p>}
-      {!loading && filtered.length === 0 && <p style={{ textAlign:"center", color:"#666" }}>No questions in the bank yet.</p>}
+      {!loading && filtered.length === 0 && (
+        <p style={{ textAlign:"center", color:"#666" }}>
+          {search.trim().length >= 2 ? "No questions match your search." : "No questions in the bank yet."}
+        </p>
+      )}
 
       {filtered.map(q => (
         <div key={q.id} style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.2)", borderRadius:12, padding:16, marginBottom:10 }}>

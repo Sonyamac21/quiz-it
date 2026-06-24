@@ -249,7 +249,13 @@ export default function QuestionsPage() {
     const needed = count - current.length;
     if (needed <= 0) return;
     setStatus("Topping up " + needed + " question(s)...");
-    const types = ["multiple_choice","text_answer","number","sequence"];
+    // Must match the same round-type-aware type selection used in generate() -
+    // otherwise Music/Multi Tap rounds get topped up with generic mixed question
+    // types instead of the correct format for that round.
+    const types =
+      roundType === "music" ? ["audio"] :
+      roundType === "multi_tap" ? ["multi_tap"] :
+      ["multiple_choice","text_answer","number","sequence"];
     const topicList = [...TOPICS].sort(() => Math.random() - 0.5);
     const added: Question[] = [];
     let attempts = 0;

@@ -25,9 +25,15 @@ type SlotReelsProps = {
   teamName: string;
   victorySong?: string;
   size?: "full" | "compact";
+  // Unique per-spin identity (e.g. a timestamp). Without this, two different spins
+  // landing on the same segment by coincidence (1-in-8 odds each time) would look
+  // identical to this component, so the second spin would silently never trigger -
+  // leaving that screen stuck showing the previous spin's stale result while other
+  // screens correctly animate and announce the new one.
+  spinNonce?: number | string | null;
 };
 
-export function SlotReels({ targetIdx, teamName, victorySong, size = "full" }: SlotReelsProps) {
+export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spinNonce }: SlotReelsProps) {
   const r0 = useRef<HTMLDivElement>(null);
   const r1 = useRef<HTMLDivElement>(null);
   const r2 = useRef<HTMLDivElement>(null);
@@ -41,7 +47,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full" }: S
   const fwCanvasRef = useRef<HTMLCanvasElement>(null);
   const crowdRef = useRef<HTMLAudioElement | null>(null);
   const spinAudioElRef = useRef<HTMLAudioElement | null>(null);
-  const lastHandledTarget = useRef<number | null>(null);
+  const lastHandledTarget = useRef<number | string | null>(null);
 
   const INITIAL_CENTRE = Math.floor(STRIP_LEN / 2);
   const INITIAL_TOP = -(INITIAL_CENTRE - 1) * SEG_H;
@@ -207,8 +213,9 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full" }: S
 
   useEffect(() => {
     if (targetIdx === null || targetIdx === undefined) return;
-    if (lastHandledTarget.current === targetIdx) return;
-    lastHandledTarget.current = targetIdx;
+    const spinKey = spinNonce ?? targetIdx;
+    if (lastHandledTarget.current === spinKey) return;
+    lastHandledTarget.current = spinKey;
 
     setOverlay(null);
     setSpinning(true);
@@ -255,7 +262,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full" }: S
       );
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetIdx]);
+  }, [targetIdx, spinNonce]);
 
   const BC = size === "compact" ? 10 : 20;
   const bulbColor = (i: number) => {

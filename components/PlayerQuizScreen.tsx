@@ -190,6 +190,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [showScoreboardOnPhone, setShowScoreboardOnPhone] = useState(false);
   const [phoneScoreboardData, setPhoneScoreboardData] = useState<{team_name:string; total_points:number}[]>([]);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
+  const [spinNonce, setSpinNonce] = useState<number | null>(null);
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
   const [spinOffered, setSpinOffered] = useState(false);
@@ -271,7 +272,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, spin_offered, spin_choice, spin_target_idx, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data")
+        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -323,6 +324,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setShowScoreboardOnPhone(!!data.show_scoreboard);
     setPhoneScoreboardData((data.scoreboard_data as {team_name:string; total_points:number}[]) || []);
     setSpinTargetIdx((data.spin_target_idx as number) ?? null);
+    setSpinNonce((data.spin_nonce as number) ?? null);
     setBlockUntil((data.block_until as string) || null);
     setBlockTeam((data.block_team as string) || null);
     setHardDeckTeam((data.hard_deck_team as string) || null);
@@ -476,7 +478,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         {/* Every player sees their own synced mini wheel - not just the spinning team -
             so remote players who can't see the venue display still see the result live. */}
         <div style={{ width: "100%" }}>
-          <SlotReels targetIdx={spinTargetIdx} teamName={fastestTeamName || teamName} victorySong={isWinner ? (fastestSongName || undefined) : undefined} size="compact" />
+          <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeamName || teamName} victorySong={isWinner ? (fastestSongName || undefined) : undefined} size="compact" />
         </div>
       </div>
     );

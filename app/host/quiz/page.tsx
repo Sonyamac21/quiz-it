@@ -112,6 +112,7 @@ function QuizControllerInner() {
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
+  const [spinNonce, setSpinNonce] = useState<number | null>(null);
   const [decisionMade, setDecisionMade] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
@@ -480,6 +481,7 @@ function QuizControllerInner() {
         const choice = (s.spin_choice as string) || null;
         setSpinChoice(choice);
         setSpinTargetIdx((s.spin_target_idx as number) ?? null);
+        setSpinNonce((s.spin_nonce as number) ?? null);
         setSpinOffered(!!s.spin_offered);
         if (choice === "spin" && !spinTriggeredRef.current) {
           spinTriggeredRef.current = true;
@@ -487,7 +489,7 @@ function QuizControllerInner() {
           // Use pin (already verified above) rather than sessionId, which can be a stale
           // closure value if this listener was set up before sessionId finished loading -
           // that stale value was silently breaking the spin_to_win transition.
-          createSupabaseBrowserClient().from("sessions").update({ phase: "spin_to_win", spin_target_idx: winIdx }).eq("pin", pin).then(({ error }) => {
+          createSupabaseBrowserClient().from("sessions").update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: Date.now() }).eq("pin", pin).then(({ error }) => {
             if (error) console.error("Failed to start Spin to Win:", error);
           });
         }
@@ -883,7 +885,7 @@ function QuizControllerInner() {
                   {spinChoice === "spin" && (
                     <>
                       <div style={{ width:"100%", maxWidth:420, margin:"0 auto 16px" }}>
-                        <SlotReels targetIdx={spinTargetIdx} teamName={fastestTeam || "Team"} size="compact" />
+                        <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeam || "Team"} size="compact" />
                       </div>
                       <button onClick={() => { if (isLastQ) doEndRound(); else doPreviewQuestion(qIdx + 1); }} style={{ padding:"10px 24px", borderRadius:10, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", marginBottom:24 }}>Continue ▶</button>
                     </>

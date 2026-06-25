@@ -74,6 +74,7 @@ function DisplayScreenInner() {
   const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
   const [spinTargetIdx, setSpinTargetIdx] = useState<number|null>(null);
+  const [spinNonce, setSpinNonce] = useState<number | null>(null);
   const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
   useEffect(() => {
     const styleEl = document.createElement("style");
@@ -236,6 +237,7 @@ function DisplayScreenInner() {
     setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
     setIntermissionOtherQuizzes((data.intermission_other_quizzes as string) || "");
     setSpinTargetIdx((data.spin_target_idx as number) ?? null);
+    setSpinNonce((data.spin_nonce as number) ?? null);
 
     if (newPhase === "scoreboard") {
       setScoreboardData((data.scoreboard_data as Score[]) || []);
@@ -606,7 +608,7 @@ function DisplayScreenInner() {
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, padding:40 }}>
         <div style={{ width:"100%", maxWidth:900 }}>
-          <SlotReels targetIdx={spinTargetIdx} teamName={fastestTeam || "Team"} victorySong={fastestSong || undefined} size="full" />
+          <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeam || "Team"} victorySong={fastestSong || undefined} size="full" />
         </div>
       </div>
     );

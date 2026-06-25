@@ -442,7 +442,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
 
   const PowerCards = () => (
-    <div style={{ position: "sticky" as const, bottom: 0, marginTop: "auto", paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
+    <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
       <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} compact={true} />
     </div>
   );
@@ -754,7 +754,11 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     ].filter(o => o.text) as { key: string; text: string }[];
 
     return (
-      <div style={{ minHeight: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const }}>
+      <div style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
+        {/* Only this inner area scrolls if content is too tall for the screen -
+            the page itself never scrolls, and Power Cards (outside this div)
+            always stays visible no matter what. */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
           <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
           {timeLeft !== null && timeLeft > 0 && (
@@ -837,7 +841,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Waiting for host...</div>
           </div>
         )}
-
+        </div>
         <PowerCards />
       </div>
     );

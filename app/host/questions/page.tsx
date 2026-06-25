@@ -32,6 +32,20 @@ const typeBg: Record<string,string> = { multi_tap:"#002a1a", multiple_choice:"#1
 const typeColor: Record<string,string> = { multi_tap:"#4ade80", multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6", picture:"#38bdf8", audio:"#fb923c" };
 const typeLabel: Record<string,string> = { multi_tap:"Multi Tap", multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune" };
 
+// array.sort(() => Math.random() - 0.5) is a well-known broken shuffle - V8's sort
+// is stable/insertion-sort-based for small arrays, so a random comparator barely
+// moves elements and tends to leave them close to their original order. This was
+// why correct answers kept landing on the same early letters (A/B/C) across
+// generated questions instead of being evenly distributed. Proper Fisher-Yates:
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export default function QuestionsPage() {
   const [roundType, setRoundType] = useState("regular");
   const [difficulty, setDifficulty] = useState("mixed");
@@ -189,6 +203,25 @@ export default function QuestionsPage() {
           if (hit) { q.option_b = hit.largeImageURL || hit.webformatURL; } else { return null; }
         } catch { return null; }
       }
+      if (q && q.question_type === "multiple_choice") {
+        // AI models have a well-known bias toward placing the correct multiple
+        // choice answer in C - without this shuffle, correct answers cluster
+        // heavily on one letter across a generated round instead of being evenly
+        // distributed, which is an obvious "tell" for players.
+        const letters = ["a", "b", "c", "d"];
+        const items = letters.map(l => q["option_" + l]);
+        const correctLetter = (q.correct_answer || "").trim().toLowerCase();
+        const correctIndex = letters.indexOf(correctLetter);
+        const shuffledLetters = shuffle(letters);
+        const newOptions: Record<string, unknown> = {};
+        let newCorrect = correctLetter;
+        shuffledLetters.forEach((destL, i) => {
+          newOptions[destL] = items[i];
+          if (i === correctIndex) newCorrect = destL;
+        });
+        letters.forEach(l => { q["option_" + l] = newOptions[l]; });
+        q.correct_answer = newCorrect;
+      }
       if (q && q.question_type === "sequence") {
         const letters = ["a", "b", "c", "d"];
         // items[i] is the item that truly belongs at position i (1st, 2nd, 3rd, 4th) -
@@ -196,7 +229,7 @@ export default function QuestionsPage() {
         const items = letters.map(l => q["option_" + l]);
         // shuffledLetters[i] = which slot will hold the item that truly belongs at
         // position i. Reading the options in this letter order gives the true sequence.
-        const shuffledLetters = [...letters].sort(() => Math.random() - 0.5);
+        const shuffledLetters = shuffle(letters);
         const newOptions: Record<string, unknown> = {};
         shuffledLetters.forEach((slot, i) => { newOptions[slot] = items[i]; });
         letters.forEach(l => { q["option_" + l] = newOptions[l]; });
@@ -208,7 +241,7 @@ export default function QuestionsPage() {
         const correctLetters = (q.correct_answer || "").split(",").map((s: string) => s.trim().toLowerCase());
         const usedLetters = letters.slice(0, items.length);
         const wasCorrect = usedLetters.map(l => correctLetters.includes(l));
-        const shuffledLetters = [...usedLetters].sort(() => Math.random() - 0.5);
+        const shuffledLetters = shuffle(usedLetters);
         const newOptions: Record<string, unknown> = {};
         const newCorrect: string[] = [];
         usedLetters.forEach((_origL, i) => {
@@ -242,16 +275,16 @@ export default function QuestionsPage() {
       const seqCount = Math.round(count * 0.10);
       const picCount = Math.round(count * 0.20);
       const audCount = count - mcCount - taCount - numCount - seqCount - picCount;
-      types = [
+      types = shuffle([
         ...Array(mcCount).fill("multiple_choice"),
         ...Array(taCount).fill("text_answer"),
         ...Array(numCount).fill("number"),
         ...Array(seqCount).fill("sequence"),
         ...Array(Math.max(0,picCount)).fill("picture"),
         ...Array(Math.max(0,audCount)).fill("audio"),
-      ].sort(() => Math.random() - 0.5);
+      ]);
     }
-    const shuffledTopics = [...TOPICS].sort(() => Math.random() - 0.5);
+    const shuffledTopics = shuffle(TOPICS);
     const good: Question[] = [];
     let attempts = 0;
     const maxAttempts = count * 6;
@@ -319,7 +352,7 @@ export default function QuestionsPage() {
     usedRef.current = [...usedRef.current, removed.question_text];
     setQuestions(prev => prev.filter((_,idx) => idx !== i));
     setStatus("Finding replacement...");
-    const topicList = [...TOPICS].sort(() => Math.random() - 0.5);
+    const topicList = shuffle(TOPICS);
     let replaced = false;
     for (let attempt = 0; attempt < 10 && !replaced; attempt++) {
       const replaceTopic = theme || topicList[attempt % topicList.length];
@@ -349,7 +382,7 @@ export default function QuestionsPage() {
       roundType === "music" ? ["audio"] :
       roundType === "multi_tap" ? ["multi_tap"] :
       ["multiple_choice","text_answer","number","sequence"];
-    const topicList = [...TOPICS].sort(() => Math.random() - 0.5);
+    const topicList = shuffle(TOPICS);
     const added: Question[] = [];
     let attempts = 0;
     while (added.length < needed && attempts < needed * 6) {

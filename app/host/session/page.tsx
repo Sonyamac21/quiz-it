@@ -21,6 +21,9 @@ export default function SessionPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [status, setStatus] = useState<"waiting" | "active" | "finished">("waiting");
   const [creating, setCreating] = useState(false);
+  const [reconnectPin, setReconnectPin] = useState("");
+  const [reconnectError, setReconnectError] = useState("");
+  const [reconnecting, setReconnecting] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [restoringHost, setRestoringHost] = useState(true);
   const [intermissionOffers, setIntermissionOffers] = useState("");
@@ -148,6 +151,32 @@ export default function SessionPage() {
     window.location.href = "/host/quiz?pin=" + pin;
   }
 
+  async function reconnectToSession() {
+    if (reconnectPin.trim().length !== 4 || reconnecting) return;
+    setReconnecting(true);
+    setReconnectError("");
+    const supabase = createSupabaseBrowserClient();
+    const { data, error } = await supabase.from("sessions").select("*").eq("pin", reconnectPin.trim()).single();
+    if (error || !data) {
+      setReconnecting(false);
+      setReconnectError("No session found with that PIN.");
+      return;
+    }
+    setPin(data.pin);
+    setSessionId(data.id);
+    localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify({ pin: data.pin, sessionId: data.id, savedAt: Date.now() }));
+    setStatus(data.status);
+    setIntermissionOffers(data.intermission_offers || "");
+    setIntermissionWhatsapp(data.intermission_whatsapp || "");
+    setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
+    setVenueName(data.venue_name || "");
+    setVenueLogoUrl(data.venue_logo_url || null);
+    const { data: teamData } = await supabase.from("teams").select("*").eq("session_pin", data.pin).order("created_at", { ascending: true });
+    if (teamData) setTeams(teamData);
+    setReconnecting(false);
+    setReconnectPin("");
+  }
+
   async function endQuiz() {
     if (!sessionId) return;
     const supabase = createSupabaseBrowserClient();
@@ -199,6 +228,28 @@ export default function SessionPage() {
           <button onClick={createSession} disabled={creating} style={{ padding: "18px 56px", borderRadius: 12, background: "#BE26C1", color: "#fff", border: "none", fontSize: 20, letterSpacing: 4, cursor: "pointer", boxShadow: "0 0 30px rgba(190,38,193,0.5)" }}>
             {creating ? "Creating..." : "Create Session"}
           </button>
+
+          <div style={{ marginTop: 48, paddingTop: 32, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+            <div style={{ fontSize: 13, letterSpacing: 2, color: "rgba(255,255,255,0.4)", marginBottom: 12 }}>ALREADY HAVE A SESSION RUNNING?</div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              <input
+                value={reconnectPin}
+                onChange={e => setReconnectPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                onKeyDown={e => e.key === "Enter" && reconnectToSession()}
+                placeholder="PIN"
+                maxLength={4}
+                style={{ width: 140, padding: "12px 16px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(190,38,193,0.4)", color: "#fff", fontSize: 22, fontFamily: "monospace", textAlign: "center", letterSpacing: 6 }}
+              />
+              <button
+                onClick={reconnectToSession}
+                disabled={reconnectPin.length !== 4 || reconnecting}
+                style={{ padding: "12px 24px", borderRadius: 10, background: reconnectPin.length === 4 ? "rgba(190,38,193,0.25)" : "rgba(255,255,255,0.05)", border: "1px solid rgba(190,38,193,0.4)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: reconnectPin.length === 4 ? "pointer" : "not-allowed" }}
+              >
+                {reconnecting ? "Reconnecting..." : "Reconnect"}
+              </button>
+            </div>
+            {reconnectError && <div style={{ marginTop: 10, fontSize: 13, color: "#ef4444" }}>{reconnectError}</div>}
+          </div>
         </div>
       )}
 

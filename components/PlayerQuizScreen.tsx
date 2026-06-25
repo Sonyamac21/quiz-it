@@ -197,6 +197,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [hardDeckPotential, setHardDeckPotential] = useState(0);
   const [hardDeckCards, setHardDeckCards] = useState<{rank:number; suit:string}[]>([]);
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<string>("waiting");
   const [allTeamNames, setAllTeamNames] = useState<string[]>([]);
   const [intermissionOffers, setIntermissionOffers] = useState("");
   const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
@@ -270,7 +271,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, spin_offered, spin_choice, spin_target_idx, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data")
+        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, spin_offered, spin_choice, spin_target_idx, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -308,6 +309,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }, [sessionPin]);
 
   function applySessionData(data: Record<string, unknown>) {
+    setSessionStatus((data.status as string) || "waiting");
     const newPhase = (data.phase as Phase) || "waiting";
     const newQ = data.current_question as Question | null;
     const newIdx = (data.current_question_index as number) ?? 0;
@@ -476,6 +478,14 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         <div style={{ width: "100%" }}>
           <SlotReels targetIdx={spinTargetIdx} teamName={fastestTeamName || teamName} victorySong={isWinner ? (fastestSongName || undefined) : undefined} size="compact" />
         </div>
+      </div>
+    );
+  }
+  if (sessionStatus === "finished") {
+    return (
+      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font, color: "#fff" }}>
+        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: 2 }}>QUIZ HAS ENDED</div>
+        <div style={{ fontSize: 15, color: "rgba(255,255,255,0.6)" }}>Thanks for playing!</div>
       </div>
     );
   }

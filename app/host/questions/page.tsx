@@ -130,7 +130,7 @@ export default function QuestionsPage() {
       multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
       text_answer: "text_answer: short word or phrase answer, all options must be null",
       number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
-      sequence: "sequence: 4 items in correct order in option_a/b/c/d, correct_answer must be exactly \"a,b,c,d\"",
+      sequence: "sequence: 4 items that have a definite correct chronological/logical order, written into option_a/b/c/d in that correct order. correct_answer must be exactly \"a,b,c,d\" (the order will be randomized programmatically afterward, so always write them in true correct order here).",
       picture: "picture: question_text must say \"Show teams this image:\" then describe what to search for. The subject MUST be one of: a famous landmark or building, an animal or species, a national flag, a well-known food or dish, a company/brand logo, or a sports venue/stadium. Do NOT use famous people, movie stills, album covers, TV characters, or any copyrighted artwork or photography - these will not be found on stock photo sites. option_a must be a short, generic Google Images search query (3-5 words) likely to return real stock photography, e.g. \"Eiffel Tower Paris\" or \"red panda animal\" or \"Italian flag\" rather than a specific named individual or scene. option_b/c/d must be null. correct_answer is what teams write down.",
       audio: "audio: question_text must say \"Play this track:\" then the song name and artist. option_a must be a YouTube search query to find it (e.g. \"Bohemian Rhapsody Queen official\"). option_b/c/d must be null. correct_answer is what teams must write down.",
     };
@@ -167,6 +167,36 @@ export default function QuestionsPage() {
           const hit = pixData?.hits?.[0];
           if (hit) { q.option_b = hit.largeImageURL || hit.webformatURL; } else { return null; }
         } catch { return null; }
+      }
+      if (q && q.question_type === "sequence") {
+        const letters = ["a", "b", "c", "d"];
+        // items[i] is the item that truly belongs at position i (1st, 2nd, 3rd, 4th) -
+        // the AI always writes these in true correct order per the prompt above.
+        const items = letters.map(l => q["option_" + l]);
+        // shuffledLetters[i] = which slot will hold the item that truly belongs at
+        // position i. Reading the options in this letter order gives the true sequence.
+        const shuffledLetters = [...letters].sort(() => Math.random() - 0.5);
+        const newOptions: Record<string, unknown> = {};
+        shuffledLetters.forEach((slot, i) => { newOptions[slot] = items[i]; });
+        letters.forEach(l => { q["option_" + l] = newOptions[l]; });
+        q.correct_answer = shuffledLetters.join(",");
+      }
+      if (q && q.question_type === "multi_tap") {
+        const letters = ["a", "b", "c", "d", "e", "f"];
+        const items = letters.map(l => q["option_" + l]).filter((t: unknown) => t !== null && t !== undefined && t !== "");
+        const correctLetters = (q.correct_answer || "").split(",").map((s: string) => s.trim().toLowerCase());
+        const usedLetters = letters.slice(0, items.length);
+        const wasCorrect = usedLetters.map(l => correctLetters.includes(l));
+        const shuffledLetters = [...usedLetters].sort(() => Math.random() - 0.5);
+        const newOptions: Record<string, unknown> = {};
+        const newCorrect: string[] = [];
+        usedLetters.forEach((_origL, i) => {
+          const destL = shuffledLetters[i];
+          newOptions[destL] = items[i];
+          if (wasCorrect[i]) newCorrect.push(destL);
+        });
+        letters.forEach(l => { q["option_" + l] = newOptions[l] ?? null; });
+        q.correct_answer = newCorrect.sort().join(",");
       }
       return q;
     } catch (e) {

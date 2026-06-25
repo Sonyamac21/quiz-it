@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
-import { SlotReels } from "@/components/SlotReels";
+import { SlotReels, SLOT_SEGS } from "@/components/SlotReels";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HardDeckPanel } from "@/components/HardDeckPanel";
@@ -106,6 +106,7 @@ function QuizControllerInner() {
   const [pinInput, setPinInput] = useState("");
   const [timeLeft, setTimeLeft] = useState(30);
   const [fastestTeam, setFastestTeam] = useState<string|null>(null);
+  const fastestTeamRef = useRef<string | null>(null);
   const [fastestSong, setFastestSong] = useState<string|null>(null);
   const [spinToWinOpen, setSpinToWinOpen] = useState(false);
   const [spinUsed, setSpinUsed] = useState(false);
@@ -492,6 +493,10 @@ function QuizControllerInner() {
           createSupabaseBrowserClient().from("sessions").update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: Date.now() }).eq("pin", pin).then(({ error }) => {
             if (error) console.error("Failed to start Spin to Win:", error);
           });
+          if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current);
+          setTimeout(() => {
+            createSupabaseBrowserClient().from("sessions").update({ phase: "waiting" }).eq("pin", pin);
+          }, 20000);
         }
       })
       .subscribe();
@@ -542,7 +547,7 @@ function QuizControllerInner() {
     stopTickAudio();
     setQIdx(0);
     setAnswers([]);
-    setFastestTeam(null);
+    setFastestTeam(null); fastestTeamRef.current = null;
     setFastestSong(null);
     setTimeLeft(timerDuration);
     setHostPhase("round_start");
@@ -556,7 +561,7 @@ function QuizControllerInner() {
     if (!selectedRound || !sessionId) return;
     setQIdx(idx);
     setAnswers([]);
-    setFastestTeam(null);
+    setFastestTeam(null); fastestTeamRef.current = null;
     setFastestSong(null);
     setTimeLeft(timerDuration);
     setHostPhase("preview");
@@ -622,7 +627,7 @@ function QuizControllerInner() {
     const team = teams.find(t => t.team_name === fastestTeamName);
     const song = team?.victory_song || null;
     const fastestPoints = fastestTeamName ? (lastDeltasRef.current[fastestTeamName] ?? 0) : 0;
-    setFastestTeam(fastestTeamName);
+    setFastestTeam(fastestTeamName); fastestTeamRef.current = fastestTeamName;
     setFastestSong(song);
     setSpinUsed(false);
     setSpinOffered(false);
@@ -632,6 +637,35 @@ function QuizControllerInner() {
     const supabase = createSupabaseBrowserClient();
     await supabase.from("sessions").update({ phase: "celebration", fastest_team: fastestTeamName, fastest_song: song, fastest_points: fastestPoints, spin_used: false, spin_offered: false, spin_choice: null }).eq("id", sessionId);
     // Victory song now plays only on the display screen to avoid duplicate/echoing audio
+  }
+
+  async function applySpinResult(winIdx: number, teamName: string) {
+    const supabase = createSupabaseBrowserClient();
+    const { data: allScores } = await supabase.from("scores").select("team_name, total_points, round_points").eq("session_pin", sessionPin);
+    if (!allScores) return;
+    const others = allScores.filter(s => s.team_name !== teamName).sort((a, b) => b.total_points - a.total_points);
+    const mine = allScores.find(s => s.team_name === teamName);
+    const myTotal = mine?.total_points ?? 0;
+    const myRound = mine?.round_points ?? 0;
+    const label = SLOT_SEGS[winIdx]?.label;
+    let newTotal = myTotal;
+    // Numeric outcomes are a straightforward add/subtract, floored at 0.
+    if (label === "+50 Points") newTotal = myTotal + 50;
+    else if (label === "-10 Points") newTotal = Math.max(0, myTotal - 10);
+    else if (label === "-20 Points") newTotal = Math.max(0, myTotal - 20);
+    else if (label === "-30 Points") newTotal = Math.max(0, myTotal - 30);
+    // Rank outcomes slot the team in 1 point above/below whoever currently holds
+    // the position next to that rank, so they land exactly on it.
+    else if (label === "1st Place") newTotal = (others[0]?.total_points ?? 0) + 1;
+    else if (label === "2nd Place") newTotal = others.length >= 2 ? others[1].total_points + 1 : Math.max(0, (others[0]?.total_points ?? 1) - 1);
+    else if (label === "3rd Place") newTotal = others.length >= 3 ? others[2].total_points + 1 : Math.max(0, (others[others.length - 1]?.total_points ?? 1) - 1);
+    else if (label === "Last Place") newTotal = Math.max(0, (others[others.length - 1]?.total_points ?? 1) - 1);
+    const delta = newTotal - myTotal;
+    if (delta === 0) return;
+    await supabase.from("scores").upsert(
+      { session_pin: sessionPin, team_name: teamName, total_points: newTotal, round_points: myRound + delta, updated_at: new Date().toISOString() },
+      { onConflict: "session_pin,team_name" }
+    );
   }
 
   async function doOfferSpinToWin() {

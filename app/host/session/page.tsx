@@ -38,6 +38,15 @@ export default function SessionPage() {
         if (!saved) { setRestoringHost(false); return; }
         const parsed = JSON.parse(saved);
         if (!parsed?.pin || !parsed?.sessionId) { setRestoringHost(false); return; }
+        // Same staleness guard as the player join page - a quiz night is a bounded
+        // event, so don't silently restore a session from hours/days ago just
+        // because nobody explicitly marked it "finished".
+        const MAX_HOST_SESSION_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours
+        if (!parsed.savedAt || (Date.now() - parsed.savedAt) > MAX_HOST_SESSION_AGE_MS) {
+          localStorage.removeItem(HOST_STORAGE_KEY);
+          setRestoringHost(false);
+          return;
+        }
         const supabase = createSupabaseBrowserClient();
         const { data } = await supabase.from("sessions").select("*").eq("id", parsed.sessionId).single();
         if (data && data.status !== "finished") {
@@ -106,7 +115,7 @@ export default function SessionPage() {
     if (!error && data) {
       setPin(newPin);
       setSessionId(data.id);
-      localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify({ pin: newPin, sessionId: data.id }));
+      localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify({ pin: newPin, sessionId: data.id, savedAt: Date.now() }));
       setTeams([]);
       setStatus("waiting");
       setIntermissionOffers(data.intermission_offers || "");

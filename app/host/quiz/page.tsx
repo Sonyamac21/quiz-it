@@ -355,7 +355,13 @@ function QuizControllerInner() {
         const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
         const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
         const wrongTaps = tappedKeys.filter(k => !correctKeys.includes(k));
-        let mtBasePts = correctTaps.length * pointsPerQ;
+        // Credit teams for every correct call, not just correct taps - leaving a
+        // wrong option untapped is just as much a correct identification as tapping
+        // a right one, so it should score the same.
+        const allOptionKeys = (["a","b","c","d","e","f"] as const).filter(k => !!(q as Record<string, unknown>)["option_" + k]);
+        const wrongOptionKeys = allOptionKeys.filter(k => !correctKeys.includes(k));
+        const correctNonTaps = wrongOptionKeys.filter(k => !tappedKeys.includes(k));
+        let mtBasePts = (correctTaps.length + correctNonTaps.length) * pointsPerQ;
         if (wipeoutMode && qIdx >= 5 && wrongTaps.length > 0) mtBasePts = 0;
         const mtTimeBonus = rankBonus[team.team_name] ?? 0;
         const mtDelta = (mtBasePts + mtTimeBonus) * (hasBoost(team.team_name) ? 2 : 1);

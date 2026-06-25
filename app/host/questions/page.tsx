@@ -146,7 +146,14 @@ export default function QuestionsPage() {
     const prompt = "You are a professional pub quiz writer. Your audience is English-speaking expats who enjoy British and American pop culture. Generate exactly 1 pub quiz question. Topic: " + topic + ". Type: " + typeInstructions[type] + ". Difficulty: " + difficulty + ". Keep questions focused on UK, US and international culture. Do NOT make questions about UAE, Dubai or Arab culture unless the topic specifically requires it. Content must be safe for UAE - avoid alcohol, pork, sexual references, religion, LGBTQ+ topics or references, and politically sensitive Middle East topics." + varietyNote + exclusionNote + " Include a brief explanation of the answer (1-2 sentences) in the explanation field. Return ONLY a valid JSON array with 1 item, no markdown: [{\"question_text\":\"...\",\"question_type\":\"" + type + "\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"option_e\":\"...\",\"option_f\":\"...\",\"correct_answer\":\"...\",\"explanation\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + roundType + "\"}]";
     try {
       const text = await callAPI(prompt);
-      const q = JSON.parse(text)[0];
+      let q;
+      try {
+        q = JSON.parse(text)[0];
+      } catch {
+        // TEMPORARY DIAGNOSTIC - surface the actual raw text that failed to parse
+        // so we can see exactly what Claude returned instead of guessing blind.
+        throw new Error("JSON parse failed. Raw text (first 500 chars): " + text.slice(0, 500));
+      }
       if (q && q.question_type === "audio" && q.option_a) {
         try {
           const ytKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;

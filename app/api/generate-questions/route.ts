@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+// Without this, Vercel can kill the function before the Claude API call
+// finishes (default timeout is short), which terminates the process mid-flight
+// with NO chance to return a response - that's what an empty 500 with no body
+// looks like from the browser, and no try/catch inside the function can catch
+// a platform-level kill. 30s gives the Anthropic call plenty of room.
+export const maxDuration = 30;
+
 // --- very simple in-memory rate limiter ---
 // Resets on cold start and is per-instance only — a basic speed bump on
 // top of the auth check below, not a full replacement for it.

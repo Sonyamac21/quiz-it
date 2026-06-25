@@ -24,6 +24,9 @@ export default function SessionPage() {
   const [reconnectPin, setReconnectPin] = useState("");
   const [reconnectError, setReconnectError] = useState("");
   const [reconnecting, setReconnecting] = useState(false);
+  const [recentSessions, setRecentSessions] = useState<{ pin: string; status: string; created_at: string; teamCount: number }[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
+  const [showRecent, setShowRecent] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [restoringHost, setRestoringHost] = useState(true);
   const [intermissionOffers, setIntermissionOffers] = useState("");
@@ -151,6 +154,28 @@ export default function SessionPage() {
     window.location.href = "/host/quiz?pin=" + pin;
   }
 
+  async function loadRecentSessions() {
+    setLoadingRecent(true);
+    setShowRecent(true);
+    const supabase = createSupabaseBrowserClient();
+    const { data } = await supabase
+      .from("sessions")
+      .select("pin, status, created_at")
+      .neq("status", "finished")
+      .order("created_at", { ascending: false })
+      .limit(8);
+    if (data) {
+      const withCounts = await Promise.all(
+        data.map(async (s) => {
+          const { count } = await supabase.from("teams").select("*", { count: "exact", head: true }).eq("session_pin", s.pin);
+          return { pin: s.pin, status: s.status, created_at: s.created_at, teamCount: count || 0 };
+        })
+      );
+      setRecentSessions(withCounts);
+    }
+    setLoadingRecent(false);
+  }
+
   async function reconnectToSession() {
     if (reconnectPin.trim().length !== 4 || reconnecting) return;
     setReconnecting(true);
@@ -249,6 +274,31 @@ export default function SessionPage() {
               </button>
             </div>
             {reconnectError && <div style={{ marginTop: 10, fontSize: 13, color: "#ef4444" }}>{reconnectError}</div>}
+
+            {!showRecent ? (
+              <button onClick={loadRecentSessions} style={{ marginTop: 14, background: "transparent", border: "none", color: "rgba(190,38,193,0.7)", fontSize: 13, textDecoration: "underline", cursor: "pointer" }}>
+                Don't know the PIN? Show recent sessions
+              </button>
+            ) : (
+              <div style={{ marginTop: 18, textAlign: "left" as const, maxWidth: 420, margin: "18px auto 0" }}>
+                {loadingRecent ? (
+                  <div style={{ textAlign: "center" as const, fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Loading...</div>
+                ) : recentSessions.length === 0 ? (
+                  <div style={{ textAlign: "center" as const, fontSize: 13, color: "rgba(255,255,255,0.5)" }}>No recent active sessions found.</div>
+                ) : (
+                  recentSessions.map(s => (
+                    <button
+                      key={s.pin}
+                      onClick={() => { setReconnectPin(s.pin); reconnectToSession(); }}
+                      style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", marginBottom: 6, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(190,38,193,0.25)", color: "#fff", cursor: "pointer", fontSize: 13 }}
+                    >
+                      <span style={{ fontFamily: "monospace", fontSize: 16, letterSpacing: 2 }}>{s.pin}</span>
+                      <span style={{ color: "rgba(255,255,255,0.5)" }}>{s.teamCount} team{s.teamCount === 1 ? "" : "s"} &middot; {s.status} &middot; {new Date(s.created_at).toLocaleString()}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -11,7 +11,7 @@ export const maxDuration = 30;
 // --- very simple in-memory rate limiter ---
 // Resets on cold start and is per-instance only — a basic speed bump on
 // top of the auth check below, not a full replacement for it.
-const RATE_LIMIT = 10; // max requests
+const RATE_LIMIT = 60; // max requests
 const WINDOW_MS = 60_000; // per 1 minute
 const requestLog = new Map<string, number[]>();
 

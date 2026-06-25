@@ -163,6 +163,7 @@ export default function QuestionsPage() {
         // so we can see exactly what Claude returned instead of guessing blind.
         throw new Error("JSON parse failed. Raw text (first 500 chars): " + text.slice(0, 500));
       }
+      if (q) { q.question_type = type; }
       if (q && q.question_type === "audio" && q.option_a) {
         try {
           const ytKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;

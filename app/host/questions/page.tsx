@@ -247,10 +247,16 @@ export default function QuestionsPage() {
       lastApiErrorRef.current = "";
       const q = await generateOne(type, topic);
       if (!q) {
-        // An API-level error (bad key, rate limit, etc) won't be fixed by retrying -
-        // fail fast with the real reason instead of silently burning through up to
-        // count*8 attempts and leaving the host staring at "Generating..." forever.
-        if (lastApiErrorRef.current) {
+        // Only bail immediately for errors that retrying genuinely can't fix
+        // (missing/invalid key, not logged in, rate limited). A one-off network
+        // blip or JSON parse hiccup on a single call out of many is normal over
+        // a 10-question batch and should just retry like any other failed attempt,
+        // not abort the whole round.
+        const err = lastApiErrorRef.current.toLowerCase();
+        const isPersistent = err.includes("api_key") || err.includes("api key") || err.includes("unauthorized")
+          || err.includes("not logged in") || err.includes("authentication") || err.includes("rate limit")
+          || err.includes("too many requests");
+        if (isPersistent) {
           setStatus("Generation failed: " + lastApiErrorRef.current);
           setLoading(false);
           return;

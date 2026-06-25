@@ -37,7 +37,12 @@ export async function POST(req: NextRequest) {
   // Anthropic call is even reached, crashing the whole function with no response
   // body at all. That's the actual "Unexpected end of JSON input" the client saw.
   try {
-    const res = NextResponse.next();
+    // NextResponse.next() is only valid inside middleware - using it here in a
+    // regular API route handler throws immediately on every single call, which is
+    // why every generation attempt failed with a completely empty 500 response no
+    // matter what else we tried (timeout, token limit, etc). A plain NextResponse
+    // instance works exactly the same for attaching cookies via res.cookies.set().
+    const res = new NextResponse();
     const supabase = createSupabaseServerClient(req, res);
 
     // 1. Require a real logged-in host session. This is checked here, not

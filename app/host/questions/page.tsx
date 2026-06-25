@@ -237,32 +237,35 @@ export default function QuestionsPage() {
     const shuffledTopics = [...TOPICS].sort(() => Math.random() - 0.5);
     const good: Question[] = [];
     let attempts = 0;
-    const maxAttempts = count * 8;
+    const maxAttempts = count * 6;
     let i = 0;
+    let consecutiveFailures = 0;
     while (good.length < count && attempts < maxAttempts) {
       const type = types[i % types.length];
       const topic = theme || shuffledTopics[(i + good.length) % shuffledTopics.length];
-      setStatus("Generating question " + (good.length + 1) + " of " + count + "...");
+      setStatus("Generating question " + (good.length + 1) + " of " + count + "..." + (consecutiveFailures > 0 ? " (retry " + consecutiveFailures + ")" : ""));
       attempts++;
       lastApiErrorRef.current = "";
       const q = await generateOne(type, topic);
       if (!q) {
-        // Only bail immediately for errors that retrying genuinely can't fix
-        // (missing/invalid key, not logged in, rate limited). A one-off network
-        // blip or JSON parse hiccup on a single call out of many is normal over
-        // a 10-question batch and should just retry like any other failed attempt,
-        // not abort the whole round.
+        consecutiveFailures++;
+        // Bail for errors retrying genuinely can't fix (bad key, not logged in,
+        // rate limited) - OR after 6 failures in a row regardless of the reason,
+        // since that many consecutive failures means something systemic is wrong,
+        // not just a one-off blip, and silently grinding through 60+ attempts
+        // with zero visible feedback just looks frozen.
         const err = lastApiErrorRef.current.toLowerCase();
         const isPersistent = err.includes("api_key") || err.includes("api key") || err.includes("unauthorized")
           || err.includes("not logged in") || err.includes("authentication") || err.includes("rate limit")
-          || err.includes("too many requests");
+          || err.includes("too many requests") || consecutiveFailures >= 6;
         if (isPersistent) {
-          setStatus("Generation failed: " + lastApiErrorRef.current);
+          setStatus("Generation failed after " + consecutiveFailures + " attempts: " + (lastApiErrorRef.current || "unknown error"));
           setLoading(false);
           return;
         }
         i++; continue;
       }
+      consecutiveFailures = 0;
       setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
       const check = await checkQuestion(q);
       const normalisedNew = q.question_text.toLowerCase().trim();

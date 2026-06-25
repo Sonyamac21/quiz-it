@@ -135,7 +135,11 @@ export default function QuestionsPage() {
       audio: "audio: question_text must say \"Play this track:\" then the song name and artist. option_a must be a YouTube search query to find it (e.g. \"Bohemian Rhapsody Queen official\"). option_b/c/d must be null. correct_answer is what teams must write down.",
     };
     console.log("usedRef has", usedRef.current.length, "entries");
-    const exclusions = usedRef.current.slice(-150).map((q,i) => (i+1)+". "+q).join("; ");
+    // Cap to last 40 entries AND hard-truncate the assembled text - 150 entries
+    // was overflowing the 8000-char prompt limit after enough generation history
+    // built up, causing every generation to fail outright with "Prompt too long".
+    let exclusions = usedRef.current.slice(-40).map((q,i) => (i+1)+". "+q).join("; ");
+    if (exclusions.length > 3000) exclusions = exclusions.slice(0, 3000);
     const exclusionNote = exclusions ? " Do NOT generate any of these already-used questions: " + exclusions + "." : "";
     const angle = VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
     const varietyNote = " IMPORTANT - avoid defaulting to the single most famous, first-thought-of example for this topic (e.g. for 'Disney songs' don't always pick Let It Go or Circle of Life). Where possible, lean toward something " + angle + ". Vary your answer choices across different eras, genres, and sub-topics rather than the most obvious pick.";

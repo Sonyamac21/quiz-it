@@ -100,13 +100,22 @@ export default function QuestionsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt }),
     });
-    const data = await res.json();
+    // TEMPORARY DIAGNOSTIC - read as text first so we can see exactly what our own
+    // API route actually returned, instead of res.json() crashing blind on an
+    // empty/malformed body with no visibility into why.
+    const rawText = await res.text();
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error("Our own API route returned non-JSON (status " + res.status + "). Raw body (first 500 chars): " + (rawText || "[EMPTY BODY]").slice(0, 500));
+    }
     // Anthropic returns an error object (no "content" field) on auth failures, rate
     // limits, etc. Surface the real reason instead of crashing on .filter() of
     // undefined and silently failing through every retry with no useful message.
     if (!data?.content) {
       const reason = data?.error?.message || "Unknown API error";
-      throw new Error("API error: " + reason);
+      throw new Error("API error (status " + res.status + "): " + reason);
     }
     const text = data.content.filter((b:{type:string}) => b.type==="text").map((b:{text:string}) => b.text).join("");
     return text.replace(/```json/g,"").replace(/```/g,"").trim();

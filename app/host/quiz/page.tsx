@@ -358,13 +358,12 @@ function QuizControllerInner() {
         const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
         const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
         const wrongTaps = tappedKeys.filter(k => !correctKeys.includes(k));
-        // Credit teams for every correct call, not just correct taps - leaving a
-        // wrong option untapped is just as much a correct identification as tapping
-        // a right one, so it should score the same.
-        const allOptionKeys = (["a","b","c","d","e","f"] as const).filter(k => !!(q as Record<string, unknown>)["option_" + k]);
-        const wrongOptionKeys = allOptionKeys.filter(k => !correctKeys.includes(k));
-        const correctNonTaps = wrongOptionKeys.filter(k => !tappedKeys.includes(k));
-        let mtBasePts = (correctTaps.length + correctNonTaps.length) * pointsPerQ;
+        // Per the confirmed Multi Tap spec: each correct tap scores flat host-set
+        // points, decoy/wrong taps cost nothing by default. Previously this also
+        // credited the team for every decoy left untapped, which massively
+        // over-awarded points (e.g. 2 correct + 4 decoys meant credit for 6
+        // things instead of 2) - that was never the intended scoring rule.
+        let mtBasePts = correctTaps.length * pointsPerQ;
         if (wipeoutMode && qIdx >= 5 && wrongTaps.length > 0) mtBasePts = 0;
         const mtTimeBonus = rankBonus[team.team_name] ?? 0;
         const mtDelta = (mtBasePts + mtTimeBonus) * (hasBoost(team.team_name) ? 2 : 1);

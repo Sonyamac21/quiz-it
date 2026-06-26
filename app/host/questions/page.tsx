@@ -191,6 +191,15 @@ export default function QuestionsPage() {
         } catch { return null; }
       }
       if (q && q.question_type === "picture" && q.option_a) {
+        // Hard guard, not just a prompt instruction - the AI can still ignore the
+        // "no brand logos" instruction occasionally, and Pixabay structurally
+        // cannot return trademarked logo images, so any question that slips
+        // through gets rejected here and retried as a different question rather
+        // than shipped with a guaranteed-wrong image.
+        const brandCheck = (q.question_text + " " + q.option_a).toLowerCase();
+        if (/\blogo\b|\bbrand\b|\btrademark\b/.test(brandCheck)) {
+          return null;
+        }
         try {
           const pixabayKey = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
           const pixRes = await fetch(
@@ -320,7 +329,16 @@ export default function QuestionsPage() {
       setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
       const check = await checkQuestion(q);
       const normalisedNew = q.question_text.toLowerCase().trim();
-      const isDuplicate = good.some(g => g.question_text.toLowerCase().trim() === normalisedNew) || usedRef.current.some(t => t.toLowerCase().trim() === normalisedNew);
+      const normalisedAnswerNew = (q.correct_answer || "").toLowerCase().trim();
+      // Exact question_text matching alone misses near-duplicates where the AI
+      // rewords the question each time but the underlying fact/song/answer is
+      // identical (e.g. three different phrasings all landing on "Toy Story") -
+      // also flag a match when the correct answer is identical for the same
+      // question type, since that's a strong signal it's the same fact restated.
+      const isDuplicate = good.some(g =>
+        g.question_text.toLowerCase().trim() === normalisedNew ||
+        (normalisedAnswerNew && g.question_type === q.question_type && (g.correct_answer || "").toLowerCase().trim() === normalisedAnswerNew)
+      ) || usedRef.current.some(t => t.toLowerCase().trim() === normalisedNew);
       if (check.ok && !isDuplicate) {
         good.push(q);
         usedRef.current = [...usedRef.current, q.question_text];

@@ -290,6 +290,16 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     // Polling every 500ms to keep handset in sync
     const pollInterval = setInterval(fetchSession, 500);
 
+    // Mobile browsers throttle or fully pause setInterval (and can drop the
+    // realtime websocket) while the phone screen is locked or the tab is
+    // backgrounded - a player who steps away mid-question can come back to
+    // stale state with no question visible until the next natural event. Force
+    // an immediate resync the instant the tab/page becomes visible or focused
+    // again, instead of waiting on a timer that may not have been running.
+    const onVisible = () => { if (document.visibilityState === "visible") fetchSession(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", fetchSession);
+
     const channel = supabase
       .channel("player-session-" + sessionPin)
       .on("postgres_changes", {
@@ -307,7 +317,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); clearInterval(pollInterval); };
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", fetchSession);
+    };
   }, [sessionPin]);
 
   function applySessionData(data: Record<string, unknown>) {

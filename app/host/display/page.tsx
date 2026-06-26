@@ -92,6 +92,7 @@ function DisplayScreenInner() {
   const [teams, setTeams] = useState<{ team_name: string; victory_song?: string; photo_url?: string }[]>([]);
   const [showWinnerPhoto, setShowWinnerPhoto] = useState(false);
   const winnerPhotoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const winnerPhotoStartedForRef = useRef<string | null>(null);
   const [flash, setFlash] = useState(false);
   const [roundName, setRoundName] = useState("");
   const [roundNumber, setRoundNumber] = useState(1);
@@ -231,10 +232,14 @@ function DisplayScreenInner() {
     const fs = (data.fastest_song as string) || null;
     setFastestTeam(ft);
     if (ft && newPhase === "celebration") {
-      setShowWinnerPhoto(false);
-      if (winnerPhotoTimerRef.current) clearTimeout(winnerPhotoTimerRef.current);
-      winnerPhotoTimerRef.current = setTimeout(() => setShowWinnerPhoto(true), 2000);
+      if (winnerPhotoStartedForRef.current !== ft) {
+        winnerPhotoStartedForRef.current = ft;
+        setShowWinnerPhoto(false);
+        if (winnerPhotoTimerRef.current) clearTimeout(winnerPhotoTimerRef.current);
+        winnerPhotoTimerRef.current = setTimeout(() => setShowWinnerPhoto(true), 2000);
+      }
     } else if (newPhase !== "celebration") {
+      winnerPhotoStartedForRef.current = null;
       setShowWinnerPhoto(false);
     }
     setFastestSong(fs);

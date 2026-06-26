@@ -108,11 +108,11 @@ export default function QuestionsPage() {
     usedRef.current = used;
   }
 
-  async function callAPI(prompt: string) {
+  async function callAPI(prompt: string, maxTokens: number = 8000) {
     const res = await fetch("/api/generate-questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, maxTokens }),
     });
     // TEMPORARY DIAGNOSTIC - read as text first so we can see exactly what our own
     // API route actually returned, instead of res.json() crashing blind on an
@@ -139,7 +139,7 @@ export default function QuestionsPage() {
     const allText = [q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer].filter(Boolean).join(" ");
     const prompt = "You are a content moderator for a quiz night in Dubai, UAE. Check this question is safe for a mixed international audience. Reject if it contains: sexual references, crude body parts, alcohol, pork, drugs, religion, LGBTQ+ topics or references, references to Iran or Israel, or anything offensive. Also verify the answer is factually correct. Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"reason\"}. Content: " + allText;
     try {
-      const text = await callAPI(prompt);
+      const text = await callAPI(prompt, 300);
       return JSON.parse(text);
     } catch {
       return { ok: false, note: "Could not verify" };
@@ -290,6 +290,7 @@ export default function QuestionsPage() {
     const maxAttempts = count * 6;
     let i = 0;
     let consecutiveFailures = 0;
+    let consecutiveCheckFailures = 0;
     while (good.length < count && attempts < maxAttempts) {
       const type = types[i % types.length];
       const topic = theme || shuffledTopics[(i + good.length) % shuffledTopics.length];
@@ -324,8 +325,20 @@ export default function QuestionsPage() {
         good.push(q);
         usedRef.current = [...usedRef.current, q.question_text];
         setQuestions([...good]);
+        consecutiveCheckFailures = 0;
       } else {
+        consecutiveCheckFailures++;
         setStatus("Question " + (good.length + 1) + " failed check (" + check.note.substring(0,40) + ") - retrying...");
+        // Same logic as generateOne failures above - if questions keep failing the
+        // safety/duplicate check over and over, that's systemic (e.g. exclusion
+        // list too aggressive, or the moderator prompt rejecting too much), not a
+        // one-off blip. Bailing with a clear message beats silently grinding
+        // through dozens of slow retries that look identical to "frozen".
+        if (consecutiveCheckFailures >= 10) {
+          setStatus("Generation stalled after " + consecutiveCheckFailures + " questions in a row failing the check (latest reason: " + check.note.substring(0,60) + "). Got " + good.length + " of " + count + " - click Top Up to keep trying, or Generate again.");
+          setLoading(false);
+          return;
+        }
       }
       i++;
     }

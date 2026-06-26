@@ -64,13 +64,17 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Validate the prompt.
-    const { prompt } = await req.json();
+    const { prompt, maxTokens } = await req.json();
     if (!prompt || typeof prompt !== "string") {
       return NextResponse.json({ error: { message: "Missing prompt" } }, { status: 400 });
     }
     if (prompt.length > 8000) {
       return NextResponse.json({ error: { message: "Prompt too long" } }, { status: 400 });
     }
+    // Clamp to a sane range - the fact-check call only needs a short JSON verdict
+    // and was previously forced through the same 8000-token ceiling as full
+    // question generation, which slowed every single check down for no reason.
+    const tokenLimit = Math.min(8000, Math.max(100, Number(maxTokens) || 8000));
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
@@ -88,7 +92,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 8000,
+        max_tokens: tokenLimit,
         messages: [{ role: "user", content: prompt }],
       }),
     });

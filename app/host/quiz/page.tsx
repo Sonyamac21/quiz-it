@@ -67,6 +67,22 @@ const RULES = {
 
 const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "Multi Tap", music: "Music Round" };
 
+// Per-question-type timer defaults, confirmed by host: Multiple Choice and
+// Sequence/Multi Tap need less thinking time than written/typed answers.
+// Picture and Audio aren't in this map, so they fall back to the host's manual
+// timer setting since those need variable time depending on content.
+const TIMER_BY_TYPE: Record<string, number> = {
+  multiple_choice: 15,
+  sequence: 15,
+  multi_tap: 15,
+  text_answer: 30,
+  number: 30,
+};
+function getTimerForQuestion(q: { question_type?: string } | null | undefined, fallback: number): number {
+  if (!q || !q.question_type) return fallback;
+  return TIMER_BY_TYPE[q.question_type] ?? fallback;
+}
+
 
 type HostPhase = "waiting" | "round_start" | "preview" | "question" | "timer" | "answer" | "celebration" | "round_end" | "quiz_end";
 
@@ -551,7 +567,7 @@ function QuizControllerInner() {
     setAnswers([]);
     setFastestTeam(null); fastestTeamRef.current = null;
     setFastestSong(null);
-    setTimeLeft(timerDuration);
+    setTimeLeft(getTimerForQuestion(selectedRound.questions[0], timerDuration));
     setHostPhase("round_start");
     roundStartedRef.current = Date.now();
     playSound("round-start.mp3");
@@ -565,7 +581,7 @@ function QuizControllerInner() {
     setAnswers([]);
     setFastestTeam(null); fastestTeamRef.current = null;
     setFastestSong(null);
-    setTimeLeft(timerDuration);
+    setTimeLeft(getTimerForQuestion(selectedRound.questions[idx], timerDuration));
     setHostPhase("preview");
     setPicSubPhase("image_only");
     // Display screen stays on holding/waiting visually on the host side, but we
@@ -595,11 +611,12 @@ function QuizControllerInner() {
     if (!sessionId) return;
     stopTickAudio();
     setHostPhase("timer");
-    setTimeLeft(timerDuration);
+    const dur = getTimerForQuestion(currentQ, timerDuration);
+    setTimeLeft(dur);
     const supabase = createSupabaseBrowserClient();
     const now = new Date().toISOString();
-    await supabase.from("sessions").update({ timer_started_at: now, timer_duration: timerDuration }).eq("id", sessionId);
-    startTickAudio(timerDuration);
+    await supabase.from("sessions").update({ timer_started_at: now, timer_duration: dur }).eq("id", sessionId);
+    startTickAudio(dur);
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
@@ -1058,9 +1075,10 @@ function QuizControllerInner() {
                   <input type="number" value={pointsPerQ} onChange={e => setPointsPerQ(Number(e.target.value))} style={{ width:60, padding:"4px 8px", borderRadius:6, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:14, textAlign:"center" as const }} />
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <label style={{ fontSize:12, color:"rgba(255,255,255,0.6)", minWidth:110 }}>Timer (seconds)</label>
+                  <label style={{ fontSize:12, color:"rgba(255,255,255,0.6)", minWidth:110 }}>Timer - Picture/Audio (s)</label>
                   <input type="number" value={timerDuration} onChange={e => setTimerDuration(Number(e.target.value))} style={{ width:60, padding:"4px 8px", borderRadius:6, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:14, textAlign:"center" as const }} />
                 </div>
+                <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Multiple Choice/Sequence/Multi Tap = 15s, written answers = 30s (fixed)</div>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <label style={{ fontSize:12, color:"rgba(255,255,255,0.6)", minWidth:110 }}>Max time bonus</label>
                   <input type="number" value={timeBonus} onChange={e => setTimeBonus(Number(e.target.value))} style={{ width:60, padding:"4px 8px", borderRadius:6, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:14, textAlign:"center" as const }} />
@@ -1086,7 +1104,7 @@ function QuizControllerInner() {
               </div>
             )}
             {!roundSettingsOpen && (
-              <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>{pointsPerQ}pts/q · {timerDuration}s · +{timeBonus} bonus · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal"}</div>
+              <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>{pointsPerQ}pts/q · {getTimerForQuestion(currentQ, timerDuration)}s · +{timeBonus} bonus · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal"}</div>
             )}
           </div>
 

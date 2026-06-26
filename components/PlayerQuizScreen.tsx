@@ -194,6 +194,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
   const [hardDeckGuess, setHardDeckGuess] = useState<string | null>(null);
+  const [stickGamblePressed, setStickGamblePressed] = useState<string | null>(null);
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
   const [hardDeckPotential, setHardDeckPotential] = useState(0);
@@ -344,7 +345,11 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setBlockUntil((data.block_until as string) || null);
     setBlockTeam((data.block_team as string) || null);
     setHardDeckTeam((data.hard_deck_team as string) || null);
-    setHardDeckStatus((data.hard_deck_status as string) || "idle");
+    {
+      const newHDStatus = (data.hard_deck_status as string) || "idle";
+      if (newHDStatus !== "decision") setStickGamblePressed(null);
+      setHardDeckStatus(newHDStatus);
+    }
     setHardDeckCards((data.hard_deck_cards as {rank:number; suit:string}[]) || []);
     setHardDeckWheelTarget((data.hard_deck_wheel_target as number) ?? null);
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
@@ -589,8 +594,34 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           <>
             <div style={{ fontSize: 16, color: "#facc15" }}>You have {hardDeckPotential} points!</div>
             <div style={{ display: "flex", gap: 16 }}>
-              <button onClick={submitHardDeckStick} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "2px solid #22c55e", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>STICK</button>
-              <button onClick={submitHardDeckGamble} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(190,38,193,0.25)", border: "2px solid " + purple, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>GAMBLE</button>
+              <button
+                onClick={() => { setStickGamblePressed("stick"); submitHardDeckStick(); }}
+                disabled={!!stickGamblePressed}
+                style={{
+                  padding: "18px 28px", borderRadius: 12,
+                  background: stickGamblePressed === "stick" ? "#22c55e" : "rgba(34,197,94,0.25)",
+                  border: stickGamblePressed === "stick" ? "3px solid #fff" : "2px solid #22c55e",
+                  color: "#fff", fontSize: 16, fontWeight: 700, cursor: stickGamblePressed ? "default" : "pointer",
+                  boxShadow: stickGamblePressed === "stick" ? "0 0 24px rgba(34,197,94,0.8)" : "none",
+                  transform: stickGamblePressed === "stick" ? "scale(1.05)" : "scale(1)",
+                  opacity: stickGamblePressed && stickGamblePressed !== "stick" ? 0.4 : 1,
+                  transition: "all 0.15s ease",
+                }}
+              >STICK</button>
+              <button
+                onClick={() => { setStickGamblePressed("gamble"); submitHardDeckGamble(); }}
+                disabled={!!stickGamblePressed}
+                style={{
+                  padding: "18px 28px", borderRadius: 12,
+                  background: stickGamblePressed === "gamble" ? purple : "rgba(190,38,193,0.25)",
+                  border: stickGamblePressed === "gamble" ? "3px solid #fff" : "2px solid " + purple,
+                  color: "#fff", fontSize: 16, fontWeight: 700, cursor: stickGamblePressed ? "default" : "pointer",
+                  boxShadow: stickGamblePressed === "gamble" ? "0 0 24px rgba(190,38,193,0.8)" : "none",
+                  transform: stickGamblePressed === "gamble" ? "scale(1.05)" : "scale(1)",
+                  opacity: stickGamblePressed && stickGamblePressed !== "gamble" ? 0.4 : 1,
+                  transition: "all 0.15s ease",
+                }}
+              >GAMBLE</button>
             </div>
           </>
         )}

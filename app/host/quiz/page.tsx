@@ -614,13 +614,22 @@ function QuizControllerInner() {
   }
 
   async function doRevealAnswer() {
-    if (!currentQ || !sessionId) return;
+    if (!currentQ || !sessionId || !sessionPin) return;
     if (timerRef.current) clearInterval(timerRef.current);
     stopTickAudio();
     setHostPhase("answer");
     const supabase = createSupabaseBrowserClient();
     await supabase.from("sessions").update({ phase: "answer" }).eq("id", sessionId);
-    await autoScore(teams, currentQ, answers);
+    // Fetch answers fresh from the DB right before scoring instead of trusting
+    // the `answers` React state, which is fed by a realtime subscription plus a
+    // 2.5s safety-net poll - if the host hits Reveal right after the last team
+    // submits, that state can still be lagging the database by up to ~2.5s,
+    // which silently scored against incomplete/stale data (missed points,
+    // leaderboard reflecting an earlier question's submissions).
+    const { data: freshAnswers } = await supabase.from("answers").select("*").eq("session_pin", sessionPin).eq("question_index", qIdx).order("submitted_at", { ascending: true });
+    const answersToScore = freshAnswers ?? answers;
+    setAnswers(answersToScore);
+    await autoScore(teams, currentQ, answersToScore);
   }
 
   async function doCelebrate() {
@@ -699,21 +708,14 @@ function QuizControllerInner() {
   }
 
   async function doDumpQuestion() {
-    if (!confirm("Permanently remove this question from the round? This can't be undone.")) return;
+    if (!confirm("Skip this question without scoring it? It stays in the round for next time - it just won't be played tonight.")) return;
     if (!selectedRound || !sessionId) return;
-    const updated = { ...selectedRound, questions: selectedRound.questions.filter((_, i) => i !== qIdx) };
-    setSelectedRound(updated);
-    const supabase = createSupabaseBrowserClient();
-    await supabase.from("rounds").update({ questions: updated.questions }).eq("id", selectedRound.id);
-    if (updated.questions.length === 0) {
+    const nextIdx = qIdx + 1;
+    if (nextIdx >= selectedRound.questions.length) {
       doEndRound();
       return;
     }
-    const nextIdx = Math.min(qIdx, updated.questions.length - 1);
-    setQIdx(nextIdx);
-    setAnswers([]);
-    setHostPhase("preview");
-    if (sessionPin) loadAnswers(sessionPin, nextIdx);
+    await doPreviewQuestion(nextIdx);
   }
 
   const teamHasAnswered = (teamName: string) => answers.some(a => a.team_name === teamName);
@@ -1041,7 +1043,7 @@ function QuizControllerInner() {
                   Celebrate
                 </button>
                 <div style={{ width:1, height:24, background:"rgba(255,255,255,0.15)", margin:"0 6px" }} />
-                <button onClick={doDumpQuestion} title="Permanently remove this question from the round"
+                <button onClick={doDumpQuestion} title="Skip this question without scoring it - stays in the round for next time"
                   style={{ padding:"8px 14px", borderRadius:8, background:"transparent", border:"1px solid rgba(239,68,68,0.35)", color:"rgba(239,68,68,0.7)", cursor:"pointer", fontSize:11 }}>
                   Dump Q
                 </button>

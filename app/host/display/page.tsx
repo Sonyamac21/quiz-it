@@ -18,8 +18,36 @@ type Question = {
 type Score = { team_name: string; total_points: number; };
 type Phase = "waiting" | "round_start" | "question" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission" | "spin_to_win";
 
+// Cache of preloaded Audio elements, keyed by filename - playing a cloned node
+// from an already-loaded source starts instantly instead of re-fetching/decoding
+// the file from scratch on every single play. This was the cause of audio lag
+// during The Hard Deck, where the same few sounds (crowd-cheer, airhorn) fire
+// repeatedly in quick succession.
+const audioPreloadCache = new Map<string, HTMLAudioElement>();
+const PRELOAD_SOUNDS = ["crowd-cheer.mp3", "airhorn.mp3", "sad-trombone.mp3", "round-start.mp3", "clapping-scores.mp3"];
+function preloadSounds() {
+  for (const file of PRELOAD_SOUNDS) {
+    if (audioPreloadCache.has(file)) continue;
+    const a = new Audio("/sounds/" + file);
+    a.preload = "auto";
+    a.load();
+    audioPreloadCache.set(file, a);
+  }
+}
+
 function playSound(file: string, volume = 1.0) {
-  try { const a = new Audio("/sounds/" + file); a.volume = volume; a.play().catch(() => {}); return a; } catch { return null; }
+  try {
+    const cached = audioPreloadCache.get(file);
+    if (cached) {
+      // Clone so overlapping/rapid repeat plays of the same sound don't cut each
+      // other off, while still benefiting from the already-buffered source.
+      const a = cached.cloneNode() as HTMLAudioElement;
+      a.volume = volume;
+      a.play().catch(() => {});
+      return a;
+    }
+    const a = new Audio("/sounds/" + file); a.volume = volume; a.play().catch(() => {}); return a;
+  } catch { return null; }
 }
 
 function DisplayScreenInner() {
@@ -28,6 +56,7 @@ function DisplayScreenInner() {
   const [phase, setPhase] = useState<Phase>("waiting");
   const [question, setQuestion] = useState<Question | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
+  useEffect(() => { preloadSounds(); }, []);
   useEffect(() => {
     const btn = document.createElement("button");
     btn.textContent = "Fullscreen";
@@ -544,7 +573,7 @@ function DisplayScreenInner() {
           <div style={{ fontSize:22, color:"rgba(255,255,255,0.6)" }}>Stick or Gamble?</div>
         )}
         {hardDeckStatus === "awaiting_guess" && hardDeckCards.length > 0 && (
-          <div style={{ fontSize:22, color:"rgba(255,255,255,0.6)" }}>Higher or Lower?</div>
+          <div style={{ fontSize:48, color:"#fff", fontWeight:800 }}>Higher or Lower?</div>
         )}
         {hardDeckStatus === "won" && hardDeckPotential >= 40 && (
           <div style={{ fontSize:80, color:"#22c55e", fontWeight:900, letterSpacing:4, animation:"flash 0.6s ease-in-out infinite", textShadow:"0 0 40px rgba(34,197,94,0.8)" }}>WINNER! 🎉</div>

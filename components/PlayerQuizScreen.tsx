@@ -193,6 +193,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
+  const [hardDeckGuess, setHardDeckGuess] = useState<string | null>(null);
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
   const [hardDeckPotential, setHardDeckPotential] = useState(0);
@@ -272,7 +273,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data")
+        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -332,6 +333,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setHardDeckCards((data.hard_deck_cards as {rank:number; suit:string}[]) || []);
     setHardDeckWheelTarget((data.hard_deck_wheel_target as number) ?? null);
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
+    setHardDeckGuess((data.hard_deck_guess as string) || null);
     setSpinOffered(!!data.spin_offered);
     setSpinChoice((data.spin_choice as string) || null);
     setIntermissionOffers((data.intermission_offers as string) || "");
@@ -538,8 +540,34 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
         {isSelected && hardDeckStatus === "awaiting_guess" && (
           <div style={{ display: "flex", gap: 16 }}>
-            <button onClick={() => submitHardDeckGuess("higher")} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "2px solid #22c55e", color: "#fff", fontSize: 18, fontWeight: 700, cursor: "pointer" }}>HIGHER</button>
-            <button onClick={() => submitHardDeckGuess("lower")} style={{ padding: "18px 28px", borderRadius: 12, background: "rgba(239,68,68,0.25)", border: "2px solid #ef4444", color: "#fff", fontSize: 18, fontWeight: 700, cursor: "pointer" }}>LOWER</button>
+            <button
+              onClick={() => submitHardDeckGuess("higher")}
+              disabled={!!hardDeckGuess}
+              style={{
+                padding: "26px 40px", borderRadius: 14,
+                background: hardDeckGuess === "higher" ? "#22c55e" : "rgba(34,197,94,0.25)",
+                border: hardDeckGuess === "higher" ? "3px solid #fff" : "2px solid #22c55e",
+                color: "#fff", fontSize: 24, fontWeight: 800, cursor: hardDeckGuess ? "default" : "pointer",
+                boxShadow: hardDeckGuess === "higher" ? "0 0 24px rgba(34,197,94,0.8)" : "none",
+                transform: hardDeckGuess === "higher" ? "scale(1.05)" : "scale(1)",
+                opacity: hardDeckGuess && hardDeckGuess !== "higher" ? 0.4 : 1,
+                transition: "all 0.15s ease",
+              }}
+            >HIGHER</button>
+            <button
+              onClick={() => submitHardDeckGuess("lower")}
+              disabled={!!hardDeckGuess}
+              style={{
+                padding: "26px 40px", borderRadius: 14,
+                background: hardDeckGuess === "lower" ? "#ef4444" : "rgba(239,68,68,0.25)",
+                border: hardDeckGuess === "lower" ? "3px solid #fff" : "2px solid #ef4444",
+                color: "#fff", fontSize: 24, fontWeight: 800, cursor: hardDeckGuess ? "default" : "pointer",
+                boxShadow: hardDeckGuess === "lower" ? "0 0 24px rgba(239,68,68,0.8)" : "none",
+                transform: hardDeckGuess === "lower" ? "scale(1.05)" : "scale(1)",
+                opacity: hardDeckGuess && hardDeckGuess !== "lower" ? 0.4 : 1,
+                transition: "all 0.15s ease",
+              }}
+            >LOWER</button>
           </div>
         )}
         {isSelected && hardDeckStatus === "decision" && (

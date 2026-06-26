@@ -348,6 +348,14 @@ function DisplayScreenInner() {
         flashRef.current = setInterval(() => { f = !f; setFlash(f); }, 500);
         setTimeout(() => { if (flashRef.current) clearInterval(flashRef.current); }, 15000);
       }
+    } else if (newPhase === "celebration" && !ft) {
+      // Nobody got this one right - previously this played no sound at all, which
+      // read as the screen just being broken/unresponsive. A sad trombone gives
+      // the room a clear, deliberate "nobody got it" beat instead of dead air.
+      if (celebrationPlayingForRef.current !== "__no_winner__") {
+        celebrationPlayingForRef.current = "__no_winner__";
+        playSound("sad-trombone.mp3", 0.9);
+      }
     } else {
       // Left celebration (e.g. moved to Spin to Win, Hard Deck, next question) -
       // make sure nothing keeps playing in the background.

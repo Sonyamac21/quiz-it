@@ -825,19 +825,23 @@ function QuizControllerInner() {
                 );
               })()}
 
-              <div style={{ marginBottom:20 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>THE HARD DECK</div>
-                <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
-                  {RULES.hard_deck.map((r,i) => <li key={i}>{r}</li>)}
-                </ul>
-              </div>
+              {selectedRound && (
+                <div style={{ marginBottom:20 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>THE HARD DECK</div>
+                  <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
+                    {RULES.hard_deck.map((r,i) => <li key={i}>{r}</li>)}
+                  </ul>
+                </div>
+              )}
 
-              <div>
-                <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>SPIN TO WIN</div>
-                <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
-                  {RULES.spin_to_win.map((r,i) => <li key={i}>{r}</li>)}
-                </ul>
-              </div>
+              {selectedRound && (
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>SPIN TO WIN</div>
+                  <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
+                    {RULES.spin_to_win.map((r,i) => <li key={i}>{r}</li>)}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         )}

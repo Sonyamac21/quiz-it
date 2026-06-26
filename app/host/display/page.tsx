@@ -50,13 +50,32 @@ function playSound(file: string, volume = 1.0) {
   } catch { return null; }
 }
 
+// Rotating explainer cards shown one at a time on the lobby/waiting screen, so
+// players have something to read and learn the round types/features while
+// waiting for the quiz to start instead of staring at a static PIN screen.
+const INTRO_CARDS = [
+  { emoji: "\u{1F3C6}", title: "General Knowledge", desc: "Multiple choice, type-in, sequence, and tap-all-that-apply questions. Fastest correct answer each round gets a speed bonus." },
+  { emoji: "\u{1F446}", title: "Multi Tap", desc: "Several correct answers are hidden among decoys. Tap every one you think is right - wrong taps cost nothing, so tap freely!" },
+  { emoji: "\u{1F3B5}", title: "Music Round", desc: "Listen to the track, then answer the question about it. Same scoring as a normal round - fastest correct answer gets the bonus." },
+  { emoji: "\u{1F0CF}", title: "The Hard Deck", desc: "One lucky team gets picked by the wheel. Guess Higher or Lower than the card shown - get it right and keep going, or bank your points before it's too late!" },
+  { emoji: "\u{1F3B0}", title: "Spin to Win", desc: "A bonus feature offered to the fastest team after a correct answer. Spin for a shot at big points... or a big penalty. Your choice - spin or pass!" },
+  { emoji: "\u26A1", title: "Power Cards", desc: "Time-Out, Boost, and Reverse - each team can play one of these once per game. Use them wisely!" },
+];
+
 function DisplayScreenInner() {
   const searchParams = useSearchParams();
   const autoConnectedRef = useRef(false);
   const [phase, setPhase] = useState<Phase>("waiting");
   const [question, setQuestion] = useState<Question | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
+  const [introCardIdx, setIntroCardIdx] = useState(0);
   useEffect(() => { preloadSounds(); }, []);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIntroCardIdx(i => (i + 1) % INTRO_CARDS.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, []);
   useEffect(() => {
     const btn = document.createElement("button");
     btn.textContent = "Fullscreen";
@@ -219,7 +238,7 @@ function DisplayScreenInner() {
     if (cardFlashTimerRef.current) clearTimeout(cardFlashTimerRef.current);
     setCardFlash({ team, type });
     playSound("round-start.mp3", 0.9);
-    cardFlashTimerRef.current = setTimeout(() => setCardFlash(null), 3000);
+    cardFlashTimerRef.current = setTimeout(() => setCardFlash(null), 5000);
   }
   function applySession(data: Record<string, unknown>) {
     const newPhase = (data.phase as Phase) || "waiting";
@@ -594,6 +613,7 @@ function DisplayScreenInner() {
   }
 
   if (phase === "waiting" || phase === "round_start" || phase === "round_end") {
+    const card = INTRO_CARDS[introCardIdx];
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font }}>
         <img src="/me-logo.jpg" alt="ME" style={{ width:80, height:80, borderRadius:"50%", marginBottom:24, border:"3px solid "+purple }} />
@@ -605,6 +625,23 @@ function DisplayScreenInner() {
           <div style={{ fontSize:20, color:"rgba(255,255,255,0.4)", letterSpacing:3, marginBottom:12 }}>ENTER PIN</div>
           <div style={{ fontSize:150, fontWeight:900, color:"#fff", letterSpacing:24, fontFamily:"monospace", lineHeight:1, textShadow:"0 0 60px rgba(190,38,193,0.8)" }}>{sessionPin}</div>
         </div>
+        {phase === "waiting" && (
+          <div key={introCardIdx} style={{
+            marginTop:40, padding:"24px 48px", borderRadius:16, maxWidth:680, textAlign:"center",
+            background:"rgba(190,38,193,0.08)", border:"2px solid rgba(190,38,193,0.3)",
+            animation:"introCardFade 0.6s ease",
+          }}>
+            <div style={{ fontSize:40, marginBottom:8 }}>{card.emoji}</div>
+            <div style={{ fontSize:24, fontWeight:800, color:purple, letterSpacing:2, marginBottom:10 }}>{card.title}</div>
+            <div style={{ fontSize:18, color:"rgba(255,255,255,0.75)", lineHeight:1.5 }}>{card.desc}</div>
+            <div style={{ display:"flex", gap:6, justifyContent:"center", marginTop:16 }}>
+              {INTRO_CARDS.map((_, i) => (
+                <div key={i} style={{ width:8, height:8, borderRadius:"50%", background: i===introCardIdx ? purple : "rgba(255,255,255,0.2)" }} />
+              ))}
+            </div>
+          </div>
+        )}
+        <style>{`@keyframes introCardFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
       </div>
     );
   }

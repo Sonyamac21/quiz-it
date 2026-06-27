@@ -150,6 +150,27 @@ function QuizControllerInner() {
   const [picSubPhase, setPicSubPhase] = useState<"image_only"|"question_visible">("image_only");
 
   useEffect(() => { loadRounds(); }, []);
+
+  // Polling fallback for Spin to Win - the realtime listener in subscribeToUpdates
+  // is the normal path, but unlike every other piece of synced state in this app
+  // (answers, questions, scores all have a polling safety net), this had NONE -
+  // it relied solely on a realtime UPDATE event ever reaching the host's browser.
+  // If that websocket event is ever dropped or delayed, the host would never learn
+  // the player chose to spin, and nothing downstream (display, handsets) would
+  // ever fire either - this poll guarantees it gets picked up within ~1.5s either way.
+  useEffect(() => {
+    if (!spinOffered || !sessionPin) return;
+    const interval = setInterval(async () => {
+      const supabase = createSupabaseBrowserClient();
+      const { data } = await supabase.from("sessions").select("spin_choice").eq("pin", sessionPin).single();
+      if (data) {
+        setSpinChoice((data.spin_choice as string) || null);
+        triggerSpinIfChosen((data.spin_choice as string) || null, sessionPin);
+      }
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [spinOffered, sessionPin]);
+
   useEffect(() => {
     if (selectedRound) roundQuestionsRef.current = [...selectedRound.questions];
   }, [selectedRound]);
@@ -484,6 +505,23 @@ function QuizControllerInner() {
     }
   }
 
+  function triggerSpinIfChosen(choice: string | null, pin: string) {
+    if (choice === "spin" && !spinTriggeredRef.current) {
+      spinTriggeredRef.current = true;
+      const winIdx = Math.floor(Math.random() * 8);
+      // Use pin (already verified above) rather than sessionId, which can be a stale
+      // closure value if this listener was set up before sessionId finished loading -
+      // that stale value was silently breaking the spin_to_win transition.
+      createSupabaseBrowserClient().from("sessions").update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: Date.now() }).eq("pin", pin).then(({ error }) => {
+        if (error) console.error("Failed to start Spin to Win:", error);
+      });
+      if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current);
+      setTimeout(() => {
+        createSupabaseBrowserClient().from("sessions").update({ phase: "celebration" }).eq("pin", pin);
+      }, 20000);
+    }
+  }
+
   function subscribeToUpdates(pin: string) {
     const supabase = createSupabaseBrowserClient();
     supabase.channel("quiz-host-" + pin)
@@ -513,20 +551,7 @@ function QuizControllerInner() {
         setSpinTargetIdx((s.spin_target_idx as number) ?? null);
         setSpinNonce((s.spin_nonce as number) ?? null);
         setSpinOffered(!!s.spin_offered);
-        if (choice === "spin" && !spinTriggeredRef.current) {
-          spinTriggeredRef.current = true;
-          const winIdx = Math.floor(Math.random() * 8);
-          // Use pin (already verified above) rather than sessionId, which can be a stale
-          // closure value if this listener was set up before sessionId finished loading -
-          // that stale value was silently breaking the spin_to_win transition.
-          createSupabaseBrowserClient().from("sessions").update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: Date.now() }).eq("pin", pin).then(({ error }) => {
-            if (error) console.error("Failed to start Spin to Win:", error);
-          });
-          if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current);
-          setTimeout(() => {
-            createSupabaseBrowserClient().from("sessions").update({ phase: "waiting" }).eq("pin", pin);
-          }, 20000);
-        }
+        triggerSpinIfChosen(choice, pin);
       })
       .subscribe();
   }

@@ -86,6 +86,10 @@ export function JoinForm() {
   const [sessionPin, setSessionPin] = useState("");
   const [preview, setPreview] = useState<HTMLAudioElement | null>(null);
   const [restoring, setRestoring] = useState(true);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectName, setReconnectName] = useState("");
+  const [reconnectError, setReconnectError] = useState("");
+  const [reconnectLoading, setReconnectLoading] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [takenSongs, setTakenSongs] = useState<string[]>([]);
@@ -138,6 +142,31 @@ export function JoinForm() {
       setStep("name");
     } catch { setPinError("Something went wrong. Try again."); }
     finally { setPinLoading(false); }
+  }
+
+  async function handleReconnect() {
+    if (!reconnectName.trim()) { setReconnectError("Enter your team name"); return; }
+    setReconnectError("");
+    setReconnectLoading(true);
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const normalised = reconnectName.trim().toLowerCase();
+      const { data } = await supabase.from("teams").select("team_name").eq("session_pin", pin);
+      const match = data?.find(t => (t.team_name || "").trim().toLowerCase() === normalised);
+      if (!match) {
+        setReconnectError("Team not found for this PIN - check the spelling, or register as a new team below.");
+        setReconnectLoading(false);
+        return;
+      }
+      setTeamName(match.team_name);
+      setSessionPin(pin);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: match.team_name, sessionPin: pin, savedAt: Date.now() }));
+      setDone(true);
+    } catch {
+      setReconnectError("Something went wrong. Please try again.");
+    } finally {
+      setReconnectLoading(false);
+    }
   }
 
   async function handleNameNext() {
@@ -276,6 +305,38 @@ export function JoinForm() {
         >
           Next
         </button>
+
+        <div style={{ textAlign:"center", marginTop:4 }}>
+          <button
+            type="button"
+            onClick={() => { setReconnecting(r => !r); setReconnectError(""); }}
+            style={{ background:"none", border:"none", color:"rgba(255,255,255,0.45)", fontSize:13, textDecoration:"underline", cursor:"pointer", fontFamily:"'Bruno Ace SC',sans-serif" }}
+          >
+            Already joined? Reconnect instead
+          </button>
+        </div>
+
+        {reconnecting && (
+          <div style={{ display:"flex", flexDirection:"column", gap:10, padding:16, borderRadius:12, background:"rgba(255,255,255,0.05)", border:"1.5px solid rgba(190,38,193,0.4)" }}>
+            <label style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:13, letterSpacing:1, color:"rgba(255,255,255,0.6)" }}>Your existing team name</label>
+            <input
+              value={reconnectName}
+              onChange={e => setReconnectName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleReconnect()}
+              placeholder="Enter your team name..."
+              style={{ padding:"12px 16px", borderRadius:10, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1.5px solid rgba(190,38,193,0.5)", fontSize:18, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none" }}
+            />
+            {reconnectError && <p style={{ color:"#FF5555", fontSize:13, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:0.5 }}>{reconnectError}</p>}
+            <button
+              type="button"
+              onClick={handleReconnect}
+              disabled={reconnectLoading}
+              style={{ padding:"12px", borderRadius:10, background:"rgba(190,38,193,0.3)", color:"#fff", border:"1px solid #BE26C1", fontSize:14, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:2, cursor:"pointer" }}
+            >
+              {reconnectLoading ? "Reconnecting..." : "Reconnect"}
+            </button>
+          </div>
+        )}
       </div>
     );
   }

@@ -50,16 +50,13 @@ function playSound(file: string, volume = 1.0) {
   } catch { return null; }
 }
 
-// Rotating explainer cards shown one at a time on the lobby/waiting screen, so
-// players have something to read and learn the round types/features while
-// waiting for the quiz to start instead of staring at a static PIN screen.
-const INTRO_CARDS = [
-  { emoji: "\u{1F3C6}", title: "General Knowledge", desc: "Multiple choice, type-in, sequence, and tap-all-that-apply questions. Fastest correct answer each round gets a speed bonus." },
-  { emoji: "\u{1F446}", title: "Multi Tap", desc: "Several correct answers are hidden among decoys. Tap every one you think is right - wrong taps cost nothing, so tap freely!" },
-  { emoji: "\u{1F3B5}", title: "Music Round", desc: "Listen to the track, then answer the question about it. Same scoring as a normal round - fastest correct answer gets the bonus." },
-  { emoji: "\u{1F0CF}", title: "The Hard Deck", desc: "One lucky team gets picked by the wheel. Guess Higher or Lower than the card shown - get it right and keep going, or bank your points before it's too late!" },
-  { emoji: "\u{1F3B0}", title: "Spin to Win", desc: "A bonus feature offered to the fastest team after a correct answer. Spin for a shot at big points... or a big penalty. Your choice - spin or pass!" },
-  { emoji: "\u26A1", title: "Power Cards", desc: "Time-Out, Boost, and Reverse - each team can play one of these once per game. Use them wisely!" },
+// Power card explainer screens shown one at a time on the lobby/waiting screen,
+// so players learn what each card does before they need to use one mid-game.
+// Colors match the host dashboard's cardColor map exactly for consistency.
+const POWER_CARDS = [
+  { type: "block", emoji: "\u23F8\uFE0F", title: "Time-Out", color: "#3b82f6", desc: "Freezes every OTHER team from answering for a short window, so you get a free run at the question with no competition." },
+  { type: "x2", emoji: "\u26A1", title: "Boost", color: "#eab308", desc: "Doubles your team's points for the question you play it on. Save it for a question you're confident about!" },
+  { type: "reverse", emoji: "\u21BB", title: "Reverse", color: "#ef4444", desc: "A surprise twist card - ask your host what it does in this game if you're not sure!" },
 ];
 
 function DisplayScreenInner() {
@@ -72,7 +69,7 @@ function DisplayScreenInner() {
   useEffect(() => { preloadSounds(); }, []);
   useEffect(() => {
     const interval = setInterval(() => {
-      setIntroCardIdx(i => (i + 1) % INTRO_CARDS.length);
+      setIntroCardIdx(i => (i + 1) % POWER_CARDS.length);
     }, 6000);
     return () => clearInterval(interval);
   }, []);
@@ -613,34 +610,57 @@ function DisplayScreenInner() {
   }
 
   if (phase === "waiting" || phase === "round_start" || phase === "round_end") {
-    const card = INTRO_CARDS[introCardIdx];
-    return (
-      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font }}>
-        <img src="/me-logo.jpg" alt="ME" style={{ width:80, height:80, borderRadius:"50%", marginBottom:24, border:"3px solid "+purple }} />
-        <div style={{ fontSize:65, fontWeight:800, color:purple, letterSpacing:6, marginBottom:8, textShadow:"0 0 40px rgba(190,38,193,0.6)" }}>Quiz-It</div>
-        <div style={{ fontSize:20, color:"rgba(255,255,255,0.4)", letterSpacing:3, marginBottom:48 }}>powered by Mac Entertainment</div>
-        <div style={{ padding:"32px 64px", borderRadius:20, background:"rgba(255,255,255,0.05)", border:"2px solid rgba(190,38,193,0.4)", textAlign:"center" }}>
-          <div style={{ fontSize:22, color:"rgba(255,255,255,0.5)", letterSpacing:4, marginBottom:12 }}>JOIN AT</div>
-          <div style={{ fontSize:35, color:"#fff", fontWeight:700, letterSpacing:2, marginBottom:24 }}>quiz-it-six.vercel.app/join</div>
-          <div style={{ fontSize:20, color:"rgba(255,255,255,0.4)", letterSpacing:3, marginBottom:12 }}>ENTER PIN</div>
-          <div style={{ fontSize:150, fontWeight:900, color:"#fff", letterSpacing:24, fontFamily:"monospace", lineHeight:1, textShadow:"0 0 60px rgba(190,38,193,0.8)" }}>{sessionPin}</div>
+    if (phase !== "waiting") {
+      return (
+        <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font }}>
+          <img src="/me-logo.jpg" alt="ME" style={{ width:80, height:80, borderRadius:"50%", marginBottom:24, border:"3px solid "+purple }} />
+          <div style={{ fontSize:65, fontWeight:800, color:purple, letterSpacing:6, marginBottom:8, textShadow:"0 0 40px rgba(190,38,193,0.6)" }}>Quiz-It</div>
+          <div style={{ fontSize:20, color:"rgba(255,255,255,0.4)", letterSpacing:3, marginBottom:48 }}>powered by Mac Entertainment</div>
+          <div style={{ padding:"32px 64px", borderRadius:20, background:"rgba(255,255,255,0.05)", border:"2px solid rgba(190,38,193,0.4)", textAlign:"center" }}>
+            <div style={{ fontSize:22, color:"rgba(255,255,255,0.5)", letterSpacing:4, marginBottom:12 }}>JOIN AT</div>
+            <div style={{ fontSize:35, color:"#fff", fontWeight:700, letterSpacing:2, marginBottom:24 }}>quiz-it-six.vercel.app/join</div>
+            <div style={{ fontSize:20, color:"rgba(255,255,255,0.4)", letterSpacing:3, marginBottom:12 }}>ENTER PIN</div>
+            <div style={{ fontSize:150, fontWeight:900, color:"#fff", letterSpacing:24, fontFamily:"monospace", lineHeight:1, textShadow:"0 0 60px rgba(190,38,193,0.8)" }}>{sessionPin}</div>
+          </div>
         </div>
-        {phase === "waiting" && (
+      );
+    }
+    const card = POWER_CARDS[introCardIdx];
+    return (
+      <div style={{ minHeight:"100vh", background:bg, display:"flex", fontFamily:font }}>
+        {/* Left: compact join info */}
+        <div style={{ flex:"0 0 38%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:32, borderRight:"2px solid rgba(190,38,193,0.2)" }}>
+          <img src="/me-logo.jpg" alt="ME" style={{ width:52, height:52, borderRadius:"50%", marginBottom:14, border:"2px solid "+purple }} />
+          <div style={{ fontSize:34, fontWeight:800, color:purple, letterSpacing:3, marginBottom:4, textShadow:"0 0 24px rgba(190,38,193,0.6)" }}>Quiz-It</div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", letterSpacing:2, marginBottom:28 }}>powered by Mac Entertainment</div>
+          <div style={{ padding:"20px 28px", borderRadius:16, background:"rgba(255,255,255,0.05)", border:"2px solid rgba(190,38,193,0.4)", textAlign:"center" }}>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", letterSpacing:2, marginBottom:6 }}>JOIN AT</div>
+            <div style={{ fontSize:18, color:"#fff", fontWeight:700, letterSpacing:1, marginBottom:16 }}>quiz-it-six.vercel.app/join</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", letterSpacing:2, marginBottom:6 }}>ENTER PIN</div>
+            <div style={{ fontSize:64, fontWeight:900, color:"#fff", letterSpacing:10, fontFamily:"monospace", lineHeight:1, textShadow:"0 0 30px rgba(190,38,193,0.8)" }}>{sessionPin}</div>
+          </div>
+        </div>
+        {/* Right: rotating power card explainer */}
+        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40 }}>
           <div key={introCardIdx} style={{
-            marginTop:40, padding:"24px 48px", borderRadius:16, maxWidth:680, textAlign:"center",
-            background:"rgba(190,38,193,0.08)", border:"2px solid rgba(190,38,193,0.3)",
+            display:"flex", flexDirection:"column", alignItems:"center", textAlign:"center", maxWidth:560,
             animation:"introCardFade 0.6s ease",
           }}>
-            <div style={{ fontSize:40, marginBottom:8 }}>{card.emoji}</div>
-            <div style={{ fontSize:24, fontWeight:800, color:purple, letterSpacing:2, marginBottom:10 }}>{card.title}</div>
-            <div style={{ fontSize:18, color:"rgba(255,255,255,0.75)", lineHeight:1.5 }}>{card.desc}</div>
-            <div style={{ display:"flex", gap:6, justifyContent:"center", marginTop:16 }}>
-              {INTRO_CARDS.map((_, i) => (
-                <div key={i} style={{ width:8, height:8, borderRadius:"50%", background: i===introCardIdx ? purple : "rgba(255,255,255,0.2)" }} />
+            <div style={{
+              width:140, height:140, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:64, marginBottom:24, background:card.color+"22", border:"4px solid "+card.color,
+              boxShadow:"0 0 50px "+card.color+"66",
+            }}>{card.emoji}</div>
+            <div style={{ fontSize:15, color:"rgba(255,255,255,0.4)", letterSpacing:4, marginBottom:8 }}>POWER CARD</div>
+            <div style={{ fontSize:44, fontWeight:900, color:card.color, letterSpacing:2, marginBottom:18, textShadow:"0 0 30px "+card.color+"88" }}>{card.title}</div>
+            <div style={{ fontSize:22, color:"rgba(255,255,255,0.8)", lineHeight:1.5 }}>{card.desc}</div>
+            <div style={{ display:"flex", gap:8, justifyContent:"center", marginTop:32 }}>
+              {POWER_CARDS.map((c, i) => (
+                <div key={i} style={{ width:10, height:10, borderRadius:"50%", background: i===introCardIdx ? c.color : "rgba(255,255,255,0.2)" }} />
               ))}
             </div>
           </div>
-        )}
+        </div>
         <style>{`@keyframes introCardFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
       </div>
     );

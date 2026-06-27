@@ -441,12 +441,22 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
   async function chooseSpin() {
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ spin_choice: "spin" }).eq("pin", sessionPin);
+    const { error: err } = await supabase.from("sessions").update({ spin_choice: "spin" }).eq("pin", sessionPin);
+    if (err) {
+      console.error("chooseSpin failed:", err);
+      setError("Could not register your spin choice - please try again.");
+      setTimeout(() => setError(""), 4000);
+    }
   }
 
   async function choosePass() {
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ spin_choice: "pass" }).eq("pin", sessionPin);
+    const { error: err } = await supabase.from("sessions").update({ spin_choice: "pass" }).eq("pin", sessionPin);
+    if (err) {
+      console.error("choosePass failed:", err);
+      setError("Could not register your choice - please try again.");
+      setTimeout(() => setError(""), 4000);
+    }
   }
 
   function getCorrectAnswerText(q: Question): string {
@@ -671,6 +681,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       return (
         <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24, textAlign: "center" as const, fontFamily: font }}>
           <div style={{ fontSize: 22, color: "#facc15", fontWeight: 900, letterSpacing: 2 }}>SPIN TO WIN?</div>
+          {error && (
+            <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, textAlign: "center" as const }}>{error}</div>
+          )}
           <button onClick={chooseSpin} style={{ width: "100%", maxWidth: 320, padding: "32px 0", borderRadius: 20, background: "rgba(34,197,94,0.25)", border: "3px solid #22c55e", color: "#fff", fontSize: 32, fontWeight: 900, letterSpacing: 4, cursor: "pointer" }}>SPIN</button>
           <button onClick={choosePass} style={{ width: "100%", maxWidth: 320, padding: "24px 0", borderRadius: 20, background: "rgba(255,255,255,0.08)", border: "2px solid rgba(255,255,255,0.3)", color: "#fff", fontSize: 22, fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>PASS</button>
         </div>

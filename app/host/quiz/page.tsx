@@ -67,16 +67,17 @@ const RULES = {
 
 const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "Multi Tap", music: "Music Round" };
 
-// Per-question-type timer defaults, confirmed by host: Multiple Choice and
-// Sequence/Multi Tap need less thinking time than written/typed answers.
-// Picture and Audio aren't in this map, so they fall back to the host's manual
-// timer setting since those need variable time depending on content.
+// Per-question-type timer defaults, confirmed by host: Multiple Choice,
+// Sequence, Multi Tap, and Number need less thinking time than written
+// text answers. Picture and Audio aren't in this map, so they fall back to
+// the host's manual timer setting since those need variable time depending
+// on content.
 const TIMER_BY_TYPE: Record<string, number> = {
   multiple_choice: 15,
   sequence: 15,
   multi_tap: 15,
+  number: 15,
   text_answer: 30,
-  number: 30,
 };
 function getTimerForQuestion(q: { question_type?: string } | null | undefined, fallback: number): number {
   if (!q || !q.question_type) return fallback;
@@ -261,7 +262,10 @@ function QuizControllerInner() {
   async function loadTeams(pin: string) {
     const supabase = createSupabaseBrowserClient();
     const { data } = await supabase.from("teams").select("*").eq("session_pin", pin).order("created_at", { ascending: true });
-    if (data) setTeams(data);
+    if (data) {
+      setTeams(data);
+      if (data.length > 0) ensureScores(pin, data);
+    }
   }
 
   async function loadAnswers(pin: string, idx: number) {
@@ -378,12 +382,23 @@ function QuizControllerInner() {
     const correctText = getCorrectAnswerText(q);
     const supabase = createSupabaseBrowserClient();
     const hasBoost = (teamName: string) => unoCards.some(c => c.team_name === teamName && c.card_type === "x2" && new Date(c.played_at).getTime() >= roundStartedRef.current);
+    // If a network retry ever creates more than one answer row for the same
+    // team+question, always treat the most recently submitted one as authoritative -
+    // picking whichever row happened to come first in array order could silently
+    // score against a stale/earlier answer while a different part of the app (e.g.
+    // "fastest correct" determination) looked at a different row, disagreeing with
+    // each other for no visible reason.
+    function getLatestAnswer(teamName: string): Answer | undefined {
+      const matches = currentAnswers.filter(a => a.team_name === teamName);
+      if (matches.length === 0) return undefined;
+      return matches.reduce((latest, a) => new Date(a.submitted_at).getTime() > new Date(latest.submitted_at).getTime() ? a : latest);
+    }
 
     // Determine rank order of correct answers (by submission time) for rank-based bonus:
     // 1st correct = full bonus, 2nd = bonus-1, 3rd = bonus-2, etc., floored at 0.
     const correctEntries = teamList
       .map(team => {
-        const ans = currentAnswers.find(a => a.team_name === team.team_name);
+        const ans = getLatestAnswer(team.team_name);
         if (!ans) return null;
         return isAnswerCorrect(ans, q) ? { teamName: team.team_name, submittedAt: new Date(ans.submitted_at).getTime() } : null;
       })
@@ -396,7 +411,7 @@ function QuizControllerInner() {
     });
 
     for (const team of teamList) {
-      const ans = currentAnswers.find(a => a.team_name === team.team_name);
+      const ans = getLatestAnswer(team.team_name);
       if (!ans) continue;
       if (q.question_type === "multi_tap") {
         const correctKeys = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
@@ -485,10 +500,20 @@ function QuizControllerInner() {
   }
 
   async function doEndOfQuiz() {
-    if (!sessionId) return;
+    if (!sessionId) { alert("Not connected to a session - cannot end quiz."); return; }
     quizEndRevealedRef.current = 0;
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "quiz_end", scoreboard_data: scores, quiz_end_revealed_count: 0, quiz_end_trophy_visible: false }).eq("id", sessionId);
+    const { data, error } = await supabase.from("sessions").update({ phase: "quiz_end", scoreboard_data: scores, quiz_end_revealed_count: 0, quiz_end_trophy_visible: false }).eq("id", sessionId).select();
+    if (error) {
+      console.error("doEndOfQuiz failed:", error);
+      alert("Failed to end quiz: " + error.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      console.error("doEndOfQuiz matched zero rows for sessionId:", sessionId);
+      alert("End Quiz didn't update - the session link may be stale. Try refreshing the host page.");
+      return;
+    }
     setHostPhase("quiz_end");
   }
   async function doRevealNextTeam() {
@@ -509,10 +534,16 @@ function QuizControllerInner() {
     if (choice === "spin" && !spinTriggeredRef.current) {
       spinTriggeredRef.current = true;
       const winIdx = Math.floor(Math.random() * 8);
+      const nonce = Date.now();
+      // Set local state directly instead of waiting for a realtime/poll echo-back
+      // of our own write - we already know these exact values, no need to round-trip.
+      setSpinChoice("spin");
+      setSpinTargetIdx(winIdx);
+      setSpinNonce(nonce);
       // Use pin (already verified above) rather than sessionId, which can be a stale
       // closure value if this listener was set up before sessionId finished loading -
       // that stale value was silently breaking the spin_to_win transition.
-      createSupabaseBrowserClient().from("sessions").update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: Date.now() }).eq("pin", pin).then(({ error }) => {
+      createSupabaseBrowserClient().from("sessions").update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: nonce }).eq("pin", pin).then(({ error }) => {
         if (error) console.error("Failed to start Spin to Win:", error);
       });
       if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current);
@@ -531,7 +562,17 @@ function QuizControllerInner() {
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams" }, (payload) => {
         const t = payload.new as Team;
-        if (t.session_pin === pin) setTeams(prev => [...prev, t]);
+        if (t.session_pin === pin) {
+          setTeams(prev => [...prev, t]);
+          // Create the score row immediately on join, not on first correct answer -
+          // otherwise a team that joined after "Initialise Scores" was clicked, or
+          // simply hasn't answered correctly yet, was invisible on the leaderboard
+          // entirely (it only ever showed teams that already had a scores row).
+          createSupabaseBrowserClient().from("scores").upsert(
+            { session_pin: pin, team_name: t.team_name, total_points: 0, round_points: 0 },
+            { onConflict: "session_pin,team_name", ignoreDuplicates: true }
+          ).then(() => loadScores(pin));
+        }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards" }, (payload) => {
         setUnoCards(prev => [payload.new as UnoCard, ...prev]);
@@ -898,7 +939,7 @@ function QuizControllerInner() {
             </div>
           </div>
         )}
-        {sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} />}
+        {sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
         <a href="/host/display" target="_blank" style={{ padding:"5px 12px", borderRadius:8, background:"#BE26C1", color:"#fff", textDecoration:"none", fontSize:11 }}>Display</a>
       </div>
 
@@ -1121,7 +1162,7 @@ function QuizControllerInner() {
                   <label style={{ fontSize:12, color:"rgba(255,255,255,0.6)", minWidth:110 }}>Timer - Picture/Audio (s)</label>
                   <input type="number" value={timerDuration} onChange={e => setTimerDuration(Number(e.target.value))} style={{ width:60, padding:"4px 8px", borderRadius:6, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:14, textAlign:"center" as const }} />
                 </div>
-                <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Multiple Choice/Sequence/Multi Tap = 15s, written answers = 30s (fixed)</div>
+                <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Multiple Choice/Sequence/Multi Tap/Number = 15s, written answers = 30s (fixed)</div>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <label style={{ fontSize:12, color:"rgba(255,255,255,0.6)", minWidth:110 }}>Max time bonus</label>
                   <input type="number" value={timeBonus} onChange={e => setTimeBonus(Number(e.target.value))} style={{ width:60, padding:"4px 8px", borderRadius:6, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:14, textAlign:"center" as const }} />

@@ -25,9 +25,10 @@ type Props = {
   sessionId: string;
   sessionPin: string;
   teams: { team_name: string }[];
+  onScoreChange?: () => void;
 };
 
-export function HardDeckPanel({ sessionId, sessionPin, teams }: Props) {
+export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: Props) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
   const [team, setTeam] = useState<string | null>(null);
@@ -162,6 +163,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams }: Props) {
     } else {
       await supabase.from("scores").insert({ session_pin: sessionPin, team_name: team, total_points: amount, round_points: amount });
     }
+    onScoreChange?.();
   }
 
   useEffect(() => {

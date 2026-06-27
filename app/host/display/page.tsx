@@ -865,7 +865,6 @@ function DisplayScreenInner() {
         <div style={{ padding:"24px 32px", borderRadius:16, background:"rgba(34,197,94,0.15)", border:"2px solid rgba(34,197,94,0.5)", maxWidth:600 }}>
           <div style={{ fontSize:16, color:"rgba(34,197,94,0.7)", letterSpacing:3, marginBottom:8 }}>CORRECT ANSWER</div>
           <div style={{ fontSize:45, fontWeight:800, color:"#22c55e" }}>{correctText}</div>
-          {question.explanation && <div style={{ fontSize:20, color:"rgba(255,255,255,0.5)", marginTop:10 }}>{question.explanation}</div>}
         </div>
       </div>
     );

@@ -918,6 +918,13 @@ function QuizControllerInner() {
           ) : hostPhase === "celebration" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>
               <div style={{ fontSize:72, marginBottom:16 }}>🎉</div>
+              {currentQ && (
+                <div style={{ padding:"16px 20px", borderRadius:12, background:"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.4)", marginBottom:24, maxWidth:480, marginLeft:"auto", marginRight:"auto", textAlign:"left" as const }}>
+                  <div style={{ fontSize:12, color:"rgba(34,197,94,0.7)", marginBottom:4, letterSpacing:2 }}>ANSWER</div>
+                  <div style={{ fontSize:24, fontWeight:700, color:"#22c55e" }}>{getCorrectAnswerText(currentQ)}</div>
+                  {currentQ.explanation && <div style={{ fontSize:14, color:"rgba(255,255,255,0.6)", marginTop:8 }}>{currentQ.explanation}</div>}
+                </div>
+              )}
               {fastestTeam && <div style={{ fontSize:14, letterSpacing:3, color:"rgba(255,255,255,0.4)", marginBottom:12 }}>FASTEST CORRECT ANSWER</div>}
               {fastestTeam ? (
                 <>
@@ -1153,7 +1160,7 @@ function QuizControllerInner() {
                   </div>
                   <div style={{ display:"flex", alignItems:"center", paddingLeft:28, marginTop:3, gap:6 }}>
                     <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>Rd: +{s.round_points}</span>
-                    {answered && <span style={{ fontSize:11, color:"#22c55e", fontStyle:"italic", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>}
+                    {answered && <span style={{ fontSize:13, color:"#22c55e", fontStyle:"italic", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>}
                     <PowerCardDots teamName={s.team_name} />
                     {adjustTeam === s.team_name ? (
                       <div style={{ display:"flex", gap:4, marginLeft:"auto" }}>

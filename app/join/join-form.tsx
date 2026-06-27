@@ -176,6 +176,14 @@ export function JoinForm() {
     setError("");
     try {
       const supabase = createSupabaseBrowserClient();
+      const normalisedName = teamName.trim().toLowerCase();
+      const { data: existingTeams } = await supabase.from("teams").select("team_name").eq("session_pin", pin);
+      if (existingTeams && existingTeams.some(t => (t.team_name || "").trim().toLowerCase() === normalisedName)) {
+        setError("That team name is already taken in this quiz! Please pick a different one.");
+        setStep("name");
+        setLoading(false);
+        return;
+      }
       const { data: existingSongs } = await supabase.from("teams").select("victory_song").eq("session_pin", pin);
       if (existingSongs && existingSongs.some(t => t.victory_song === selectedSong)) {
         setError("That song was just taken by another team! Please pick a different one.");

@@ -332,6 +332,25 @@ function QuizControllerInner() {
     return q.correct_answer;
   }
 
+  // Single source of truth for "did this team get the question right", used by
+  // BOTH autoScore (actual point-awarding) and doCelebrate (fastest-team display
+  // and victory song/bonus eligibility). Previously doCelebrate used isFuzzyMatch
+  // directly for every type, including Multi Tap - but Multi Tap answers are
+  // comma-separated tap-key lists ("a,c,e"), not plain text, so fuzzy text
+  // matching on them was essentially meaningless. That mismatch let a team that
+  // didn't tap all the correct items still show up as "fastest", while the
+  // actual scoring (correctly requiring all taps) could award them 0 points -
+  // exactly the "fastest team got 0 points" / "wrong team got fastest" reports.
+  function isAnswerCorrect(ans: Answer, q: Question): boolean {
+    if (q.question_type === "multi_tap") {
+      const correctKeys = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+      const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+      const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
+      return correctTaps.length === correctKeys.length && correctKeys.length > 0;
+    }
+    return isFuzzyMatch(ans.answer_text, getCorrectAnswerText(q), q);
+  }
+
   async function autoScore(teamList: Team[], q: Question, currentAnswers: Answer[]) {
     if (!sessionPin) return;
     lastDeltasRef.current = {};
@@ -345,15 +364,7 @@ function QuizControllerInner() {
       .map(team => {
         const ans = currentAnswers.find(a => a.team_name === team.team_name);
         if (!ans) return null;
-        if (q.question_type === "multi_tap") {
-          const correctKeys = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
-          const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
-          const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
-          const gotAllCorrect = correctTaps.length === correctKeys.length && correctKeys.length > 0;
-          return gotAllCorrect ? { teamName: team.team_name, submittedAt: new Date(ans.submitted_at).getTime() } : null;
-        }
-        const isCorrect = isFuzzyMatch(ans.answer_text, correctText, q);
-        return isCorrect ? { teamName: team.team_name, submittedAt: new Date(ans.submitted_at).getTime() } : null;
+        return isAnswerCorrect(ans, q) ? { teamName: team.team_name, submittedAt: new Date(ans.submitted_at).getTime() } : null;
       })
       .filter((e): e is { teamName: string; submittedAt: number } => e !== null)
       .sort((a, b) => a.submittedAt - b.submittedAt);
@@ -648,7 +659,7 @@ function QuizControllerInner() {
   async function doCelebrate() {
     if (!sessionId) return;
     const correctAnswers = answers.filter(a =>
-      currentQ && isFuzzyMatch(a.answer_text, getCorrectAnswerText(currentQ), currentQ)
+      currentQ && isAnswerCorrect(a, currentQ)
     ).sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
     const fastest = correctAnswers[0] || null;
     const fastestTeamName = fastest?.team_name || null;

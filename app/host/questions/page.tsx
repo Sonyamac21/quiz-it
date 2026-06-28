@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Question = {
+  id?: string;
   question_text: string;
   question_type: string;
   option_a: string | null;
@@ -261,11 +262,107 @@ export default function QuestionsPage() {
         letters.forEach(l => { q["option_" + l] = newOptions[l] ?? null; });
         q.correct_answer = newCorrect.sort().join(",");
       }
+      // Save into the master question library so it persists independently of
+      // whatever round it ends up in - this is the foundation repeat-prevention
+      // is built on. If an identical question (same text+type) already exists,
+      // the unique index means this is a no-op and we just attach the existing id.
+      try {
+        const libRow = {
+          question_text: q.question_text,
+          correct_answer: q.correct_answer,
+          option_a: ["picture","audio"].includes(q.question_type) ? null : q.option_a,
+          option_b: ["picture","audio"].includes(q.question_type) ? null : q.option_b,
+          option_c: q.option_c,
+          option_d: q.option_d,
+          option_e: q.option_e,
+          option_f: q.option_f,
+          explanation: q.explanation,
+          difficulty: q.difficulty,
+          question_type: q.question_type,
+          media_url: ["picture","audio"].includes(q.question_type) ? q.option_b : null,
+        };
+        const { data: libData } = await createSupabaseBrowserClient()
+          .from("questions")
+          .upsert(libRow, { onConflict: "question_text,question_type", ignoreDuplicates: true })
+          .select("id")
+          .maybeSingle();
+        if (libData?.id) {
+          q.id = libData.id;
+        } else {
+          // Row already existed (ignoreDuplicates skipped the insert) - look up its id.
+          const { data: existing } = await createSupabaseBrowserClient()
+            .from("questions")
+            .select("id")
+            .ilike("question_text", q.question_text)
+            .eq("question_type", q.question_type)
+            .maybeSingle();
+          if (existing?.id) q.id = existing.id;
+        }
+      } catch (libErr) {
+        // Never let library bookkeeping block actual question generation -
+        // worst case a question is missing its id and just won't be tracked
+        // for repeat-prevention purposes this one time.
+        console.error("Failed to save question to library:", libErr);
+      }
       return q;
     } catch (e) {
       lastApiErrorRef.current = e instanceof Error ? e.message : "Unknown error";
       return null;
     }
+  }
+
+  // Converts a questions-table row back into the in-app Question shape,
+  // re-inflating option_b from media_url for picture/audio types since that's
+  // where the legacy player/display/host rendering code expects to find it.
+  function rowToQuestion(row: Record<string, unknown>): Question {
+    const isMedia = row.question_type === "picture" || row.question_type === "audio";
+    return {
+      id: row.id as string,
+      question_text: row.question_text as string,
+      question_type: row.question_type as string,
+      option_a: (isMedia ? null : row.option_a) as string | null,
+      option_b: (isMedia ? row.media_url : row.option_b) as string | null,
+      option_c: row.option_c as string | null,
+      option_d: row.option_d as string | null,
+      option_e: row.option_e as string | null,
+      option_f: row.option_f as string | null,
+      correct_answer: row.correct_answer as string,
+      explanation: (row.explanation as string) || "",
+      difficulty: (row.difficulty as string) || "mixed",
+      round_type: roundType,
+    };
+  }
+
+  // Smart 70/20/10 question selection from the library, tried before falling
+  // back to fresh AI generation. Pool A (never used) gets priority weight, Pool
+  // B (used 12+ months ago) is the secondary pool, Pool C (anything else) is a
+  // last-resort fallback so a thin library never blocks generation outright -
+  // it just means more AI-generated fallback for that slot, exactly like before
+  // this feature existed.
+  // NOTE: this is global recency-based selection (last_used_at across all
+  // venues/hosts), not yet venue-specific - the generator UI doesn't currently
+  // have a "which venue/night is this for" field, which true venue-aware
+  // exclusion would need. game_history does capture venue_id at play-time
+  // already, so venue-aware filtering can be added once that UI control exists.
+  async function pickFromLibrary(type: string, excludeIds: Set<string>): Promise<Question | null> {
+    const supabase = createSupabaseBrowserClient();
+    const cutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+    const [{ data: poolA }, { data: poolB }, { data: poolC }] = await Promise.all([
+      supabase.from("questions").select("*").eq("question_type", type).eq("is_active", true).is("last_used_at", null).limit(50),
+      supabase.from("questions").select("*").eq("question_type", type).eq("is_active", true).lt("last_used_at", cutoff).limit(50),
+      supabase.from("questions").select("*").eq("question_type", type).eq("is_active", true).gte("last_used_at", cutoff).order("last_used_at", { ascending: true }).limit(50),
+    ]);
+    const filterEx = (arr: Record<string, unknown>[] | null) => (arr || []).filter(r => !excludeIds.has(r.id as string));
+    const a = filterEx(poolA), b = filterEx(poolB), c = filterEx(poolC);
+    if (a.length === 0 && b.length === 0 && c.length === 0) return null;
+    const roll = Math.random();
+    let pool = a.length ? a : (b.length ? b : c);
+    if (roll < 0.7 && a.length) pool = a;
+    else if (roll < 0.9 && b.length) pool = b;
+    else if (c.length) pool = c;
+    if (!pool.length) pool = a.length ? a : (b.length ? b : c);
+    const row = pool[Math.floor(Math.random() * pool.length)];
+    return rowToQuestion(row);
   }
 
   async function generate() {
@@ -295,6 +392,24 @@ export default function QuestionsPage() {
     }
     const shuffledTopics = shuffle(TOPICS);
     const good: Question[] = [];
+    const usedLibraryIds = new Set<string>();
+    // Try the library first for each slot, in order, before falling back to AI -
+    // this is the actual repeat-prevention mechanism in action. Whatever slots
+    // the library can't fill (including an empty/fresh library) just continue
+    // through fresh AI generation exactly as before.
+    setStatus("Checking question library...");
+    const remainingTypes: string[] = [];
+    for (const t of types) {
+      const libQ = await pickFromLibrary(t, usedLibraryIds);
+      if (libQ && libQ.id) {
+        usedLibraryIds.add(libQ.id);
+        good.push(libQ);
+        setQuestions([...good]);
+      } else {
+        remainingTypes.push(t);
+      }
+    }
+    types = remainingTypes;
     let attempts = 0;
     const maxAttempts = count * 6;
     let i = 0;

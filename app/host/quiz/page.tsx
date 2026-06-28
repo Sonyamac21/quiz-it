@@ -686,6 +686,24 @@ function QuizControllerInner() {
     const isPicture = q.question_type === "picture";
     const supabase = createSupabaseBrowserClient();
     await supabase.from("sessions").update({ phase: "question", current_question: q, current_question_index: qIdx, fastest_team: null, fastest_song: null, picture_sub_phase: isPicture ? "image_only" : null }).eq("id", sessionId);
+    // Record actual play-time usage for repeat-prevention - this only fires for
+    // questions that came from (or were saved into) the library, i.e. have an id.
+    // Older rounds generated before the library existed simply won't have one,
+    // and are silently skipped here rather than causing an error.
+    if (q.id) {
+      supabase.from("game_history").insert({
+        question_id: q.id,
+        session_pin: sessionPin,
+        venue_name: venueName || null,
+        round_number: roundNumber,
+      }).then(({ error }) => { if (error) console.error("Failed to log game_history:", error); });
+      supabase.from("questions").select("times_used").eq("id", q.id).maybeSingle().then(({ data }) => {
+        supabase.from("questions").update({
+          times_used: ((data?.times_used as number) || 0) + 1,
+          last_used_at: new Date().toISOString(),
+        }).eq("id", q.id).then(({ error }) => { if (error) console.error("Failed to update question usage:", error); });
+      });
+    }
   }
 
   async function doRevealPictureQuestion() {

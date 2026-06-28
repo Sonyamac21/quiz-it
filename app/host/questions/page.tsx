@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { ImageUploader } from "@/components/ImageUploader";
 
 type Question = {
   id?: string;
@@ -718,9 +719,13 @@ export default function QuestionsPage() {
               )}
               {q.question_type==="picture" && (
                 <div style={{ marginBottom:8 }}>
+                  <ImageUploader
+                    currentUrl={q.option_b || null}
+                    onUploaded={(url) => setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, option_b: url } : qq))}
+                  />
                   <a href={"https://www.google.com/search?tbm=isch&q="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
-                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(56,189,248,0.15)", border:"1px solid rgba(56,189,248,0.4)", color:"#38bdf8", textDecoration:"none", fontSize:13, fontWeight:600, marginBottom:8 }}>
-                    Search Image
+                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(56,189,248,0.15)", border:"1px solid rgba(56,189,248,0.4)", color:"#38bdf8", textDecoration:"none", fontSize:13, fontWeight:600, marginTop:10 }}>
+                    Search Google Images (for reference)
                   </a>
                   <p style={{ fontSize:16, color:"#4ade80", fontWeight:700, margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>
                 </div>

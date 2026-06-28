@@ -273,9 +273,14 @@ function QuizControllerInner() {
     const { data } = await supabase.from("answers").select("*").eq("session_pin", pin).eq("question_index", idx).order("submitted_at", { ascending: true });
     if (data) setAnswers(data);
   }
-  // Safety-net polling in case a realtime answer INSERT event is missed
+  // Safety-net polling in case a realtime answer INSERT event is missed.
+  // Previously skipped the "timer" phase entirely - the exact window when the
+  // countdown is running and players are actively submitting, which is almost
+  // certainly the real cause of "can't see player answers consistently" on the
+  // host screen, since the poll only ever ran before the timer started or after
+  // it had already ended.
   useEffect(() => {
-    if (!sessionPin || (hostPhase !== "question" && hostPhase !== "answer")) return;
+    if (!sessionPin || !["question", "timer", "answer"].includes(hostPhase)) return;
     const interval = setInterval(() => { loadAnswers(sessionPin, qIdx); }, 2500);
     return () => clearInterval(interval);
   }, [sessionPin, qIdx, hostPhase]);
@@ -650,6 +655,11 @@ function QuizControllerInner() {
     playSound("round-start.mp3");
     const supabase = createSupabaseBrowserClient();
     await supabase.from("sessions").update({ phase: "round_start", round_name: selectedRound.name, round_number: roundNumber, fastest_team: null, fastest_song: null }).eq("id", sessionId);
+    // Reset round_points for the new round - previously this only happened if the
+    // host remembered to click "Reset Round Points" manually, so the leaderboard's
+    // "Rd: +X" figure could carry over and keep accumulating across the whole game
+    // instead of reflecting just the round in progress.
+    if (sessionPin) await resetRoundPoints();
   }
 
   async function doPreviewQuestion(idx: number) {

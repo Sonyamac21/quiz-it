@@ -1004,6 +1004,21 @@ export default function DisplayScreen() {
   return (
     <Suspense fallback={<div style={{ minHeight:"100vh", background:"#0d0225" }} />}>
       <DisplayScreenInner />
+      {/* Persistent branding overlay - sits on top of every phase screen
+          regardless of which internal return branch rendered, instead of
+          needing to be threaded through each one individually. */}
+      <div style={{
+        position: "fixed", bottom: 14, right: 18, zIndex: 9999,
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "6px 12px", borderRadius: 999,
+        background: "rgba(13,2,37,0.6)", border: "1px solid rgba(190,38,193,0.3)",
+        pointerEvents: "none" as const,
+      }}>
+        <img src="/me-logo.jpg" alt="ME" style={{ width: 20, height: 20, borderRadius: "50%" }} />
+        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", fontFamily: "'Bruno Ace SC',sans-serif", letterSpacing: 0.5 }}>
+          Quiz-It powered by Mac Entertainment by Sonya Mac
+        </span>
+      </div>
     </Suspense>
   );
 }

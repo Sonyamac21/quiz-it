@@ -30,9 +30,9 @@ export function buildTeamSegments(teamNames: string[]): WheelSegment[] {
 }
 
 type Seg = WheelSegment;
-type Props = { onResult: (seg: Seg) => void; size?: number; teamName?: string; segments?: WheelSegment[]; forceResultIndex?: number; autoSpin?: boolean };
+type Props = { onResult: (seg: Seg) => void; size?: number; teamName?: string; segments?: WheelSegment[]; forceResultIndex?: number; autoSpin?: boolean; onSpinStart?: () => void };
 
-export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, autoSpin }: Props) {
+export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, autoSpin, onSpinStart }: Props) {
   const SEGS = segments && segments.length > 0 ? segments : DEFAULT_SEGS;
   const N = SEGS.length;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -165,6 +165,8 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
   function spin() {
     if (spinning) return;
     setSpinning(true);
+    onSpinStart?.();
+    onSpinStart?.();
     cancelAnimationFrame(lightRaf.current);
     lastTickOffset.current = offsetRef.current;
     const extraRotations = -(30 + Math.floor(Math.random()*10));

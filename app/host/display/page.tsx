@@ -104,6 +104,7 @@ function DisplayScreenInner() {
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
   const [hardDeckPotential, setHardDeckPotential] = useState(0);
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number|null>(null);
+  const [hardDeckWheelSpinning, setHardDeckWheelSpinning] = useState(false);
   const prevHardDeckStatusRef = useRef<string>("idle");
   const [teams, setTeams] = useState<{ team_name: string; victory_song?: string; photo_url?: string }[]>([]);
   const [showWinnerPhoto, setShowWinnerPhoto] = useState(false);
@@ -264,6 +265,7 @@ function DisplayScreenInner() {
     setHardDeckStatus((data.hard_deck_status as string) || "idle");
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
     setHardDeckWheelTarget((data.hard_deck_wheel_target as number) ?? null);
+    setHardDeckWheelSpinning(!!data.hard_deck_wheel_spinning);
     {
       const newHDStatus = (data.hard_deck_status as string) || "idle";
       const newHDPotential = (data.hard_deck_potential as number) || 0;
@@ -565,7 +567,7 @@ function DisplayScreenInner() {
             onResult={() => {}}
             size={760}
             forceResultIndex={hardDeckWheelTarget}
-            autoSpin={true}
+            autoSpin={hardDeckWheelSpinning}
           />
         )}
         {hardDeckTeam && (

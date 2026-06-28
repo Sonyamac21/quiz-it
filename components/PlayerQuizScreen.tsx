@@ -200,6 +200,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [hardDeckPotential, setHardDeckPotential] = useState(0);
   const [hardDeckCards, setHardDeckCards] = useState<{rank:number; suit:string}[]>([]);
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number | null>(null);
+  const [hardDeckWheelSpinning, setHardDeckWheelSpinning] = useState(false);
   const [sessionStatus, setSessionStatus] = useState<string>("waiting");
   const [allTeamNames, setAllTeamNames] = useState<string[]>([]);
   const [intermissionOffers, setIntermissionOffers] = useState("");
@@ -274,7 +275,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data")
+        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -352,6 +353,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     }
     setHardDeckCards((data.hard_deck_cards as {rank:number; suit:string}[]) || []);
     setHardDeckWheelTarget((data.hard_deck_wheel_target as number) ?? null);
+    setHardDeckWheelSpinning(!!data.hard_deck_wheel_spinning);
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
     setHardDeckGuess((data.hard_deck_guess as string) || null);
     setSpinOffered(!!data.spin_offered);
@@ -540,7 +542,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               onResult={() => {}}
               size={240}
               forceResultIndex={hardDeckWheelTarget}
-              autoSpin={true}
+              autoSpin={hardDeckWheelSpinning}
             />
           </div>
         )}

@@ -86,7 +86,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
     setGuess(null);
     setDeck(buildDeck());
     setWheelTarget(targetIdx);
-    pushState({ hard_deck_status: "wheel", hard_deck_team: null, hard_deck_cards: [], hard_deck_guess: null, hard_deck_potential: 0, hard_deck_has_swapped: false, hard_deck_wheel_target: targetIdx, phase: "hard_deck" });
+    pushState({ hard_deck_status: "wheel", hard_deck_team: null, hard_deck_cards: [], hard_deck_guess: null, hard_deck_potential: 0, hard_deck_has_swapped: false, hard_deck_wheel_target: targetIdx, hard_deck_wheel_spinning: false, phase: "hard_deck" });
   }
 
   function onWheelResult(seg: { label: string }) {
@@ -192,7 +192,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
       <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 28, color: "#BE26C1", letterSpacing: 4 }}>THE HARD DECK</div>
 
       {showWheel && (
-        <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={380} forceResultIndex={wheelTarget ?? undefined} />
+        <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={380} forceResultIndex={wheelTarget ?? undefined} onSpinStart={() => pushState({ hard_deck_wheel_spinning: true })} />
       )}
 
       {!showWheel && team && (

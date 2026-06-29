@@ -1,0 +1,92 @@
+diff --git a/app/host/quiz/page.tsx b/app/host/quiz/page.tsx
+index c9bd9b7..25df034 100644
+--- a/app/host/quiz/page.tsx
++++ b/app/host/quiz/page.tsx
+@@ -232,6 +232,47 @@ function QuizControllerInner() {
+     if (data) setRounds(data);
+   }
+ 
++  // Restores the host's local UI state from the session row in the database -
++  // previously a host browser refresh reconnected to the right session but
++  // showed a blank "Select round..." panel with no question/phase/timer state,
++  // even though the live game (display screen, player phones) was still
++  // running fine off the same session row the whole time. This is what makes
++  // "refresh the host laptop mid-show" actually safe instead of disorienting.
++  async function restoreSessionState(data: Record<string, unknown>) {
++    const supabase = createSupabaseBrowserClient();
++    if (data.round_id) {
++      const { data: roundData } = await supabase.from("rounds").select("*").eq("id", data.round_id as string).maybeSingle();
++      if (roundData) {
++        setSelectedRound(roundData as Round);
++        roundQuestionsRef.current = [...(roundData as Round).questions];
++      }
++    }
++    if (typeof data.current_question_index === "number") setQIdx(data.current_question_index);
++    if (typeof data.round_number === "number") setRoundNumber(data.round_number);
++    if (data.fastest_team) { setFastestTeam(data.fastest_team as string); fastestTeamRef.current = data.fastest_team as string; }
++    if (data.fastest_song) setFastestSong(data.fastest_song as string);
++    const restoredPhase = (data.phase as string) || "waiting";
++    setHostPhase(restoredPhase as HostPhase);
++
++    // If a timer was actively running when the refresh happened, resume the
++    // countdown from elapsed wall-clock time instead of either losing it
++    // entirely or showing a frozen stale number.
++    if (restoredPhase === "timer" && data.timer_started_at && data.timer_duration) {
++      const elapsed = (Date.now() - new Date(data.timer_started_at as string).getTime()) / 1000;
++      const remaining = Math.max(0, Math.ceil((data.timer_duration as number) - elapsed));
++      setTimeLeft(remaining);
++      if (remaining > 0) {
++        if (timerRef.current) clearInterval(timerRef.current);
++        timerRef.current = setInterval(() => {
++          setTimeLeft(prev => {
++            if (prev <= 1) { if (timerRef.current) clearInterval(timerRef.current); stopTickAudio(); return 0; }
++            return prev - 1;
++          });
++        }, 1000);
++      }
++    }
++  }
++
+   async function connectWithPin(p: string) {
+     const supabase = createSupabaseBrowserClient();
+     const { data } = await supabase.from("sessions").select("*").eq("pin", p.trim()).single();
+@@ -241,10 +282,11 @@ function QuizControllerInner() {
+     setVenueName(data.venue_name || null);
+     setConnected(true);
+     loadTeams(p.trim());
+-    loadAnswers(p.trim(), 0);
++    loadAnswers(p.trim(), (data.current_question_index as number) || 0);
+     loadUnoCards(p.trim());
+     loadScores(p.trim());
+     subscribeToUpdates(p.trim());
++    restoreSessionState(data);
+   }
+ 
+   async function connectToSession() {
+@@ -257,10 +299,11 @@ function QuizControllerInner() {
+     setVenueName(data.venue_name || null);
+     setConnected(true);
+     loadTeams(pinInput.trim());
+-    loadAnswers(pinInput.trim(), 0);
++    loadAnswers(pinInput.trim(), (data.current_question_index as number) || 0);
+     loadUnoCards(pinInput.trim());
+     loadScores(pinInput.trim());
+     subscribeToUpdates(pinInput.trim());
++    restoreSessionState(data);
+   }
+ 
+   async function loadTeams(pin: string) {
+@@ -917,7 +960,12 @@ function QuizControllerInner() {
+           </div>
+         )}
+         <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", letterSpacing:1, flex:1, textAlign:"center" as const }}>{spacebarHint}</div>
+-        <select value={selectedRound?.id||""} onChange={e => { const r = rounds.find(x=>x.id===e.target.value); setSelectedRound(r||null); setQIdx(0); setAnswers([]); setHostPhase("waiting"); roundQuestionsRef.current = r ? [...r.questions] : []; }}
++        <select value={selectedRound?.id||""} onChange={e => {
++          const r = rounds.find(x=>x.id===e.target.value);
++          setSelectedRound(r||null); setQIdx(0); setAnswers([]); setHostPhase("waiting");
++          roundQuestionsRef.current = r ? [...r.questions] : [];
++          if (sessionId) createSupabaseBrowserClient().from("sessions").update({ round_id: r?.id || null }).eq("id", sessionId);
++        }}
+           style={{ padding:"5px 10px", borderRadius:8, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:12, cursor:"pointer" }}>
+           <option value="">Select round...</option>
+           {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}

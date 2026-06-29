@@ -39,8 +39,14 @@ export async function POST(req: NextRequest) {
       .webp({ quality: 82 })
       .toBuffer();
 
+    // Force a fresh, non-pooled buffer copy - sharp's output can be a view into
+    // Node's internal buffer pool, which @vercel/blob's put() explicitly rejects
+    // with "ArrayBuffer: SharedArrayBuffer is not allowed." Buffer.from(buffer)
+    // always copies into new, dedicated memory, which sidesteps this entirely.
+    const safeBuffer = Buffer.from(optimized);
+
     const fileName = "question-images/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".webp";
-    const blob = await put(fileName, optimized, {
+    const blob = await put(fileName, safeBuffer, {
       access: "public",
       contentType: "image/webp",
     });
@@ -48,7 +54,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       url: blob.url,
       fileName,
-      fileSize: optimized.length,
+      fileSize: safeBuffer.length,
     });
   } catch (e) {
     console.error("Image upload failed:", e);

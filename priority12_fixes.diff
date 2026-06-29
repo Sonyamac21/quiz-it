@@ -1,0 +1,62 @@
+diff --git a/app/api/upload-image/route.ts b/app/api/upload-image/route.ts
+index b446094..e3fcb74 100644
+--- a/app/api/upload-image/route.ts
++++ b/app/api/upload-image/route.ts
+@@ -39,8 +39,14 @@ export async function POST(req: NextRequest) {
+       .webp({ quality: 82 })
+       .toBuffer();
+ 
++    // Force a fresh, non-pooled buffer copy - sharp's output can be a view into
++    // Node's internal buffer pool, which @vercel/blob's put() explicitly rejects
++    // with "ArrayBuffer: SharedArrayBuffer is not allowed." Buffer.from(buffer)
++    // always copies into new, dedicated memory, which sidesteps this entirely.
++    const safeBuffer = Buffer.from(optimized);
++
+     const fileName = "question-images/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".webp";
+-    const blob = await put(fileName, optimized, {
++    const blob = await put(fileName, safeBuffer, {
+       access: "public",
+       contentType: "image/webp",
+     });
+@@ -48,7 +54,7 @@ export async function POST(req: NextRequest) {
+     return NextResponse.json({
+       url: blob.url,
+       fileName,
+-      fileSize: optimized.length,
++      fileSize: safeBuffer.length,
+     });
+   } catch (e) {
+     console.error("Image upload failed:", e);
+diff --git a/app/host/questions/page.tsx b/app/host/questions/page.tsx
+index 67fc663..8079c0e 100644
+--- a/app/host/questions/page.tsx
++++ b/app/host/questions/page.tsx
+@@ -161,8 +161,8 @@ export default function QuestionsPage() {
+       text_answer: "text_answer: short word or phrase answer, all options must be null",
+       number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
+       sequence: "sequence: 4 items that have a definite correct chronological/logical order, written into option_a/b/c/d in that correct order. correct_answer must be exactly \"a,b,c,d\" (the order will be randomized programmatically afterward, so always write them in true correct order here).",
+-      picture: "picture: question_text must say \"Show teams this image:\" then describe what to search for. The subject MUST be one of: a famous landmark or building, an animal or species, a national flag, a well-known food or dish, or a sports venue/stadium. Do NOT use company/brand logos, famous people, movie stills, album covers, TV characters, or any copyrighted artwork or photography - these will not be found on stock photo sites (Pixabay specifically does not carry trademarked logos, so brand questions always return an unrelated photo). option_a must be a short, generic Google Images search query (3-5 words) likely to return real stock photography, e.g. \"Eiffel Tower Paris\" or \"red panda animal\" or \"Italian flag\" rather than a specific named individual, brand, or scene. option_b/c/d must be null. correct_answer is what teams write down.",
+-      audio: "audio: question_text must say \"Play this track:\" then the song name and artist. option_a must be a YouTube search query to find it (e.g. \"Bohemian Rhapsody Queen official\"). option_b/c/d must be null. correct_answer is what teams must write down.",
++      picture: "picture: this generates a PICTURE ROUND question. There are two SEPARATE pieces of information you must produce - do not mix them: (1) option_a is an internal media search query, NEVER shown to players, used only to fetch a stock photo - a short, generic Google Images search query (3-5 words), e.g. \"Eiffel Tower Paris\" or \"red panda animal\" or \"Italian flag\". The subject MUST be one of: a famous landmark or building, an animal or species, a national flag, a well-known food or dish, or a sports venue/stadium. Do NOT use company/brand logos, famous people, movie stills, album covers, TV characters, or any copyrighted artwork or photography - these will not be found on stock photo sites (Pixabay specifically does not carry trademarked logos, so brand questions always return an unrelated photo). (2) question_text is the actual question shown to players underneath the image - it must be a short, generic question ABOUT the image itself, e.g. \"Name this landmark\", \"Which country is this flag from?\", \"What animal is this?\", \"Which city is this stadium in?\". question_text must NEVER contain the words \"Show teams this image\", must NEVER name or describe the actual subject (that would give away the answer), and must NEVER be an unrelated trivia question - it must always be directly answerable by looking at the image. option_b/c/d must be null. correct_answer is the specific answer to question_text (the landmark name, the country, the animal, etc).",
++      audio: "audio: this generates a MUSIC ROUND question. There are two SEPARATE pieces of information you must produce - do not mix them: (1) option_a is an internal media search query, NEVER shown to players, used only to help find/reference the source track - a YouTube search query, e.g. \"Bohemian Rhapsody Queen official\". (2) question_text is the actual question shown to players after the clip plays - it must be a short, generic question ABOUT the song, e.g. \"Name this song\", \"Which artist performs this song?\", \"What year was this song released?\", \"Finish the lyric: ...\". question_text must NEVER state the song title or artist directly (that would give away the answer) and must NEVER be unrelated trivia - it must always be something a listener could only answer by having heard the clip. option_b/c/d must be null. correct_answer is the specific answer to question_text (the song title, the artist name, the year, etc - matching whatever question_text actually asks).",
+     };
+     console.log("usedRef has", usedRef.current.length, "entries");
+     // Cap to last 40 entries AND hard-truncate the assembled text - 150 entries
+@@ -730,7 +730,7 @@ export default function QuestionsPage() {
+                   />
+                   <a href={"https://www.google.com/search?tbm=isch&q="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
+                     style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(56,189,248,0.15)", border:"1px solid rgba(56,189,248,0.4)", color:"#38bdf8", textDecoration:"none", fontSize:13, fontWeight:600, marginTop:10 }}>
+-                    Search Google Images (for reference)
++                    Search "{q.option_a||q.correct_answer}" on Google Images (internal reference - players never see this)
+                   </a>
+                   <p style={{ fontSize:16, color:"#4ade80", fontWeight:700, margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>
+                 </div>
+@@ -783,7 +783,7 @@ export default function QuestionsPage() {
+                   </div>
+                   <a href={"https://www.youtube.com/results?search_query="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
+                     style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(251,146,60,0.15)", border:"1px solid rgba(251,146,60,0.4)", color:"#fb923c", textDecoration:"none", fontSize:13, fontWeight:600, marginTop:10 }}>
+-                    Find it on YouTube (for reference)
++                    Search "{q.option_a||q.correct_answer}" on YouTube (internal reference - players never see this)
+                   </a>
+                   <p style={{ fontSize:16, color:"#4ade80", fontWeight:700, margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>
+                 </div>

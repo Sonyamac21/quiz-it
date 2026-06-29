@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const fileName = "question-images/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".webp";
     const blob = await put(fileName, safeBuffer, {
-      access: "public",
+      access: "private",
       contentType: "image/webp",
     });
 

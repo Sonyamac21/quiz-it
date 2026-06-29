@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getMediaUrl } from "@/lib/getMediaUrl";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { SlotReels } from "@/components/SlotReels";
 
@@ -32,7 +33,7 @@ type Phase = "waiting" | "round_start" | "question" | "answer" | "celebration" |
 function LiveAudioPlayer({ question }: { question: Question }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [manualPlayed, setManualPlayed] = useState(false);
-  const url = question.option_b;
+  const url = getMediaUrl(question.option_b);
   const isLegacyYouTube = !!url && url.includes("youtube.com");
 
   useEffect(() => {
@@ -977,7 +978,7 @@ function DisplayScreenInner() {
     const isPicture = question.question_type === "picture";
       const isMultiTap = question.question_type === "multi_tap";
       const multiTapOptions = [{ key:"A", text:question.option_a },{ key:"B", text:question.option_b },{ key:"C", text:question.option_c },{ key:"D", text:question.option_d },{ key:"E", text:(question as any).option_e },{ key:"F", text:(question as any).option_f }].filter(o => o.text);
-    const imageUrl = isPicture ? question.option_b : null;
+    const imageUrl = isPicture ? getMediaUrl(question.option_b) : null;
 
     // PICTURE ROUND - image only (first space)
     if (isPicture && pictureSubPhase === "image_only" && imageUrl) {

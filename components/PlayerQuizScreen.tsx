@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useState, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getMediaUrl } from "@/lib/getMediaUrl";
 import { UnoPlayerCards } from "@/components/UnoCards";
 import { AnswerKeypad } from "@/components/AnswerKeypad";
 import { SlotReels } from "@/components/SlotReels";
@@ -798,7 +799,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const isMultiChoice = question.question_type === "multiple_choice";
     const isSequence = question.question_type === "sequence";
     const isMultiTap = question.question_type === "multi_tap";
-    const imageUrl = isPicture ? question.option_b : null;
+    const imageUrl = isPicture ? getMediaUrl(question.option_b) : null;
 
     const isBlocked = !!blockUntil && blockTeam !== teamName && new Date(blockUntil).getTime() > Date.now();
     if (isBlocked && !submitted) {

@@ -1,0 +1,119 @@
+diff --git a/app/api/upload-audio/route.ts b/app/api/upload-audio/route.ts
+index 7224a65..ac4f091 100644
+--- a/app/api/upload-audio/route.ts
++++ b/app/api/upload-audio/route.ts
+@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
+     const buffer = Buffer.from(await file.arrayBuffer());
+     const fileName = "question-audio/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".wav";
+     const blob = await put(fileName, buffer, {
+-      access: "public",
++      access: "private",
+       contentType: "audio/wav",
+     });
+ 
+diff --git a/app/api/upload-image/route.ts b/app/api/upload-image/route.ts
+index e3fcb74..3328ee1 100644
+--- a/app/api/upload-image/route.ts
++++ b/app/api/upload-image/route.ts
+@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
+ 
+     const fileName = "question-images/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".webp";
+     const blob = await put(fileName, safeBuffer, {
+-      access: "public",
++      access: "private",
+       contentType: "image/webp",
+     });
+ 
+diff --git a/app/host/display/page.tsx b/app/host/display/page.tsx
+index c5407d6..361c702 100644
+--- a/app/host/display/page.tsx
++++ b/app/host/display/page.tsx
+@@ -2,6 +2,7 @@
+ import { useEffect, useState, useRef, Suspense } from "react";
+ import { useSearchParams } from "next/navigation";
+ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
++import { getMediaUrl } from "@/lib/getMediaUrl";
+ import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
+ import { SlotReels } from "@/components/SlotReels";
+ 
+@@ -32,7 +33,7 @@ type Phase = "waiting" | "round_start" | "question" | "answer" | "celebration" |
+ function LiveAudioPlayer({ question }: { question: Question }) {
+   const audioRef = useRef<HTMLAudioElement | null>(null);
+   const [manualPlayed, setManualPlayed] = useState(false);
+-  const url = question.option_b;
++  const url = getMediaUrl(question.option_b);
+   const isLegacyYouTube = !!url && url.includes("youtube.com");
+ 
+   useEffect(() => {
+@@ -977,7 +978,7 @@ function DisplayScreenInner() {
+     const isPicture = question.question_type === "picture";
+       const isMultiTap = question.question_type === "multi_tap";
+       const multiTapOptions = [{ key:"A", text:question.option_a },{ key:"B", text:question.option_b },{ key:"C", text:question.option_c },{ key:"D", text:question.option_d },{ key:"E", text:(question as any).option_e },{ key:"F", text:(question as any).option_f }].filter(o => o.text);
+-    const imageUrl = isPicture ? question.option_b : null;
++    const imageUrl = isPicture ? getMediaUrl(question.option_b) : null;
+ 
+     // PICTURE ROUND - image only (first space)
+     if (isPicture && pictureSubPhase === "image_only" && imageUrl) {
+diff --git a/components/AudioUploader.tsx b/components/AudioUploader.tsx
+index 211d6b1..a4a1143 100644
+--- a/components/AudioUploader.tsx
++++ b/components/AudioUploader.tsx
+@@ -1,6 +1,7 @@
+ "use client";
+ import { useRef, useState, useEffect, useCallback } from "react";
+ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
++import { getMediaUrl } from "@/lib/getMediaUrl";
+ import { encodeWavFromBuffer, sliceAudioBuffer } from "@/lib/audio/wavEncoder";
+ 
+ type Props = {
+@@ -189,7 +190,7 @@ export function AudioUploader({ currentUrl, onUploaded }: Props) {
+     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+       {currentUrl && !audioBuffer && (
+         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(190,38,193,0.3)" }}>
+-          <audio controls src={currentUrl} style={{ height: 32, flex: 1 }} />
++          <audio controls src={getMediaUrl(currentUrl) || undefined} style={{ height: 32, flex: 1 }} />
+         </div>
+       )}
+ 
+diff --git a/components/ImageUploader.tsx b/components/ImageUploader.tsx
+index ec9ffce..2843049 100644
+--- a/components/ImageUploader.tsx
++++ b/components/ImageUploader.tsx
+@@ -1,6 +1,7 @@
+ "use client";
+ import { useRef, useState } from "react";
+ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
++import { getMediaUrl } from "@/lib/getMediaUrl";
+ 
+ type Props = {
+   currentUrl: string | null;
+@@ -102,7 +103,7 @@ export function ImageUploader({ currentUrl, onUploaded }: Props) {
+     setError("");
+   }
+ 
+-  const displayUrl = previewUrl || currentUrl;
++  const displayUrl = previewUrl || getMediaUrl(currentUrl);
+ 
+   return (
+     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+diff --git a/components/PlayerQuizScreen.tsx b/components/PlayerQuizScreen.tsx
+index 0c80881..763e4ae 100644
+--- a/components/PlayerQuizScreen.tsx
++++ b/components/PlayerQuizScreen.tsx
+@@ -1,6 +1,7 @@
+ 'use client';
+ import React, { useEffect, useState, useRef } from "react";
+ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
++import { getMediaUrl } from "@/lib/getMediaUrl";
+ import { UnoPlayerCards } from "@/components/UnoCards";
+ import { AnswerKeypad } from "@/components/AnswerKeypad";
+ import { SlotReels } from "@/components/SlotReels";
+@@ -798,7 +799,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
+     const isMultiChoice = question.question_type === "multiple_choice";
+     const isSequence = question.question_type === "sequence";
+     const isMultiTap = question.question_type === "multi_tap";
+-    const imageUrl = isPicture ? question.option_b : null;
++    const imageUrl = isPicture ? getMediaUrl(question.option_b) : null;
+ 
+     const isBlocked = !!blockUntil && blockTeam !== teamName && new Date(blockUntil).getTime() > Date.now();
+     if (isBlocked && !submitted) {

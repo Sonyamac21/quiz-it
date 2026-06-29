@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = "question-audio/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".wav";
     const blob = await put(fileName, buffer, {
-      access: "public",
+      access: "private",
       contentType: "audio/wav",
     });
 

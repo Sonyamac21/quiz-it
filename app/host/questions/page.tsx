@@ -350,6 +350,22 @@ export default function QuestionsPage() {
   // have a "which venue/night is this for" field, which true venue-aware
   // exclusion would need. game_history does capture venue_id at play-time
   // already, so venue-aware filtering can be added once that UI control exists.
+  // Defensive quality filter applied at selection time, not just generation
+  // time - the library can contain rows saved before a prompt/guard fix
+  // existed (e.g. old "Show teams this image: ..." host-instruction text baked
+  // into question_text, or brand/logo picture questions from before that guard
+  // was added). Without this, pickFromLibrary would happily keep recycling that
+  // stale bad data forever, since it never gets regenerated once it's sitting
+  // in the table with is_active=true.
+  function isLibraryRowUsable(row: Record<string, unknown>): boolean {
+    const text = ((row.question_text as string) || "").toLowerCase();
+    if (text.startsWith("show teams this image") || text.startsWith("play this track")) return false;
+    if (row.question_type === "picture" || row.question_type === "audio") {
+      if (/\blogo\b|\bbrand\b|\btrademark\b/.test(text)) return false;
+    }
+    return true;
+  }
+
   async function pickFromLibrary(type: string, excludeIds: Set<number>): Promise<Question | null> {
     const supabase = createSupabaseBrowserClient();
     const cutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
@@ -358,7 +374,7 @@ export default function QuestionsPage() {
       supabase.from("questions").select("*").eq("question_type", type).eq("is_active", true).lt("last_used_at", cutoff).limit(50),
       supabase.from("questions").select("*").eq("question_type", type).eq("is_active", true).gte("last_used_at", cutoff).order("last_used_at", { ascending: true }).limit(50),
     ]);
-    const filterEx = (arr: Record<string, unknown>[] | null) => (arr || []).filter(r => !excludeIds.has(r.id as number));
+    const filterEx = (arr: Record<string, unknown>[] | null) => (arr || []).filter(r => !excludeIds.has(r.id as number) && isLibraryRowUsable(r));
     const a = filterEx(poolA), b = filterEx(poolB), c = filterEx(poolC);
     if (a.length === 0 && b.length === 0 && c.length === 0) return null;
     const roll = Math.random();

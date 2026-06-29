@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getMediaUrl } from "@/lib/getMediaUrl";
 
 type Props = {
   currentUrl: string | null;
@@ -102,7 +103,7 @@ export function ImageUploader({ currentUrl, onUploaded }: Props) {
     setError("");
   }
 
-  const displayUrl = previewUrl || currentUrl;
+  const displayUrl = previewUrl || getMediaUrl(currentUrl);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState, useEffect, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getMediaUrl } from "@/lib/getMediaUrl";
 import { encodeWavFromBuffer, sliceAudioBuffer } from "@/lib/audio/wavEncoder";
 
 type Props = {
@@ -189,7 +190,7 @@ export function AudioUploader({ currentUrl, onUploaded }: Props) {
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {currentUrl && !audioBuffer && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(190,38,193,0.3)" }}>
-          <audio controls src={currentUrl} style={{ height: 32, flex: 1 }} />
+          <audio controls src={getMediaUrl(currentUrl) || undefined} style={{ height: 32, flex: 1 }} />
         </div>
       )}
 

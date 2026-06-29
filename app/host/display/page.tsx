@@ -14,9 +14,87 @@ type Question = {
   option_d: string | null;
   correct_answer: string;
   explanation?: string;
+  playback_mode?: string;
+  replay_mode?: string;
+  fade_in?: boolean;
+  fade_out?: boolean;
 };
 type Score = { team_name: string; total_points: number; };
 type Phase = "waiting" | "round_start" | "question" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission" | "spin_to_win";
+
+// Real, automatic audio playback for "audio" question types - this replaces
+// what used to be the host manually alt-tabbing to YouTube on their own laptop.
+// Preloads immediately on mount (the clip is a short, lightweight file on a
+// fast CDN, so buffering is sub-second even on a venue's imperfect wifi),
+// respects the host's chosen playback_mode/replay_mode/fade settings, and
+// silently does nothing for legacy questions whose option_b is still a
+// youtube.com URL (those still rely on the existing manual host link).
+function LiveAudioPlayer({ question }: { question: Question }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [manualPlayed, setManualPlayed] = useState(false);
+  const url = question.option_b;
+  const isLegacyYouTube = !!url && url.includes("youtube.com");
+
+  useEffect(() => {
+    setManualPlayed(false);
+  }, [url]);
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !url || isLegacyYouTube) return;
+    el.loop = question.replay_mode === "unlimited";
+    const fadeMs = 1200;
+    if (question.fade_in) el.volume = 0; else el.volume = 1;
+
+    function rampVolume(target: number, ms: number) {
+      const audioEl = el as HTMLAudioElement;
+      const start = audioEl.volume;
+      const startTime = performance.now();
+      function step(now: number) {
+        const t = Math.min(1, (now - startTime) / ms);
+        audioEl.volume = start + (target - start) * t;
+        if (t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    if (question.fade_in) rampVolume(1, fadeMs);
+
+    if (question.fade_out && el.duration) {
+      const onTimeUpdate = () => {
+        if (el.duration - el.currentTime <= fadeMs / 1000 && !el.loop) {
+          rampVolume(0, fadeMs);
+        }
+      };
+      el.addEventListener("timeupdate", onTimeUpdate);
+      return () => el.removeEventListener("timeupdate", onTimeUpdate);
+    }
+  }, [url, question.fade_in, question.fade_out, question.replay_mode, isLegacyYouTube]);
+
+  if (!url || isLegacyYouTube) return null;
+
+  const isManualMode = question.playback_mode === "manual";
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="auto"
+        autoPlay={!isManualMode}
+        style={{ display: "none" }}
+      />
+      {isManualMode && !manualPlayed && (
+        <button
+          onClick={() => { audioRef.current?.play(); setManualPlayed(true); }}
+          style={{ padding: "14px 28px", borderRadius: 14, background: "rgba(190,38,193,0.25)", border: "2px solid #BE26C1", color: "#fff", fontSize: 20, fontWeight: 700, cursor: "pointer" }}
+        >
+          \u25b6 Play Track
+        </button>
+      )}
+    </div>
+  );
+}
 
 // Cache of preloaded Audio elements, keyed by filename - playing a cloned node
 // from an already-loaded source starts instantly instead of re-fetching/decoding
@@ -991,6 +1069,11 @@ function DisplayScreenInner() {
         {!isMulti && !isMultiTap && (
           <div style={{ padding:"20px 28px", borderRadius:16, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", fontSize:25, color:"rgba(255,255,255,0.4)", fontStyle:"italic" }}>
             Type your answer on your phone
+          </div>
+        )}
+        {question.question_type === "audio" && (
+          <div style={{ marginTop: 24 }}>
+            <LiveAudioPlayer question={question} />
           </div>
         )}
       </div>

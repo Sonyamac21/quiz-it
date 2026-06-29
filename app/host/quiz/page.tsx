@@ -7,7 +7,7 @@ import { HardDeckPanel } from "@/components/HardDeckPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
 
 type Question = {
-  id?: string;
+  id?: number;
   question_text: string;
   question_type: string;
   option_a: string | null;
@@ -18,6 +18,10 @@ type Question = {
   explanation?: string;
   difficulty: string;
   round_type: string;
+  playback_mode?: string;
+  replay_mode?: string;
+  fade_in?: boolean;
+  fade_out?: boolean;
 };
 type Round = { id: string; name: string; questions: Question[]; };
 type Team = { id: string; team_name: string; victory_song: string; session_pin: string; };
@@ -1111,10 +1115,16 @@ function QuizControllerInner() {
 
               {currentQ.question_type==="audio" && currentQ.option_b && (
                 <div style={{ marginBottom:20 }}>
-                  <a href={currentQ.option_b} target="_blank" rel="noopener noreferrer"
-                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"12px 24px", borderRadius:10, background:"rgba(251,146,60,0.2)", border:"1px solid rgba(251,146,60,0.5)", color:"#fb923c", textDecoration:"none", fontSize:16, fontWeight:600 }}>
-                    Play on YouTube
-                  </a>
+                  {currentQ.option_b.includes("youtube.com") ? (
+                    <a href={currentQ.option_b} target="_blank" rel="noopener noreferrer"
+                      style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"12px 24px", borderRadius:10, background:"rgba(251,146,60,0.2)", border:"1px solid rgba(251,146,60,0.5)", color:"#fb923c", textDecoration:"none", fontSize:16, fontWeight:600 }}>
+                      Play on YouTube
+                    </a>
+                  ) : (
+                    <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"12px 24px", borderRadius:10, background:"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.4)", color:"#4ade80", fontSize:14, fontWeight:600 }}>
+                      \u266a Auto-playing on display screen ({currentQ.playback_mode === "manual" ? "manual play button" : "auto-play"})
+                    </div>
+                  )}
                 </div>
               )}
 

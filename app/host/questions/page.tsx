@@ -2,9 +2,10 @@
 import { useState, useRef, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ImageUploader } from "@/components/ImageUploader";
+import { AudioUploader } from "@/components/AudioUploader";
 
 type Question = {
-  id?: string;
+  id?: number;
   question_text: string;
   question_type: string;
   option_a: string | null;
@@ -17,6 +18,10 @@ type Question = {
   explanation: string;
   difficulty: string;
   round_type: string;
+  playback_mode?: string;
+  replay_mode?: string;
+  fade_in?: boolean;
+  fade_out?: boolean;
 };
 
 const TOPICS = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","UK and US pop culture","art","literature","technology","mathematics","famous people","transport","space","medicine","animals","architecture","inventions","TV shows","famous films","celebrity and entertainment","video games","fashion and style","world records","science fiction","comedy and humour","books and authors","classic cartoons"];
@@ -318,7 +323,7 @@ export default function QuestionsPage() {
   function rowToQuestion(row: Record<string, unknown>): Question {
     const isMedia = row.question_type === "picture" || row.question_type === "audio";
     return {
-      id: row.id as string,
+      id: row.id as number,
       question_text: row.question_text as string,
       question_type: row.question_type as string,
       option_a: (isMedia ? null : row.option_a) as string | null,
@@ -345,7 +350,7 @@ export default function QuestionsPage() {
   // have a "which venue/night is this for" field, which true venue-aware
   // exclusion would need. game_history does capture venue_id at play-time
   // already, so venue-aware filtering can be added once that UI control exists.
-  async function pickFromLibrary(type: string, excludeIds: Set<string>): Promise<Question | null> {
+  async function pickFromLibrary(type: string, excludeIds: Set<number>): Promise<Question | null> {
     const supabase = createSupabaseBrowserClient();
     const cutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
     const [{ data: poolA }, { data: poolB }, { data: poolC }] = await Promise.all([
@@ -353,7 +358,7 @@ export default function QuestionsPage() {
       supabase.from("questions").select("*").eq("question_type", type).eq("is_active", true).lt("last_used_at", cutoff).limit(50),
       supabase.from("questions").select("*").eq("question_type", type).eq("is_active", true).gte("last_used_at", cutoff).order("last_used_at", { ascending: true }).limit(50),
     ]);
-    const filterEx = (arr: Record<string, unknown>[] | null) => (arr || []).filter(r => !excludeIds.has(r.id as string));
+    const filterEx = (arr: Record<string, unknown>[] | null) => (arr || []).filter(r => !excludeIds.has(r.id as number));
     const a = filterEx(poolA), b = filterEx(poolB), c = filterEx(poolC);
     if (a.length === 0 && b.length === 0 && c.length === 0) return null;
     const roll = Math.random();
@@ -393,7 +398,7 @@ export default function QuestionsPage() {
     }
     const shuffledTopics = shuffle(TOPICS);
     const good: Question[] = [];
-    const usedLibraryIds = new Set<string>();
+    const usedLibraryIds = new Set<number>();
     // Try the library first for each slot, in order, before falling back to AI -
     // this is the actual repeat-prevention mechanism in action. Whatever slots
     // the library can't fill (including an empty/fresh library) just continue
@@ -732,9 +737,53 @@ export default function QuestionsPage() {
               )}
               {q.question_type==="audio" && (
                 <div style={{ marginBottom:8 }}>
+                  <AudioUploader
+                    currentUrl={q.option_b || null}
+                    onUploaded={(url, meta) => {
+                      setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, option_b: url } : qq));
+                      const supabase = createSupabaseBrowserClient();
+                      supabase.from("media_assets").insert({
+                        file_name: meta.originalFilename,
+                        media_type: "audio",
+                        file_url: url,
+                        file_size: meta.fileSize,
+                        duration_seconds: meta.duration,
+                        clip_start: meta.clipStart,
+                        clip_end: meta.clipEnd,
+                        original_filename: meta.originalFilename,
+                        linked_question_id: q.id ?? null,
+                      }).then(({ error: insertErr }) => { if (insertErr) console.error("Failed to log media_asset:", insertErr); });
+                    }}
+                  />
+                  <div style={{ display:"flex", gap:16, flexWrap:"wrap" as const, marginTop:10, alignItems:"center" }}>
+                    <label style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>
+                      Playback:&nbsp;
+                      <select value={q.playback_mode || "auto"} onChange={e => setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, playback_mode: e.target.value } : qq))}
+                        style={{ background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(255,255,255,0.2)", borderRadius:6, padding:"3px 8px", fontSize:12 }}>
+                        <option value="auto">Auto-play on question start</option>
+                        <option value="manual">Manual play button</option>
+                      </select>
+                    </label>
+                    <label style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>
+                      Replay:&nbsp;
+                      <select value={q.replay_mode || "once"} onChange={e => setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, replay_mode: e.target.value } : qq))}
+                        style={{ background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(255,255,255,0.2)", borderRadius:6, padding:"3px 8px", fontSize:12 }}>
+                        <option value="once">Play once</option>
+                        <option value="unlimited">Loop / replay unlimited</option>
+                      </select>
+                    </label>
+                    <label style={{ fontSize:12, color:"rgba(255,255,255,0.5)", display:"flex", alignItems:"center", gap:5 }}>
+                      <input type="checkbox" checked={!!q.fade_in} onChange={e => setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, fade_in: e.target.checked } : qq))} />
+                      Fade in
+                    </label>
+                    <label style={{ fontSize:12, color:"rgba(255,255,255,0.5)", display:"flex", alignItems:"center", gap:5 }}>
+                      <input type="checkbox" checked={!!q.fade_out} onChange={e => setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, fade_out: e.target.checked } : qq))} />
+                      Fade out
+                    </label>
+                  </div>
                   <a href={"https://www.youtube.com/results?search_query="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
-                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(251,146,60,0.15)", border:"1px solid rgba(251,146,60,0.4)", color:"#fb923c", textDecoration:"none", fontSize:13, fontWeight:600, marginBottom:8 }}>
-                    Play on YouTube
+                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(251,146,60,0.15)", border:"1px solid rgba(251,146,60,0.4)", color:"#fb923c", textDecoration:"none", fontSize:13, fontWeight:600, marginTop:10 }}>
+                    Find it on YouTube (for reference)
                   </a>
                   <p style={{ fontSize:16, color:"#4ade80", fontWeight:700, margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>
                 </div>

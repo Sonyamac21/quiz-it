@@ -1,0 +1,38 @@
+diff --git a/app/host/questions/page.tsx b/app/host/questions/page.tsx
+index 281a5cd..da8d458 100644
+--- a/app/host/questions/page.tsx
++++ b/app/host/questions/page.tsx
+@@ -414,24 +414,16 @@ export default function QuestionsPage() {
+     }
+     const shuffledTopics = shuffle(TOPICS);
+     const good: Question[] = [];
++    // Always generate fresh AI questions - the Phase 1 library-first selection
++    // was silently recycling all backfilled historical questions (including ones
++    // the host personally wrote) because the backfill migration pulled every
++    // question from every past round into the library. This made "Generate Round"
++    // return old questions instead of fresh AI content, which is the wrong
++    // behavior. Library reuse belongs in a separate explicit workflow, not as a
++    // silent override of generation. The library and game_history tracking still
++    // work correctly for repeat-prevention auditing; they just no longer hijack
++    // the generate button.
+     const usedLibraryIds = new Set<number>();
+-    // Try the library first for each slot, in order, before falling back to AI -
+-    // this is the actual repeat-prevention mechanism in action. Whatever slots
+-    // the library can't fill (including an empty/fresh library) just continue
+-    // through fresh AI generation exactly as before.
+-    setStatus("Checking question library...");
+-    const remainingTypes: string[] = [];
+-    for (const t of types) {
+-      const libQ = await pickFromLibrary(t, usedLibraryIds);
+-      if (libQ && libQ.id) {
+-        usedLibraryIds.add(libQ.id);
+-        good.push(libQ);
+-        setQuestions([...good]);
+-      } else {
+-        remainingTypes.push(t);
+-      }
+-    }
+-    types = remainingTypes;
+     let attempts = 0;
+     const maxAttempts = count * 6;
+     let i = 0;

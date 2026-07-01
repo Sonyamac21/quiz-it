@@ -110,10 +110,15 @@ export function AudioRecorder({ songReference, currentUrl, onUploaded }: Props) 
   async function startRecording() {
     setError("");
     try {
-      // Audio-only tab capture - browser shows its native "Share a tab" picker
+      // Chrome spec requires video:true - passing video:false causes an immediate
+      // TypeError rejection before any permission dialog appears at all.
+      // We request video, then immediately stop those tracks since we only want audio.
       const stream = await (navigator.mediaDevices as unknown as {
         getDisplayMedia: (opts: unknown) => Promise<MediaStream>;
-      }).getDisplayMedia({ audio: true, video: false });
+      }).getDisplayMedia({ audio: true, video: true });
+
+      // Stop video tracks immediately - we only need audio.
+      stream.getVideoTracks().forEach(t => t.stop());
       streamRef.current = stream;
       chunksRef.current = [];
       const recorder = new MediaRecorder(stream);
@@ -154,10 +159,12 @@ export function AudioRecorder({ songReference, currentUrl, onUploaded }: Props) 
       setRecordingSeconds(0);
       timerRef.current = setInterval(() => setRecordingSeconds(s => s + 1), 1000);
     } catch (e) {
+      const msg = e instanceof Error ? e.name + ": " + e.message : String(e);
+      console.error("getDisplayMedia failed:", msg);
       setError(
         e instanceof Error && e.name === "NotAllowedError"
-          ? "Permission denied. Allow tab sharing when prompted."
-          : "Could not start recording. Make sure you are using Chrome or Edge."
+          ? "Permission denied - click Allow when Chrome shows the share dialog."
+          : "Recording failed: " + msg
       );
     }
   }

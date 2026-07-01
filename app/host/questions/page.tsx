@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ImageUploader } from "@/components/ImageUploader";
 import { AudioUploader } from "@/components/AudioUploader";
+import { AudioRecorder } from "@/components/AudioRecorder";
 
 type Question = {
   id?: number;
@@ -777,50 +778,13 @@ Return ONLY a valid JSON array with 1 item, no markdown:
               )}
               {q.question_type==="audio" && (
                 <div style={{ marginBottom:8 }}>
-                  <AudioUploader
-                    currentUrl={q.option_b || null}
-                    onUploaded={(url, meta) => {
-                      setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, option_b: url } : qq));
-                      const supabase = createSupabaseBrowserClient();
-                      supabase.from("media_assets").insert({
-                        file_name: meta.originalFilename,
-                        media_type: "audio",
-                        file_url: url,
-                        file_size: meta.fileSize,
-                        duration_seconds: meta.duration,
-                        clip_start: meta.clipStart,
-                        clip_end: meta.clipEnd,
-                        original_filename: meta.originalFilename,
-                        linked_question_id: q.id ?? null,
-                      }).then(({ error: insertErr }) => { if (insertErr) console.error("Failed to log media_asset:", insertErr); });
+                  <AudioRecorder
+                    songReference={q.option_a || null}
+                    currentUrl={(q.option_b && q.option_b.includes("blob.vercel-storage.com")) ? q.option_b : null}
+                    onUploaded={(url, fileMeta, clipMeta) => {
+                      setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, option_b: url || null } : qq));
                     }}
                   />
-                  <div style={{ display:"flex", gap:16, flexWrap:"wrap" as const, marginTop:10, alignItems:"center" }}>
-                    <label style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>
-                      Playback:&nbsp;
-                      <select value={q.playback_mode || "auto"} onChange={e => setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, playback_mode: e.target.value } : qq))}
-                        style={{ background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(255,255,255,0.2)", borderRadius:6, padding:"3px 8px", fontSize:12 }}>
-                        <option value="auto">Auto-play on question start</option>
-                        <option value="manual">Manual play button</option>
-                      </select>
-                    </label>
-                    <label style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>
-                      Replay:&nbsp;
-                      <select value={q.replay_mode || "once"} onChange={e => setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, replay_mode: e.target.value } : qq))}
-                        style={{ background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(255,255,255,0.2)", borderRadius:6, padding:"3px 8px", fontSize:12 }}>
-                        <option value="once">Play once</option>
-                        <option value="unlimited">Loop / replay unlimited</option>
-                      </select>
-                    </label>
-                    <label style={{ fontSize:12, color:"rgba(255,255,255,0.5)", display:"flex", alignItems:"center", gap:5 }}>
-                      <input type="checkbox" checked={!!q.fade_in} onChange={e => setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, fade_in: e.target.checked } : qq))} />
-                      Fade in
-                    </label>
-                    <label style={{ fontSize:12, color:"rgba(255,255,255,0.5)", display:"flex", alignItems:"center", gap:5 }}>
-                      <input type="checkbox" checked={!!q.fade_out} onChange={e => setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, fade_out: e.target.checked } : qq))} />
-                      Fade out
-                    </label>
-                  </div>
                   <a href={"https://www.youtube.com/results?search_query="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
                     style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(251,146,60,0.15)", border:"1px solid rgba(251,146,60,0.4)", color:"#fb923c", textDecoration:"none", fontSize:13, fontWeight:600, marginTop:10 }}>
                     Search "{q.option_a||q.correct_answer}" on YouTube (internal reference - players never see this)

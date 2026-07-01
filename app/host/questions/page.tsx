@@ -99,6 +99,11 @@ export default function QuestionsPage() {
   const [saving, setSaving] = useState(false);
   const [roundName, setRoundName] = useState("");
   const usedRef = useRef<string[]>([]);
+  // Tracks correct_answer values seen this session (normalised, lowercase).
+  // Prevents two questions with the same answer from appearing in the same round
+  // even when their question text is completely different - the root cause of
+  // the "Bat / Bat" duplicate that slipped through the text-only check.
+  const usedAnswersRef = useRef<string[]>([]);
   const lastApiErrorRef = useRef<string>("");
   const dragIdx = useRef<number|null>(null);
 
@@ -171,7 +176,11 @@ export default function QuestionsPage() {
     // built up, causing every generation to fail outright with "Prompt too long".
     let exclusions = usedRef.current.slice(-40).map((q,i) => (i+1)+". "+q).join("; ");
     if (exclusions.length > 3000) exclusions = exclusions.slice(0, 3000);
-    const exclusionNote = exclusions ? " Do NOT generate any of these already-used questions: " + exclusions + "." : "";
+    const usedAnswersList = usedAnswersRef.current.slice(-30).filter(Boolean).join(", ");
+    const exclusionNote = (exclusions || usedAnswersList)
+      ? " Do NOT generate any of these already-used questions: " + exclusions + "."
+        + (usedAnswersList ? " Also do NOT use any of these already-used answers (even with different question wording): " + usedAnswersList + "." : "")
+      : "";
     const angle = VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
     const varietyNote = " IMPORTANT - avoid defaulting to the single most famous, first-thought-of example for this topic (e.g. for 'Disney songs' don't always pick Let It Go or Circle of Life). Where possible, lean toward something " + angle + ". Vary your answer choices across different eras, genres, and sub-topics rather than the most obvious pick.";
     const prompt = `You are writing questions for a LIVE PUB QUIZ at a bar or restaurant. Your audience is adults aged 25-55 having a social night out. This is entertainment, not education.
@@ -399,6 +408,49 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     return true;
   }
 
+  // ── Shared duplicate / semantic similarity guard ─────────────────────────
+  // Returns true when a question is acceptable (no duplicates found).
+  // Used in the generate loop, removeAndReplace, and topUp so all three
+  // paths have identical protection - previously only the generate loop had
+  // inline checks; the other two paths had none at all.
+  function isAcceptable(q: Question, currentRound: Question[]): boolean {
+    const STOP = new Set(["what","which","where","when","who","that","this","with","from","have","been","were","they","their","about","only","does","into","than","other","more","over","some","also","after","before","known","its","the","and","for","are","but","not","you","all","can","had","her","him","his","how","man","new","now","old","see","two","way","who","boy","did","its","let","put","say","she","too","use","was"]);
+    const sigWords = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !STOP.has(w));
+
+    const normText = q.question_text.toLowerCase().trim();
+    const normAnswer = (q.correct_answer || "").toLowerCase().trim();
+
+    // a) Exact text match - already in this round or historical session
+    if (usedRef.current.some(t => t.toLowerCase().trim() === normText)) return false;
+    if (currentRound.some(g => g.question_text.toLowerCase().trim() === normText)) return false;
+
+    // b) Same answer already in this round (catches "Bat" / "Bat" pattern)
+    if (normAnswer && currentRound.some(g =>
+      g.question_type === q.question_type &&
+      (g.correct_answer || "").toLowerCase().trim() === normAnswer
+    )) return false;
+    if (normAnswer && usedAnswersRef.current.includes(normAnswer)) return false;
+
+    // c) Semantic similarity - ≥55% significant-word overlap with any round question
+    const newWords = sigWords(q.question_text);
+    if (newWords.length > 0) {
+      for (const g of currentRound) {
+        const existWords = sigWords(g.question_text);
+        if (existWords.length === 0) continue;
+        const shared = newWords.filter(w => existWords.includes(w)).length;
+        const overlap = shared / Math.min(newWords.length, existWords.length);
+        if (overlap >= 0.55) return false;
+      }
+    }
+    return true;
+  }
+
+  function registerAccepted(q: Question) {
+    usedRef.current = [...usedRef.current, q.question_text];
+    const normAnswer = (q.correct_answer || "").toLowerCase().trim();
+    if (normAnswer) usedAnswersRef.current = [...usedAnswersRef.current, normAnswer];
+  }
+
   async function pickFromLibrary(type: string, excludeIds: Set<number>): Promise<Question | null> {
     const supabase = createSupabaseBrowserClient();
     const cutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
@@ -490,20 +542,9 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       consecutiveFailures = 0;
       setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
       const check = await checkQuestion(q);
-      const normalisedNew = q.question_text.toLowerCase().trim();
-      const normalisedAnswerNew = (q.correct_answer || "").toLowerCase().trim();
-      // Exact question_text matching alone misses near-duplicates where the AI
-      // rewords the question each time but the underlying fact/song/answer is
-      // identical (e.g. three different phrasings all landing on "Toy Story") -
-      // also flag a match when the correct answer is identical for the same
-      // question type, since that's a strong signal it's the same fact restated.
-      const isDuplicate = good.some(g =>
-        g.question_text.toLowerCase().trim() === normalisedNew ||
-        (normalisedAnswerNew && g.question_type === q.question_type && (g.correct_answer || "").toLowerCase().trim() === normalisedAnswerNew)
-      ) || usedRef.current.some(t => t.toLowerCase().trim() === normalisedNew);
-      if (check.ok && !isDuplicate) {
+      if (check.ok && isAcceptable(q, good)) {
         good.push(q);
-        usedRef.current = [...usedRef.current, q.question_text];
+        registerAccepted(q);
         setQuestions([...good]);
         consecutiveCheckFailures = 0;
       } else {
@@ -542,7 +583,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         round_type: removed.round_type,
       });
     } catch(e) { console.log("Bank insert failed:", e); }
-    usedRef.current = [...usedRef.current, removed.question_text];
+    registerAccepted(removed); // tracks both text and answer so replacement can't be same fact
     setQuestions(prev => prev.filter((_,idx) => idx !== i));
     setStatus("Finding replacement...");
     const topicList = shuffle(TOPICS);
@@ -552,8 +593,9 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       const newQ = await generateOne(removed.question_type, replaceTopic);
       if (!newQ) continue;
       const check = await checkQuestion(newQ);
-      if (check.ok) {
-        usedRef.current = [...usedRef.current, newQ.question_text];
+      const currentRound = questions.filter((_,idx) => idx !== i);
+      if (check.ok && isAcceptable(newQ, currentRound)) {
+        registerAccepted(newQ);
         setQuestions(prev => [...prev, newQ]);
         setStatus("Replaced!");
         setTimeout(() => setStatus(""), 2000);
@@ -585,8 +627,9 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       const q = await generateOne(type, topic);
       if (!q) continue;
       const check = await checkQuestion(q);
-      if (check.ok) {
-        usedRef.current = [...usedRef.current, q.question_text];
+      const currentForTopup = [...questions, ...added];
+      if (check.ok && isAcceptable(q, currentForTopup)) {
+        registerAccepted(q);
         added.push(q);
         setQuestions(prev => [...prev, q]);
       }

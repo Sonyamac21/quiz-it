@@ -24,7 +24,7 @@ type Question = {
   fade_out?: boolean;
 };
 
-const TOPICS = ["world history","sport","food and drink","geography","science","music","film and TV","nature","language","UK and US pop culture","art","literature","technology","mathematics","famous people","transport","space","medicine","animals","architecture","inventions","TV shows","famous films","celebrity and entertainment","video games","fashion and style","world records","science fiction","comedy and humour","books and authors","classic cartoons"];
+const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife"];
 
 // Random angle hints injected per question to push variety - without these, the AI
 // tends to default to the single most famous/obvious example for a topic every time
@@ -173,7 +173,39 @@ export default function QuestionsPage() {
     const exclusionNote = exclusions ? " Do NOT generate any of these already-used questions: " + exclusions + "." : "";
     const angle = VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
     const varietyNote = " IMPORTANT - avoid defaulting to the single most famous, first-thought-of example for this topic (e.g. for 'Disney songs' don't always pick Let It Go or Circle of Life). Where possible, lean toward something " + angle + ". Vary your answer choices across different eras, genres, and sub-topics rather than the most obvious pick.";
-    const prompt = "You are a professional pub quiz writer. Your audience is English-speaking expats who enjoy British and American pop culture. Generate exactly 1 pub quiz question. Topic: " + topic + ". Type: " + typeInstructions[type] + ". Difficulty: " + difficulty + ". Keep questions focused on UK, US and international culture. Do NOT make questions about UAE, Dubai or Arab culture unless the topic specifically requires it. Content must be safe for UAE - avoid alcohol, pork, sexual references, religion, LGBTQ+ topics or references, and politically sensitive Middle East topics." + varietyNote + exclusionNote + " Include a brief explanation of the answer (1-2 sentences) in the explanation field. Return ONLY a valid JSON array with 1 item, no markdown: [{\"question_text\":\"...\",\"question_type\":\"" + type + "\",\"option_a\":\"...\",\"option_b\":\"...\",\"option_c\":\"...\",\"option_d\":\"...\",\"option_e\":\"...\",\"option_f\":\"...\",\"correct_answer\":\"...\",\"explanation\":\"...\",\"difficulty\":\"" + difficulty + "\",\"round_type\":\"" + roundType + "\"}]";
+    const prompt = `You are writing questions for a LIVE PUB QUIZ at a bar or restaurant. Your audience is adults aged 25-55 having a social night out. This is entertainment, not education.
+
+BEFORE writing any question, ask yourself: "Would 8 friends sitting in a pub enjoy answering this?" If no, do not write it.
+
+TOPIC: ${topic}
+TYPE: ${typeInstructions[type]}
+DIFFICULTY: ${difficulty === "easy" ? "EASY - almost everyone in the room should get this right" : difficulty === "hard" ? "HARD - a well-informed pub team might know this, but it is still based on widely-known popular culture or history, never specialist academic knowledge" : "MEDIUM - a mixed group of adults has a fair chance, about half the room gets it right"}
+
+TONE AND STYLE:
+- Fun, social, conversational
+- Think Kahoot or bar trivia night, not University Challenge
+- Questions should feel satisfying and recognisable when answered
+- Short question text - a host reads this aloud, keep it under 20 words where possible
+- Use plain everyday English, no jargon
+
+WHAT TO WRITE ABOUT (high priority):
+Music, movies, TV shows, celebrities, football, world geography, famous brands, logos, food and drink, famous landmarks, travel destinations, pop culture, social media, simple history, famous people, famous companies, sport, everyday life
+
+WHAT TO NEVER WRITE ABOUT:
+Mathematics, advanced science, chemistry, physics, medicine, rare diseases, engineering, obscure geography, scientific terminology, specialist vocabulary, academic concepts, anything requiring university-level knowledge
+
+STRICT QUALITY RULES (every question must pass all of these):
+1. The answer must NOT appear anywhere inside the question text. Never give away or hint at the answer in the question itself.
+2. No words that are difficult to pronounce aloud at speed. A host reads this live to a noisy room.
+3. No specialist terminology. If an average person would not know the word, do not use it.
+4. Wrong answer options must be plausible. Use well-known alternatives someone might genuinely confuse, not obviously wrong fillers.
+5. Every question must be answerable by a reasonably well-informed adult with no specialist training.
+6. UAE venue safe: no alcohol references, no pork, no sexual content, no religion, no LGBTQ+ content, no Iran or Israel political references.
+${varietyNote}${exclusionNote}
+
+Include a 1-2 sentence explanation of the answer in the explanation field.
+Return ONLY a valid JSON array with 1 item, no markdown:
+[{"question_text":"...","question_type":"${type}","option_a":"...","option_b":"...","option_c":"...","option_d":"...","option_e":"...","option_f":"...","correct_answer":"...","explanation":"...","difficulty":"${difficulty}","round_type":"${roundType}"}]`;
     try {
       const text = await callAPI(prompt);
       let q;

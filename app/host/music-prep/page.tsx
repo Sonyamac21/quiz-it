@@ -229,7 +229,13 @@ export default function MusicPrepPage() {
     setQuestionStates(prev => ({ ...prev, [qIdx]: { ...prev[qIdx], ...update } }));
   }
 
-  async function searchForQuestion(round: Round, qIdx: number, query: string) {
+  async function searchForQuestion(round: Round, qIdx: number, rawQuery: string) {
+    // Strip YouTube-style suffixes before sending to Deezer - option_a often
+    // contains strings like "Common People Pulp official audio" which Deezer
+    // doesn't find; we need just "Common People Pulp"
+    const query = rawQuery
+      .replace(/\s*(official\s*(audio|video|music\s*video|lyric\s*video)?|lyrics?|hd|hq|\d{4})\s*/gi, " ")
+      .trim();
     setState(qIdx, { phase: "searching", error: "" });
     try {
       const res = await fetch(`/api/deezer-search?q=${encodeURIComponent(query)}`);

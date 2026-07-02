@@ -355,7 +355,13 @@ function DisplayScreenInner() {
   }
   function applySession(data: Record<string, unknown>) {
     const newPhase = (data.phase as Phase) || "waiting";
-    setPhase(newPhase);
+    const spinChoiceVal = (data.spin_choice as string) || null;
+    const spinNonceVal = (data.spin_nonce as number) ?? null;
+    if (spinChoiceVal === "spin" && spinNonceVal !== null && newPhase !== "celebration") {
+      setPhase("spin_to_win");
+    } else {
+      setPhase(newPhase);
+    }
     setQuestion((data.current_question as Question) || null);
     setQuestionIndex((data.current_question_index as number) ?? 0);
     setRoundName((data.round_name as string) || "");
@@ -1025,7 +1031,7 @@ function DisplayScreenInner() {
             {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
           </div>
           {isMulti ? (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gridTemplateRows:"1fr 1fr", gap:12, marginTop:8, flex:1, minHeight:0 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginTop:12 }}>
               {options.map((opt, idx) => {
                 const isCorrect = opt.key.toLowerCase() === correctKey;
                 return (

@@ -147,6 +147,19 @@ function DisplayScreenInner() {
   const [introCardIdx, setIntroCardIdx] = useState(0);
   useEffect(() => { preloadSounds(); }, []);
 
+  // Spin to Win: force spin_to_win phase when spinNonce changes,
+  // independent of whether the phase DB write was received.
+  // Clears after 20 seconds (matching the host's timeout).
+  useEffect(() => {
+    if (spinNonce === null) return;
+    if (lastSeenSpinNonceRef.current === spinNonce) return;
+    lastSeenSpinNonceRef.current = spinNonce;
+    // Force local phase to spin_to_win
+    setPhase("spin_to_win");
+    const t = setTimeout(() => setPhase("celebration"), 20000);
+    return () => clearTimeout(t);
+  }, [spinNonce]);
+
   // Inject Inter font + all display screen animations on mount
   useEffect(() => {
     const link = document.createElement("link");
@@ -229,6 +242,11 @@ function DisplayScreenInner() {
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
   const [spinTargetIdx, setSpinTargetIdx] = useState<number|null>(null);
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
+  // Track last spinNonce to detect new spins independently of phase state.
+  // When spinNonce changes on the display, we force spin_to_win locally even
+  // if the phase DB write was missed. This is the same dual-trigger pattern
+  // as Hard Deck uses for its wheel.
+  const lastSeenSpinNonceRef = useRef<number | null>(null);
   const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
   useEffect(() => {
     const styleEl = document.createElement("style");
@@ -1019,14 +1037,14 @@ function DisplayScreenInner() {
             {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
           </div>
           {isMulti ? (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginTop:8 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gridTemplateRows:"1fr 1fr", gap:12, marginTop:8, flex:1, minHeight:0 }}>
               {options.map((opt, idx) => {
                 const isCorrect = opt.key.toLowerCase() === correctKey;
                 return (
                   <div key={opt.key} style={{ display:"flex", alignItems:"center", gap:20,
                     padding:"22px 28px", borderRadius:16,
-                    background: isCorrect ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)",
-                    border: `1px solid ${isCorrect ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.06)"}`,
+                    background: isCorrect ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.07)",
+                    border: `1px solid ${isCorrect ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.12)"}`,
                     animation: isCorrect ? "correctPop 0.5s 0.05s ease-out" : `wrongFade 0.5s ${0.08 + idx * 0.05}s forwards` }}>
                     <span style={{ fontSize:26, fontWeight:900, color:isCorrect?"#22C55E":purple, minWidth:36, flexShrink:0 }}>{opt.key}.</span>
                     <span style={{ fontSize:28, fontWeight:isCorrect?800:700, color:isCorrect?"#22C55E":"rgba(255,255,255,0.35)", lineHeight:1.2 }}>{opt.text}</span>

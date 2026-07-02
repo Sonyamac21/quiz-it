@@ -128,6 +128,11 @@ function QuizControllerInner() {
   const [timeLeft, setTimeLeft] = useState(30);
   const [fastestTeam, setFastestTeam] = useState<string|null>(null);
   const fastestTeamRef = useRef<string | null>(null);
+  // sessionIdRef: always current sessionId without stale closure risk,
+  // used inside triggerSpinIfChosen so spin DB writes use .eq("id") like
+  // every other host function (Hard Deck, scoreboard, questions etc).
+  // Using .eq("pin", pin) in a closure was silently hitting 0 rows.
+  const sessionIdRef = useRef<string | null>(null);
   const [fastestSong, setFastestSong] = useState<string|null>(null);
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
@@ -278,7 +283,7 @@ function QuizControllerInner() {
     const { data } = await supabase.from("sessions").select("*").eq("pin", p.trim()).single();
     if (!data) return;
     setSessionPin(p.trim());
-    setSessionId(data.id);
+    setSessionId(data.id); sessionIdRef.current = data.id;
     setVenueName(data.venue_name || null);
     setConnected(true);
     loadTeams(p.trim());
@@ -295,7 +300,7 @@ function QuizControllerInner() {
     const { data } = await supabase.from("sessions").select("*").eq("pin", pinInput.trim()).single();
     if (!data) { alert("Session not found!"); return; }
     setSessionPin(pinInput.trim());
-    setSessionId(data.id);
+    setSessionId(data.id); sessionIdRef.current = data.id;
     setVenueName(data.venue_name || null);
     setConnected(true);
     loadTeams(pinInput.trim());
@@ -595,12 +600,21 @@ function QuizControllerInner() {
       // Use pin (already verified above) rather than sessionId, which can be a stale
       // closure value if this listener was set up before sessionId finished loading -
       // that stale value was silently breaking the spin_to_win transition.
-      createSupabaseBrowserClient().from("sessions").update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: nonce }).eq("pin", pin).then(({ error }) => {
-        if (error) console.error("Failed to start Spin to Win:", error);
-      });
+      // Use sessionIdRef.current (.eq("id")) not .eq("pin") - matches Hard Deck
+      // and every other host function. .eq("pin") in a closure was silently
+      // updating 0 rows, so only the host (using local state) saw the spin.
+      const sid = sessionIdRef.current;
+      if (!sid) { console.error("triggerSpinIfChosen: sessionIdRef is null"); return; }
+      createSupabaseBrowserClient().from("sessions")
+        .update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: nonce })
+        .eq("id", sid)
+        .then(({ error }) => {
+          if (error) console.error("Failed to write spin_to_win phase:", error);
+          else console.log("spin_to_win phase written — display and player phones should now spin");
+        });
       if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current);
       setTimeout(() => {
-        createSupabaseBrowserClient().from("sessions").update({ phase: "celebration" }).eq("pin", pin);
+        createSupabaseBrowserClient().from("sessions").update({ phase: "celebration" }).eq("id", sid);
       }, 20000);
     }
   }

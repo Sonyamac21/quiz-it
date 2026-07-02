@@ -3,7 +3,6 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { encodeWavFromBuffer, sliceAudioBuffer } from "@/lib/audio/wavEncoder";
 import { getMediaUrl } from "@/lib/getMediaUrl";
-import { getMediaUrl } from "@/lib/getMediaUrl";
 
 const purple = "#BE26C1";
 const WAVEFORM_BUCKETS = 300;

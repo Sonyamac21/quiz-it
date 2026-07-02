@@ -767,7 +767,17 @@ function QuizControllerInner() {
     setTimeLeft(dur);
     const supabase = createSupabaseBrowserClient();
     const now = new Date().toISOString();
-    await supabase.from("sessions").update({ timer_started_at: now, timer_duration: dur }).eq("id", sessionId);
+    // Check if a TIME-OUT card is pending — if so, activate the 10-second
+    // lockout now (from timer start). On a 15-second question, other teams
+    // are locked out for the first 10 seconds and only have 5 seconds left.
+    const { data: sessionData } = await supabase
+      .from("sessions").select("block_pending, block_team").eq("id", sessionId).single();
+    const blockUpdate: Record<string, unknown> = { timer_started_at: now, timer_duration: dur };
+    if (sessionData?.block_pending) {
+      blockUpdate.block_until = new Date(Date.now() + 10000).toISOString();
+      blockUpdate.block_pending = false;
+    }
+    await supabase.from("sessions").update(blockUpdate).eq("id", sessionId);
     startTickAudio(dur);
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {

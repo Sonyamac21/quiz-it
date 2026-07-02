@@ -3,9 +3,9 @@ import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const CARDS = [
-  { type: "block",   label: "Time-Out", emoji: "X",  color: "#60a5fa", bg: "rgba(59,130,246,0.25)", desc: "Block all teams for 10 seconds" },
-  { type: "reverse", label: "Reverse",  emoji: "R",  color: "#f87171", bg: "rgba(239,68,68,0.25)",  desc: "Flip the scoreboard" },
-  { type: "x2",      label: "Boost",    emoji: "2x", color: "#facc15", bg: "rgba(234,179,8,0.2)",   desc: "Double your points" },
+  { type: "block",   label: "Time-Out", emoji: "⏸",  color: "#60a5fa", bg: "rgba(59,130,246,0.25)", desc: "Freezes all other teams for 10 seconds — activates when the host starts the timer." },
+  { type: "reverse", label: "Reverse",  emoji: "↻",  color: "#f87171", bg: "rgba(239,68,68,0.25)",  desc: "Reverses the digits of your score. 19 becomes 91. 34 becomes 43." },
+  { type: "x2",      label: "Boost",    emoji: "⚡", color: "#facc15", bg: "rgba(234,179,8,0.2)",   desc: "Doubles your points for every correct answer in the current round." },
 ];
 
 export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { teamName: string; sessionPin?: string; compact?: boolean }) {
@@ -33,9 +33,13 @@ export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { team
       session_pin: sessionPin || "",
     });
     if (cardType === "block" && sessionPin) {
+      // Store as pending — the 10-second lockout activates when the HOST presses
+      // the timer button, not immediately. This means on a 15-second question,
+      // other teams have 5 seconds left after the timer starts to answer.
       await supabase.from("sessions").update({
-        block_until: new Date(Date.now() + 10000).toISOString(),
+        block_pending: true,
         block_team: teamName,
+        block_until: null,
       }).eq("pin", sessionPin);
     }
     if (cardType === "reverse" && sessionPin) {

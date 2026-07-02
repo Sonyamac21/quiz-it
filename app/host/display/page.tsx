@@ -233,16 +233,7 @@ function DisplayScreenInner() {
   // When spinNonce changes on the display, we force spin_to_win locally even
   // if the phase DB write was missed. This is the same dual-trigger pattern
   // as Hard Deck uses for its wheel.
-  const lastSeenSpinNonceRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (spinNonce === null) return;
-    if (lastSeenSpinNonceRef.current === spinNonce) return;
-    lastSeenSpinNonceRef.current = spinNonce;
-    setPhase("spin_to_win");
-    const t = setTimeout(() => setPhase("celebration"), 20000);
-    return () => clearTimeout(t);
-  }, [spinNonce]);
+    const lastSeenSpinNonceRef = useRef<number | null>(null);
 
   const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
   useEffect(() => {
@@ -614,7 +605,7 @@ function DisplayScreenInner() {
     const poll = setInterval(async () => {
       const { data } = await supabase.from("sessions").select("*").eq("pin", sessionPin).single();
       if (data) applySession(data);
-    }, 2000);
+    }, 1000);
     return () => clearInterval(poll);
   }, [connected, sessionPin]);
 

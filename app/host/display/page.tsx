@@ -1015,29 +1015,33 @@ function DisplayScreenInner() {
         </div>
         {/* CONTENT */}
         <div style={{ flex:1, minHeight:0, padding:"20px 48px 14px", display:"flex", flexDirection:"column", gap:14 }}>
-          <div style={{ fontSize:26, fontWeight:700, color:"rgba(255,255,255,0.42)", lineHeight:1.3 }}>
+          <div style={{ fontSize:"clamp(22px,2.2vw,36px)", fontWeight:700, color:"rgba(255,255,255,0.38)", lineHeight:1.25 }}>
             {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
           </div>
           {isMulti ? (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:0, flex:1, minHeight:0 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginTop:8 }}>
               {options.map((opt, idx) => {
                 const isCorrect = opt.key.toLowerCase() === correctKey;
                 return (
-                  <div key={opt.key} style={{ display:"flex", alignItems:"center", gap:14, padding:"8px 16px",
-                    borderTop:`1px solid ${isCorrect ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.04)"}`,
-                    animation: isCorrect ? `correctPop 0.5s 0.05s ease-out` : `wrongFade 0.5s ${0.08 + idx * 0.05}s forwards` }}>
-                    <span style={{ fontSize:15, fontWeight:800, color:isCorrect?"#22C55E":purple, minWidth:22 }}>{opt.key}.</span>
-                    <span style={{ fontSize:20, fontWeight:isCorrect?800:600, color:isCorrect?"#22C55E":"rgba(255,255,255,0.5)" }}>{opt.text}</span>
-                    {isCorrect && <span style={{ fontSize:20, color:"#22C55E", marginLeft:6 }}>✓</span>}
+                  <div key={opt.key} style={{ display:"flex", alignItems:"center", gap:20,
+                    padding:"22px 28px", borderRadius:16,
+                    background: isCorrect ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${isCorrect ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.06)"}`,
+                    animation: isCorrect ? "correctPop 0.5s 0.05s ease-out" : `wrongFade 0.5s ${0.08 + idx * 0.05}s forwards` }}>
+                    <span style={{ fontSize:26, fontWeight:900, color:isCorrect?"#22C55E":purple, minWidth:36, flexShrink:0 }}>{opt.key}.</span>
+                    <span style={{ fontSize:28, fontWeight:isCorrect?800:700, color:isCorrect?"#22C55E":"rgba(255,255,255,0.35)", lineHeight:1.2 }}>{opt.text}</span>
+                    {isCorrect && <span style={{ fontSize:24, color:"#22C55E", marginLeft:"auto" }}>✓</span>}
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div style={{ flex:1, display:"flex", alignItems:"center" }}>
-              <div style={{ padding:"20px 28px", borderRadius:14, background:"rgba(34,197,94,0.1)", border:"2px solid rgba(34,197,94,0.5)", animation:"correctPop 0.5s 0.05s ease-out" }}>
-                <div style={{ fontSize:11, fontWeight:700, letterSpacing:3, color:"rgba(34,197,94,0.7)", marginBottom:8 }}>CORRECT ANSWER</div>
-                <div style={{ fontSize:40, fontWeight:800, color:"#22C55E" }}>{correctText}</div>
+            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <div style={{ padding:"40px 60px", borderRadius:20, background:"rgba(34,197,94,0.08)",
+                border:"2px solid rgba(34,197,94,0.5)", textAlign:"center", animation:"correctPop 0.5s 0.05s ease-out",
+                maxWidth:"70%" }}>
+                <div style={{ fontSize:12, fontWeight:700, letterSpacing:4, color:"rgba(34,197,94,0.7)", marginBottom:16 }}>CORRECT ANSWER</div>
+                <div style={{ fontSize:"clamp(48px,6vw,96px)", fontWeight:900, color:"#22C55E", lineHeight:1 }}>{correctText}</div>
               </div>
             </div>
           )}
@@ -1151,17 +1155,18 @@ function DisplayScreenInner() {
         </div>
         {/* CONTENT */}
         <div style={{ flex:1, minHeight:0, padding:"22px 48px 14px", display:"flex", flexDirection:"column", gap:16, position:"relative", zIndex:1 }}>
-          <div style={{ fontSize:30, fontWeight:800, color:"#fff", lineHeight:1.25, animation:"qSlideUp 0.5s cubic-bezier(0.16,1,0.3,1) both" }}>
+          <div style={{ fontSize:"clamp(32px,3.2vw,56px)", fontWeight:800, color:"#fff", lineHeight:1.25, marginBottom:8, animation:"qSlideUp 0.5s cubic-bezier(0.16,1,0.3,1) both" }}>
             {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
           </div>
           {allOpts.length > 0 && (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:0, flex:1, minHeight:0 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginTop:8 }}>
               {allOpts.map((opt, idx) => (
-                <div key={opt.key} style={{ display:"flex", alignItems:"center", gap:14, padding:"8px 16px",
-                  borderTop:"1px solid rgba(255,255,255,0.05)",
+                <div key={opt.key} style={{ display:"flex", alignItems:"center", gap:20,
+                  padding:"22px 28px", borderRadius:16,
+                  background:"rgba(255,255,255,0.04)", border:"1px solid rgba(190,38,193,0.18)",
                   animation:`optSlide 0.4s ${idx * 0.07}s cubic-bezier(0.16,1,0.3,1) both`, opacity:0 }}>
-                  <span style={{ fontSize:15, fontWeight:800, color:purple, minWidth:22 }}>{opt.key}.</span>
-                  <span style={{ fontSize:20, fontWeight:600, color:"rgba(255,255,255,0.88)" }}>{opt.text}</span>
+                  <span style={{ fontSize:26, fontWeight:900, color:purple, minWidth:36, flexShrink:0 }}>{opt.key}.</span>
+                  <span style={{ fontSize:28, fontWeight:700, color:"rgba(255,255,255,0.92)", lineHeight:1.2 }}>{opt.text}</span>
                 </div>
               ))}
             </div>

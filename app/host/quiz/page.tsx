@@ -603,8 +603,9 @@ function QuizControllerInner() {
       // Use sessionIdRef.current (.eq("id")) not .eq("pin") - matches Hard Deck
       // and every other host function. .eq("pin") in a closure was silently
       // updating 0 rows, so only the host (using local state) saw the spin.
-      const sid = sessionIdRef.current;
-      if (!sid) { console.error("triggerSpinIfChosen: sessionIdRef is null"); return; }
+      const sid = sessionIdRef.current || sessionId;
+      if (!sid) { console.error("triggerSpinIfChosen: no session ID available"); return; }
+      console.log("triggerSpinIfChosen: writing spin_to_win to session", sid);
       createSupabaseBrowserClient().from("sessions")
         .update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: nonce })
         .eq("id", sid)
@@ -614,7 +615,8 @@ function QuizControllerInner() {
         });
       if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current);
       setTimeout(() => {
-        createSupabaseBrowserClient().from("sessions").update({ phase: "celebration" }).eq("id", sid);
+        const finalSid = sessionIdRef.current || sessionId;
+        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration" }).eq("id", finalSid);
       }, 20000);
     }
   }

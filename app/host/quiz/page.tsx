@@ -586,7 +586,7 @@ function QuizControllerInner() {
     if (choice === "spin" && !spinTriggeredRef.current) {
       spinTriggeredRef.current = true;
       const winIdx = Math.floor(Math.random() * 8);
-      const nonce = Date.now();
+      const nonce = Date.now() % 1000000; // Keep within integer column range
       // Set local state directly instead of waiting for a realtime/poll echo-back
       // of our own write - we already know these exact values, no need to round-trip.
       setSpinChoice("spin");

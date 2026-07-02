@@ -1004,8 +1004,7 @@ function DisplayScreenInner() {
     const correctText = isMulti ? (options.find(o => o.key.toLowerCase()===question.correct_answer.toLowerCase())?.text || question.correct_answer) : question.correct_answer;
     const correctKey = question.correct_answer.toLowerCase();
     return (
-      <div style={{ height:"100vh", display:"flex", flexDirection:"column", fontFamily:"'Inter',sans-serif", color:"#fff", animation:"flashReveal 0.45s ease-out" }}>
-        <div style={{ position:"absolute", inset:0, background:"#0D0110", zIndex:-1 }} />
+      <div style={{ height:"100vh", background:"#0D0110", display:"flex", flexDirection:"column", fontFamily:"'Inter',sans-serif", color:"#fff", animation:"flashReveal 0.45s ease-out", position:"relative" }}>
         {/* HEADER */}
         <div style={{ flexShrink:0, padding:"14px 40px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid rgba(34,197,94,0.2)" }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -1131,7 +1130,6 @@ function DisplayScreenInner() {
     return (
       <div style={{ height:"100vh", display:"flex", flexDirection:"column", fontFamily:"'Inter',sans-serif", color:"#fff",
         animation: tLeft <= 3 && tLeft > 0 ? "screenPulse 0.8s ease-in-out infinite" : "none" }}>
-        <div style={{ position:"absolute", inset:0, background:"#0D0110", zIndex:-1 }} />
         <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 55% 40% at 50% 15%, rgba(190,38,193,0.07) 0%, transparent 65%)", pointerEvents:"none", zIndex:0 }} />
         {/* HEADER */}
         <div style={{ flexShrink:0, padding:"14px 40px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid rgba(190,38,193,0.18)", position:"relative", zIndex:1 }}>

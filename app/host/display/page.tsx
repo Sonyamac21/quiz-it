@@ -146,6 +146,34 @@ function DisplayScreenInner() {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [introCardIdx, setIntroCardIdx] = useState(0);
   useEffect(() => { preloadSounds(); }, []);
+
+  // Inject Inter font + all display screen animations on mount
+  useEffect(() => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap";
+    document.head.appendChild(link);
+    const style = document.createElement("style");
+    style.id = "quizit-display-anims";
+    style.textContent = [
+      "@keyframes qSlideUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}",
+      "@keyframes optSlide{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:translateX(0)}}",
+      "@keyframes flashReveal{0%{background:#0D0110}8%{background:#fff}18%{background:#0D0110}100%{background:#0D0110}}",
+      "@keyframes correctPop{0%{transform:scale(1)}40%{transform:scale(1.04)}100%{transform:scale(1)}}",
+      "@keyframes wrongFade{to{opacity:0.18}}",
+      "@keyframes nameSlam{0%{opacity:0;transform:scale(0.35) translateY(24px)}60%{transform:scale(1.06) translateY(-4px)}100%{opacity:1;transform:scale(1) translateY(0)}}",
+      "@keyframes goldRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}",
+      "@keyframes confettiFall{0%{transform:translateY(-16px) rotate(0deg);opacity:1}100%{transform:translateY(105vh) rotate(540deg);opacity:0}}",
+      "@keyframes timerUrgent{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}",
+      "@keyframes screenPulse{0%,100%{background:transparent}50%{background:rgba(239,68,68,0.05)}}",
+    ].join("");
+    document.head.appendChild(style);
+    return () => {
+      if (link.parentNode) link.parentNode.removeChild(link);
+      const s = document.getElementById("quizit-display-anims");
+      if (s && s.parentNode) s.parentNode.removeChild(s);
+    };
+  }, []);
   useEffect(() => {
     const interval = setInterval(() => {
       setIntroCardIdx(i => (i + 1) % POWER_CARDS.length);
@@ -243,6 +271,8 @@ function DisplayScreenInner() {
   const quizEndCrowdRef = useRef<HTMLAudioElement|null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
   const flashRef = useRef<ReturnType<typeof setInterval>|null>(null);
+  // Tracks the full timer duration so the SVG ring can show correct progress
+  const timerTotalRef = useRef<number>(30);
 
   const font = "'Bruno Ace SC', sans-serif";
   const purple = "#BE26C1";
@@ -501,6 +531,7 @@ function DisplayScreenInner() {
     if (data.timer_started_at && data.timer_duration) {
       const started = new Date(data.timer_started_at as string).getTime();
       const duration = data.timer_duration as number;
+      timerTotalRef.current = duration;
       const elapsed = Math.floor((Date.now() - started) / 1000);
       const remaining = Math.max(0, duration - elapsed);
       startCountdown(remaining);
@@ -920,18 +951,48 @@ function DisplayScreenInner() {
   // CELEBRATION
   if (phase === "celebration") {
     const winnerTeam = teams.find(t => t.team_name === fastestTeam);
+    const confettiColors = ["#BE26C1","#F5B800","#22C55E","#38BDF8","#F87171","#A78BFA","#FB923C"];
     return (
-      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, gap:32 }}>
-        {fastestTeam ? (
-          <>
-            <div style={{ fontSize:"clamp(80px,12vw,180px)", fontWeight:900, letterSpacing:4, textAlign:"center", padding:"0 60px", color:flash?"#fff":purple, textShadow:flash?"0 0 80px rgba(190,38,193,1), 0 0 160px rgba(190,38,193,0.6)":"0 0 40px rgba(190,38,193,0.3)", transition:"color 0.3s, text-shadow 0.3s" }}>{fastestTeam}</div>
-            {showWinnerPhoto && winnerTeam?.photo_url && (
-              <img src={winnerTeam.photo_url} alt={fastestTeam} style={{ width:260, height:260, borderRadius:"50%", objectFit:"cover", border:"6px solid "+purple, boxShadow:"0 0 60px rgba(190,38,193,0.6)" }} />
-            )}
-          </>
-        ) : (
-          <div style={{ fontSize:60, color:"rgba(255,255,255,0.3)", fontFamily:font }}>No correct answers</div>
+      <div style={{ height:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',sans-serif", position:"relative", overflow:"hidden" }}>
+        {/* Confetti layer */}
+        {fastestTeam && (
+          <div style={{ position:"absolute", inset:0, pointerEvents:"none", overflow:"hidden" }}>
+            {Array.from({length:28}).map((_,i) => (
+              <div key={i} style={{
+                position:"absolute", top:"-16px",
+                left:(3 + (i * 19) % 94) + "%",
+                width: 6 + (i % 5) * 3, height: 6 + (i % 4) * 3,
+                borderRadius: i % 3 === 0 ? "50%" : "2px",
+                background: confettiColors[i % confettiColors.length],
+                animation:`confettiFall ${1.4 + (i % 8) * 0.25}s ${(i % 7) * 0.18}s ease-in infinite`,
+              }} />
+            ))}
+          </div>
         )}
+        {/* Brand ambient glow */}
+        <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 60% 50% at 50% 50%, rgba(190,38,193,0.12) 0%, transparent 70%)", pointerEvents:"none" }} />
+        {fastestTeam ? (
+          <div style={{ textAlign:"center", position:"relative", zIndex:2, padding:"0 48px" }}>
+            <div style={{ fontSize:13, fontWeight:700, letterSpacing:5, color:"rgba(255,255,255,0.3)", marginBottom:28 }}>FASTEST CORRECT ANSWER</div>
+            <div style={{ fontSize:"clamp(52px,8vw,96px)", fontWeight:900, color:"#fff", letterSpacing:2, lineHeight:1, animation:"nameSlam 0.65s cubic-bezier(0.34,1.56,0.64,1) both" }}>
+              {fastestTeam}
+            </div>
+            {showWinnerPhoto && winnerTeam?.photo_url && (
+              <img src={winnerTeam.photo_url} alt={fastestTeam} style={{ width:200, height:200, borderRadius:"50%", objectFit:"cover", border:"4px solid "+purple, marginTop:24, animation:"goldRise 0.5s 0.5s ease-out both", opacity:0 }} />
+            )}
+          </div>
+        ) : (
+          <div style={{ fontSize:52, fontWeight:800, color:"rgba(255,255,255,0.25)", fontFamily:"'Inter',sans-serif", textAlign:"center" }}>No correct answers this round</div>
+        )}
+        {/* Brand */}
+        <div style={{ position:"absolute", bottom:22, textAlign:"center", zIndex:2 }}>
+          <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:16, letterSpacing:3 }}>
+            <span style={{ color:purple }}>QUIZ-</span><span style={{ color:"#fff" }}>IT</span>
+          </div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.2)", marginTop:3 }}>Powered by Mac Entertainment · by Sonya Mac</div>
+        </div>
+        <div style={{ position:"absolute", top:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${purple},transparent)` }} />
+        <div style={{ position:"absolute", bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${purple},transparent)` }} />
       </div>
     );
   }
@@ -941,32 +1002,58 @@ function DisplayScreenInner() {
     const options = [{ key:"A", text:question.option_a },{ key:"B", text:question.option_b },{ key:"C", text:question.option_c },{ key:"D", text:question.option_d }].filter(o => o.text);
     const isMulti = question.question_type === "multiple_choice";
     const correctText = isMulti ? (options.find(o => o.key.toLowerCase()===question.correct_answer.toLowerCase())?.text || question.correct_answer) : question.correct_answer;
+    const correctKey = question.correct_answer.toLowerCase();
     return (
-      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", padding:"48px 80px", fontFamily:font, color:"#fff" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:32 }}>
-          <div style={{ fontSize:16, letterSpacing:4, color:"rgba(255,255,255,0.3)" }}>Q{questionIndex+1}</div>
-          <div style={{ padding:"4px 16px", borderRadius:999, background:"rgba(34,197,94,0.2)", border:"1px solid rgba(34,197,94,0.5)", fontSize:16, color:"#22c55e", letterSpacing:2 }}>ANSWER REVEALED</div>
-          <div style={{ flex:1 }} />
-          <div style={{ fontSize:18, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Quiz-It</div>
-        </div>
-        <div style={{ fontSize:50, fontWeight:700, lineHeight:1.35, marginBottom:40, maxWidth:"85%" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
-        {isMulti && (
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:32 }}>
-            {options.map(opt => {
-              const isCorrect = opt.key.toLowerCase()===question.correct_answer.toLowerCase();
-              return (
-                <div key={opt.key} style={{ padding:"20px 28px", borderRadius:16, background:isCorrect?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.05)", border:"2px solid "+(isCorrect?"rgba(34,197,94,0.7)":"rgba(255,255,255,0.1)"), fontSize:30, display:"flex", alignItems:"center", gap:14 }}>
-                  <span style={{ color:purple, fontWeight:800, fontSize:28 }}>{opt.key}.</span>
-                  <span style={{ color:isCorrect?"#22c55e":"#fff", fontWeight:isCorrect?700:400 }}>{opt.text}</span>
-                </div>
-              );
-            })}
+      <div style={{ height:"100vh", display:"flex", flexDirection:"column", fontFamily:"'Inter',sans-serif", color:"#fff", animation:"flashReveal 0.45s ease-out" }}>
+        <div style={{ position:"absolute", inset:0, background:"#0D0110", zIndex:-1 }} />
+        {/* HEADER */}
+        <div style={{ flexShrink:0, padding:"14px 40px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid rgba(34,197,94,0.2)" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ fontSize:11, fontWeight:700, letterSpacing:3, color:"rgba(255,255,255,0.22)" }}>{roundName || "GENERAL KNOWLEDGE"}</span>
+            <span style={{ padding:"3px 12px", background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.4)", borderRadius:999, fontSize:10, fontWeight:700, color:"#22C55E", letterSpacing:2 }}>ANSWER REVEALED</span>
           </div>
-        )}
-        <div style={{ padding:"24px 32px", borderRadius:16, background:"rgba(34,197,94,0.15)", border:"2px solid rgba(34,197,94,0.5)", maxWidth:600 }}>
-          <div style={{ fontSize:16, color:"rgba(34,197,94,0.7)", letterSpacing:3, marginBottom:8 }}>CORRECT ANSWER</div>
-          <div style={{ fontSize:45, fontWeight:800, color:"#22c55e" }}>{correctText}</div>
+          <span style={{ fontSize:12, fontWeight:700, color:"rgba(255,255,255,0.2)" }}>Q {questionIndex + 1}</span>
         </div>
+        {/* CONTENT */}
+        <div style={{ flex:1, minHeight:0, padding:"20px 48px 14px", display:"flex", flexDirection:"column", gap:14 }}>
+          <div style={{ fontSize:26, fontWeight:700, color:"rgba(255,255,255,0.42)", lineHeight:1.3 }}>
+            {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
+          </div>
+          {isMulti ? (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:0, flex:1, minHeight:0 }}>
+              {options.map((opt, idx) => {
+                const isCorrect = opt.key.toLowerCase() === correctKey;
+                return (
+                  <div key={opt.key} style={{ display:"flex", alignItems:"center", gap:14, padding:"8px 16px",
+                    borderTop:`1px solid ${isCorrect ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.04)"}`,
+                    animation: isCorrect ? `correctPop 0.5s 0.05s ease-out` : `wrongFade 0.5s ${0.08 + idx * 0.05}s forwards` }}>
+                    <span style={{ fontSize:15, fontWeight:800, color:isCorrect?"#22C55E":purple, minWidth:22 }}>{opt.key}.</span>
+                    <span style={{ fontSize:20, fontWeight:isCorrect?800:600, color:isCorrect?"#22C55E":"rgba(255,255,255,0.5)" }}>{opt.text}</span>
+                    {isCorrect && <span style={{ fontSize:20, color:"#22C55E", marginLeft:6 }}>✓</span>}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ flex:1, display:"flex", alignItems:"center" }}>
+              <div style={{ padding:"20px 28px", borderRadius:14, background:"rgba(34,197,94,0.1)", border:"2px solid rgba(34,197,94,0.5)", animation:"correctPop 0.5s 0.05s ease-out" }}>
+                <div style={{ fontSize:11, fontWeight:700, letterSpacing:3, color:"rgba(34,197,94,0.7)", marginBottom:8 }}>CORRECT ANSWER</div>
+                <div style={{ fontSize:40, fontWeight:800, color:"#22C55E" }}>{correctText}</div>
+              </div>
+            </div>
+          )}
+        </div>
+        {/* FOOTER */}
+        <div style={{ flexShrink:0, padding:"9px 40px", borderTop:"1px solid rgba(34,197,94,0.15)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.28)", fontStyle:"italic" }}>
+            {question.explanation || ""}
+          </div>
+          <div style={{ textAlign:"right", lineHeight:1.3 }}>
+            <div><span style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:11, letterSpacing:"1.5px" }}><span style={{ color:purple }}>QUIZ-</span><span style={{ color:"#fff" }}>IT</span></span></div>
+            <div style={{ fontSize:8, color:"rgba(255,255,255,0.14)" }}>Powered by Mac Entertainment · by Sonya Mac</div>
+          </div>
+        </div>
+        <div style={{ position:"absolute", bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,rgba(34,197,94,0.6),transparent)` }} />
       </div>
     );
   }
@@ -1035,48 +1122,73 @@ function DisplayScreenInner() {
     }
 
     // STANDARD QUESTION
+    const tLeft = timeLeft ?? 0;
+    const tTotal = timerTotalRef.current || 30;
+    const tColor = tLeft <= 3 ? "#EF4444" : tLeft <= 6 ? "#F59E0B" : "#fff";
+    const CIRC = 226;
+    const tDash = CIRC * (tLeft / tTotal);
+    const allOpts = isMulti ? options : isMultiTap ? multiTapOptions : [];
     return (
-      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", padding:"48px 80px", fontFamily:font, color:"#fff" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:32 }}>
-          <div style={{ fontSize:16, letterSpacing:4, color:"rgba(255,255,255,0.3)" }}>Q{questionIndex+1}</div>
-          <div style={{ padding:"4px 16px", borderRadius:999, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", fontSize:16, color:purple, letterSpacing:2 }}>LIVE</div>
-          <div style={{ flex:1 }} />
-          {timeLeft !== null && timeLeft > 0 && (
-            <div style={{ width:64, height:64, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"3px solid "+(timeLeft<=3?"#ef4444":purple), display:"flex", alignItems:"center", justifyContent:"center", fontSize:35, fontWeight:800, color:timeLeft<=3?"#ef4444":purple }}>{timeLeft}</div>
+      <div style={{ height:"100vh", display:"flex", flexDirection:"column", fontFamily:"'Inter',sans-serif", color:"#fff",
+        animation: tLeft <= 3 && tLeft > 0 ? "screenPulse 0.8s ease-in-out infinite" : "none" }}>
+        <div style={{ position:"absolute", inset:0, background:"#0D0110", zIndex:-1 }} />
+        <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 55% 40% at 50% 15%, rgba(190,38,193,0.07) 0%, transparent 65%)", pointerEvents:"none", zIndex:0 }} />
+        {/* HEADER */}
+        <div style={{ flexShrink:0, padding:"14px 40px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid rgba(190,38,193,0.18)", position:"relative", zIndex:1 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ fontSize:11, fontWeight:700, letterSpacing:3, color:"rgba(255,255,255,0.22)" }}>{roundName || "GENERAL KNOWLEDGE"}</span>
+            <span style={{ padding:"3px 12px", background:"rgba(190,38,193,0.1)", border:`1px solid rgba(190,38,193,0.35)`, borderRadius:999, fontSize:10, fontWeight:700, color:purple, letterSpacing:2 }}>Q {questionIndex + 1}</span>
+          </div>
+          {tLeft > 0 && (
+            <div style={{ width:80, height:80, position:"relative", animation: tLeft <= 3 ? "timerUrgent 0.5s ease-in-out infinite" : "none" }}>
+              <svg width="80" height="80" viewBox="0 0 80 80" style={{ transform:"rotate(-90deg)", position:"absolute", inset:0 }}>
+                <circle cx="40" cy="40" r="36" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="4"/>
+                <circle cx="40" cy="40" r="36" fill="none" stroke={tColor} strokeWidth="4"
+                  strokeDasharray={CIRC} strokeDashoffset={CIRC - tDash}
+                  style={{ transition:"stroke-dashoffset 0.9s linear, stroke 0.3s" }}/>
+              </svg>
+              <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:900, color:tColor, fontFamily:"'Inter',sans-serif" }}>{tLeft}</div>
+            </div>
           )}
-          <div style={{ fontSize:18, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Quiz-It</div>
         </div>
-        <div style={{ fontSize:"clamp(28px,4.2vw,55px)", fontWeight:700, lineHeight:1.35, marginBottom:40, maxWidth:"85%" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
-        {isMulti && (
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-            {options.map(opt => (
-              <div key={opt.key} style={{ padding:"20px 28px", borderRadius:16, background:"rgba(255,255,255,0.06)", border:"2px solid rgba(190,38,193,0.25)", fontSize:30, display:"flex", alignItems:"center", gap:14 }}>
-                <span style={{ color:purple, fontWeight:800, fontSize:28 }}>{opt.key}.</span>
-                <span>{opt.text}</span>
-              </div>
-            ))}
+        {/* CONTENT */}
+        <div style={{ flex:1, minHeight:0, padding:"22px 48px 14px", display:"flex", flexDirection:"column", gap:16, position:"relative", zIndex:1 }}>
+          <div style={{ fontSize:30, fontWeight:800, color:"#fff", lineHeight:1.25, animation:"qSlideUp 0.5s cubic-bezier(0.16,1,0.3,1) both" }}>
+            {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
           </div>
-        )}
-        {isMultiTap && (
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-            {multiTapOptions.map(opt => (
-              <div key={opt.key} style={{ padding:"20px 28px", borderRadius:16, background:"rgba(255,255,255,0.06)", border:"2px solid rgba(190,38,193,0.25)", fontSize:26, display:"flex", alignItems:"center", gap:14 }}>
-                <span style={{ color:purple, fontWeight:800, fontSize:24 }}>{opt.key}.</span>
-                <span>{opt.text}</span>
-              </div>
-            ))}
+          {allOpts.length > 0 && (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:0, flex:1, minHeight:0 }}>
+              {allOpts.map((opt, idx) => (
+                <div key={opt.key} style={{ display:"flex", alignItems:"center", gap:14, padding:"8px 16px",
+                  borderTop:"1px solid rgba(255,255,255,0.05)",
+                  animation:`optSlide 0.4s ${idx * 0.07}s cubic-bezier(0.16,1,0.3,1) both`, opacity:0 }}>
+                  <span style={{ fontSize:15, fontWeight:800, color:purple, minWidth:22 }}>{opt.key}.</span>
+                  <span style={{ fontSize:20, fontWeight:600, color:"rgba(255,255,255,0.88)" }}>{opt.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {question.question_type === "audio" && (
+            <div style={{ marginTop:8 }}>
+              <LiveAudioPlayer question={question} />
+            </div>
+          )}
+        </div>
+        {/* FOOTER */}
+        <div style={{ flexShrink:0, padding:"9px 40px", borderTop:"1px solid rgba(190,38,193,0.15)", display:"flex", alignItems:"center", justifyContent:"space-between", position:"relative", zIndex:1 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ width:6, height:6, borderRadius:"50%", background:purple, opacity:0.5 }} />
+            <span style={{ fontSize:11, color:"rgba(255,255,255,0.2)" }}>
+              {answeredTeams.length > 0 ? `${answeredTeams.length} team${answeredTeams.length !== 1 ? "s" : ""} answered` : "Waiting for answers..."}
+            </span>
           </div>
-        )}
-        {!isMulti && !isMultiTap && (
-          <div style={{ padding:"20px 28px", borderRadius:16, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", fontSize:25, color:"rgba(255,255,255,0.4)", fontStyle:"italic" }}>
-            Type your answer on your phone
+          <div style={{ textAlign:"right", lineHeight:1.3 }}>
+            <div><span style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:11, letterSpacing:"1.5px" }}><span style={{ color:purple }}>QUIZ-</span><span style={{ color:"#fff" }}>IT</span></span></div>
+            <div style={{ fontSize:8, color:"rgba(255,255,255,0.14)" }}>Powered by Mac Entertainment · by Sonya Mac</div>
           </div>
-        )}
-        {question.question_type === "audio" && (
-          <div style={{ marginTop: 24 }}>
-            <LiveAudioPlayer question={question} />
-          </div>
-        )}
+        </div>
+        <div style={{ position:"absolute", top:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${purple},transparent)`, zIndex:2 }} />
+        <div style={{ position:"absolute", bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${purple},transparent)`, zIndex:2 }} />
       </div>
     );
   }

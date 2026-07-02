@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { encodeWavFromBuffer, sliceAudioBuffer } from "@/lib/audio/wavEncoder";
+import { getMediaUrl } from "@/lib/getMediaUrl";
 
 const purple = "#BE26C1";
 const WAVEFORM_BUCKETS = 300;
@@ -452,7 +453,7 @@ export default function MusicPrepPage() {
             {/* Phase: done */}
             {qs.phase === "done" && qs.savedUrl && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <audio controls src={qs.savedUrl} style={{ width: "100%", height: 32 }} />
+                <audio controls src={getMediaUrl(qs.savedUrl) || undefined} style={{ width: "100%", height: 32 }} />
                 <button type="button" onClick={() => setState(i, { phase: "candidates", candidates: [], audioBuffer: null, peaks: [] })}
                   style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 11, textDecoration: "underline", cursor: "pointer", alignSelf: "flex-start", padding: 0 }}>
                   Replace clip

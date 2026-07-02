@@ -147,19 +147,6 @@ function DisplayScreenInner() {
   const [introCardIdx, setIntroCardIdx] = useState(0);
   useEffect(() => { preloadSounds(); }, []);
 
-  // Spin to Win: force spin_to_win phase when spinNonce changes,
-  // independent of whether the phase DB write was received.
-  // Clears after 20 seconds (matching the host's timeout).
-  useEffect(() => {
-    if (spinNonce === null) return;
-    if (lastSeenSpinNonceRef.current === spinNonce) return;
-    lastSeenSpinNonceRef.current = spinNonce;
-    // Force local phase to spin_to_win
-    setPhase("spin_to_win");
-    const t = setTimeout(() => setPhase("celebration"), 20000);
-    return () => clearTimeout(t);
-  }, [spinNonce]);
-
   // Inject Inter font + all display screen animations on mount
   useEffect(() => {
     const link = document.createElement("link");
@@ -247,6 +234,16 @@ function DisplayScreenInner() {
   // if the phase DB write was missed. This is the same dual-trigger pattern
   // as Hard Deck uses for its wheel.
   const lastSeenSpinNonceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (spinNonce === null) return;
+    if (lastSeenSpinNonceRef.current === spinNonce) return;
+    lastSeenSpinNonceRef.current = spinNonce;
+    setPhase("spin_to_win");
+    const t = setTimeout(() => setPhase("celebration"), 20000);
+    return () => clearTimeout(t);
+  }, [spinNonce]);
+
   const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
   useEffect(() => {
     const styleEl = document.createElement("style");

@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { encodeWavFromBuffer, sliceAudioBuffer } from "@/lib/audio/wavEncoder";
 import { getMediaUrl } from "@/lib/getMediaUrl";
+import { getMediaUrl } from "@/lib/getMediaUrl";
 
 const purple = "#BE26C1";
 const WAVEFORM_BUCKETS = 300;
@@ -107,16 +108,22 @@ function WaveformEditor({
     setPreviewing(false);
   }
 
-  function playPreview() {
+  async function playPreview() {
     if (!audioCtxRef.current) {
       const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       audioCtxRef.current = new AC();
     }
+    // Resume context if suspended by browser autoplay policy
+    if (audioCtxRef.current.state === "suspended") {
+      await audioCtxRef.current.resume();
+    }
     stopPreview();
+    const start = Math.max(0, Math.min(clipStart, audioBuffer.duration - 0.1));
+    const duration = Math.max(0.1, Math.min(clipEnd - clipStart, audioBuffer.duration - start));
     const src = audioCtxRef.current.createBufferSource();
     src.buffer = audioBuffer;
     src.connect(audioCtxRef.current.destination);
-    src.start(0, clipStart, clipEnd - clipStart);
+    src.start(0, start, duration);
     src.onended = () => setPreviewing(false);
     sourceRef.current = src;
     setPreviewing(true);

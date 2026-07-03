@@ -31,9 +31,11 @@ type SlotReelsProps = {
   // leaving that screen stuck showing the previous spin's stale result while other
   // screens correctly animate and announce the new one.
   spinNonce?: number | string | null;
+  /** Only the display screen (TV) should play audio. Pass false on host and handset. */
+  audioEnabled?: boolean;
 };
 
-export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spinNonce }: SlotReelsProps) {
+export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spinNonce, audioEnabled = true }: SlotReelsProps) {
   const r0 = useRef<HTMLDivElement>(null);
   const r1 = useRef<HTMLDivElement>(null);
   const r2 = useRef<HTMLDivElement>(null);
@@ -72,6 +74,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
   useEffect(() => () => { stopBulbs(); }, []);
 
   const startSpinSound = () => {
+    if (!audioEnabled) return;
     try {
       const audio = new Audio("/sounds/slot-spin.mp3");
       audio.loop = true;
@@ -158,6 +161,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
   };
 
   const playPositiveSounds = (songFile?: string) => {
+    if (!audioEnabled) return;
     try {
       const horn = new Audio("/sounds/airhorn.mp3");
       horn.volume = 1.0;
@@ -186,6 +190,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
     } catch {}
   };
   const playNegativeSounds = () => {
+    if (!audioEnabled) return;
     try {
       const trombone = new Audio("/sounds/sad-trombone.mp3");
       trombone.volume = 0.9;

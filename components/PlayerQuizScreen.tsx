@@ -513,7 +513,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         {/* Every player sees their own synced mini wheel - not just the spinning team -
             so remote players who can't see the venue display still see the result live. */}
         <div style={{ width: "100%" }}>
-          <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeamName || teamName} victorySong={isWinner ? (fastestSongName || undefined) : undefined} size="compact" />
+          <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeamName || teamName} victorySong={isWinner ? (fastestSongName || undefined) : undefined} size="compact" audioEnabled={false} />
         </div>
       </div>
     );

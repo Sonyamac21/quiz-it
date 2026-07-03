@@ -592,11 +592,8 @@ function QuizControllerInner() {
       spinTriggeredRef.current = true;
       const winIdx = Math.floor(Math.random() * 8);
       const nonce = Date.now() % 1000000; // Keep within integer column range
-      // Set local state directly instead of waiting for a realtime/poll echo-back
-      // of our own write - we already know these exact values, no need to round-trip.
-      setSpinChoice("spin");
-      setSpinTargetIdx(winIdx);
-      setSpinNonce(nonce);
+      // Host animation is now triggered by the subscription echo of the DB write below,
+      // same source as display and handset - achieving visual synchronisation.
       // Use pin (already verified above) rather than sessionId, which can be a stale
       // closure value if this listener was set up before sessionId finished loading -
       // that stale value was silently breaking the spin_to_win transition.

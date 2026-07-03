@@ -613,7 +613,7 @@ function QuizControllerInner() {
       if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current);
       setTimeout(() => {
         const finalSid = sessionIdRef.current || sessionId;
-        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration" }).eq("id", finalSid).then(({ error }) => { if (error) console.error("SESSION UPDATE FAILED [spinTimeout]:", error); });
+        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration", spin_choice: null, spin_nonce: null, spin_target_idx: null }).eq("id", finalSid).then(({ error }) => { if (error) console.error("SESSION UPDATE FAILED [spinTimeout]:", error); });
       }, 20000);
     }
   }

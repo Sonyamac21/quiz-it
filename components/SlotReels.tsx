@@ -193,16 +193,34 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
     } catch {}
   };
 
-  const pickDifferent = (exclude: number) => {
+  // Seeded pseudo-random number generator (mulberry32).
+  // Seeded with spinNonce — the same value on every screen — so host,
+  // display and handset all generate identical animation paths.
+  const makeRng = (seed: number | string | null): (() => number) => {
+    let s = (typeof seed === "number" ? seed :
+             typeof seed === "string" ? seed.split("").reduce((a, c) => a + c.charCodeAt(0), 0) :
+             12345) >>> 0;
+    return () => {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = Math.imul(t ^ (t >>> 7), 61 | t) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+
+  const pickDifferent = (exclude: number, rng: () => number) => {
     let idx: number;
-    do { idx = Math.floor(Math.random() * SLOT_SEGS.length); } while (idx === exclude);
+    do { idx = Math.floor(rng() * SLOT_SEGS.length); } while (idx === exclude);
     return idx;
   };
-  const landReelOn = (segIdx: number) => {
-    const fullCycles = 8 + Math.floor(Math.random() * 4);
+  const landReelOn = (segIdx: number, rng: () => number, reelH: number) => {
+    const fullCycles = 8 + Math.floor(rng() * 4);
     const baseIdx = fullCycles * SLOT_SEGS.length + segIdx;
     const landStripIdx = Math.min(baseIdx, STRIP_LEN - 3);
-    return -(landStripIdx - 1) * SEG_H;
+    // Correct alignment formula:
+    // Centre of segment n = n × SEG_H + toTop + SEG_H/2 = reelH/2
+    // → toTop = (reelH − SEG_H) / 2 − n × SEG_H
+    return (reelH - SEG_H) / 2 - landStripIdx * SEG_H;
   };
   const resetReels = () => {
     const mid = Math.floor(STRIP_LEN / 4);
@@ -223,8 +241,12 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
     startSpinSound();
 
     const winSegIdx = targetIdx;
-    const rebelReel = Math.floor(Math.random() * 3);
-    const rebelIdx = pickDifferent(winSegIdx);
+    // One seeded RNG per spin, shared across all calls below.
+    // spinNonce is identical on every screen so rng() produces the same
+    // sequence everywhere — identical rebel reel, decoy, cycles, positions.
+    const rng = makeRng(spinNonce);
+    const rebelReel = Math.floor(rng() * 3);
+    const rebelIdx = pickDifferent(winSegIdx, rng);
     const results = [winSegIdx, winSegIdx, winSegIdx];
     results[rebelReel] = rebelIdx;
 
@@ -234,13 +256,13 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
 
     [0, 1, 2].forEach((i) => {
       const startTop = reelTops.current[i];
-      const targetTop = landReelOn(results[i]);
+      const targetTop = landReelOn(results[i], rng, REEL_H);
       animReel(i, startTop, targetTop, durations[i], delays[i], easePowers[i],
         i === 2 ? () => {
           stopSpinSound();
           setTimeout(() => {
             const rebelStart = reelTops.current[rebelReel];
-            const rebelTarget = landReelOn(winSegIdx);
+            const rebelTarget = landReelOn(winSegIdx, rng, REEL_H);
             animReel(rebelReel, rebelStart, rebelTarget, 2000, 0, 2, () => {
               setSpinning(false);
               stopBulbs();

@@ -1113,7 +1113,7 @@ function QuizControllerInner() {
                   )}
                   {spinChoice === "spin" && (
                     <div style={{ width:"100%", maxWidth:420, margin:"0 auto 16px" }}>
-                      <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeam || "Team"} size="compact" />
+                      <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeam || "Team"} size="compact" audioEnabled={false} />
                     </div>
                   )}
                   <button onClick={() => { if (isLastQ) doEndRound(); else doPreviewQuestion(qIdx + 1); }} style={{ padding:"12px 32px", borderRadius:10, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", marginBottom:24, marginTop:16 }}>Continue ▶</button>

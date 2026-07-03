@@ -616,7 +616,7 @@ function QuizControllerInner() {
       if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current);
       setTimeout(() => {
         const finalSid = sessionIdRef.current || sessionId;
-        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration" }).eq("id", finalSid);
+        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration" }).eq("id", finalSid).then(({ error }) => { if (error) console.error("SESSION UPDATE FAILED [spinTimeout]:", error); });
       }, 20000);
     }
   }
@@ -738,7 +738,8 @@ function QuizControllerInner() {
     // push phase: "waiting" to Supabase so player handsets reset off the
     // celebration screen back to the Quiz-It idle/logo screen during preview.
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "waiting", fastest_team: null, fastest_song: null }).eq("id", sessionId);
+    const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", fastest_team: null, fastest_song: null, spin_nonce: null, spin_target_idx: null, spin_choice: null }).eq("id", sessionId);
+    if (prevErr) console.error("SESSION UPDATE FAILED [doPreviewQuestion]:", prevErr);
     if (sessionPin) loadAnswers(sessionPin, idx);
   }
 
@@ -748,7 +749,8 @@ function QuizControllerInner() {
     setHostPhase("question");
     const isPicture = q.question_type === "picture";
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "question", current_question: q, current_question_index: qIdx, fastest_team: null, fastest_song: null, picture_sub_phase: isPicture ? "image_only" : null, spin_nonce: null, spin_target_idx: null, spin_choice: null }).eq("id", sessionId);
+    const { error: sendErr } = await supabase.from("sessions").update({ phase: "question", current_question: q, current_question_index: qIdx, fastest_team: null, fastest_song: null, picture_sub_phase: isPicture ? "image_only" : null }).eq("id", sessionId);
+    if (sendErr) console.error("SESSION UPDATE FAILED [doSendQuestion]:", sendErr);
     // Record actual play-time usage for repeat-prevention - this only fires for
     // questions that came from (or were saved into) the library, i.e. have an id.
     // Older rounds generated before the library existed simply won't have one,
@@ -840,7 +842,8 @@ function QuizControllerInner() {
     setDecisionMade(false);
     setHostPhase("celebration");
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "celebration", fastest_team: fastestTeamName, fastest_song: song, fastest_points: fastestPoints, spin_offered: false, spin_choice: null }).eq("id", sessionId);
+    const { error: celebErr } = await supabase.from("sessions").update({ phase: "celebration", fastest_team: fastestTeamName, fastest_song: song, fastest_points: fastestPoints, spin_offered: false, spin_choice: null }).eq("id", sessionId);
+    if (celebErr) console.error("SESSION UPDATE FAILED [doCelebrate]:", celebErr);
     // Victory song now plays only on the display screen to avoid duplicate/echoing audio
   }
 

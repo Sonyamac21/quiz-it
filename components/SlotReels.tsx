@@ -196,7 +196,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
   // Seeded pseudo-random number generator (mulberry32).
   // Seeded with spinNonce — the same value on every screen — so host,
   // display and handset all generate identical animation paths.
-  const makeRng = (seed: number | string | null): (() => number) => {
+  const makeRng = (seed: number | string | null | undefined): (() => number) => {
     let s = (typeof seed === "number" ? seed :
              typeof seed === "string" ? seed.split("").reduce((a, c) => a + c.charCodeAt(0), 0) :
              12345) >>> 0;

@@ -748,7 +748,7 @@ function QuizControllerInner() {
     setHostPhase("question");
     const isPicture = q.question_type === "picture";
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "question", current_question: q, current_question_index: qIdx, fastest_team: null, fastest_song: null, picture_sub_phase: isPicture ? "image_only" : null }).eq("id", sessionId);
+    await supabase.from("sessions").update({ phase: "question", current_question: q, current_question_index: qIdx, fastest_team: null, fastest_song: null, picture_sub_phase: isPicture ? "image_only" : null, spin_nonce: null, spin_target_idx: null, spin_choice: null }).eq("id", sessionId);
     // Record actual play-time usage for repeat-prevention - this only fires for
     // questions that came from (or were saved into) the library, i.e. have an id.
     // Older rounds generated before the library existed simply won't have one,

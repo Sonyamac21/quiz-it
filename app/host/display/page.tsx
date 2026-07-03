@@ -357,7 +357,7 @@ function DisplayScreenInner() {
     const newPhase = (data.phase as Phase) || "waiting";
     const spinChoiceVal = (data.spin_choice as string) || null;
     const spinNonceVal = (data.spin_nonce as number) ?? null;
-    if (spinChoiceVal === "spin" && spinNonceVal !== null && newPhase !== "celebration") {
+    if (spinChoiceVal === "spin" && spinNonceVal !== null) {
       setPhase("spin_to_win");
     } else {
       setPhase(newPhase);

@@ -318,7 +318,29 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
   const REEL_H = size === "compact" ? 160 : 480;
 
   return (
-    <div style={{ background: "#07030f", borderRadius: 16, border: "2px solid #7a107e", overflow: "hidden", position: "relative", width: "100%" }}>
+    <div style={{
+      position: "relative", width: "100%", borderRadius: 26,
+      background: "linear-gradient(145deg, #d8dade 0%, #8a8d94 6%, #3a3c42 14%, #1c1d21 26%, #0a0a0c 45%)",
+      padding: size === "compact" ? 6 : 10,
+      boxShadow: "0 24px 70px rgba(0,0,0,0.75), 0 0 0 1px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.35), inset 0 -2px 6px rgba(0,0,0,0.5)",
+    }}>
+      {/* Illuminated cabinet border - static purple glow ring, purely decorative */}
+      <div style={{ position: "absolute", inset: -4, borderRadius: 30, boxShadow: "0 0 24px 3px rgba(190,38,193,0.45), 0 0 50px 8px rgba(190,38,193,0.2)", pointerEvents: "none" as const }} />
+
+      {/* Gold trim accent - thin edge highlight only, cabinet body stays graphite/chrome/black */}
+      <div style={{ position: "absolute", inset: 0, borderRadius: 26, border: "1px solid rgba(212,175,90,0.55)", pointerEvents: "none" as const }} />
+
+      {/* Cabinet header plate - Quiz-It branding only */}
+      <div style={{ textAlign: "center", marginBottom: size === "compact" ? 6 : 10 }}>
+        <div style={{ display: "inline-block", padding: size === "compact" ? "4px 16px" : "6px 24px", borderRadius: 999, background: "linear-gradient(180deg, #180429, #0a0116)", border: "1px solid rgba(212,175,90,0.55)", boxShadow: "0 3px 10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
+          <span style={{ fontSize: size === "compact" ? 12 : 16, fontWeight: 800, letterSpacing: 1.5 }}>
+            <span style={{ color: "#BE26C1" }}>Quiz</span><span style={{ color: "#ffffff" }}>-It</span>
+          </span>
+        </div>
+      </div>
+
+      {/* Inner cabinet panel - unchanged content below, only this wrapper's own border/shadow enriched */}
+      <div style={{ background: "#07030f", borderRadius: 18, border: "1px solid rgba(0,0,0,0.6)", overflow: "hidden", position: "relative", width: "100%", boxShadow: "inset 0 3px 16px rgba(0,0,0,0.85), inset 0 0 1px rgba(255,255,255,0.05)" }}>
       <canvas ref={fwCanvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 60 }} />
       <BulbRow />
       <div style={{ textAlign: "center", padding: size === "compact" ? "6px 0 4px" : "10px 0 8px", fontSize: size === "compact" ? "clamp(14px,3vw,22px)" : "clamp(24px,4vw,56px)", letterSpacing: size === "compact" ? 4 : 10, color: "#fff", textShadow: "0 0 24px rgba(190,38,193,0.7)" }}>
@@ -348,6 +370,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
           <div style={{ fontSize: "clamp(60px,13vw,200px)", letterSpacing: 4, color: overlay.bg, textAlign: "center", lineHeight: 1, fontWeight: 900, textShadow: `0 0 20px ${overlay.bg}, 0 0 60px ${overlay.bg}` }}>{overlay.label}</div>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -309,7 +309,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
       {Array.from({ length: BC }).map((_, i) => (
         <div key={i} style={{ display: "contents" }}>
           {i > 0 && <div style={{ flex: 1, height: 1, background: "#2a0a3a" }} />}
-          <div style={{ width: size === "compact" ? 10 : 16, height: size === "compact" ? 10 : 16, borderRadius: "50%", background: bulbColor(i), border: "1px solid #4a1060", flexShrink: 0, boxShadow: bulbShadow(i), transition: "background .15s, box-shadow .15s" }} />
+          <div style={{ width: size === "compact" ? 10 : 16, height: size === "compact" ? 10 : 16, borderRadius: "50%", background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.85), ${bulbColor(i)} 55%, ${bulbColor(i)} 100%)`, border: "1px solid rgba(180,185,200,0.4)", flexShrink: 0, boxShadow: `${bulbShadow(i)}, inset 0 1px 1px rgba(255,255,255,0.35), inset 0 -1px 2px rgba(0,0,0,0.5)`, transition: "background .15s, box-shadow .15s" }} />
         </div>
       ))}
     </div>
@@ -325,7 +325,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
       boxShadow: "0 24px 70px rgba(0,0,0,0.75), 0 0 0 1px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.35), inset 0 -2px 6px rgba(0,0,0,0.5)",
     }}>
       {/* Illuminated cabinet border - static purple glow ring, purely decorative */}
-      <div style={{ position: "absolute", inset: -4, borderRadius: 30, boxShadow: "0 0 24px 3px rgba(190,38,193,0.45), 0 0 50px 8px rgba(190,38,193,0.2)", pointerEvents: "none" as const }} />
+      <div style={{ position: "absolute", inset: -4, borderRadius: 30, boxShadow: "0 0 18px 2px rgba(190,38,193,0.4), 0 0 40px 6px rgba(190,38,193,0.22), 0 0 70px 14px rgba(190,38,193,0.08)", pointerEvents: "none" as const }} />
 
       {/* Gold trim accent - thin edge highlight only, cabinet body stays graphite/chrome/black */}
       <div style={{ position: "absolute", inset: 0, borderRadius: 26, border: "1px solid rgba(212,175,90,0.55)", pointerEvents: "none" as const }} />

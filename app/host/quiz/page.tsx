@@ -592,6 +592,14 @@ function QuizControllerInner() {
       spinTriggeredRef.current = true;
       const winIdx = Math.floor(Math.random() * 8);
       const nonce = Date.now() % 1000000; // Keep within integer column range
+      // Set host-local state directly here rather than waiting on the realtime
+      // subscription's echo of this same write - the 1500ms safety poll only
+      // ever re-fetches the spin_choice column, so if the realtime UPDATE event
+      // carrying spin_target_idx/spin_nonce is ever dropped or delayed, the
+      // host's own compact SlotReels preview would otherwise never receive a
+      // non-null targetIdx and would silently never animate.
+      setSpinTargetIdx(winIdx);
+      setSpinNonce(nonce);
       // Host animation is now triggered by the subscription echo of the DB write below,
       // same source as display and handset - achieving visual synchronisation.
       // Use pin (already verified above) rather than sessionId, which can be a stale
@@ -613,7 +621,11 @@ function QuizControllerInner() {
       if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current);
       setTimeout(() => {
         const finalSid = sessionIdRef.current || sessionId;
-        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration", spin_choice: null, spin_nonce: null, spin_target_idx: null }).eq("id", finalSid).then(({ error }) => { if (error) console.error("SESSION UPDATE FAILED [spinTimeout]:", error); });
+        // spin_offered must be cleared here too - previously only spin_choice/nonce/target
+        // were reset, leaving spin_offered stuck true in the DB. That let the fastest
+        // team's handset re-show the "SPIN TO WIN?" prompt after the spin had already
+        // resolved, since its render condition only checks spinOffered && !spinChoice.
+        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration", spin_offered: false, spin_choice: null, spin_nonce: null, spin_target_idx: null }).eq("id", finalSid).then(({ error }) => { if (error) console.error("SESSION UPDATE FAILED [spinTimeout]:", error); });
       }, 20000);
     }
   }

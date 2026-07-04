@@ -716,7 +716,7 @@ function DisplayScreenInner() {
         {hardDeckCards.length > 0 && (
           <div style={{ display:"flex", gap:24 }}>
             {hardDeckCards.map((c, i) => (
-              <div key={i} style={{ width:280, height:400, borderRadius:28, background:"#fff", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontSize:96, fontWeight:900, color:(c.suit==="♥"||c.suit==="♦")?"#dc2626":"#111", boxShadow:"0 12px 50px rgba(0,0,0,0.5)" }}>
+              <div key={i} style={{ width:280, height:400, borderRadius:28, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "2px solid rgba(0,0,0,0.08)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontSize:96, fontWeight:900, color:(c.suit==="♥"||c.suit==="♦")?"#dc2626":"#111", boxShadow:"inset 0 2px 0 rgba(255,255,255,0.9), inset 0 -14px 24px rgba(0,0,0,0.05), 0 16px 60px rgba(0,0,0,0.55), 0 0 0 2px rgba(212,175,90,0.3)" }}>
                 <div>{rankLabel(c.rank)}</div>
                 <div style={{ fontSize:120 }}>{c.suit}</div>
               </div>

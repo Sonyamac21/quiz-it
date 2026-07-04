@@ -201,7 +201,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
 
           <div style={{ display: "flex", gap: 12 }}>
             {cards.map((c, i) => (
-              <div key={i} style={{ width: 70, height: 100, borderRadius: 10, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: 22, fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
+              <div key={i} style={{ width: 70, height: 100, borderRadius: 10, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: 22, fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
                 <div>{rankLabel(c.rank)}</div>
                 <div style={{ fontSize: 28 }}>{c.suit}</div>
               </div>

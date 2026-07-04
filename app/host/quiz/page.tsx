@@ -747,7 +747,7 @@ function QuizControllerInner() {
     // push phase: "waiting" to Supabase so player handsets reset off the
     // celebration screen back to the Quiz-It idle/logo screen during preview.
     const supabase = createSupabaseBrowserClient();
-    const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", fastest_team: null, fastest_song: null, spin_nonce: null, spin_target_idx: null, spin_choice: null }).eq("id", sessionId);
+    const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", fastest_team: null, fastest_song: null, spin_offered: false, spin_nonce: null, spin_target_idx: null, spin_choice: null }).eq("id", sessionId);
     if (prevErr) console.error("SESSION UPDATE FAILED [doPreviewQuestion]:", prevErr);
     if (sessionPin) loadAnswers(sessionPin, idx);
   }

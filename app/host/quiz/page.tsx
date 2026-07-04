@@ -974,29 +974,32 @@ function QuizControllerInner() {
         )
       )}
       {/* HEADER */}
-      <div style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 20px", borderBottom:"1px solid rgba(190,38,193,0.3)", background:"rgba(45,10,94,0.5)", flexWrap:"wrap" as const }}>
+      <div style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 24px", borderBottom:"1px solid rgba(190,38,193,0.25)", background:"linear-gradient(180deg, rgba(26,5,53,0.85) 0%, rgba(13,2,37,0.85) 100%)", backdropFilter:"blur(12px)", flexWrap:"wrap" as const }}>
+        <div style={{ width:34, height:34, borderRadius:"50%", flexShrink:0, border:"1.5px solid #BE26C1", boxShadow:"0 0 12px rgba(190,38,193,0.5)", display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(190,38,193,0.08)", overflow:"hidden" as const }}>
+          <img src="/me-logo.jpg" alt="ME" style={{ width:"100%", height:"100%", objectFit:"cover" as const }} />
+        </div>
         <div style={{ fontSize:16, fontWeight:700, color:"#BE26C1", letterSpacing:3 }}>Quiz Controller</div>
-        <div style={{ padding:"3px 10px", borderRadius:999, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", fontSize:12, color:"#BE26C1" }}>PIN: {sessionPin}</div>
-        <div style={{ padding:"3px 10px", borderRadius:999, fontSize:12, fontWeight:700, background:phaseBg, color:phaseColor, border:"1px solid rgba(255,255,255,0.15)" }}>
+        <div style={{ padding:"4px 12px", borderRadius:999, background:"rgba(190,38,193,0.12)", border:"1px solid rgba(190,38,193,0.4)", fontSize:11, fontWeight:700, letterSpacing:1, color:"#BE26C1" }}>PIN: {sessionPin}</div>
+        <div style={{ padding:"4px 12px", borderRadius:999, fontSize:11, fontWeight:700, letterSpacing:1, background:phaseBg, color:phaseColor, border:"1px solid rgba(255,255,255,0.12)", boxShadow:"0 0 10px "+phaseBg }}>
           {hostPhase.toUpperCase().replace("_"," ")}{hostPhase==="timer" ? " "+timeLeft+"s" : ""}
         </div>
         {selectedRound && (
-          <div style={{ padding:"3px 12px", borderRadius:999, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.2)", fontSize:13, fontWeight:800, color:"#fff", letterSpacing:1 }}>
+          <div style={{ padding:"4px 14px", borderRadius:999, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.18)", fontSize:13, fontWeight:800, color:"#fff", letterSpacing:0.5 }}>
             Q {qIdx+1} <span style={{ color:"rgba(255,255,255,0.4)", fontWeight:400 }}>of {selectedRound.questions.length}</span>
           </div>
         )}
-        <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", letterSpacing:1, flex:1, textAlign:"center" as const }}>{spacebarHint}</div>
+        <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)", letterSpacing:1, flex:1, textAlign:"center" as const }}>{spacebarHint}</div>
         <select value={selectedRound?.id||""} onChange={e => {
           const r = rounds.find(x=>x.id===e.target.value);
           setSelectedRound(r||null); setQIdx(0); setAnswers([]); setHostPhase("waiting");
           roundQuestionsRef.current = r ? [...r.questions] : [];
           if (sessionId) createSupabaseBrowserClient().from("sessions").update({ round_id: r?.id || null }).eq("id", sessionId);
         }}
-          style={{ padding:"5px 10px", borderRadius:8, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:12, cursor:"pointer" }}>
+          style={{ padding:"6px 12px", borderRadius:10, background:"rgba(255,255,255,0.06)", color:"#fff", border:"1px solid rgba(190,38,193,0.35)", fontSize:12, cursor:"pointer" }}>
           <option value="">Select round...</option>
           {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
-        <button onClick={() => setRulesOpen(true)} style={{ padding:"5px 12px", borderRadius:8, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:12, cursor:"pointer" }}>{"\u{1F4CB}"} Rules</button>
+        <button onClick={() => setRulesOpen(true)} style={{ padding:"6px 14px", borderRadius:10, background:"rgba(255,255,255,0.05)", border:"1px solid rgba(190,38,193,0.35)", color:"#BE26C1", fontSize:12, cursor:"pointer", fontWeight:600 }}>{"\u{1F4CB}"} Rules</button>
         {rulesOpen && (
           <div onClick={() => setRulesOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
             <div onClick={e => e.stopPropagation()} style={{ background:"#1a0535", border:"2px solid #BE26C1", borderRadius:16, padding:28, maxWidth:560, maxHeight:"80vh", overflowY:"auto" as const, color:"#fff" }}>
@@ -1046,7 +1049,7 @@ function QuizControllerInner() {
           </div>
         )}
         {sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
-        <a href="/host/display" target="_blank" style={{ padding:"5px 12px", borderRadius:8, background:"#BE26C1", color:"#fff", textDecoration:"none", fontSize:11 }}>Display</a>
+        <a href="/host/display" target="_blank" style={{ padding:"6px 14px", borderRadius:10, background:"#BE26C1", color:"#fff", textDecoration:"none", fontSize:11, fontWeight:700, letterSpacing:0.5, boxShadow:"0 0 12px rgba(190,38,193,0.4)" }}>Display</a>
       </div>
 
       {/* SCOREBOARD BUTTONS BAR */}

@@ -700,7 +700,7 @@ function DisplayScreenInner() {
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, gap:32 }}>
         <style>{`@keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.15} }`}</style>
-        <div style={{ fontSize:60, fontWeight:800, color:purple, letterSpacing:6, textShadow:"0 0 40px rgba(190,38,193,0.6)" }}>THE HARD DECK</div>
+        <div style={{ fontSize: hardDeckTeam ? 32 : 60, fontWeight: hardDeckTeam ? 600 : 800, color: hardDeckTeam ? "rgba(190,38,193,0.5)" : purple, letterSpacing: hardDeckTeam ? 4 : 6, textShadow: hardDeckTeam ? "none" : "0 0 12px rgba(190,38,193,0.35)" }}>THE HARD DECK</div>
         {hardDeckStatus === "wheel" && teams.length > 0 && hardDeckWheelTarget !== null && (
           <SpinWheel
             segments={buildTeamSegments(teams.map(t => t.team_name))}
@@ -711,7 +711,7 @@ function DisplayScreenInner() {
           />
         )}
         {hardDeckTeam && (
-          <div style={{ fontSize:38, color:"#fff", fontWeight:700, letterSpacing:2 }}>{hardDeckTeam}</div>
+          <div style={{ fontSize:48, color:"#fff", fontWeight:800, letterSpacing:2 }}>{hardDeckTeam}</div>
         )}
         {hardDeckCards.length > 0 && (
           <div style={{ padding: "40px 48px", borderRadius: 32, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 2px 2px rgba(255,255,255,0.05), inset 0 -2px 40px rgba(0,0,0,0.4), 0 0 60px rgba(190,38,193,0.15)" }}>
@@ -726,22 +726,22 @@ function DisplayScreenInner() {
           </div>
         )}
         {hardDeckPotential > 0 && hardDeckStatus === "decision" && (
-          <div style={{ fontSize:32, color:"#facc15", fontWeight:700 }}>{hardDeckPotential} POINTS</div>
+          <div style={{ fontSize:32, color:"#facc15", fontWeight:800 }}>{hardDeckPotential} POINTS</div>
         )}
         {hardDeckPotential > 0 && hardDeckStatus === "won" && hardDeckPotential >= 40 && (
-          <div style={{ fontSize:72, color:"#facc15", fontWeight:900, animation:"flash 0.6s ease-in-out infinite", textShadow:"0 0 40px rgba(250,204,21,0.8)" }}>{hardDeckPotential} POINTS</div>
+          <div style={{ fontSize:72, color:"#facc15", fontWeight:900, animation:"flash 0.6s ease-in-out infinite", textShadow:"0 1px 3px rgba(0,0,0,0.35)" }}>{hardDeckPotential} POINTS</div>
         )}
         {hardDeckPotential > 0 && hardDeckStatus === "won" && hardDeckPotential < 40 && (
-          <div style={{ fontSize:32, color:"#facc15", fontWeight:700 }}>{hardDeckPotential} POINTS</div>
+          <div style={{ fontSize:32, color:"#facc15", fontWeight:800 }}>{hardDeckPotential} POINTS</div>
         )}
         {hardDeckStatus === "decision" && (
-          <div style={{ fontSize:22, color:"rgba(255,255,255,0.6)" }}>Stick or Gamble?</div>
+          <div style={{ fontSize:40, color:"rgba(255,255,255,0.85)", fontWeight:800 }}>Stick or Gamble?</div>
         )}
         {hardDeckStatus === "awaiting_guess" && hardDeckCards.length > 0 && (
           <div style={{ fontSize:48, color:"#fff", fontWeight:800 }}>Higher or Lower?</div>
         )}
         {hardDeckStatus === "won" && hardDeckPotential >= 40 && (
-          <div style={{ fontSize:80, color:"#22c55e", fontWeight:900, letterSpacing:4, animation:"flash 0.6s ease-in-out infinite", textShadow:"0 0 40px rgba(34,197,94,0.8)" }}>WINNER! 🎉</div>
+          <div style={{ fontSize:80, color:"#22c55e", fontWeight:900, letterSpacing:4, animation:"flash 0.6s ease-in-out infinite", textShadow:"0 1px 3px rgba(0,0,0,0.35)" }}>WINNER! 🎉</div>
         )}
         {hardDeckStatus === "won" && hardDeckPotential < 40 && (
           <div style={{ fontSize:44, color:"#22c55e", fontWeight:800 }}>WINNER! 🎉</div>

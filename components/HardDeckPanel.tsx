@@ -189,7 +189,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
 
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(5,2,10,0.97)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: 24 }}>
-      <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 28, color: "#BE26C1", letterSpacing: 4 }}>THE HARD DECK</div>
+      <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: (!showWheel && team) ? 16 : 28, color: (!showWheel && team) ? "rgba(190,38,193,0.5)" : "#BE26C1", letterSpacing: (!showWheel && team) ? 3 : 4, fontWeight: (!showWheel && team) ? 600 : 400 }}>THE HARD DECK</div>
 
       {showWheel && (
         <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={380} forceResultIndex={wheelTarget ?? undefined} onSpinStart={() => pushState({ hard_deck_wheel_spinning: true })} />
@@ -197,7 +197,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
 
       {!showWheel && team && (
         <>
-          <div style={{ fontSize: 20, color: "#fff" }}>Team: <strong>{team}</strong></div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "#fff", letterSpacing: 0.5 }}>Team: <strong style={{ fontWeight: 800 }}>{team}</strong></div>
 
           <div style={{ padding: "20px 24px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)" }}>
             <div style={{ display: "flex", gap: 12 }}>
@@ -211,7 +211,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
           </div>
 
           {potential > 0 && (status === "decision" || status === "won") && (
-            <div style={{ fontSize: 16, color: "#facc15" }}>Potential: {potential} pts</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#facc15", letterSpacing: 0.5 }}>Potential: {potential} pts</div>
           )}
 
           {showRevealBaseButton && (
@@ -228,7 +228,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
           {status === "awaiting_guess" && (
             <>
               {!guess ? (
-                <div style={{ fontSize: 20, fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: 1 }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: 1 }}>
                   Waiting for {team}&rsquo;s guess on their phone&hellip;
                 </div>
               ) : (
@@ -240,7 +240,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
                   boxShadow: "0 0 32px " + (guess === "higher" ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"),
                   animation: "hdGuessPulse 0.6s ease-out"
                 }}>
-                  <div style={{ fontSize: 13, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>GUESS LOCKED IN</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>GUESS LOCKED IN</div>
                   <div style={{
                     fontSize: 44, fontWeight: 800, letterSpacing: 2, lineHeight: 1,
                     color: guess === "higher" ? "#22c55e" : "#ef4444",
@@ -257,15 +257,15 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
           )}
 
           {status === "decision" && (
-            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>Waiting for team to choose Stick or Gamble on their phone...</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.65)" }}>Waiting for team to choose Stick or Gamble on their phone...</div>
           )}
 
           {status === "won" && (
-            <div style={{ fontSize: 22, color: "#22c55e" }}>WON {potential} points! 🎉</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: "#22c55e", letterSpacing: 0.5 }}>WON {potential} points! 🎉</div>
           )}
 
           {status === "lost" && (
-            <div style={{ fontSize: 22, color: "#ef4444" }}>Bust — 0 points</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: "#ef4444", letterSpacing: 0.5 }}>Bust — 0 points</div>
           )}
 
           {(status === "won" || status === "lost") && (

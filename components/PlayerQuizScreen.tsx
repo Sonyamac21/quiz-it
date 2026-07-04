@@ -532,7 +532,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const rankLabel = (r: number) => rankLabels[r] || String(r);
     return (
       <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const }}>
-        <div style={{ fontFamily: font, fontSize: 20, color: purple, letterSpacing: 3 }}>THE HARD DECK</div>
+        <div style={{ fontFamily: font, fontSize: (hardDeckTeam && hardDeckStatus !== "wheel") ? 14 : 20, color: (hardDeckTeam && hardDeckStatus !== "wheel") ? "rgba(190,38,193,0.5)" : purple, letterSpacing: (hardDeckTeam && hardDeckStatus !== "wheel") ? 2 : 3, fontWeight: (hardDeckTeam && hardDeckStatus !== "wheel") ? 600 : 400 }}>THE HARD DECK</div>
 
         {/* Everyone sees the same team-select wheel and card faces, not just text -
             so remote players who can't see the venue display can still follow along. */}
@@ -549,7 +549,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
 
         {hardDeckTeam && hardDeckStatus !== "wheel" && (
-          <div style={{ fontSize: isSelected ? 24 : 18, color: isSelected ? "#facc15" : "#fff", fontWeight: 800, letterSpacing: 1 }}>
+          <div style={{ fontSize: isSelected ? 28 : 20, color: isSelected ? "#facc15" : "#fff", fontWeight: 800, letterSpacing: 1 }}>
             {isSelected ? "🎯 IT'S YOU!" : hardDeckTeam}
           </div>
         )}
@@ -568,7 +568,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
 
         {!isSelected && hardDeckStatus !== "wheel" && (
-          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.65)" }}>
             {hardDeckStatus === "awaiting_guess" ? "Higher or Lower?" : hardDeckStatus === "decision" ? "Stick or Gamble?" : ""}
           </div>
         )}
@@ -607,7 +607,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
         {isSelected && hardDeckStatus === "decision" && (
           <>
-            <div style={{ fontSize: 16, color: "#facc15" }}>You have {hardDeckPotential} points!</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#facc15" }}>You have {hardDeckPotential} points!</div>
             <div style={{ display: "flex", gap: 16 }}>
               <button
                 onClick={() => { setStickGamblePressed("stick"); submitHardDeckStick(); }}
@@ -641,10 +641,10 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           </>
         )}
         {hardDeckStatus === "won" && (
-          <div style={{ fontSize: 20, color: "#22c55e", fontWeight: 800 }}>{isSelected ? "You won" : hardDeckTeam + " won"} {hardDeckPotential} points! 🎉</div>
+          <div style={{ fontSize: 22, color: "#22c55e", fontWeight: 800, letterSpacing: 0.5 }}>{isSelected ? "You won" : hardDeckTeam + " won"} {hardDeckPotential} points! 🎉</div>
         )}
         {hardDeckStatus === "lost" && (
-          <div style={{ fontSize: 20, color: "#ef4444", fontWeight: 800 }}>{isSelected ? "Bust — better luck next time!" : hardDeckTeam + " busted!"}</div>
+          <div style={{ fontSize: 22, color: "#ef4444", fontWeight: 800, letterSpacing: 0.5 }}>{isSelected ? "Bust — better luck next time!" : hardDeckTeam + " busted!"}</div>
         )}
       </div>
     );

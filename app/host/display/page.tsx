@@ -234,6 +234,12 @@ function DisplayScreenInner() {
   // if the phase DB write was missed. This is the same dual-trigger pattern
   // as Hard Deck uses for its wheel.
     const lastSeenSpinNonceRef = useRef<number | null>(null);
+  // Tracks which spin_nonce has already forced phase to spin_to_win once.
+  // Prevents a stale/out-of-order delivery (poll vs realtime race) from
+  // re-forcing the phase back to spin_to_win after the spin has genuinely
+  // completed and been cleared - which was remounting SlotReels and
+  // restarting the spin audio.
+  const spinNonceHandledRef = useRef<number | null>(null);
 
   const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
   useEffect(() => {
@@ -357,7 +363,8 @@ function DisplayScreenInner() {
     const newPhase = (data.phase as Phase) || "waiting";
     const spinChoiceVal = (data.spin_choice as string) || null;
     const spinNonceVal = (data.spin_nonce as number) ?? null;
-    if (spinChoiceVal === "spin" && spinNonceVal !== null) {
+    if (spinChoiceVal === "spin" && spinNonceVal !== null && spinNonceHandledRef.current !== spinNonceVal) {
+      spinNonceHandledRef.current = spinNonceVal;
       setPhase("spin_to_win");
     } else {
       setPhase(newPhase);

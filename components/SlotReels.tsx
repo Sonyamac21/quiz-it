@@ -344,8 +344,8 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
 
       {overlay && (
         <div style={{ position: "fixed", inset: 0, background: overlay.positive ? "rgba(0,12,2,0.95)" : "rgba(15,0,0,0.95)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, zIndex: 50 }}>
-          <div style={{ fontSize: "clamp(40px,6vw,80px)", letterSpacing: 6, color: "#ffffff", textTransform: "uppercase" as const }}>{teamName}</div>
-          <div style={{ fontSize: "clamp(60px,12vw,160px)", letterSpacing: 4, color: overlay.color, textAlign: "center", lineHeight: 1, fontWeight: 700 }}>{overlay.label}</div>
+          <div style={{ fontSize: "clamp(40px,6vw,80px)", letterSpacing: 6, color: "rgba(255,255,255,0.75)", textTransform: "uppercase" as const }}>{teamName}</div>
+          <div style={{ fontSize: "clamp(60px,13vw,200px)", letterSpacing: 4, color: overlay.bg, textAlign: "center", lineHeight: 1, fontWeight: 900, textShadow: `0 0 20px ${overlay.bg}, 0 0 60px ${overlay.bg}` }}>{overlay.label}</div>
         </div>
       )}
     </div>

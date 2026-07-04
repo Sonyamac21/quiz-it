@@ -536,9 +536,21 @@ function DisplayScreenInner() {
         celebrationPlayingForRef.current = "__no_winner__";
         playSound("sad-trombone.mp3", 0.9);
       }
+    } else if (newPhase === "spin_to_win") {
+      // Leaving celebration for the spin - stop the question's victory song/flash
+      // (Spin to Win has its own audio), but deliberately do NOT reset
+      // celebrationPlayingForRef to null here. The spin-cleanup timeout on the
+      // host writes phase back to "celebration" with the SAME fastest_team/
+      // fastest_song still set (it only clears the spin_* columns) - if this ref
+      // were nulled out, that return trip would look like "a genuinely new
+      // celebration" for the same team and replay the victory song a second time.
+      if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
+      if (flashRef.current) { clearInterval(flashRef.current); flashRef.current = null; }
+      setFlash(false);
     } else {
-      // Left celebration (e.g. moved to Spin to Win, Hard Deck, next question) -
-      // make sure nothing keeps playing in the background.
+      // Left celebration for something else entirely (Hard Deck, next question,
+      // round end, etc) - this is a genuine exit, so the next celebration
+      // (even for the same team on a later question) must be treated as new.
       if (celebrationPlayingForRef.current !== null) {
         celebrationPlayingForRef.current = null;
         if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
@@ -546,7 +558,6 @@ function DisplayScreenInner() {
       }
       setFlash(false);
     }
-
     if (data.timer_started_at && data.timer_duration) {
       const started = new Date(data.timer_started_at as string).getTime();
       const duration = data.timer_duration as number;

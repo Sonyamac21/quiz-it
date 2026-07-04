@@ -1139,71 +1139,99 @@ function DisplayScreenInner() {
     // STANDARD QUESTION
     const tLeft = timeLeft ?? 0;
     const tTotal = timerTotalRef.current || 30;
-    const tColor = tLeft <= 3 ? "#EF4444" : tLeft <= 6 ? "#F59E0B" : "#fff";
+    const tColor = tLeft <= 3 ? "#EF4444" : tLeft <= 6 ? "#F59E0B" : "#BE26C1";
     const CIRC = 226;
     const tDash = CIRC * (tLeft / tTotal);
     const allOpts = isMulti ? options : isMultiTap ? multiTapOptions : [];
     return (
       <div style={{ height:"100vh", display:"flex", flexDirection:"column", fontFamily:"'Inter',sans-serif", color:"#fff",
+        position:"relative", overflow:"hidden",
+        background:"linear-gradient(160deg,#08001a 0%,#12002a 45%,#0a0018 100%)",
         animation: tLeft <= 3 && tLeft > 0 ? "screenPulse 0.8s ease-in-out infinite" : "none" }}>
-        <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 55% 40% at 50% 15%, rgba(190,38,193,0.07) 0%, transparent 65%)", pointerEvents:"none", zIndex:0 }} />
-        {/* HEADER */}
-        <div style={{ flexShrink:0, padding:"14px 40px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid rgba(190,38,193,0.18)", position:"relative", zIndex:1 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <span style={{ fontSize:11, fontWeight:700, letterSpacing:3, color:"rgba(255,255,255,0.22)" }}>{roundName || "GENERAL KNOWLEDGE"}</span>
-            <span style={{ padding:"3px 12px", background:"rgba(190,38,193,0.1)", border:`1px solid rgba(190,38,193,0.35)`, borderRadius:999, fontSize:10, fontWeight:700, color:purple, letterSpacing:2 }}>Q {questionIndex + 1}</span>
+        <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 70% 50% at 50% 20%, rgba(190,38,193,0.12) 0%, transparent 65%)", pointerEvents:"none", zIndex:0 }} />
+        <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 40% 30% at 80% 80%, rgba(190,38,193,0.05) 0%, transparent 60%)", pointerEvents:"none", zIndex:0 }} />
+        <svg style={{ position:"absolute", bottom:0, left:0, width:"100%", height:180, pointerEvents:"none", zIndex:0 }} viewBox="0 0 1920 180" preserveAspectRatio="none">
+          <path d="M0,120 C320,60 640,160 960,100 C1280,40 1600,120 1920,80 L1920,180 L0,180 Z" fill="rgba(190,38,193,0.18)" />
+          <path d="M0,150 C240,100 480,160 720,130 C960,100 1200,155 1440,125 C1680,95 1800,140 1920,120 L1920,180 L0,180 Z" fill="rgba(190,38,193,0.1)" />
+        </svg>
+        <div style={{ flexShrink:0, padding:"16px 44px", display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", position:"relative", zIndex:2 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:12, fontWeight:700, letterSpacing:3, color:"rgba(255,255,255,0.45)", textTransform:"uppercase" }}>{roundName || "General Knowledge"}</span>
+            <span style={{ padding:"4px 14px", background:"rgba(190,38,193,0.15)", border:"1px solid rgba(190,38,193,0.5)", borderRadius:999, fontSize:11, fontWeight:700, color:purple, letterSpacing:2 }}>Q {questionIndex + 1}</span>
           </div>
-          {tLeft > 0 && (
-            <div style={{ width:80, height:80, position:"relative", animation: tLeft <= 3 ? "timerUrgent 0.5s ease-in-out infinite" : "none" }}>
-              <svg width="80" height="80" viewBox="0 0 80 80" style={{ transform:"rotate(-90deg)", position:"absolute", inset:0 }}>
-                <circle cx="40" cy="40" r="36" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="4"/>
-                <circle cx="40" cy="40" r="36" fill="none" stroke={tColor} strokeWidth="4"
-                  strokeDasharray={CIRC} strokeDashoffset={CIRC - tDash}
-                  style={{ transition:"stroke-dashoffset 0.9s linear, stroke 0.3s" }}/>
-              </svg>
-              <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:900, color:tColor, fontFamily:"'Inter',sans-serif" }}>{tLeft}</div>
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:30, letterSpacing:6, lineHeight:1, filter:"drop-shadow(0 0 14px rgba(190,38,193,0.55))" }}>
+              <span style={{ color:purple }}>QUIZ-</span><span style={{ color:"#fff" }}>IT</span>
             </div>
-          )}
+            <div style={{ fontSize:10, fontWeight:600, letterSpacing:4, color:"rgba(255,255,255,0.38)", marginTop:5, textTransform:"uppercase" }}>Powered by Mac Entertainment</div>
+          </div>
+          <div style={{ display:"flex", justifyContent:"flex-end" }}>
+            {tLeft > 0 && (
+              <div style={{ width:88, height:88, position:"relative", animation: tLeft <= 3 ? "timerUrgent 0.5s ease-in-out infinite" : "none" }}>
+                <svg width="88" height="88" viewBox="0 0 88 88" style={{ transform:"rotate(-90deg)", position:"absolute", inset:0 }}>
+                  <circle cx="44" cy="44" r="39" fill="none" stroke="rgba(190,38,193,0.18)" strokeWidth="6"/>
+                  <circle cx="44" cy="44" r="39" fill="none" stroke={tColor} strokeWidth="6" strokeLinecap="round"
+                    strokeDasharray={CIRC} strokeDashoffset={CIRC - tDash}
+                    style={{ transition:"stroke-dashoffset 0.9s linear, stroke 0.3s", filter:`drop-shadow(0 0 8px ${tColor})` }}/>
+                </svg>
+                <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, fontWeight:900, color:tColor, filter:`drop-shadow(0 0 6px ${tColor})` }}>{tLeft}</div>
+              </div>
+            )}
+          </div>
         </div>
-        {/* CONTENT */}
-        <div style={{ flex:1, minHeight:0, padding:"22px 48px 14px", display:"flex", flexDirection:"column", gap:16, position:"relative", zIndex:1 }}>
-          <div style={{ fontSize:"clamp(32px,3.2vw,56px)", fontWeight:800, color:"#fff", lineHeight:1.25, marginBottom:8, animation:"qSlideUp 0.5s cubic-bezier(0.16,1,0.3,1) both" }}>
+        <div style={{ height:1, flexShrink:0, background:"linear-gradient(90deg,transparent,rgba(190,38,193,0.8) 30%,rgba(212,175,55,0.4) 50%,rgba(190,38,193,0.8) 70%,transparent)", position:"relative", zIndex:2 }} />
+        <div style={{ flex:1, minHeight:0, padding:"24px 56px 12px", display:"flex", flexDirection:"column", gap:18, position:"relative", zIndex:2 }}>
+          <div style={{ fontSize:"clamp(28px,3.2vw,52px)", fontWeight:800, color:"#fff", lineHeight:1.3, textAlign:"center", animation:"qSlideUp 0.5s cubic-bezier(0.16,1,0.3,1) both", textShadow:"0 2px 24px rgba(190,38,193,0.15)" }}>
             {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
           </div>
           {allOpts.length > 0 && (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginTop:8 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, flex:1, minHeight:0 }}>
               {allOpts.map((opt, idx) => (
-                <div key={opt.key} style={{ display:"flex", alignItems:"center", gap:20,
-                  padding:"22px 28px", borderRadius:16,
-                  background:"rgba(255,255,255,0.04)", border:"1px solid rgba(190,38,193,0.18)",
-                  animation:`optSlide 0.4s ${idx * 0.07}s cubic-bezier(0.16,1,0.3,1) both`, opacity:0 }}>
-                  <span style={{ fontSize:26, fontWeight:900, color:purple, minWidth:36, flexShrink:0 }}>{opt.key}.</span>
-                  <span style={{ fontSize:28, fontWeight:700, color:"rgba(255,255,255,0.92)", lineHeight:1.2 }}>{opt.text}</span>
+                <div key={opt.key} style={{
+                  display:"flex", alignItems:"stretch", borderRadius:22, overflow:"hidden",
+                  background:"linear-gradient(135deg,rgba(18,8,32,0.95) 0%,rgba(12,4,24,0.9) 100%)",
+                  border:"1px solid rgba(190,38,193,0.4)",
+                  boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 32px rgba(0,0,0,0.5), 0 0 20px rgba(190,38,193,0.07)",
+                  position:"relative",
+                  animation:`optSlide 0.4s ${idx * 0.07}s cubic-bezier(0.16,1,0.3,1) both`, opacity:0
+                }}>
+                  <div style={{ position:"absolute", bottom:0, left:"15%", right:"15%", height:1, background:"linear-gradient(90deg,transparent,rgba(212,175,55,0.45),transparent)" }} />
+                  <div style={{ position:"absolute", top:0, left:"20%", right:"20%", height:1, background:"linear-gradient(90deg,transparent,rgba(190,38,193,0.35),transparent)" }} />
+                  <div style={{ width:86, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:40, fontWeight:900, color:purple, filter:"drop-shadow(0 0 8px rgba(190,38,193,0.7))" }}>
+                    {opt.key}
+                  </div>
+                  <div style={{ width:1, background:"linear-gradient(180deg,transparent 10%,rgba(190,38,193,0.35) 50%,transparent 90%)", flexShrink:0, margin:"18px 0" }} />
+                  <div style={{ flex:1, display:"flex", alignItems:"center", padding:"20px 28px", fontSize:22, fontWeight:700, color:"rgba(255,255,255,0.95)", lineHeight:1.3 }}>
+                    {opt.text}
+                  </div>
                 </div>
               ))}
             </div>
           )}
-          {question.question_type === "audio" && (
-            <div style={{ marginTop:8 }}>
-              <LiveAudioPlayer question={question} />
+          {!isMulti && !isMultiTap && question.question_type !== "audio" && (
+            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <div style={{ fontSize:"clamp(80px,10vw,160px)", opacity:0.04, fontWeight:900, color:"#fff" }}>?</div>
             </div>
           )}
+          {question.question_type === "audio" && (
+            <div style={{ marginTop:8 }}><LiveAudioPlayer question={question} /></div>
+          )}
         </div>
-        {/* FOOTER */}
-        <div style={{ flexShrink:0, padding:"9px 40px", borderTop:"1px solid rgba(190,38,193,0.15)", display:"flex", alignItems:"center", justifyContent:"space-between", position:"relative", zIndex:1 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ width:6, height:6, borderRadius:"50%", background:purple, opacity:0.5 }} />
-            <span style={{ fontSize:11, color:"rgba(255,255,255,0.2)" }}>
+        <div style={{ flexShrink:0, padding:"10px 44px", borderTop:"1px solid rgba(190,38,193,0.25)", display:"flex", alignItems:"center", justifyContent:"space-between", position:"relative", zIndex:2 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:8, height:8, borderRadius:"50%", background:purple, boxShadow:"0 0 8px rgba(190,38,193,0.9)" }} />
+            <span style={{ fontSize:11, fontWeight:600, letterSpacing:2, color:"rgba(255,255,255,0.3)", textTransform:"uppercase" }}>
               {answeredTeams.length > 0 ? `${answeredTeams.length} team${answeredTeams.length !== 1 ? "s" : ""} answered` : "Waiting for answers..."}
             </span>
           </div>
-          <div style={{ textAlign:"right", lineHeight:1.3 }}>
-            <div><span style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:11, letterSpacing:"1.5px" }}><span style={{ color:purple }}>QUIZ-</span><span style={{ color:"#fff" }}>IT</span></span></div>
-            <div style={{ fontSize:8, color:"rgba(255,255,255,0.14)" }}>Powered by Mac Entertainment · by Sonya Mac</div>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:34, height:34, borderRadius:"50%", background:"rgba(190,38,193,0.15)", border:"1.5px solid rgba(190,38,193,0.5)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:purple }}>ME</div>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:12, letterSpacing:2 }}><span style={{ color:purple }}>QUIZ-</span><span style={{ color:"#fff" }}>IT</span></div>
+              <div style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:1, marginTop:2 }}>Powered by Mac Entertainment · by Sonya Mac</div>
+            </div>
           </div>
         </div>
-        <div style={{ position:"absolute", top:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${purple},transparent)`, zIndex:2 }} />
-        <div style={{ position:"absolute", bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${purple},transparent)`, zIndex:2 }} />
       </div>
     );
   }

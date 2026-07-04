@@ -1134,16 +1134,16 @@ function QuizControllerInner() {
           ) : (
             <div>
               <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20, flexWrap:"wrap" as const }}>
-                <span style={{ background:"rgba(190,38,193,0.2)", color:"#BE26C1", padding:"4px 14px", borderRadius:999, fontSize:13, fontWeight:700 }}>Q{qIdx+1} of {selectedRound.questions.length}</span>
-                <span style={{ background:"rgba(255,255,255,0.1)", color:typeColor[currentQ.question_type]||"#aaa", padding:"4px 14px", borderRadius:999, fontSize:13, fontWeight:600 }}>{typeLabel[currentQ.question_type]||currentQ.question_type}</span>
-                <span style={{ fontSize:13, color:"rgba(255,255,255,0.4)" }}>{currentQ.difficulty}</span>
-                {hostPhase === "preview" && <span style={{ padding:"4px 14px", borderRadius:999, background:"rgba(56,189,248,0.2)", border:"1px solid rgba(56,189,248,0.5)", fontSize:12, color:"#38bdf8" }}>HOST PREVIEW — not sent yet</span>}
+                <span style={{ background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", padding:"5px 16px", borderRadius:999, fontSize:13, fontWeight:700 }}>Q{qIdx+1} of {selectedRound.questions.length}</span>
+                <span style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.15)", color:typeColor[currentQ.question_type]||"#aaa", padding:"5px 16px", borderRadius:999, fontSize:13, fontWeight:600 }}>{typeLabel[currentQ.question_type]||currentQ.question_type}</span>
+                <span style={{ fontSize:13, color:"rgba(255,255,255,0.5)" }}>{currentQ.difficulty}</span>
+                {hostPhase === "preview" && <span style={{ padding:"5px 16px", borderRadius:999, background:"rgba(56,189,248,0.2)", border:"1px solid rgba(56,189,248,0.5)", fontSize:12, color:"#38bdf8" }}>HOST PREVIEW — not sent yet</span>}
                 {hostPhase === "timer" && (
                   <div style={{ marginLeft:"auto", width:52, height:52, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"3px solid "+(timeLeft<=3?"#ef4444":"#BE26C1"), display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:800, color:timeLeft<=3?"#ef4444":"#BE26C1" }}>{timeLeft}</div>
                 )}
               </div>
 
-              <div style={{ fontSize:26, fontWeight:700, lineHeight:1.4, marginBottom:24, color:"#fff" }}>{currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+              <div style={{ fontSize:28, fontWeight:800, lineHeight:1.4, marginBottom:24, color:"#fff", textShadow:"0 2px 12px rgba(0,0,0,0.3)" }}>{currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
 
               {currentQ.question_type==="multiple_choice" && (
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
@@ -1152,9 +1152,9 @@ function QuizControllerInner() {
                     const isCorrect = l===currentQ.correct_answer.toLowerCase();
                     const showCorrect = (hostPhase==="answer"||hostPhase==="preview") && isCorrect;
                     return opt ? (
-                      <div key={l} style={{ padding:"12px 16px", borderRadius:10, background:showCorrect?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.07)", border:"1px solid "+(showCorrect?"rgba(34,197,94,0.6)":"rgba(255,255,255,0.15)"), fontSize:15 }}>
-                        <span style={{ color:"#BE26C1", fontWeight:700, marginRight:8 }}>{l.toUpperCase()}.</span>
-                        <span style={{ color:showCorrect?"#22c55e":"#fff" }}>{opt}</span>
+                      <div key={l} style={{ padding:"14px 18px", borderRadius:12, background:showCorrect?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.06)", border:"2px solid "+(showCorrect?"#22c55e":"rgba(255,255,255,0.15)"), fontSize:15, boxShadow:showCorrect?"0 0 16px rgba(34,197,94,0.3)":"none" }}>
+                        <span style={{ color:"#BE26C1", fontWeight:800, marginRight:8 }}>{l.toUpperCase()}.</span>
+                        <span style={{ color:"#fff", fontWeight:600 }}>{opt}</span>
                       </div>
                     ) : null;
                   })}
@@ -1169,9 +1169,9 @@ function QuizControllerInner() {
                     const isCorrect = (currentQ.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).includes(l);
                     const showCorrect = (hostPhase==="answer"||hostPhase==="preview") && isCorrect;
                     return (
-                      <div key={l} style={{ padding:"12px 16px", borderRadius:10, background:showCorrect?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.07)", border:"1px solid "+(showCorrect?"rgba(34,197,94,0.6)":"rgba(255,255,255,0.15)"), fontSize:15 }}>
-                        <span style={{ color:"#BE26C1", fontWeight:700, marginRight:8 }}>{l.toUpperCase()}.</span>
-                        <span style={{ color:showCorrect?"#22c55e":"#fff" }}>{opt}</span>
+                      <div key={l} style={{ padding:"14px 18px", borderRadius:12, background:showCorrect?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.06)", border:"2px solid "+(showCorrect?"#22c55e":"rgba(255,255,255,0.15)"), fontSize:15, boxShadow:showCorrect?"0 0 16px rgba(34,197,94,0.3)":"none" }}>
+                        <span style={{ color:"#BE26C1", fontWeight:800, marginRight:8 }}>{l.toUpperCase()}.</span>
+                        <span style={{ color:"#fff", fontWeight:600 }}>{opt}</span>
                       </div>
                     );
                   })}
@@ -1181,8 +1181,8 @@ function QuizControllerInner() {
               {currentQ.question_type==="sequence" && (
                 <div style={{ marginBottom:20 }}>
                   {[currentQ.option_a,currentQ.option_b,currentQ.option_c,currentQ.option_d].filter(Boolean).map((item,i) => (
-                    <div key={i} style={{ padding:"10px 16px", borderRadius:8, background:"rgba(255,255,255,0.07)", marginBottom:6, display:"flex", gap:10, fontSize:15 }}>
-                      <span style={{ color:"#BE26C1", fontWeight:700, minWidth:24 }}>{i+1}.</span>{item}
+                    <div key={i} style={{ padding:"12px 18px", borderRadius:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", marginBottom:6, display:"flex", gap:10, fontSize:15 }}>
+                      <span style={{ color:"#BE26C1", fontWeight:800, minWidth:24 }}>{i+1}.</span>{item}
                     </div>
                   ))}
                 </div>
@@ -1192,11 +1192,11 @@ function QuizControllerInner() {
                 <div style={{ marginBottom:20 }}>
                   {currentQ.option_b.includes("youtube.com") ? (
                     <a href={currentQ.option_b} target="_blank" rel="noopener noreferrer"
-                      style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"12px 24px", borderRadius:10, background:"rgba(251,146,60,0.2)", border:"1px solid rgba(251,146,60,0.5)", color:"#fb923c", textDecoration:"none", fontSize:16, fontWeight:600 }}>
+                      style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 26px", borderRadius:12, background:"rgba(251,146,60,0.2)", border:"1px solid rgba(251,146,60,0.5)", color:"#fb923c", textDecoration:"none", fontSize:16, fontWeight:600 }}>
                       Play on YouTube
                     </a>
                   ) : (
-                    <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"12px 24px", borderRadius:10, background:"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.4)", color:"#4ade80", fontSize:14, fontWeight:600 }}>
+                    <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 26px", borderRadius:12, background:"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.4)", color:"#4ade80", fontSize:14, fontWeight:600 }}>
                       \u266a Auto-playing on display screen ({currentQ.playback_mode === "manual" ? "manual play button" : "auto-play"})
                     </div>
                   )}

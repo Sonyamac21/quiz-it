@@ -222,7 +222,7 @@ export default function SessionPage() {
         <img src="/me-logo.jpg" alt="ME" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover" }} />
         <div>
           <div style={{ fontSize: 26, fontWeight: 700, color: "#BE26C1", letterSpacing: 4 }}>Quiz Session</div>
-          <div style={{ fontSize: 14, color: "rgba(190,38,193,0.8)", letterSpacing: 2 }}>Quiz-It powered by Mac Entertainment</div>
+          <div style={{ fontSize: 14, color: "rgba(190,38,193,0.8)", letterSpacing: 2 }}>Quiz-It · Powered by Mac Entertainment</div>
         </div>
         <div style={{ flex: 1 }} />
         <a href="/host/rounds" style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid rgba(190,38,193,0.6)", color: "#BE26C1", textDecoration: "none", fontSize: 14, letterSpacing: 2 }}>Rounds</a>

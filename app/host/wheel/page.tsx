@@ -31,7 +31,7 @@ export default function WheelPage() {
         <SpinWheel onResult={handleResult} size={420} teamName={team} />
       </div>
       <div style={{ textAlign:"center", padding:"12px", fontFamily:"'Bruno Ace SC',sans-serif", fontSize:8, letterSpacing:2, color:"rgba(190,38,193,0.25)" }}>
-        Quiz-It · Mac Entertainment · by Sonya Mac
+        Quiz-It · Powered by Mac Entertainment · by Sonya Mac
       </div>
       {celebration && (
         <WheelCelebration

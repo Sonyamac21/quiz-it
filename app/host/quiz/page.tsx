@@ -1397,7 +1397,7 @@ export default function QuizController() {
       }}>
         <img src="/me-logo.jpg" alt="ME" style={{ width: 16, height: 16, borderRadius: "50%" }} />
         <span style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", fontFamily: "'Bruno Ace SC',sans-serif", letterSpacing: 0.3 }}>
-          Quiz-It · Mac Entertainment by Sonya Mac
+          Quiz-It · Powered by Mac Entertainment · by Sonya Mac
         </span>
       </div>
     </Suspense>

@@ -759,10 +759,10 @@ function DisplayScreenInner() {
         <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font }}>
           <img src="/me-logo.jpg" alt="ME" style={{ width:80, height:80, borderRadius:"50%", marginBottom:24, border:"3px solid "+purple }} />
           <div style={{ fontSize:65, fontWeight:800, color:purple, letterSpacing:6, marginBottom:8, textShadow:"0 0 40px rgba(190,38,193,0.6)" }}>Quiz-It</div>
-          <div style={{ fontSize:20, color:"rgba(255,255,255,0.4)", letterSpacing:3, marginBottom:48 }}>powered by Mac Entertainment</div>
+          <div style={{ fontSize:20, color:"rgba(255,255,255,0.4)", letterSpacing:3, marginBottom:48 }}>Powered by Mac Entertainment</div>
           <div style={{ padding:"32px 64px", borderRadius:20, background:"rgba(255,255,255,0.05)", border:"2px solid rgba(190,38,193,0.4)", textAlign:"center" }}>
             <div style={{ fontSize:22, color:"rgba(255,255,255,0.5)", letterSpacing:4, marginBottom:12 }}>JOIN AT</div>
-            <div style={{ fontSize:35, color:"#fff", fontWeight:700, letterSpacing:2, marginBottom:24 }}>quiz-it-six.vercel.app/join</div>
+            <div style={{ fontSize:35, color:"#fff", fontWeight:700, letterSpacing:2, marginBottom:24 }}>quiz-it.macentertainmentuae.com/join</div>
             <div style={{ fontSize:20, color:"rgba(255,255,255,0.4)", letterSpacing:3, marginBottom:12 }}>ENTER PIN</div>
             <div style={{ fontSize:150, fontWeight:900, color:"#fff", letterSpacing:24, fontFamily:"monospace", lineHeight:1, textShadow:"0 0 60px rgba(190,38,193,0.8)" }}>{sessionPin}</div>
           </div>
@@ -776,10 +776,10 @@ function DisplayScreenInner() {
         <div style={{ flex:"0 0 38%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:32, borderRight:"2px solid rgba(190,38,193,0.2)" }}>
           <img src="/me-logo.jpg" alt="ME" style={{ width:52, height:52, borderRadius:"50%", marginBottom:14, border:"2px solid "+purple }} />
           <div style={{ fontSize:34, fontWeight:800, color:purple, letterSpacing:3, marginBottom:4, textShadow:"0 0 24px rgba(190,38,193,0.6)" }}>Quiz-It</div>
-          <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", letterSpacing:2, marginBottom:28 }}>powered by Mac Entertainment</div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", letterSpacing:2, marginBottom:28 }}>Powered by Mac Entertainment</div>
           <div style={{ padding:"20px 28px", borderRadius:16, background:"rgba(255,255,255,0.05)", border:"2px solid rgba(190,38,193,0.4)", textAlign:"center" }}>
             <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", letterSpacing:2, marginBottom:6 }}>JOIN AT</div>
-            <div style={{ fontSize:18, color:"#fff", fontWeight:700, letterSpacing:1, marginBottom:16 }}>quiz-it-six.vercel.app/join</div>
+            <div style={{ fontSize:18, color:"#fff", fontWeight:700, letterSpacing:1, marginBottom:16 }}>quiz-it.macentertainmentuae.com/join</div>
             <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", letterSpacing:2, marginBottom:6 }}>ENTER PIN</div>
             <div style={{ fontSize:64, fontWeight:900, color:"#fff", letterSpacing:10, fontFamily:"monospace", lineHeight:1, textShadow:"0 0 30px rgba(190,38,193,0.8)" }}>{sessionPin}</div>
           </div>
@@ -869,7 +869,7 @@ function DisplayScreenInner() {
             <span style={{ fontSize:45, fontWeight:900, color:purple }}>{s.total_points}</span>
           </div>
         ))}
-        <div style={{ marginTop:32, textAlign:"center", fontSize:18, color:"rgba(255,255,255,0.2)", letterSpacing:3 }}>Quiz-It powered by Mac Entertainment</div>
+        <div style={{ marginTop:32, textAlign:"center", fontSize:18, color:"rgba(255,255,255,0.2)", letterSpacing:3 }}>Quiz-It · Powered by Mac Entertainment</div>
       </div>
     );
   }
@@ -932,7 +932,7 @@ function DisplayScreenInner() {
           <div style={{ display:"flex", flexDirection:"column", alignItems:"center", zIndex:1 }}>
             <img src="/me-logo.jpg" alt="ME" style={{ width:48, height:48, borderRadius:"50%", border:"2px solid "+purple, marginBottom:8 }} />
             <div style={{ fontSize:35, fontWeight:800, color:purple, letterSpacing:4, textShadow:"0 0 20px rgba(190,38,193,0.6)" }}>Quiz-It</div>
-            <div style={{ fontSize:15, color:"rgba(255,255,255,0.3)", letterSpacing:3, marginTop:4 }}>powered by Mac Entertainment by Sonya Mac</div>
+            <div style={{ fontSize:15, color:"rgba(255,255,255,0.3)", letterSpacing:3, marginTop:4 }}>Powered by Mac Entertainment · by Sonya Mac</div>
           </div>
 
           <style>{`
@@ -969,7 +969,7 @@ function DisplayScreenInner() {
             <div style={{ textAlign:"center", color:"rgba(255,255,255,0.2)", fontSize:22, letterSpacing:3 }}>Press SPACE to reveal results...</div>
           )}
         </div>
-        <div style={{ marginTop:48, fontSize:15, color:"rgba(255,255,255,0.2)", letterSpacing:3 }}>Quiz-It powered by Mac Entertainment</div>
+        <div style={{ marginTop:48, fontSize:15, color:"rgba(255,255,255,0.2)", letterSpacing:3 }}>Quiz-It · Powered by Mac Entertainment</div>
         <style>{`
           @keyframes fadeSlide {
             from { opacity: 0; transform: translateX(-30px); }
@@ -1275,7 +1275,7 @@ export default function DisplayScreen() {
       }}>
         <img src="/me-logo.jpg" alt="ME" style={{ width: 20, height: 20, borderRadius: "50%" }} />
         <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", fontFamily: "'Bruno Ace SC',sans-serif", letterSpacing: 0.5 }}>
-          Quiz-It powered by Mac Entertainment by Sonya Mac
+          Quiz-It · Powered by Mac Entertainment · by Sonya Mac
         </span>
       </div>
     </Suspense>

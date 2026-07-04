@@ -199,13 +199,15 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
         <>
           <div style={{ fontSize: 20, color: "#fff" }}>Team: <strong>{team}</strong></div>
 
-          <div style={{ display: "flex", gap: 12 }}>
-            {cards.map((c, i) => (
-              <div key={i} style={{ width: 70, height: 100, borderRadius: 10, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: 22, fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
-                <div>{rankLabel(c.rank)}</div>
-                <div style={{ fontSize: 28 }}>{c.suit}</div>
-              </div>
-            ))}
+          <div style={{ padding: "20px 24px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)" }}>
+            <div style={{ display: "flex", gap: 12 }}>
+              {cards.map((c, i) => (
+                <div key={i} style={{ width: 70, height: 100, borderRadius: 10, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: 22, fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
+                  <div>{rankLabel(c.rank)}</div>
+                  <div style={{ fontSize: 28 }}>{c.suit}</div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {potential > 0 && (status === "decision" || status === "won") && (

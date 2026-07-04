@@ -179,7 +179,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
 
   if (!open) {
     return (
-      <button onClick={startHardDeck} style={{ padding: "5px 12px", borderRadius: 8, background: "rgba(190,38,193,0.3)", border: "1px solid #BE26C1", color: "#fff", fontSize: 11, cursor: "pointer" }}>
+      <button onClick={startHardDeck} style={{ padding: "6px 14px", borderRadius: 10, background: "rgba(190,38,193,0.3)", border: "1px solid #BE26C1", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}>
         Start The Hard Deck
       </button>
     );
@@ -215,13 +215,13 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
           )}
 
           {showRevealBaseButton && (
-            <button onClick={revealBaseCard} style={{ padding: "10px 24px", borderRadius: 8, background: "rgba(190,38,193,0.3)", border: "1px solid #BE26C1", color: "#fff", cursor: "pointer" }}>Reveal Base Card</button>
+            <button onClick={revealBaseCard} style={{ padding: "11px 26px", borderRadius: 12, background: "rgba(190,38,193,0.3)", border: "1px solid #BE26C1", color: "#fff", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>Reveal Base Card</button>
           )}
 
           {status === "base_revealed" && (
             <div style={{ display: "flex", gap: 12 }}>
-              <button onClick={keepBase} style={{ padding: "10px 24px", borderRadius: 8, background: "rgba(34,197,94,0.25)", border: "1px solid #22c55e", color: "#fff", cursor: "pointer" }}>Keep</button>
-              <button onClick={swapBase} disabled={hasSwapped} style={{ padding: "10px 24px", borderRadius: 8, background: "rgba(239,68,68,0.25)", border: "1px solid #ef4444", color: "#fff", cursor: hasSwapped ? "not-allowed" : "pointer", opacity: hasSwapped ? 0.4 : 1 }}>Swap</button>
+              <button onClick={keepBase} style={{ padding: "11px 26px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "1px solid #22c55e", color: "#fff", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>Keep</button>
+              <button onClick={swapBase} disabled={hasSwapped} style={{ padding: "11px 26px", borderRadius: 12, background: "rgba(239,68,68,0.25)", border: "1px solid #ef4444", color: "#fff", fontWeight: 700, cursor: hasSwapped ? "not-allowed" : "pointer", opacity: hasSwapped ? 0.4 : 1, boxShadow: hasSwapped ? "none" : "0 2px 10px rgba(0,0,0,0.3)" }}>Swap</button>
             </div>
           )}
 
@@ -252,7 +252,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
                 </div>
               )}
               <style>{"@keyframes hdGuessPulse { 0% { transform: scale(0.85); opacity: 0.4; } 60% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }"}</style>
-              <button onClick={revealNextCard} disabled={!guess} style={{ padding: "14px 32px", borderRadius: 10, fontSize: 16, fontWeight: 700, background: guess ? "rgba(190,38,193,0.3)" : "rgba(255,255,255,0.08)", border: "1px solid " + (guess ? "#BE26C1" : "rgba(255,255,255,0.2)"), color: "#fff", cursor: guess ? "pointer" : "not-allowed" }}>Reveal Next Card</button>
+              <button onClick={revealNextCard} disabled={!guess} style={{ padding: "14px 32px", borderRadius: 12, fontSize: 16, fontWeight: 700, background: guess ? "rgba(190,38,193,0.3)" : "rgba(255,255,255,0.08)", border: "1px solid " + (guess ? "#BE26C1" : "rgba(255,255,255,0.2)"), color: "#fff", cursor: guess ? "pointer" : "not-allowed", boxShadow: guess ? "0 2px 10px rgba(0,0,0,0.3)" : "none" }}>Reveal Next Card</button>
             </>
           )}
 
@@ -269,12 +269,12 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
           )}
 
           {(status === "won" || status === "lost") && (
-            <button onClick={startHardDeck} style={{ padding: "8px 18px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", cursor: "pointer" }}>Spin Again</button>
+            <button onClick={startHardDeck} style={{ padding: "9px 20px", borderRadius: 10, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}>Spin Again</button>
           )}
         </>
       )}
 
-      <button onClick={closePanel} style={{ marginTop: 16, padding: "6px 14px", borderRadius: 8, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
+      <button onClick={closePanel} style={{ marginTop: 16, padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
     </div>
   );
 }

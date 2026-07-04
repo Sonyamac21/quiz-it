@@ -367,9 +367,12 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
       <BulbRow bottom />
 
       {overlay && (
-        <div style={{ position: "fixed", inset: 0, background: overlay.positive ? "rgba(0,12,2,0.95)" : "rgba(15,0,0,0.95)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, zIndex: 50 }}>
-          <div style={{ fontSize: "clamp(40px,6vw,80px)", letterSpacing: 6, color: "rgba(255,255,255,0.75)", textTransform: "uppercase" as const }}>{teamName}</div>
-          <div style={{ fontSize: "clamp(60px,13vw,200px)", letterSpacing: 4, color: overlay.bg, textAlign: "center", lineHeight: 1, fontWeight: 900, textShadow: `0 0 20px ${overlay.bg}, 0 0 60px ${overlay.bg}` }}>{overlay.label}</div>
+        <div style={{ position: "fixed", inset: 0, background: overlay.positive ? "radial-gradient(circle at 50% 45%, #0c1912 0%, #030805 75%)" : "radial-gradient(circle at 50% 45%, #1c0808 0%, #060202 75%)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+          <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 20, padding: "clamp(32px,6vw,64px) clamp(40px,8vw,96px)", borderRadius: 28, background: "linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))", border: `1px solid ${overlay.bg}55`, boxShadow: `0 30px 80px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.08), inset 0 -1px 12px rgba(0,0,0,0.4), 0 0 60px ${overlay.bg}22`, maxWidth: "90vw" }}>
+            <div style={{ fontSize: "clamp(28px,4.5vw,52px)", letterSpacing: 5, color: "rgba(255,255,255,0.55)", textTransform: "uppercase" as const, fontWeight: 600 }}>{teamName}</div>
+            <div style={{ width: 64, height: 2, borderRadius: 2, background: `${overlay.bg}88` }} />
+            <div style={{ fontSize: "clamp(52px,11vw,168px)", letterSpacing: 3, color: overlay.bg, textAlign: "center", lineHeight: 1, fontWeight: 800, textShadow: `0 0 30px ${overlay.bg}99, 0 2px 4px rgba(0,0,0,0.4)` }}>{overlay.label}</div>
+          </div>
         </div>
       )}
       </div>

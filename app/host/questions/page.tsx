@@ -666,7 +666,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
   const onDragEnd = () => { dragIdx.current = null; };
 
   return (
-    <div style={{ minHeight:"100vh", background:"#100a1f", color:"#fff", padding:"24px", fontFamily:"sans-serif", maxWidth:"960px", margin:"0 auto" }}>
+    <div style={{ minHeight:"100vh", background:"linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color:"#fff", padding:"24px", maxWidth:"960px", margin:"0 auto" }}>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
         <div style={{ width:44, height:44, borderRadius:"50%", background:"#1a0530", border:"2px solid #BE26C1", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"#BE26C1", fontWeight:700 }}>ME</div>
         <div>
@@ -674,7 +674,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           <div style={{ fontSize:11, color:"rgba(190,38,193,0.6)", letterSpacing:2 }}>Quiz-It · Powered by Mac Entertainment</div>
         </div>
         <div style={{ flex:1 }} />
-        <a href="/host/rounds" style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", textDecoration:"none", fontSize:12, letterSpacing:2 }}>Round Library</a>
+        <a href="/host/rounds" style={{ padding:"8px 16px", borderRadius:10, border:"1px solid rgba(190,38,193,0.4)", background:"rgba(190,38,193,0.06)", color:"#BE26C1", textDecoration:"none", fontSize:12, fontWeight:600, letterSpacing:2, boxShadow:"0 2px 6px rgba(0,0,0,0.2)" }}>Round Library</a>
       </div>
 
       <div style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.3)", borderRadius:12, padding:20, marginBottom:20 }}>

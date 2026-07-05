@@ -8,7 +8,7 @@ export default function Home() {
         <h1 style={{ fontFamily:"'Bruno Ace SC', sans-serif", fontSize:96, color:"#fff", letterSpacing:8, margin:0, textAlign:"center", textShadow:"0 0 40px rgba(190,38,193,0.5)" }}>
           Quiz<span style={{ color:"#BE26C1" }}>-It</span>
         </h1>
-        <p style={{ fontFamily:"'Bruno Ace SC', sans-serif", fontSize:13, color:"rgba(190,38,193,0.5)", letterSpacing:4, margin:0 }}>
+        <p style={{ fontFamily:"'Inter', sans-serif", fontSize:13, color:"rgba(190,38,193,0.5)", letterSpacing:4, margin:0 }}>
           Powered by Mac Entertainment
         </p>
       </main>

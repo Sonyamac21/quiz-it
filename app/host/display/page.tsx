@@ -286,7 +286,7 @@ function DisplayScreenInner() {
   // Tracks the full timer duration so the SVG ring can show correct progress
   const timerTotalRef = useRef<number>(30);
 
-  const font = "'Bruno Ace SC', sans-serif";
+  const font = "'Inter', sans-serif";
   const purple = "#BE26C1";
   const bg = "#080810";
 
@@ -700,7 +700,7 @@ function DisplayScreenInner() {
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, gap:32 }}>
         <style>{`@keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.15} }`}</style>
-        <div style={{ fontSize: hardDeckTeam ? 32 : 60, fontWeight: hardDeckTeam ? 600 : 800, color: hardDeckTeam ? "rgba(190,38,193,0.5)" : purple, letterSpacing: hardDeckTeam ? 4 : 6, textShadow: hardDeckTeam ? "none" : "0 0 12px rgba(190,38,193,0.35)" }}>THE HARD DECK</div>
+        <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: hardDeckTeam ? 32 : 60, fontWeight: hardDeckTeam ? 600 : 800, color: hardDeckTeam ? "rgba(190,38,193,0.5)" : purple, letterSpacing: hardDeckTeam ? 4 : 6, textShadow: hardDeckTeam ? "none" : "0 0 12px rgba(190,38,193,0.35)" }}>THE HARD DECK</div>
         {hardDeckStatus === "wheel" && teams.length > 0 && hardDeckWheelTarget !== null && (
           <SpinWheel
             segments={buildTeamSegments(teams.map(t => t.team_name))}
@@ -1274,8 +1274,8 @@ export default function DisplayScreen() {
         pointerEvents: "none" as const,
       }}>
         <img src="/me-logo.jpg" alt="ME" style={{ width: 20, height: 20, borderRadius: "50%" }} />
-        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", fontFamily: "'Bruno Ace SC',sans-serif", letterSpacing: 0.5 }}>
-          Quiz-It · Powered by Mac Entertainment · by Sonya Mac
+        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", letterSpacing: 0.5 }}>
+          <span style={{ fontFamily: "'Bruno Ace SC',sans-serif" }}>Quiz-It</span><span style={{ fontFamily: "'Inter',sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>
         </span>
       </div>
     </Suspense>

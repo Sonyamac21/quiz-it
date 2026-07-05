@@ -8,8 +8,8 @@ export default function JoinPage() {
       <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"24px 16px" }}>
         <JoinForm />
       </div>
-      <div style={{ textAlign:"center", padding:"12px", fontFamily:"'Bruno Ace SC', sans-serif", fontSize:8, letterSpacing:2, color:"rgba(190,38,193,0.25)" }}>
-        Quiz-It · Powered by Mac Entertainment · by Sonya Mac
+      <div style={{ textAlign:"center", padding:"12px", fontSize:8, letterSpacing:2, color:"rgba(190,38,193,0.25)" }}>
+        <span style={{ fontFamily:"'Bruno Ace SC', sans-serif" }}>Quiz-It</span><span style={{ fontFamily:"'Inter', sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>
       </div>
     </div>
   );

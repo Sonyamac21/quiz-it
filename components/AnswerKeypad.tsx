@@ -14,7 +14,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
   const [value, setValue] = useState("");
   const [pressedKey, setPressedKey] = useState<string | null>(null);
   const purple = "#BE26C1";
-  const font = "'Bruno Ace SC', sans-serif";
+  const font = "'Inter', sans-serif";
 
   // Text mode has 5 rows of keys (full A-Z) vs number mode's 1 row, so it needs to
   // scale down on shorter screens (e.g. iPhone SE) to avoid pushing Submit off-screen.

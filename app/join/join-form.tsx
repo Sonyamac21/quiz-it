@@ -250,7 +250,7 @@ export function JoinForm() {
   }
 
     if (restoring) {
-      return <div style={{ textAlign: "center", padding: 40, color: "rgba(255,255,255,0.4)", fontFamily: "'Bruno Ace SC',sans-serif", fontSize: 13, letterSpacing: 2 }}>Reconnecting...</div>;
+      return <div style={{ textAlign: "center", padding: 40, color: "rgba(255,255,255,0.4)", fontFamily: "'Inter',sans-serif", fontSize: 13, letterSpacing: 2 }}>Reconnecting...</div>;
     }
     if (done) {
       return (
@@ -267,8 +267,8 @@ export function JoinForm() {
             pointerEvents: "none" as const,
           }}>
             <img src="/me-logo.jpg" alt="ME" style={{ width: 16, height: 16, borderRadius: "50%" }} />
-            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", fontFamily: "'Bruno Ace SC',sans-serif", letterSpacing: 0.3 }}>
-              Quiz-It · Powered by Mac Entertainment · by Sonya Mac
+            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: 0.3 }}>
+              <span style={{ fontFamily: "'Bruno Ace SC',sans-serif" }}>Quiz-It</span><span style={{ fontFamily: "'Inter',sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>
             </span>
           </div>
         </>
@@ -280,7 +280,7 @@ export function JoinForm() {
       <div style={{ display:"flex", flexDirection:"column", gap:16, width:"100%", maxWidth:400 }}>
         <div style={{ textAlign:"center", marginBottom:8 }}>
           <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:22, fontWeight:700, color:"#BE26C1", letterSpacing:4, marginBottom:4 }}>Quiz-It</div>
-          <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:9, letterSpacing:3, color:"rgba(255,255,255,0.3)" }}>Enter your quiz PIN to join</div>
+          <div style={{ fontFamily:"'Inter',sans-serif", fontSize:9, letterSpacing:3, color:"rgba(255,255,255,0.3)" }}>Enter your quiz PIN to join</div>
         </div>
         <input
           value={pin}
@@ -291,12 +291,12 @@ export function JoinForm() {
           maxLength={4}
           style={{ padding:"20px", borderRadius:12, background:"rgba(255,255,255,0.12)", color:"#fff", border:"2px solid rgba(190,38,193,0.7)", fontSize:36, fontFamily:"monospace", outline:"none", letterSpacing:12, textAlign:"center" }}
         />
-        {pinError && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1, textAlign:"center" }}>{pinError}</p>}
+        {pinError && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Inter',sans-serif", letterSpacing:1, textAlign:"center" }}>{pinError}</p>}
         <button
           type="button"
           onClick={handlePinNext}
           disabled={pinLoading || pin.length !== 4}
-          style={{ padding:"14px", borderRadius:12, background: pin.length === 4 ? "#BE26C1" : "rgba(255,255,255,0.08)", color: pin.length === 4 ? "#fff" : "rgba(255,255,255,0.4)", border:"none", fontSize:16, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:3, cursor: pin.length === 4 ? "pointer" : "default" }}
+          style={{ padding:"14px", borderRadius:12, background: pin.length === 4 ? "#BE26C1" : "rgba(255,255,255,0.08)", color: pin.length === 4 ? "#fff" : "rgba(255,255,255,0.4)", border:"none", fontSize:16, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor: pin.length === 4 ? "pointer" : "default" }}
         >
           {pinLoading ? "Checking..." : "Join Quiz"}
         </button>
@@ -307,20 +307,20 @@ export function JoinForm() {
   if (step === "name") {
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:16, width:"100%", maxWidth:400 }}>
-        <label style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Team Name</label>
+        <label style={{ fontFamily:"'Inter',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Team Name</label>
         <input
           value={teamName}
           onChange={e => setTeamName(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleNameNext()}
           placeholder="Enter your team name..."
           autoFocus
-          style={{ padding:"14px 18px", borderRadius:12, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1.5px solid rgba(190,38,193,0.6)", fontSize:22, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none", letterSpacing:1 }}
+          style={{ padding:"14px 18px", borderRadius:12, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1.5px solid rgba(190,38,193,0.6)", fontSize:22, fontFamily:"'Inter',sans-serif", outline:"none", letterSpacing:1 }}
         />
-        {error && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1 }}>{error}</p>}
+        {error && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Inter',sans-serif", letterSpacing:1 }}>{error}</p>}
         <button
           type="button"
           onClick={handleNameNext}
-          style={{ padding:"14px", borderRadius:12, background:"#BE26C1", color:"#fff", border:"none", fontSize:16, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:3, cursor:"pointer", boxShadow:"0 0 20px rgba(190,38,193,0.4)" }}
+          style={{ padding:"14px", borderRadius:12, background:"#BE26C1", color:"#fff", border:"none", fontSize:16, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor:"pointer", boxShadow:"0 0 20px rgba(190,38,193,0.4)" }}
         >
           Next
         </button>
@@ -329,7 +329,7 @@ export function JoinForm() {
           <button
             type="button"
             onClick={() => { setReconnecting(r => !r); setReconnectError(""); }}
-            style={{ background:"none", border:"none", color:"rgba(255,255,255,0.45)", fontSize:13, textDecoration:"underline", cursor:"pointer", fontFamily:"'Bruno Ace SC',sans-serif" }}
+            style={{ background:"none", border:"none", color:"rgba(255,255,255,0.45)", fontSize:13, textDecoration:"underline", cursor:"pointer", fontFamily:"'Inter',sans-serif" }}
           >
             Already joined? Reconnect instead
           </button>
@@ -337,20 +337,20 @@ export function JoinForm() {
 
         {reconnecting && (
           <div style={{ display:"flex", flexDirection:"column", gap:10, padding:16, borderRadius:12, background:"rgba(255,255,255,0.05)", border:"1.5px solid rgba(190,38,193,0.4)" }}>
-            <label style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:13, letterSpacing:1, color:"rgba(255,255,255,0.6)" }}>Your existing team name</label>
+            <label style={{ fontFamily:"'Inter',sans-serif", fontSize:13, letterSpacing:1, color:"rgba(255,255,255,0.6)" }}>Your existing team name</label>
             <input
               value={reconnectName}
               onChange={e => setReconnectName(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleReconnect()}
               placeholder="Enter your team name..."
-              style={{ padding:"12px 16px", borderRadius:10, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1.5px solid rgba(190,38,193,0.5)", fontSize:18, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none" }}
+              style={{ padding:"12px 16px", borderRadius:10, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1.5px solid rgba(190,38,193,0.5)", fontSize:18, fontFamily:"'Inter',sans-serif", outline:"none" }}
             />
-            {reconnectError && <p style={{ color:"#FF5555", fontSize:13, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:0.5 }}>{reconnectError}</p>}
+            {reconnectError && <p style={{ color:"#FF5555", fontSize:13, fontFamily:"'Inter',sans-serif", letterSpacing:0.5 }}>{reconnectError}</p>}
             <button
               type="button"
               onClick={handleReconnect}
               disabled={reconnectLoading}
-              style={{ padding:"12px", borderRadius:10, background:"rgba(190,38,193,0.3)", color:"#fff", border:"1px solid #BE26C1", fontSize:14, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:2, cursor:"pointer" }}
+              style={{ padding:"12px", borderRadius:10, background:"rgba(190,38,193,0.3)", color:"#fff", border:"1px solid #BE26C1", fontSize:14, fontFamily:"'Inter',sans-serif", letterSpacing:2, cursor:"pointer" }}
             >
               {reconnectLoading ? "Reconnecting..." : "Reconnect"}
             </button>
@@ -363,14 +363,14 @@ export function JoinForm() {
   if (step === "song") {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12, width:"100%", maxWidth:480 }}>
-      <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Choose Your Victory Song</div>
-      <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:14, letterSpacing:1, color:"rgba(255,255,255,0.7)" }}>This plays when you win! Tap to preview.</div>
+      <div style={{ fontFamily:"'Inter',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Choose Your Victory Song</div>
+      <div style={{ fontFamily:"'Inter',sans-serif", fontSize:14, letterSpacing:1, color:"rgba(255,255,255,0.7)" }}>This plays when you win! Tap to preview.</div>
 
       <input
         value={search}
         onChange={e => setSearch(e.target.value)}
         placeholder="Search songs..."
-        style={{ padding:"10px 14px", borderRadius:10, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1.5px solid rgba(190,38,193,0.5)", fontSize:20, fontFamily:"'Bruno Ace SC',sans-serif", outline:"none" }}
+        style={{ padding:"10px 14px", borderRadius:10, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1.5px solid rgba(190,38,193,0.5)", fontSize:20, fontFamily:"'Inter',sans-serif", outline:"none" }}
       />
 
       <div style={{ maxHeight:340, overflowY:"auto", display:"flex", flexDirection:"column", gap:6, paddingRight:4 }}>
@@ -384,7 +384,7 @@ export function JoinForm() {
               background: selectedSong === song ? "rgba(190,38,193,0.2)" : "#0f0f1a",
               border: selectedSong === song ? "1px solid #BE26C1" : "1px solid rgba(255,255,255,0.07)",
               color: selectedSong === song ? "#fff" : "rgba(255,255,255,0.6)",
-              fontFamily:"'Bruno Ace SC',sans-serif",
+              fontFamily:"'Inter',sans-serif",
               fontSize:16,
               letterSpacing:1,
               cursor:"pointer",
@@ -401,13 +401,13 @@ export function JoinForm() {
         ))}
       </div>
 
-      {error && <p style={{ color:"#FF5555", fontSize:16, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1 }}>{error}</p>}
+      {error && <p style={{ color:"#FF5555", fontSize:16, fontFamily:"'Inter',sans-serif", letterSpacing:1 }}>{error}</p>}
 
       <button
         type="button"
         onClick={handleSongNext}
         disabled={!selectedSong}
-        style={{ padding:"14px", borderRadius:12, background: selectedSong ? "#BE26C1" : "#1a1a2e", color: selectedSong ? "#fff" : "rgba(255,255,255,0.3)", border:"none", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:3, cursor: selectedSong ? "pointer" : "default", boxShadow: selectedSong ? "0 0 20px rgba(190,38,193,0.4)" : "none", transition:"all 0.2s" }}
+        style={{ padding:"14px", borderRadius:12, background: selectedSong ? "#BE26C1" : "#1a1a2e", color: selectedSong ? "#fff" : "rgba(255,255,255,0.3)", border:"none", fontSize:15, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor: selectedSong ? "pointer" : "default", boxShadow: selectedSong ? "0 0 20px rgba(190,38,193,0.4)" : "none", transition:"all 0.2s" }}
       >
         Next
       </button>
@@ -417,28 +417,28 @@ export function JoinForm() {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16, width:"100%", maxWidth:400, alignItems:"center" }}>
-      <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Add a Team Photo</div>
-      <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:13, letterSpacing:1, color:"rgba(255,255,255,0.6)", textAlign:"center" as const }}>Optional — shown when you win, and on the shareable results graphic!</div>
+      <div style={{ fontFamily:"'Inter',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Add a Team Photo</div>
+      <div style={{ fontFamily:"'Inter',sans-serif", fontSize:13, letterSpacing:1, color:"rgba(255,255,255,0.6)", textAlign:"center" as const }}>Optional — shown when you win, and on the shareable results graphic!</div>
 
       {photoPreviewUrl ? (
         <img src={photoPreviewUrl} alt="Team" style={{ width:160, height:160, borderRadius:"50%", objectFit:"cover", border:"3px solid #BE26C1" }} />
       ) : (
-        <div style={{ width:160, height:160, borderRadius:"50%", background:"rgba(255,2,255,0.06)", border:"2px dashed rgba(190,38,193,0.5)", display:"flex", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.3)", fontSize:13, textAlign:"center" as const, fontFamily:"'Bruno Ace SC',sans-serif" }}>No photo yet</div>
+        <div style={{ width:160, height:160, borderRadius:"50%", background:"rgba(255,2,255,0.06)", border:"2px dashed rgba(190,38,193,0.5)", display:"flex", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.3)", fontSize:13, textAlign:"center" as const, fontFamily:"'Inter',sans-serif" }}>No photo yet</div>
       )}
 
-      <label style={{ padding:"12px 24px", borderRadius:12, background:"rgba(190,38,193,0.2)", border:"1.5px solid #BE26C1", color:"#fff", fontSize:14, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1, cursor:"pointer" }}>
+      <label style={{ padding:"12px 24px", borderRadius:12, background:"rgba(190,38,193,0.2)", border:"1.5px solid #BE26C1", color:"#fff", fontSize:14, fontFamily:"'Inter',sans-serif", letterSpacing:1, cursor:"pointer" }}>
         {photoFile ? "Change Photo" : "Choose Photo"}
         <input type="file" accept="image/*" capture="environment" style={{ display:"none" }}
           onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoSelect(f); }} />
       </label>
 
-      {error && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:1 }}>{error}</p>}
+      {error && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Inter',sans-serif", letterSpacing:1 }}>{error}</p>}
 
       <button
         type="button"
         onClick={handleJoin}
         disabled={loading}
-        style={{ width:"100%", padding:"14px", borderRadius:12, background:"#BE26C1", color:"#fff", border:"none", fontSize:15, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:3, cursor:"pointer", boxShadow:"0 0 20px rgba(190,38,193,0.4)" }}
+        style={{ width:"100%", padding:"14px", borderRadius:12, background:"#BE26C1", color:"#fff", border:"none", fontSize:15, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor:"pointer", boxShadow:"0 0 20px rgba(190,38,193,0.4)" }}
       >
         {loading ? "Joining..." : "Join Game"}
       </button>
@@ -446,7 +446,7 @@ export function JoinForm() {
         type="button"
         onClick={handleJoin}
         disabled={loading}
-        style={{ width:"100%", padding:"10px", borderRadius:12, background:"transparent", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.5)", fontSize:13, fontFamily:"'Bruno Ace SC',sans-serif", letterSpacing:2, cursor:"pointer" }}
+        style={{ width:"100%", padding:"10px", borderRadius:12, background:"transparent", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.5)", fontSize:13, fontFamily:"'Inter',sans-serif", letterSpacing:2, cursor:"pointer" }}
       >
         Skip Photo
       </button>

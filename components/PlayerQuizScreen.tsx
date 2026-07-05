@@ -29,7 +29,7 @@ interface Props {
 function SequenceQuestion({ options, onSubmit, submitted }: { options: string[]; onSubmit: (ans: string) => void; submitted: boolean }) {
   const [picked, setPicked] = useState<number[]>([]);
   const purple = "#BE26C1";
-  const font = "'Bruno Ace SC', sans-serif";
+  const font = "'Inter', sans-serif";
   if (submitted) return null;
 
   function tapItem(i: number) {
@@ -215,7 +215,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
   const bg = "#080810";
   const purple = "#BE26C1";
-  const font = "'Bruno Ace SC', sans-serif";
+  const font = "'Inter', sans-serif";
 
   // Keep screen awake
   useEffect(() => {
@@ -532,7 +532,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const rankLabel = (r: number) => rankLabels[r] || String(r);
     return (
       <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const }}>
-        <div style={{ fontFamily: font, fontSize: (hardDeckTeam && hardDeckStatus !== "wheel") ? 14 : 20, color: (hardDeckTeam && hardDeckStatus !== "wheel") ? "rgba(190,38,193,0.5)" : purple, letterSpacing: (hardDeckTeam && hardDeckStatus !== "wheel") ? 2 : 3, fontWeight: (hardDeckTeam && hardDeckStatus !== "wheel") ? 600 : 400 }}>THE HARD DECK</div>
+        <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: (hardDeckTeam && hardDeckStatus !== "wheel") ? 14 : 20, color: (hardDeckTeam && hardDeckStatus !== "wheel") ? "rgba(190,38,193,0.5)" : purple, letterSpacing: (hardDeckTeam && hardDeckStatus !== "wheel") ? 2 : 3, fontWeight: (hardDeckTeam && hardDeckStatus !== "wheel") ? 600 : 400 }}>THE HARD DECK</div>
 
         {/* Everyone sees the same team-select wheel and card faces, not just text -
             so remote players who can't see the venue display can still follow along. */}
@@ -685,7 +685,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     if (isWinnerForSpin && spinOffered && !spinChoice) {
       return (
         <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24, textAlign: "center" as const, fontFamily: font }}>
-          <div style={{ fontSize: 22, color: "#facc15", fontWeight: 900, letterSpacing: 2 }}>SPIN TO WIN?</div>
+          <div style={{ fontSize: 22, color: "#facc15", fontWeight: 900, letterSpacing: 2, fontFamily: "'Bruno Ace SC', sans-serif" }}>SPIN TO WIN?</div>
           {error && (
             <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, textAlign: "center" as const }}>{error}</div>
           )}
@@ -717,7 +717,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           <>
             {isWinner && spinOffered && !spinChoice && (
               <div style={{ marginBottom: 20, textAlign: "center" as const }}>
-                <div style={{ fontSize: 16, color: "#facc15", fontWeight: 700, marginBottom: 12 }}>Spin to Win?</div>
+                <div style={{ fontSize: 16, color: "#facc15", fontWeight: 700, marginBottom: 12, fontFamily: "'Bruno Ace SC', sans-serif" }}>Spin to Win?</div>
                 <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
                   <button onClick={chooseSpin} style={{ padding: "14px 28px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "2px solid #22c55e", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>SPIN</button>
                   <button onClick={choosePass} style={{ padding: "14px 28px", borderRadius: 12, background: "rgba(255,255,255,0.08)", border: "2px solid rgba(255,255,255,0.3)", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>PASS</button>

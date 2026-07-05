@@ -158,11 +158,11 @@ export function WheelCelebration({ teamName, victorySong, type, onDone, resultLa
       )}
       <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", pointerEvents:"none", gap:20 }}>
         {teamName && (
-          <div style={{ fontFamily:"Bruno Ace SC, sans-serif", fontSize:"clamp(72px,12vw,150px)", color:"#fff", letterSpacing:6 }}>{teamName}</div>
+          <div style={{ fontFamily:"'Inter', sans-serif", fontSize:"clamp(72px,12vw,150px)", color:"#fff", letterSpacing:6 }}>{teamName}</div>
         )}
-        <div style={{ fontFamily:"Bruno Ace SC, sans-serif", fontSize:"clamp(64px,14vw,160px)", color:resultColor, textShadow:"0 0 80px "+glowColor+", 0 0 160px "+glowColor, textAlign:"center", padding:"0 32px", lineHeight:1, fontWeight:900 }}>{resultLabel}</div>
-        <div style={{ fontFamily:"Bruno Ace SC, sans-serif", fontSize:"clamp(16px,2.5vw,28px)", color:"rgba(255,255,255,0.4)", letterSpacing:4 }}>{subText}</div>
-        <div style={{ fontFamily:"Bruno Ace SC, sans-serif", fontSize:12, color:"rgba(255,255,255,0.2)", letterSpacing:3, marginTop:40 }}>tap to continue</div>
+        <div style={{ fontFamily:"'Inter', sans-serif", fontSize:"clamp(64px,14vw,160px)", color:resultColor, textShadow:"0 0 80px "+glowColor+", 0 0 160px "+glowColor, textAlign:"center", padding:"0 32px", lineHeight:1, fontWeight:900 }}>{resultLabel}</div>
+        <div style={{ fontFamily:"'Inter', sans-serif", fontSize:"clamp(16px,2.5vw,28px)", color:"rgba(255,255,255,0.4)", letterSpacing:4 }}>{subText}</div>
+        <div style={{ fontFamily:"'Inter', sans-serif", fontSize:12, color:"rgba(255,255,255,0.2)", letterSpacing:3, marginTop:40 }}>tap to continue</div>
       <style>{`@keyframes teamFlash{from{opacity:1;transform:scale(1)}to{opacity:0.6;transform:scale(1.08)}}`}</style>
       </div>
     </div>

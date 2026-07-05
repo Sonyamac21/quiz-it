@@ -784,8 +784,8 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                     if (!optText) return null;
                     const isCorrect = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).includes(l);
                     return (
-                      <div key={l} style={{ fontSize:14, padding:"8px 12px", borderRadius:6, background:isCorrect?"rgba(34,197,94,0.18)":"#221a35", color:isCorrect?"#4ade80":"#ddd", border:"1px solid "+(isCorrect?"rgba(34,197,94,0.4)":"transparent") }}>
-                        {l.toUpperCase()}. {optText}
+                      <div key={l} style={{ fontSize:14, padding:"8px 12px", borderRadius:8, background:isCorrect?"rgba(34,197,94,0.18)":"#221a35", color:isCorrect?"#4ade80":"#ddd", border:"1px solid "+(isCorrect?"rgba(34,197,94,0.4)":"transparent"), boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
+                        <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{optText}
                       </div>
                     );
                   })}

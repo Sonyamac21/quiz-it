@@ -99,7 +99,7 @@ export default function RoundsPage() {
   }
 
   return (
-    <div style={{ minHeight:"100vh", background:"#07030f", color:"#fff", padding:"24px", fontFamily:"sans-serif", maxWidth:"960px", margin:"0 auto" }}>
+    <div style={{ minHeight:"100vh", background:"linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color:"#fff", padding:"24px", maxWidth:"960px", margin:"0 auto" }}>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
         <div style={{ width:44, height:44, borderRadius:"50%", background:"#1a0530", border:"2px solid #BE26C1", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"#BE26C1", fontWeight:700 }}>ME</div>
         <div>
@@ -107,9 +107,9 @@ export default function RoundsPage() {
           <div style={{ fontSize:11, color:"rgba(190,38,193,0.6)", letterSpacing:2 }}>Quiz-It · Powered by Mac Entertainment</div>
         </div>
         <div style={{ flex:1 }} />
-        <a href="/host/music-prep" style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(251,146,60,0.4)", color:"#fb923c", textDecoration:"none", fontSize:12, letterSpacing:2 }}>Music Prep</a>
-        <a href="/host/question-bank" style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", textDecoration:"none", fontSize:12, letterSpacing:2 }}>Question Bank</a>
-        <a href="/host/questions" style={{ padding:"8px 16px", borderRadius:8, background:"#BE26C1", color:"#fff", textDecoration:"none", fontSize:12, letterSpacing:2 }}>+ New Round</a>
+        <a href="/host/music-prep" style={{ padding:"8px 16px", borderRadius:10, border:"1px solid rgba(251,146,60,0.4)", background:"rgba(251,146,60,0.06)", color:"#fb923c", textDecoration:"none", fontSize:12, fontWeight:600, letterSpacing:2, boxShadow:"0 2px 6px rgba(0,0,0,0.2)" }}>Music Prep</a>
+        <a href="/host/question-bank" style={{ padding:"8px 16px", borderRadius:10, border:"1px solid rgba(190,38,193,0.4)", background:"rgba(190,38,193,0.06)", color:"#BE26C1", textDecoration:"none", fontSize:12, fontWeight:600, letterSpacing:2, boxShadow:"0 2px 6px rgba(0,0,0,0.2)" }}>Question Bank</a>
+        <a href="/host/questions" style={{ padding:"8px 16px", borderRadius:10, background:"#BE26C1", color:"#fff", textDecoration:"none", fontSize:12, fontWeight:600, letterSpacing:2, boxShadow:"0 2px 8px rgba(0,0,0,0.3)" }}>+ New Round</a>
       </div>
 
       {status && <p style={{ textAlign:"center", color:"#22c55e", fontSize:13, marginBottom:16 }}>{status}</p>}
@@ -123,7 +123,7 @@ export default function RoundsPage() {
             const selectedId = cardSelections[rt.key] || "";
             const selectedRound = roundsOfType.find(r => r.id === selectedId) || null;
             return (
-              <div key={rt.key} style={{ background: rt.bg, border: "2px solid " + rt.color, borderRadius: 14, padding: 16 }}>
+              <div key={rt.key} style={{ background: rt.bg, border: "2px solid " + rt.color, borderRadius: 16, padding: 16, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), 0 2px 8px rgba(0,0,0,0.2)" }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: rt.color, letterSpacing: 1, marginBottom: 10 }}>{rt.label}</div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <select
@@ -134,7 +134,7 @@ export default function RoundsPage() {
                       const found = roundsOfType.find(r => r.id === id);
                       if (found) setOpenRound(found);
                     }}
-                    style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(255,255,255,0.2)", fontSize: 13, minWidth: 0 }}
+                    style={{ flex: 1, padding: "8px 10px", borderRadius: 10, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(255,255,255,0.2)", fontSize: 13, minWidth: 0 }}
                   >
                     <option value="">-- select round --</option>
                     {roundsOfType.map(r => (
@@ -146,14 +146,14 @@ export default function RoundsPage() {
                     disabled={!selectedRound}
                     onClick={() => selectedRound && duplicateRound(selectedRound)}
                     title="Duplicate selected round"
-                    style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.06)", color: selectedRound ? "#fff" : "rgba(255,255,255,0.3)", cursor: selectedRound ? "pointer" : "not-allowed", fontSize: 14 }}
+                    style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.06)", color: selectedRound ? "#fff" : "rgba(255,255,255,0.3)", cursor: selectedRound ? "pointer" : "not-allowed", fontSize: 14, boxShadow: selectedRound ? "0 2px 6px rgba(0,0,0,0.2)" : "none" }}
                   >⧉</button>
                   <button
                     type="button"
                     disabled={!selectedRound}
                     onClick={() => selectedRound && deleteRound(selectedRound.id)}
                     title="Delete selected round"
-                    style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.06)", color: selectedRound ? "#fff" : "rgba(255,255,255,0.3)", cursor: selectedRound ? "pointer" : "not-allowed", fontSize: 14 }}
+                    style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.06)", color: selectedRound ? "#fff" : "rgba(255,255,255,0.3)", cursor: selectedRound ? "pointer" : "not-allowed", fontSize: 14, boxShadow: selectedRound ? "0 2px 6px rgba(0,0,0,0.2)" : "none" }}
                   >🗑</button>
                 </div>
                 {roundsOfType.length === 0 && (
@@ -169,15 +169,15 @@ export default function RoundsPage() {
         <div style={{ marginTop: 8 }}>
           <div style={{ fontSize: 12, letterSpacing: 2, color: "rgba(190,38,193,0.6)", marginBottom: 10 }}>ALL ROUNDS</div>
           {rounds.map(r => (
-            <div key={r.id} style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.25)", borderRadius:12, padding:16, marginBottom:12 }}>
+            <div key={r.id} style={{ background:"linear-gradient(160deg, rgba(60,15,110,0.35), rgba(30,8,60,0.35))", border:"1px solid rgba(190,38,193,0.25)", borderRadius:14, padding:16, marginBottom:12, boxShadow:"inset 0 1px 1px rgba(255,255,255,0.05)" }}>
               <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>{r.name}</div>
                   <div style={{ fontSize:12, color:"#666" }}>{r.questions?.length || 0} questions · {r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
                 </div>
-                <button onClick={() => setOpenRound(r)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", background:"transparent", color:"#BE26C1", cursor:"pointer", fontSize:12 }}>View</button>
-                <button onClick={() => duplicateRound(r)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #333", background:"transparent", color:"#aaa", cursor:"pointer", fontSize:12 }}>Duplicate</button>
-                <button onClick={() => deleteRound(r.id)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:12 }}>Delete</button>
+                <button onClick={() => setOpenRound(r)} style={{ padding:"8px 16px", borderRadius:10, border:"1px solid rgba(190,38,193,0.4)", background:"rgba(190,38,193,0.06)", color:"#BE26C1", cursor:"pointer", fontSize:12, fontWeight:600 }}>View</button>
+                <button onClick={() => duplicateRound(r)} style={{ padding:"8px 16px", borderRadius:10, border:"1px solid #333", background:"transparent", color:"#aaa", cursor:"pointer", fontSize:12 }}>Duplicate</button>
+                <button onClick={() => deleteRound(r.id)} style={{ padding:"8px 16px", borderRadius:10, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:12 }}>Delete</button>
               </div>
             </div>
           ))}
@@ -187,24 +187,24 @@ export default function RoundsPage() {
       {openRound && (
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
-            <button onClick={() => setOpenRound(null)} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #333", background:"transparent", color:"#aaa", cursor:"pointer", fontSize:12 }}>Back</button>
+            <button onClick={() => setOpenRound(null)} style={{ padding:"8px 16px", borderRadius:10, border:"1px solid #333", background:"rgba(255,255,255,0.04)", color:"#aaa", cursor:"pointer", fontSize:12 }}>Back</button>
             <div style={{ fontSize:18, fontWeight:700 }}>{openRound.name}</div>
             <div style={{ fontSize:12, color:"#666" }}>{openRound.questions.length} questions</div>
           </div>
           {openRound.questions.map((q, i) => (
-            <div key={i} style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.2)", borderRadius:12, padding:16, marginBottom:10 }}>
+            <div key={i} style={{ background:"linear-gradient(160deg, rgba(60,15,110,0.35), rgba(30,8,60,0.35))", border:"1px solid rgba(190,38,193,0.2)", borderRadius:14, padding:16, marginBottom:10, boxShadow:"inset 0 1px 1px rgba(255,255,255,0.05)" }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
                 <span style={{ color:"#555", fontSize:13, fontWeight:700 }}>{i+1}.</span>
                 <span style={{ background:typeBg[q.question_type]||"#1a1a1a", color:typeColor[q.question_type]||"#aaa", padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:600 }}>{typeLabel[q.question_type]||q.question_type}</span>
                 <span style={{ fontSize:11, color:"#555" }}>{q.difficulty}</span>
                 <div style={{ flex:1 }} />
-                <button onClick={() => sendToBank(openRound.id, i)} style={{ padding:"5px 12px", borderRadius:6, border:"1px solid rgba(190,38,193,0.4)", background:"transparent", color:"#BE26C1", cursor:"pointer", fontSize:11 }}>Move to Bank</button>
+                <button onClick={() => sendToBank(openRound.id, i)} style={{ padding:"5px 12px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", background:"transparent", color:"#BE26C1", cursor:"pointer", fontSize:11 }}>Move to Bank</button>
               </div>
               <p style={{ fontSize:15, fontWeight:600, marginBottom:8, lineHeight:1.5 }}>{q.question_text}</p>
               {q.question_type==="multiple_choice" && (
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
                   {(["a","b","c","d"] as const).map(l => (
-                    <div key={l} style={{ fontSize:13, padding:"5px 10px", borderRadius:6, background:l===q.correct_answer?"rgba(34,197,94,0.15)":"#0f0f1a", color:l===q.correct_answer?"#22c55e":"#aaa" }}>
+                    <div key={l} style={{ fontSize:13, padding:"5px 10px", borderRadius:8, background:l===q.correct_answer?"rgba(34,197,94,0.15)":"#0f0f1a", color:l===q.correct_answer?"#22c55e":"#aaa" }}>
                       <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{(q as Record<string, string|null>)[("option_"+l)] as string}
                     </div>
                   ))}
@@ -212,7 +212,7 @@ export default function RoundsPage() {
               )}
               {q.question_type==="sequence" && (
                 <div>{[q.option_a,q.option_b,q.option_c,q.option_d].filter(Boolean).map((item,idx) => (
-                  <div key={idx} style={{ fontSize:13, padding:"5px 10px", marginBottom:3, borderRadius:6, background:"#0f0f1a", color:"#ccc", display:"flex", gap:8 }}>
+                  <div key={idx} style={{ fontSize:13, padding:"5px 10px", marginBottom:3, borderRadius:8, background:"#0f0f1a", color:"#ccc", display:"flex", gap:8 }}>
                     <span style={{ color:"#BE26C1", fontWeight:700, minWidth:20 }}>{idx+1}.</span>{item}
                   </div>
                 ))}</div>
@@ -224,7 +224,7 @@ export default function RoundsPage() {
                 </div>
               )}
               {q.explanation && (
-                <div style={{ marginTop:8, padding:"8px 12px", borderRadius:8, background:"rgba(190,38,193,0.08)", borderLeft:"3px solid rgba(190,38,193,0.4)" }}>
+                <div style={{ marginTop:8, padding:"8px 12px", borderRadius:10, background:"rgba(190,38,193,0.08)", borderLeft:"3px solid rgba(190,38,193,0.4)" }}>
                   <p style={{ fontSize:12, color:"rgba(190,38,193,0.8)", margin:0 }}>{q.explanation}</p>
                 </div>
               )}

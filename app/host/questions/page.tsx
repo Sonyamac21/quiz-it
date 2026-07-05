@@ -756,7 +756,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           <div style={{ fontSize:12, color:"#666", textAlign:"center", marginBottom:12 }}>Drag to reorder · {questions.length} questions</div>
           {questions.map((q, i) => (
             <div key={i} draggable onDragStart={() => onDragStart(i)} onDragOver={e => onDragOver(e, i)} onDragEnd={onDragEnd}
-              style={{ background:"#1a1030", border:"1px solid rgba(190,38,193,0.3)", borderRadius:12, padding:18, marginBottom:12, cursor:"grab", userSelect:"none" }}>
+              style={{ background:"linear-gradient(160deg, rgba(60,15,110,0.35), rgba(30,8,60,0.35))", border:"1px solid rgba(190,38,193,0.3)", borderRadius:14, padding:18, marginBottom:12, cursor:"grab", userSelect:"none", boxShadow:"inset 0 1px 1px rgba(255,255,255,0.05)" }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
                 <span style={{ color:"#555", fontSize:13, fontWeight:700, minWidth:24 }}>{i+1}.</span>
                 <span style={{ background:typeBg[q.question_type]||"#1a1a1a", color:typeColor[q.question_type]||"#aaa", padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:600 }}>
@@ -764,7 +764,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                 </span>
                 <span style={{ fontSize:11, color:"#555" }}>{q.difficulty}</span>
                 <div style={{ flex:1 }} />
-                <button onClick={(e) => { e.stopPropagation(); removeAndReplace(i); }} onMouseDown={(e) => e.stopPropagation()} style={{ padding:"3px 10px", borderRadius:6, border:"1px solid #ef4444", background:"transparent", color:"#ef4444", cursor:"pointer", fontSize:11 }}>Remove</button>
+                <button onClick={(e) => { e.stopPropagation(); removeAndReplace(i); }} onMouseDown={(e) => e.stopPropagation()} style={{ padding:"3px 10px", borderRadius:8, border:"1px solid #ef4444", background:"transparent", color:"#ef4444", cursor:"pointer", fontSize:11 }}>Remove</button>
               </div>
               <p style={{ fontSize:18, fontWeight:700, marginBottom:12, lineHeight:1.5, color:"#fff" }}>{q.question_text}</p>
               {q.question_type==="multiple_choice" && (

@@ -836,7 +836,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                 </div>
               )}
               {q.explanation && (
-                <div style={{ marginTop:10, padding:"10px 14px", borderRadius:8, background:"rgba(190,38,193,0.12)", borderLeft:"3px solid rgba(190,38,193,0.5)" }}>
+                <div style={{ marginTop:10, padding:"10px 14px", borderRadius:8, background:"rgba(190,38,193,0.12)", borderLeft:"3px solid rgba(190,38,193,0.5)", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
                   <p style={{ fontSize:14, color:"#e0b8e8", margin:0, lineHeight:1.5 }}>{q.explanation}</p>
                 </div>
               )}

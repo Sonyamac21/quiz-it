@@ -794,7 +794,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
               {q.question_type==="sequence" && (
                 <div style={{ marginBottom:8 }}>
                   {[q.option_a,q.option_b,q.option_c,q.option_d].filter(Boolean).map((item,idx) => (
-                    <div key={idx} style={{ fontSize:15, padding:"8px 12px", marginBottom:4, borderRadius:6, background:"#221a35", color:"#eee", display:"flex", alignItems:"center", gap:8 }}>
+                    <div key={idx} style={{ fontSize:15, padding:"8px 12px", marginBottom:4, borderRadius:8, background:"#221a35", color:"#eee", display:"flex", alignItems:"center", gap:8, boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
                       <span style={{ color:"#BE26C1", fontWeight:700, minWidth:20 }}>{idx+1}.</span>{item}
                     </div>
                   ))}

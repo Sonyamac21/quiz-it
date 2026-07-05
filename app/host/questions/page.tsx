@@ -770,7 +770,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
               {q.question_type==="multiple_choice" && (
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
                   {(["a","b","c","d"] as const).map(l => (
-                    <div key={l} style={{ fontSize:15, padding:"8px 12px", borderRadius:6, background:l===q.correct_answer?"rgba(34,197,94,0.18)":"#221a35", color:l===q.correct_answer?"#4ade80":"#ddd", border:"1px solid "+(l===q.correct_answer?"rgba(34,197,94,0.4)":"transparent") }}>
+                    <div key={l} style={{ fontSize:15, padding:"8px 12px", borderRadius:8, background:l===q.correct_answer?"rgba(34,197,94,0.18)":"#221a35", color:l===q.correct_answer?"#4ade80":"#ddd", border:"1px solid "+(l===q.correct_answer?"rgba(34,197,94,0.4)":"transparent"), boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
                       <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{q[("option_"+l) as keyof Question] as string}
                     </div>
                   ))}

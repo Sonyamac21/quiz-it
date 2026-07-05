@@ -813,7 +813,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                     onUploaded={(url) => setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, option_b: url } : qq))}
                   />
                   <a href={"https://www.google.com/search?tbm=isch&q="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
-                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(56,189,248,0.15)", border:"1px solid rgba(56,189,248,0.4)", color:"#38bdf8", textDecoration:"none", fontSize:13, fontWeight:600, marginTop:10 }}>
+                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(56,189,248,0.15)", border:"1px solid rgba(56,189,248,0.4)", color:"#38bdf8", textDecoration:"none", fontSize:13, fontWeight:600, marginTop:10, boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
                     Search "{q.option_a||q.correct_answer}" on Google Images (internal reference - players never see this)
                   </a>
                   <p style={{ fontSize:16, color:"#4ade80", fontWeight:700, margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>

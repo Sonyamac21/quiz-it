@@ -677,11 +677,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         <a href="/host/rounds" style={{ padding:"8px 16px", borderRadius:10, border:"1px solid rgba(190,38,193,0.4)", background:"rgba(190,38,193,0.06)", color:"#BE26C1", textDecoration:"none", fontSize:12, fontWeight:600, letterSpacing:2, boxShadow:"0 2px 6px rgba(0,0,0,0.2)" }}>Round Library</a>
       </div>
 
-      <div style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.3)", borderRadius:12, padding:20, marginBottom:20 }}>
+      <div style={{ background:"linear-gradient(160deg, rgba(60,15,110,0.4), rgba(30,8,60,0.4))", border:"1px solid rgba(190,38,193,0.3)", borderRadius:16, padding:20, marginBottom:20, boxShadow:"inset 0 1px 1px rgba(255,255,255,0.05)" }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16, marginBottom:16 }}>
           <div>
             <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>ROUND TYPE</label>
-            <select value={roundType} onChange={e => setRoundType(e.target.value)} style={{ width:"100%", padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
+            <select value={roundType} onChange={e => setRoundType(e.target.value)} style={{ width:"100%", padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
               <option value="regular">Regular round</option>
               <option value="bonus">Bonus / themed</option>
               <option value="music">Music round</option>
@@ -690,7 +690,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           </div>
           <div>
             <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>QUESTIONS</label>
-            <select value={count} onChange={e => setCount(parseInt(e.target.value))} style={{ width:"100%", padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
+            <select value={count} onChange={e => setCount(parseInt(e.target.value))} style={{ width:"100%", padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
               {[5,10,15].map(c => <option key={c} value={c}>{c} questions</option>)}
             </select>
           </div>
@@ -698,53 +698,53 @@ Return ONLY a valid JSON array with 1 item, no markdown:
             <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>DIFFICULTY</label>
             <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
               {["easy","medium","hard","mixed"].map(d => (
-                <button key={d} onClick={() => setDifficulty(d)} style={{ padding:"6px 12px", borderRadius:999, border:"1px solid rgba(190,38,193,0.4)", background:difficulty===d?"#BE26C1":"transparent", color:"#fff", cursor:"pointer", fontSize:12 }}>{d}</button>
+                <button key={d} onClick={() => setDifficulty(d)} style={{ padding:"6px 12px", borderRadius:999, border:"1px solid rgba(190,38,193,0.4)", background:difficulty===d?"#BE26C1":"transparent", color:"#fff", cursor:"pointer", fontSize:12, boxShadow:difficulty===d?"0 2px 6px rgba(0,0,0,0.25)":"none" }}>{d}</button>
               ))}
             </div>
           </div>
         </div>
         <div style={{ marginBottom:16 }}>
           <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>THEME / TOPIC (optional)</label>
-          <input value={theme} onChange={e => setTheme(e.target.value)} placeholder="e.g. 90s movies, space... leave blank for random variety" style={{ width:"100%", padding:"10px 16px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box" }} />
+          <input value={theme} onChange={e => setTheme(e.target.value)} placeholder="e.g. 90s movies, space... leave blank for random variety" style={{ width:"100%", padding:"10px 16px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box" }} />
         </div>
-        <button onClick={() => setManualOpen(!manualOpen)} style={{ width:"100%", padding:10, borderRadius:8, background:"transparent", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:13, letterSpacing:2, cursor:"pointer", marginBottom:12 }}>
+        <button onClick={() => setManualOpen(!manualOpen)} style={{ width:"100%", padding:10, borderRadius:10, background:"rgba(190,38,193,0.06)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:13, fontWeight:600, letterSpacing:2, cursor:"pointer", marginBottom:12 }}>
           {manualOpen ? "Hide Manual Question Entry" : "+ Add a Question Manually"}
         </button>
 
         {manualOpen && (
-          <div style={{ background:"#0a0515", border:"1px solid rgba(190,38,193,0.3)", borderRadius:10, padding:16, marginBottom:16, display:"flex", flexDirection:"column" as const, gap:10 }}>
-            <select value={manualType} onChange={e => setManualType(e.target.value)} style={{ padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
+          <div style={{ background:"linear-gradient(160deg, rgba(45,10,90,0.5), rgba(20,5,45,0.5))", border:"1px solid rgba(190,38,193,0.3)", borderRadius:12, padding:16, marginBottom:16, display:"flex", flexDirection:"column" as const, gap:10, boxShadow:"inset 0 1px 1px rgba(255,255,255,0.04)" }}>
+            <select value={manualType} onChange={e => setManualType(e.target.value)} style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
               <option value="multiple_choice">Multiple Choice</option>
               <option value="text_answer">Text Answer</option>
               <option value="number">Number</option>
               <option value="sequence">Sequence</option>
               <option value="multi_tap">Multi Tap</option>
             </select>
-            <textarea value={manualText} onChange={e => setManualText(e.target.value)} placeholder="Question text..." rows={2} style={{ padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontFamily:"inherit" }} />
+            <textarea value={manualText} onChange={e => setManualText(e.target.value)} placeholder="Question text..." rows={2} style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontFamily:"inherit" }} />
             {(manualType === "multiple_choice" || manualType === "sequence" || manualType === "multi_tap") && (
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                <input value={manualA} onChange={e => setManualA(e.target.value)} placeholder="Option A" style={{ padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-                <input value={manualB} onChange={e => setManualB(e.target.value)} placeholder="Option B" style={{ padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-                <input value={manualC} onChange={e => setManualC(e.target.value)} placeholder="Option C" style={{ padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-                <input value={manualD} onChange={e => setManualD(e.target.value)} placeholder="Option D" style={{ padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
+                <input value={manualA} onChange={e => setManualA(e.target.value)} placeholder="Option A" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
+                <input value={manualB} onChange={e => setManualB(e.target.value)} placeholder="Option B" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
+                <input value={manualC} onChange={e => setManualC(e.target.value)} placeholder="Option C" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
+                <input value={manualD} onChange={e => setManualD(e.target.value)} placeholder="Option D" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
                 {manualType === "multi_tap" && (
                   <>
-                    <input value={manualE} onChange={e => setManualE(e.target.value)} placeholder="Option E" style={{ padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-                    <input value={manualF} onChange={e => setManualF(e.target.value)} placeholder="Option F" style={{ padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
+                    <input value={manualE} onChange={e => setManualE(e.target.value)} placeholder="Option E" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
+                    <input value={manualF} onChange={e => setManualF(e.target.value)} placeholder="Option F" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
                   </>
                 )}
               </div>
             )}
             <input value={manualCorrect} onChange={e => setManualCorrect(e.target.value)}
               placeholder={manualType === "multiple_choice" ? "Correct answer letter, e.g. b" : manualType === "sequence" ? "Correct order, e.g. a,b,c,d" : manualType === "multi_tap" ? "Correct letters, e.g. b,d,f" : "Correct answer"}
-              style={{ padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-            <input value={manualExplanation} onChange={e => setManualExplanation(e.target.value)} placeholder="Explanation (optional)" style={{ padding:"8px 12px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
+              style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
+            <input value={manualExplanation} onChange={e => setManualExplanation(e.target.value)} placeholder="Explanation (optional)" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
             {manualError && <p style={{ color:"#FF5555", fontSize:13 }}>{manualError}</p>}
-            <button onClick={addManualQuestion} style={{ padding:10, borderRadius:8, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Add to List</button>
+            <button onClick={addManualQuestion} style={{ padding:10, borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>Add to List</button>
           </div>
         )}
 
-        <button onClick={generate} disabled={loading} style={{ width:"100%", padding:14, borderRadius:8, background:loading?"#4a1060":"#BE26C1", color:"#fff", border:"none", fontSize:16, letterSpacing:4, cursor:loading?"not-allowed":"pointer", opacity:loading?0.7:1 }}>
+        <button onClick={generate} disabled={loading} style={{ width:"100%", padding:14, borderRadius:10, background:loading?"#4a1060":"#BE26C1", color:"#fff", border:"none", fontSize:16, fontWeight:700, letterSpacing:4, cursor:loading?"not-allowed":"pointer", opacity:loading?0.7:1, boxShadow:loading?"none":"0 2px 12px rgba(190,38,193,0.35)" }}>
           {loading ? "Generating..." : "Generate Round"}
         </button>
       </div>

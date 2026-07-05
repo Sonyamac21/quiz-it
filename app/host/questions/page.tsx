@@ -829,7 +829,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                     }}
                   />
                   <a href={"https://www.youtube.com/results?search_query="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
-                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(251,146,60,0.15)", border:"1px solid rgba(251,146,60,0.4)", color:"#fb923c", textDecoration:"none", fontSize:13, fontWeight:600, marginTop:10 }}>
+                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(251,146,60,0.15)", border:"1px solid rgba(251,146,60,0.4)", color:"#fb923c", textDecoration:"none", fontSize:13, fontWeight:600, marginTop:10, boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
                     Search "{q.option_a||q.correct_answer}" on YouTube (internal reference - players never see this)
                   </a>
                   <p style={{ fontSize:16, color:"#4ade80", fontWeight:700, margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>

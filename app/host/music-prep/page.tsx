@@ -323,7 +323,7 @@ export default function MusicPrepPage() {
   const audioQuestions = openRound?.questions.map((q, i) => ({ q, i })).filter(({ q }) => q.question_type === "audio") || [];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#07030f", color: "#fff", padding: "24px", fontFamily: "sans-serif", maxWidth: "960px", margin: "0 auto" }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color: "#fff", padding: "24px", maxWidth: "960px", margin: "0 auto" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#1a0530", border: `2px solid ${purple}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: purple, fontWeight: 700 }}>ME</div>
@@ -332,8 +332,8 @@ export default function MusicPrepPage() {
           <div style={{ fontSize: 11, color: "rgba(190,38,193,0.6)", letterSpacing: 2 }}>Deezer · Auto-search · Waveform trim</div>
         </div>
         <div style={{ flex: 1 }} />
-        {openRound && <button onClick={() => setOpenRound(null)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#aaa", cursor: "pointer", fontSize: 12 }}>← All Rounds</button>}
-        {!openRound && <a href="/host/rounds" style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid rgba(190,38,193,0.4)`, color: purple, textDecoration: "none", fontSize: 12 }}>Round Library</a>}
+        {openRound && <button onClick={() => setOpenRound(null)} style={{ padding: "8px 16px", borderRadius: 10, border: "1px solid #333", background: "rgba(255,255,255,0.04)", color: "#aaa", cursor: "pointer", fontSize: 12 }}>← All Rounds</button>}
+        {!openRound && <a href="/host/rounds" style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid rgba(190,38,193,0.4)`, background: "rgba(190,38,193,0.06)", color: purple, textDecoration: "none", fontSize: 12, fontWeight: 600, boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>Round Library</a>}
       </div>
 
       {status && <div style={{ textAlign: "center", color: "#22c55e", fontSize: 13, marginBottom: 16 }}>{status}</div>}
@@ -352,7 +352,7 @@ export default function MusicPrepPage() {
             const total = r.questions.filter(q => q.question_type === "audio").length;
             const prepped = r.questions.filter(q => q.question_type === "audio" && q.option_b && q.option_b.includes("blob.vercel-storage.com")).length;
             return (
-              <div key={r.id} onClick={() => openForPrep(r)} style={{ background: "#0d0520", border: `1px solid rgba(190,38,193,0.25)`, borderRadius: 12, padding: 16, marginBottom: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+              <div key={r.id} onClick={() => openForPrep(r)} style={{ background: "linear-gradient(160deg, rgba(60,15,110,0.35), rgba(30,8,60,0.35))", border: `1px solid rgba(190,38,193,0.25)`, borderRadius: 14, padding: 16, marginBottom: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)" }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{r.name}</div>
                   <div style={{ fontSize: 12, color: "#666" }}>{total} music questions · {prepped}/{total} prepped · {new Date(r.created_at).toLocaleDateString()}</div>
@@ -370,7 +370,7 @@ export default function MusicPrepPage() {
       {openRound && audioQuestions.map(({ q, i }, n) => {
         const qs = questionStates[i] || { phase: "idle", candidates: [], error: "" };
         return (
-          <div key={i} style={{ background: "#0d0520", border: `1px solid ${qs.phase === "done" ? "rgba(34,197,94,0.4)" : "rgba(190,38,193,0.2)"}`, borderRadius: 14, padding: 20, marginBottom: 16 }}>
+          <div key={i} style={{ background: "linear-gradient(160deg, rgba(60,15,110,0.35), rgba(30,8,60,0.35))", border: `1px solid ${qs.phase === "done" ? "rgba(34,197,94,0.4)" : "rgba(190,38,193,0.2)"}`, borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)" }}>
             {/* Question header */}
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
               <div style={{ flex: 1 }}>
@@ -408,7 +408,7 @@ export default function MusicPrepPage() {
                 )}
                 {qs.candidates.map((c, ci) => (
                   <button key={c.id} type="button" onClick={() => selectCandidate(openRound, i, c)}
-                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer", textAlign: "left", width: "100%" }}>
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer", textAlign: "left", width: "100%", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }}>
                     {c.cover && <img src={c.cover} alt="" style={{ width: 44, height: 44, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title}</div>

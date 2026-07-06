@@ -793,10 +793,10 @@ function DisplayScreenInner() {
             <div style={{
               width:140, height:140, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
               fontSize:64, marginBottom:24, background:card.color+"22", border:"4px solid "+card.color,
-              boxShadow:"0 0 50px "+card.color+"66",
+              boxShadow:"0 4px 16px rgba(0,0,0,0.4)",
             }}>{card.emoji}</div>
             <div style={{ fontSize:15, color:"rgba(255,255,255,0.4)", letterSpacing:4, marginBottom:8 }}>POWER CARD</div>
-            <div style={{ fontSize:44, fontWeight:900, color:card.color, letterSpacing:2, marginBottom:18, textShadow:"0 0 30px "+card.color+"88" }}>{card.title}</div>
+            <div style={{ fontSize:44, fontWeight:900, color:card.color, letterSpacing:2, marginBottom:18, textShadow:"0 1px 3px rgba(0,0,0,0.35)" }}>{card.title}</div>
             <div style={{ fontSize:22, color:"rgba(255,255,255,0.8)", lineHeight:1.5 }}>{card.desc}</div>
             <div style={{ display:"flex", gap:8, justifyContent:"center", marginTop:32 }}>
               {POWER_CARDS.map((c, i) => (

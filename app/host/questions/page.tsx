@@ -843,15 +843,15 @@ Return ONLY a valid JSON array with 1 item, no markdown:
             </div>
           ))}
 
-          <div style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.3)", borderRadius:12, padding:20, marginTop:16 }}>
+          <div style={{ background:"linear-gradient(160deg, rgba(60,15,110,0.4), rgba(30,8,60,0.4))", border:"1px solid rgba(190,38,193,0.3)", borderRadius:16, padding:20, marginTop:16, boxShadow:"inset 0 1px 1px rgba(255,255,255,0.05)" }}>
             {questions.length < count && (
-              <button onClick={topUp} style={{ width:"100%", padding:10, borderRadius:8, background:"transparent", border:"1px solid #BE26C1", color:"#BE26C1", fontSize:13, letterSpacing:2, cursor:"pointer", marginBottom:12 }}>
+              <button onClick={topUp} style={{ width:"100%", padding:10, borderRadius:10, background:"rgba(190,38,193,0.06)", border:"1px solid #BE26C1", color:"#BE26C1", fontSize:13, fontWeight:600, letterSpacing:2, cursor:"pointer", marginBottom:12, boxShadow:"0 2px 6px rgba(0,0,0,0.2)" }}>
                 Top Up to {count} Questions ({count - questions.length} needed)
               </button>
             )}
             <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:8 }}>ROUND NAME</label>
-            <input value={roundName} onChange={e => setRoundName(e.target.value)} placeholder="e.g. Round 1 - General Knowledge - 14 June" style={{ width:"100%", padding:"10px 16px", borderRadius:8, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box", marginBottom:12 }} />
-            <button onClick={saveRound} disabled={saving||!roundName.trim()} style={{ width:"100%", padding:14, borderRadius:8, background:roundName.trim()?"#16a34a":"#1a1a1a", color:roundName.trim()?"#fff":"#444", border:"none", fontSize:16, letterSpacing:4, cursor:roundName.trim()?"pointer":"not-allowed" }}>
+            <input value={roundName} onChange={e => setRoundName(e.target.value)} placeholder="e.g. Round 1 - General Knowledge - 14 June" style={{ width:"100%", padding:"10px 16px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box", marginBottom:12 }} />
+            <button onClick={saveRound} disabled={saving||!roundName.trim()} style={{ width:"100%", padding:14, borderRadius:10, background:roundName.trim()?"#16a34a":"#1a1a1a", color:roundName.trim()?"#fff":"#444", border:"none", fontSize:16, fontWeight:700, letterSpacing:4, cursor:roundName.trim()?"pointer":"not-allowed", boxShadow:roundName.trim()?"0 2px 12px rgba(0,0,0,0.3)":"none" }}>
               {saving ? "Saving..." : "Save Round to Library"}
             </button>
           </div>

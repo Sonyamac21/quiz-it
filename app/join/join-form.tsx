@@ -296,7 +296,7 @@ export function JoinForm() {
           type="button"
           onClick={handlePinNext}
           disabled={pinLoading || pin.length !== 4}
-          style={{ padding:"14px", borderRadius:12, background: pin.length === 4 ? "#BE26C1" : "rgba(255,255,255,0.08)", color: pin.length === 4 ? "#fff" : "rgba(255,255,255,0.4)", border:"none", fontSize:16, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor: pin.length === 4 ? "pointer" : "default" }}
+          style={{ padding:"14px", borderRadius:12, background: pin.length === 4 ? "#BE26C1" : "rgba(255,255,255,0.08)", color: pin.length === 4 ? "#fff" : "rgba(255,255,255,0.4)", border:"none", fontSize:16, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor: pin.length === 4 ? "pointer" : "default", boxShadow: pin.length === 4 ? "0 2px 12px rgba(0,0,0,0.3)" : "none" }}
         >
           {pinLoading ? "Checking..." : "Join Quiz"}
         </button>
@@ -320,7 +320,7 @@ export function JoinForm() {
         <button
           type="button"
           onClick={handleNameNext}
-          style={{ padding:"14px", borderRadius:12, background:"#BE26C1", color:"#fff", border:"none", fontSize:16, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor:"pointer", boxShadow:"0 0 20px rgba(190,38,193,0.4)" }}
+          style={{ padding:"14px", borderRadius:12, background:"#BE26C1", color:"#fff", border:"none", fontSize:16, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor:"pointer", boxShadow:"0 2px 12px rgba(0,0,0,0.3)" }}
         >
           Next
         </button>
@@ -407,7 +407,7 @@ export function JoinForm() {
         type="button"
         onClick={handleSongNext}
         disabled={!selectedSong}
-        style={{ padding:"14px", borderRadius:12, background: selectedSong ? "#BE26C1" : "#1a1a2e", color: selectedSong ? "#fff" : "rgba(255,255,255,0.3)", border:"none", fontSize:15, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor: selectedSong ? "pointer" : "default", boxShadow: selectedSong ? "0 0 20px rgba(190,38,193,0.4)" : "none", transition:"all 0.2s" }}
+        style={{ padding:"14px", borderRadius:12, background: selectedSong ? "#BE26C1" : "#1a1a2e", color: selectedSong ? "#fff" : "rgba(255,255,255,0.3)", border:"none", fontSize:15, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor: selectedSong ? "pointer" : "default", boxShadow: selectedSong ? "0 2px 12px rgba(0,0,0,0.3)" : "none", transition:"all 0.2s" }}
       >
         Next
       </button>
@@ -438,7 +438,7 @@ export function JoinForm() {
         type="button"
         onClick={handleJoin}
         disabled={loading}
-        style={{ width:"100%", padding:"14px", borderRadius:12, background:"#BE26C1", color:"#fff", border:"none", fontSize:15, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor:"pointer", boxShadow:"0 0 20px rgba(190,38,193,0.4)" }}
+        style={{ width:"100%", padding:"14px", borderRadius:12, background:"#BE26C1", color:"#fff", border:"none", fontSize:15, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor:"pointer", boxShadow:"0 2px 12px rgba(0,0,0,0.3)" }}
       >
         {loading ? "Joining..." : "Join Game"}
       </button>

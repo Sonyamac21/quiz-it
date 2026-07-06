@@ -863,7 +863,7 @@ function DisplayScreenInner() {
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", padding:"48px 80px", fontFamily:font, color:"#fff" }}>
         <div style={{ fontSize:45, fontWeight:800, color:purple, letterSpacing:4, marginBottom:40, textAlign:"center", textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>SCOREBOARD</div>
         {sorted.map((s,i) => (
-          <div key={s.team_name} style={{ display:"flex", alignItems:"center", gap:20, padding:"16px 24px", borderRadius:16, background:i===0?"rgba(255,215,0,0.1)":i===1?"rgba(192,192,192,0.08)":i===2?"rgba(205,127,50,0.08)":"rgba(255,255,255,0.04)", border:"2px solid "+(i===0?"rgba(255,215,0,0.4)":i===1?"rgba(192,192,192,0.3)":i===2?"rgba(205,127,50,0.3)":"rgba(255,255,255,0.08)"), marginBottom:12 }}>
+          <div key={s.team_name} style={{ display:"flex", alignItems:"center", gap:20, padding:"16px 24px", borderRadius:16, background:i===0?"rgba(255,215,0,0.1)":i===1?"rgba(192,192,192,0.08)":i===2?"rgba(205,127,50,0.08)":"rgba(255,255,255,0.04)", border:"2px solid "+(i===0?"rgba(255,215,0,0.4)":i===1?"rgba(192,192,192,0.3)":i===2?"rgba(205,127,50,0.3)":"rgba(255,255,255,0.08)"), marginBottom:12, boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>
             <span style={{ fontSize:40, fontWeight:900, color:i===0?"gold":i===1?"silver":i===2?"#cd7f32":"rgba(255,255,255,0.3)", minWidth:48 }}>{i+1}</span>
             <span style={{ fontSize:35, fontWeight:700, flex:1 }}>{s.team_name}</span>
             <span style={{ fontSize:45, fontWeight:900, color:purple }}>{s.total_points}</span>

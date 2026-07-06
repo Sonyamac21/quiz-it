@@ -491,8 +491,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         <div style={{ fontSize: 18, fontWeight: 900, color: purple, letterSpacing: 3, textAlign: "center" as const, marginBottom: 20 }}>LEADERBOARD</div>
         <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
           {sorted.map((s, i) => (
-            <div key={s.team_name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 10, background: s.team_name === teamName ? "rgba(190,38,193,0.2)" : "rgba(255,255,255,0.05)", border: s.team_name === teamName ? "1.5px solid " + purple : "1px solid rgba(255,255,255,0.1)" }}>
-              <span style={{ fontWeight: 800, color: i === 0 ? "#facc15" : "rgba(255,255,255,0.4)", minWidth: 24 }}>{i+1}.</span>
+            <div key={s.team_name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 10, background: s.team_name === teamName ? "rgba(190,38,193,0.2)" : "rgba(255,255,255,0.05)", border: s.team_name === teamName ? "1.5px solid " + purple : "1px solid rgba(255,255,255,0.1)", boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>
+              <span style={{ fontWeight: 800, color: i === 0 ? "#facc15" : i === 1 ? "#c7cbd1" : i === 2 ? "#c97d3e" : "rgba(255,255,255,0.4)", minWidth: 24 }}>{i+1}.</span>
               <span style={{ flex: 1, fontWeight: 700 }}>{s.team_name}</span>
               <span style={{ fontWeight: 900, color: purple, fontSize: 18 }}>{s.total_points}</span>
             </div>
@@ -945,7 +945,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font }}>
       <div style={{ fontSize: 38, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 30px rgba(190,38,193,0.5)", marginBottom: 8 }}>You are In!</div>
       <div style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", marginBottom: 32 }}>{teamName} — good luck!</div>
-      <div style={{ padding: "14px 20px", borderRadius: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", textAlign: "center", marginBottom: 32 }}>
+      <div style={{ padding: "14px 20px", borderRadius: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", textAlign: "center", marginBottom: 32, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)" }}>
         <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)", marginBottom: 6 }}>STATUS</div>
       <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Waiting for the quiz to start...</div>
         <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 10 }}>

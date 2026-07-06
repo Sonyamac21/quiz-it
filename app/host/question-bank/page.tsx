@@ -73,7 +73,7 @@ export default function QuestionBankPage() {
   });
 
   return (
-    <div style={{ minHeight:"100vh", background:"#07030f", color:"#fff", padding:"24px", fontFamily:"sans-serif", maxWidth:"960px", margin:"0 auto" }}>
+    <div style={{ minHeight:"100vh", background:"linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color:"#fff", padding:"24px", maxWidth:"960px", margin:"0 auto" }}>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
         <div style={{ width:44, height:44, borderRadius:"50%", background:"#1a0530", border:"2px solid #BE26C1", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"#BE26C1", fontWeight:700 }}>ME</div>
         <div>
@@ -81,7 +81,7 @@ export default function QuestionBankPage() {
           <div style={{ fontSize:11, color:"rgba(190,38,193,0.6)", letterSpacing:2 }}>{questions.length} questions saved</div>
         </div>
         <div style={{ flex:1 }} />
-        <a href="/host/rounds" style={{ padding:"8px 16px", borderRadius:8, border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", textDecoration:"none", fontSize:12, letterSpacing:2 }}>Round Library</a>
+        <a href="/host/rounds" style={{ padding:"8px 16px", borderRadius:10, border:"1px solid rgba(190,38,193,0.4)", background:"rgba(190,38,193,0.06)", color:"#BE26C1", textDecoration:"none", fontSize:12, fontWeight:600, letterSpacing:2, boxShadow:"0 2px 6px rgba(0,0,0,0.2)" }}>Round Library</a>
       </div>
 
       {status && <p style={{ textAlign:"center", color:"#22c55e", fontSize:13, marginBottom:16 }}>{status}</p>}
@@ -110,25 +110,25 @@ export default function QuestionBankPage() {
       )}
 
       {filtered.map(q => (
-        <div key={q.id} style={{ background:"#0d0520", border:"1px solid rgba(190,38,193,0.2)", borderRadius:12, padding:16, marginBottom:10 }}>
+        <div key={q.id} style={{ background:"linear-gradient(160deg, rgba(60,15,110,0.35), rgba(30,8,60,0.35))", border:"1px solid rgba(190,38,193,0.2)", borderRadius:14, padding:16, marginBottom:10, boxShadow:"inset 0 1px 1px rgba(255,255,255,0.05)" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
             <span style={{ background:typeBg[q.question_type]||"#1a1a1a", color:typeColor[q.question_type]||"#aaa", padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:600 }}>{typeLabel[q.question_type]||q.question_type}</span>
             <span style={{ fontSize:11, color:"#555" }}>{q.difficulty}</span>
             <div style={{ flex:1 }} />
             {rounds.length > 0 && (
               <select onChange={e => { if(e.target.value) { addToRound(q, e.target.value); } e.target.value=""; }}
-                style={{ padding:"5px 10px", borderRadius:6, background:"#0f0f1a", color:"#BE26C1", border:"1px solid rgba(190,38,193,0.3)", fontSize:11, cursor:"pointer" }}>
+                style={{ padding:"5px 10px", borderRadius:8, background:"#0f0f1a", color:"#BE26C1", border:"1px solid rgba(190,38,193,0.3)", fontSize:11, cursor:"pointer" }}>
                 <option value="">Add to round...</option>
                 {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             )}
-            <button onClick={() => deleteQuestion(q.id)} style={{ padding:"5px 10px", borderRadius:6, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:11 }}>Delete</button>
+            <button onClick={() => deleteQuestion(q.id)} style={{ padding:"5px 10px", borderRadius:8, border:"1px solid #333", background:"transparent", color:"#555", cursor:"pointer", fontSize:11 }}>Delete</button>
           </div>
           <p style={{ fontSize:15, fontWeight:600, marginBottom:8, lineHeight:1.5 }}>{q.question_text}</p>
           {q.question_type==="multiple_choice" && (
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
               {(["a","b","c","d"] as const).map(l => (
-                <div key={l} style={{ fontSize:13, padding:"5px 10px", borderRadius:6, background:l===q.correct_answer?"rgba(34,197,94,0.15)":"#0f0f1a", color:l===q.correct_answer?"#22c55e":"#aaa" }}>
+                <div key={l} style={{ fontSize:13, padding:"5px 10px", borderRadius:8, background:l===q.correct_answer?"rgba(34,197,94,0.15)":"#0f0f1a", color:l===q.correct_answer?"#22c55e":"#aaa", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
                   <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{q[("option_"+l) as keyof BankQuestion] as string}
                 </div>
               ))}
@@ -136,7 +136,7 @@ export default function QuestionBankPage() {
           )}
           {q.question_type==="sequence" && (
             <div>{[q.option_a,q.option_b,q.option_c,q.option_d].filter(Boolean).map((item,idx) => (
-              <div key={idx} style={{ fontSize:13, padding:"5px 10px", marginBottom:3, borderRadius:6, background:"#0f0f1a", color:"#ccc", display:"flex", gap:8 }}>
+              <div key={idx} style={{ fontSize:13, padding:"5px 10px", marginBottom:3, borderRadius:8, background:"#0f0f1a", color:"#ccc", display:"flex", gap:8, boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
                 <span style={{ color:"#BE26C1", fontWeight:700, minWidth:20 }}>{idx+1}.</span>{item}
               </div>
             ))}</div>

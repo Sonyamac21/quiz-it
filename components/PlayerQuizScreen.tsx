@@ -84,11 +84,11 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
   );
 }
 
-function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAnswerText, onSubmit, questionIndex, timeLeft, purple, font, bg, teamName, sessionPin }: {
+function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAnswerText, onSubmit, questionIndex, timeLeft, purple, font, bg, teamName, sessionPin, roundNumber }: {
   imageUrl: string; questionText: string; submitted: boolean; answerText: string;
   setAnswerText: (v: string) => void; onSubmit: (a: string) => void;
   questionIndex: number; timeLeft: number | null; purple: string; font: string; bg: string;
-  teamName: string; sessionPin: string;
+  teamName: string; sessionPin: string; roundNumber: number;
 }) {
   const [imageDismissed, setImageDismissed] = React.useState(false);
   const [imageFailed, setImageFailed] = React.useState(false);
@@ -144,7 +144,7 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
         </div>
       )}
       <div style={{ marginTop:"auto", paddingTop:12 }}>
-        <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} />
+        <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} />
       </div>
     </div>
   );
@@ -161,27 +161,6 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [blockUntil, setBlockUntil] = useState<string | null>(null);
   const [blockTeam, setBlockTeam] = useState<string | null>(null);
   const [blockSecondsLeft, setBlockSecondsLeft] = useState(0);
-  const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
-  const cardFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cardFlashElRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = document.createElement("div");
-    el.style.cssText = "position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;display:none;padding:10px 20px;border-radius:10px;background:rgba(20,5,40,0.95);border:2px solid #BE26C1;color:#fff;font-family:sans-serif;font-size:13px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 16px rgba(190,38,193,0.5);max-width:90vw;text-align:center;";
-    document.body.appendChild(el);
-    cardFlashElRef.current = el;
-    return () => { if (el.parentNode) el.parentNode.removeChild(el); };
-  }, []);
-  useEffect(() => {
-    const el = cardFlashElRef.current;
-    if (!el) return;
-    if (cardFlash) {
-      const label = cardFlash.type === "block" ? "Time-Out" : cardFlash.type === "reverse" ? "Reverse" : "Boost";
-      el.textContent = cardFlash.team + " played " + label + "!";
-      el.style.display = "block";
-    } else {
-      el.style.display = "none";
-    }
-  }, [cardFlash]);
   const [answerText, setAnswerText] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -194,6 +173,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
+  const [roundNumber, setRoundNumber] = useState<number>(1);
   const [hardDeckGuess, setHardDeckGuess] = useState<string | null>(null);
   const [stickGamblePressed, setStickGamblePressed] = useState<string | null>(null);
   const [spinOffered, setSpinOffered] = useState(false);
@@ -312,12 +292,6 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           applySessionDataRef.current(payload.new as Record<string, unknown>);
         }
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + sessionPin }, (payload) => {
-        const c = payload.new as { team_name: string; card_type: string };
-        if (cardFlashTimerRef.current) clearTimeout(cardFlashTimerRef.current);
-        setCardFlash({ team: c.team_name, type: c.card_type });
-        cardFlashTimerRef.current = setTimeout(() => setCardFlash(null), 3000);
-      })
       .subscribe();
 
     return () => {
@@ -340,6 +314,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setFastestTeamName(ft);
     setFastestSongName((data.fastest_song as string) || null);
     setFastestPoints((data.fastest_points as number) || 0);
+    setRoundNumber((data.round_number as number) || 1);
     setShowScoreboardOnPhone(!!data.show_scoreboard);
     setPhoneScoreboardData((data.scoreboard_data as {team_name:string; total_points:number}[]) || []);
     setSpinTargetIdx((data.spin_target_idx as number) ?? null);
@@ -480,7 +455,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
   const PowerCards = () => (
     <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
-      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} compact={true} />
+      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} />
     </div>
   );
 
@@ -771,7 +746,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             </>
           );
         })()}
-        <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} compact={true} />
+        <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} />
       </div>
     );
   }
@@ -829,6 +804,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         bg={bg}
         teamName={teamName}
         sessionPin={sessionPin}
+        roundNumber={roundNumber}
       />;
     }
     const options = [
@@ -952,7 +928,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: purple, opacity: 0.6 }} />)}
         </div>
       </div>
-      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} />
+      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} />
     </div>
   );
 }

@@ -26,7 +26,7 @@ type Question = {
 type Round = { id: string; name: string; questions: Question[]; };
 type Team = { id: string; team_name: string; victory_song: string; session_pin: string; };
 type Answer = { session_pin: string; id: string; team_name: string; question_index: number; answer_text: string; submitted_at: string; };
-type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; };
+type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
 type Score = { team_name: string; total_points: number; round_points: number; };
 
 const typeColor: Record<string,string> = { multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6", picture:"#38bdf8", audio:"#fb923c" };
@@ -151,8 +151,6 @@ function QuizControllerInner() {
   const quizEndRevealedRef = useRef<number>(0);
   const [venueName, setVenueName] = useState<string | null>(null);
   const lastDeltasRef = useRef<Record<string, number>>({});
-  const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
-  const cardFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundQuestionsRef = useRef<Question[]>([]);
 
   const currentQ = selectedRound?.questions[qIdx] || null;
@@ -651,13 +649,6 @@ function QuizControllerInner() {
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards" }, (payload) => {
         setUnoCards(prev => [payload.new as UnoCard, ...prev]);
-        const c = payload.new as UnoCard;
-        if (cardFlashTimerRef.current) clearTimeout(cardFlashTimerRef.current);
-        setCardFlash({ team: c.team_name, type: c.card_type });
-        const cardSound = new Audio("/sounds/round-start.mp3");
-        cardSound.volume = 0.7;
-        cardSound.play().catch(() => {});
-        cardFlashTimerRef.current = setTimeout(() => setCardFlash(null), 3000);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions" }, (payload) => {
         const s = payload.new as Record<string, unknown>;
@@ -968,21 +959,6 @@ function QuizControllerInner() {
 
   return (
     <div style={{ minHeight:"100vh", background:"linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", fontFamily:"sans-serif", color:"#fff", display:"flex", flexDirection:"column" as const }}>
-      {cardFlash && (
-        cardFlash.type === "reverse" ? (
-          <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, padding:"18px 40px", borderRadius:16, background:"rgba(239,68,68,0.22)", border:"3px solid #ef4444", color:"#fff", fontSize:22, fontWeight:900, letterSpacing:1.5, boxShadow:"0 0 40px rgba(239,68,68,0.6)" }}>
-            ↻ {cardFlash.team} PLAYED REVERSE! ↻
-          </div>
-        ) : cardFlash.type === "block" ? (
-          <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, padding:"16px 36px", borderRadius:14, background:"rgba(59,130,246,0.22)", border:"3px solid #3b82f6", color:"#fff", fontSize:19, fontWeight:900, letterSpacing:1.2, boxShadow:"0 0 32px rgba(59,130,246,0.6)" }}>
-            ⏸ {cardFlash.team} PLAYED TIME-OUT! ⏸
-          </div>
-        ) : (
-          <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, padding:"16px 36px", borderRadius:14, background:"rgba(234,179,8,0.22)", border:"3px solid #eab308", color:"#fff", fontSize:19, fontWeight:900, letterSpacing:1.2, boxShadow:"0 0 32px rgba(234,179,8,0.6)" }}>
-            ⚡ {cardFlash.team} PLAYED BOOST! ⚡
-          </div>
-        )
-      )}
       {/* HEADER */}
       <div style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 24px", borderBottom:"1px solid rgba(190,38,193,0.25)", background:"linear-gradient(180deg, rgba(26,5,53,0.85) 0%, rgba(13,2,37,0.85) 100%)", backdropFilter:"blur(12px)", flexWrap:"wrap" as const }}>
         <div style={{ width:34, height:34, borderRadius:"50%", flexShrink:0, border:"1.5px solid #BE26C1", boxShadow:"0 0 12px rgba(190,38,193,0.5)", display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(190,38,193,0.08)", overflow:"hidden" as const }}>
@@ -1364,17 +1340,20 @@ function QuizControllerInner() {
                 </div>
               );
             })}
-            {unoCards.length > 0 && (
-              <div style={{ marginTop:14, paddingTop:14, borderTop:"1px solid rgba(190,38,193,0.15)" }}>
-                <div style={{ fontSize:11, fontWeight:700, color:"rgba(190,38,193,0.65)", marginBottom:8, letterSpacing:2 }}>POWER CARDS</div>
-                {unoCards.slice(0,5).map((card,i) => (
-                  <div key={card.id||i} style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", borderRadius:8, background:"rgba(255,255,255,0.04)", marginBottom:4 }}>
-                    <span style={{ color:cardColor[card.card_type], fontWeight:700, fontSize:11, minWidth:44 }}>{cardLabel[card.card_type]}</span>
-                    <span style={{ color:"rgba(255,255,255,0.65)", fontSize:11 }}>{card.team_name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {(() => {
+              const thisRoundCards = unoCards.filter(c => c.round_number === roundNumber);
+              return thisRoundCards.length > 0 && (
+                <div style={{ marginTop:14, paddingTop:14, borderTop:"1px solid rgba(190,38,193,0.15)" }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:"rgba(190,38,193,0.65)", marginBottom:8, letterSpacing:2 }}>ACTIVE POWER CARDS THIS ROUND</div>
+                  {thisRoundCards.map((card,i) => (
+                    <div key={card.id||i} style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", borderRadius:8, background:"rgba(255,255,255,0.04)", marginBottom:4 }}>
+                      <span style={{ color:cardColor[card.card_type], fontWeight:700, fontSize:11, minWidth:44 }}>{cardLabel[card.card_type]}</span>
+                      <span style={{ color:"rgba(255,255,255,0.65)", fontSize:11 }}>{card.team_name}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>

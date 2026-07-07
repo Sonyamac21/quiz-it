@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useRef, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
@@ -138,6 +139,62 @@ const POWER_CARDS = [
   { type: "reverse", emoji: "\u21BB", title: "Reverse", color: "#ef4444", desc: "A surprise twist card - ask your host what it does in this game if you're not sure!" },
 ];
 
+// Display-only Power Card overlays: a compact top-centre announcement (slides/
+// fades in, ~1.2s, then fades out) and a persistent bottom-right list of cards
+// active this round. Rendered via createPortal into the existing document.body
+// node - no manual DOM node creation, no innerHTML, purely React-rendered JSX.
+// A single component so it can be dropped into each phase branch's JSX without
+// restructuring the file's existing per-phase early-return structure.
+function PowerCardOverlays({ currentAnnounce, announceVisible, roundCardPlays, roundNumber }: {
+  currentAnnounce: { team: string; type: string } | null;
+  announceVisible: boolean;
+  roundCardPlays: { team_name: string; card_type: string; round_number: number | null }[];
+  roundNumber: number;
+}) {
+  if (typeof document === "undefined") return null;
+  const thisRoundCards = roundCardPlays.filter(c => c.round_number === roundNumber);
+  return createPortal(
+    <>
+      {currentAnnounce && (
+        <div style={{
+          position: "fixed", top: 24, left: "50%",
+          transform: announceVisible ? "translate(-50%, 0)" : "translate(-50%, -12px)",
+          opacity: announceVisible ? 1 : 0,
+          transition: "opacity 0.35s ease, transform 0.35s ease",
+          zIndex: 9999, pointerEvents: "none",
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "10px 20px", borderRadius: 14,
+          background: "rgba(20,5,40,0.92)",
+          border: "1px solid " + (POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#BE26C1"),
+          boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+          fontFamily: "'Inter', sans-serif",
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1, color: POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#BE26C1" }}>
+            {"\u26A1 POWER CARD"}
+          </span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>{currentAnnounce.team}</span>
+          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
+            {POWER_CARDS.find(p => p.type === currentAnnounce.type)?.title || currentAnnounce.type}
+          </span>
+        </div>
+      )}
+      {thisRoundCards.length > 0 && (
+        <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 9998, display: "flex", flexDirection: "column", gap: 6, fontFamily: "'Inter', sans-serif" }}>
+          {thisRoundCards.map((c, i) => {
+            const card = POWER_CARDS.find(p => p.type === c.card_type);
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 10, background: "rgba(20,5,40,0.9)", border: "1px solid " + (card?.color || "#888"), color: "#fff", fontSize: 13, fontWeight: 600 }}>
+                <span>{card?.emoji}</span><span>{c.team_name}</span><span style={{ color: "rgba(255,255,255,0.5)" }}>{card?.title}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>,
+    document.body
+  );
+}
+
 function DisplayScreenInner() {
   const searchParams = useSearchParams();
   const autoConnectedRef = useRef(false);
@@ -241,42 +298,34 @@ function DisplayScreenInner() {
   // restarting the spin audio.
   const spinNonceHandledRef = useRef<number | null>(null);
 
-  const [cardFlash, setCardFlash] = useState<{ team: string; type: string } | null>(null);
+  const seenCardPlaysRef = useRef<Set<string>>(new Set());
+  // Full running list of card plays received this session, each tagged with the
+  // round_number it was played in (stamped by UnoCards.tsx at insert time). The
+  // "active this round" panel and leaderboard reminder both derive from this by
+  // filtering on round_number === roundNumber at render time - no explicit reset
+  // needed, since the filter naturally excludes prior rounds once roundNumber
+  // advances. uno_cards itself remains the permanent audit log; this is just a
+  // local mirror of the rows relevant to the currently connected session.
+  const [roundCardPlays, setRoundCardPlays] = useState<{ team_name: string; card_type: string; round_number: number | null }[]>([]);
+
+  // Compact top-centre announcement, display-only. A queue ensures multiple
+  // near-simultaneous plays are shown one at a time, never overlapping.
+  const [announceQueue, setAnnounceQueue] = useState<{ team: string; type: string }[]>([]);
+  const [currentAnnounce, setCurrentAnnounce] = useState<{ team: string; type: string } | null>(null);
+  const [announceVisible, setAnnounceVisible] = useState(false);
   useEffect(() => {
-    const styleEl = document.createElement("style");
-    styleEl.textContent = "@keyframes reverseFlash { 0% { transform: translateX(-50%) scale(1); } 100% { transform: translateX(-50%) scale(1.05); } }";
-    document.head.appendChild(styleEl);
-    return () => { if (styleEl.parentNode) styleEl.parentNode.removeChild(styleEl); };
-  }, []);
-  const cardFlashElRef = useRef<HTMLDivElement | null>(null);
+    if (currentAnnounce || announceQueue.length === 0) return;
+    const next = announceQueue[0];
+    setAnnounceQueue(q => q.slice(1));
+    setCurrentAnnounce(next);
+  }, [announceQueue, currentAnnounce]);
   useEffect(() => {
-    const el = document.createElement("div");
-    el.style.cssText = "position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;display:none;padding:14px 32px;border-radius:12px;background:rgba(20,5,40,0.95);border:2px solid #BE26C1;color:#fff;font-family:sans-serif;font-size:18px;font-weight:700;letter-spacing:1px;box-shadow:0 4px 24px rgba(190,38,193,0.5);";
-    document.body.appendChild(el);
-    cardFlashElRef.current = el;
-    return () => { if (el.parentNode) el.parentNode.removeChild(el); };
-  }, []);
-  useEffect(() => {
-    const el = cardFlashElRef.current;
-    if (!el) return;
-    if (cardFlash) {
-      const label = cardFlash.type === "block" ? "Time-Out" : cardFlash.type === "reverse" ? "Reverse" : "Boost";
-      if (cardFlash.type === "reverse") {
-        // Reverse flips a score - make this one unmissable, distinct from the other two cards
-        el.textContent = "\u21BB  " + cardFlash.team + " PLAYED REVERSE!  \u21BB";
-        el.style.cssText = "position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;display:block;padding:22px 56px;border-radius:18px;background:rgba(239,68,68,0.25);border:3px solid #ef4444;color:#fff;font-family:sans-serif;font-size:32px;font-weight:900;letter-spacing:2px;box-shadow:0 0 50px rgba(239,68,68,0.7);animation:reverseFlash 0.5s ease-in-out infinite alternate;";
-      } else if (cardFlash.type === "block") {
-        el.textContent = "\u23F8  " + cardFlash.team + " PLAYED TIME-OUT!  \u23F8";
-        el.style.cssText = "position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;display:block;padding:20px 48px;border-radius:18px;background:rgba(59,130,246,0.25);border:3px solid #3b82f6;color:#fff;font-family:sans-serif;font-size:28px;font-weight:900;letter-spacing:2px;box-shadow:0 0 50px rgba(59,130,246,0.7);";
-      } else {
-        el.textContent = "\u26A1  " + cardFlash.team + " PLAYED BOOST!  \u26A1";
-        el.style.cssText = "position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;display:block;padding:20px 48px;border-radius:18px;background:rgba(234,179,8,0.25);border:3px solid #eab308;color:#fff;font-family:sans-serif;font-size:28px;font-weight:900;letter-spacing:2px;box-shadow:0 0 50px rgba(234,179,8,0.7);";
-      }
-    } else {
-      el.style.display = "none";
-    }
-  }, [cardFlash]);
-  const cardFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    if (!currentAnnounce) return;
+    setAnnounceVisible(true);
+    const fadeOutTimer = setTimeout(() => setAnnounceVisible(false), 1200);
+    const clearTimer = setTimeout(() => setCurrentAnnounce(null), 1500);
+    return () => { clearTimeout(fadeOutTimer); clearTimeout(clearTimer); };
+  }, [currentAnnounce]);
   const victorySongRef = useRef<HTMLAudioElement|null>(null);
   const celebrationPlayingForRef = useRef<string | null>(null);
   const clappingRef = useRef<HTMLAudioElement|null>(null);
@@ -353,11 +402,11 @@ function DisplayScreenInner() {
     if (clappingRef.current) { clappingRef.current.pause(); clappingRef.current.currentTime = 0; clappingRef.current = null; }
   }
 
-  function triggerCardFlash(team: string, type: string) {
-    if (cardFlashTimerRef.current) clearTimeout(cardFlashTimerRef.current);
-    setCardFlash({ team, type });
-    playSound("round-start.mp3", 0.9);
-    cardFlashTimerRef.current = setTimeout(() => setCardFlash(null), 5000);
+  function triggerCardFlash(team: string, type: string, roundNum: number | null, dedupKey: string) {
+    if (seenCardPlaysRef.current.has(dedupKey)) return;
+    seenCardPlaysRef.current.add(dedupKey);
+    setRoundCardPlays(prev => [...prev, { team_name: team, card_type: type, round_number: roundNum }]);
+    setAnnounceQueue(q => [...q, { team, type }]);
   }
   function applySession(data: Record<string, unknown>) {
     const newPhase = (data.phase as Phase) || "waiting";
@@ -617,8 +666,9 @@ function DisplayScreenInner() {
         setTeams(prev => [...prev, payload.new as { team_name: string }]);
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + pinInput }, (payload) => {
-        const c = payload.new as { team_name: string; card_type: string };
-        triggerCardFlash(c.team_name, c.card_type);
+        const c = payload.new as { id?: string|number; team_name: string; card_type: string; played_at?: string; round_number?: number|null };
+        const dedupKey = c.id != null ? String(c.id) : c.team_name + "|" + c.card_type + "|" + c.played_at;
+        triggerCardFlash(c.team_name, c.card_type, c.round_number ?? null, dedupKey);
       })
       .subscribe();
   }
@@ -663,8 +713,9 @@ function DisplayScreenInner() {
             setTeams(prev => [...prev, payload.new as { team_name: string }]);
           })
           .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + pinFromUrl }, (payload) => {
-            const c = payload.new as { team_name: string; card_type: string };
-            triggerCardFlash(c.team_name, c.card_type);
+            const c = payload.new as { id?: string|number; team_name: string; card_type: string; played_at?: string; round_number?: number|null };
+            const dedupKey = c.id != null ? String(c.id) : c.team_name + "|" + c.card_type + "|" + c.played_at;
+            triggerCardFlash(c.team_name, c.card_type, c.round_number ?? null, dedupKey);
           })
           .subscribe();
         });
@@ -699,6 +750,7 @@ function DisplayScreenInner() {
     const rankLabel = (r: number) => rankLabels[r] || String(r);
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, gap:32 }}>
+      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         <style>{`@keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.15} }`}</style>
         <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: hardDeckTeam ? 32 : 60, fontWeight: hardDeckTeam ? 600 : 800, color: hardDeckTeam ? "rgba(190,38,193,0.5)" : purple, letterSpacing: hardDeckTeam ? 4 : 6, textShadow: hardDeckTeam ? "none" : "0 0 12px rgba(190,38,193,0.35)" }}>THE HARD DECK</div>
         {hardDeckStatus === "wheel" && teams.length > 0 && hardDeckWheelTarget !== null && (
@@ -757,6 +809,7 @@ function DisplayScreenInner() {
     if (phase !== "waiting") {
       return (
         <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font }}>
+      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
           <img src="/me-logo.jpg" alt="ME" style={{ width:80, height:80, borderRadius:"50%", marginBottom:24, border:"3px solid "+purple }} />
           <div style={{ fontSize:65, fontWeight:800, color:purple, letterSpacing:6, marginBottom:8, textShadow:"0 0 40px rgba(190,38,193,0.6)" }}>Quiz-It</div>
           <div style={{ fontSize:20, color:"rgba(255,255,255,0.4)", letterSpacing:3, marginBottom:48 }}>Powered by Mac Entertainment</div>
@@ -772,6 +825,7 @@ function DisplayScreenInner() {
     const card = POWER_CARDS[introCardIdx];
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", fontFamily:font }}>
+        <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         {/* Left: compact join info */}
         <div style={{ flex:"0 0 38%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:32, borderRight:"2px solid rgba(190,38,193,0.2)" }}>
           <img src="/me-logo.jpg" alt="ME" style={{ width:52, height:52, borderRadius:"50%", marginBottom:14, border:"2px solid "+purple }} />
@@ -815,6 +869,7 @@ function DisplayScreenInner() {
     const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes;
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, padding:48 }}>
+      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         <div style={{ fontSize:42, fontWeight:800, color:purple, letterSpacing:5, marginBottom:8 }}>INTERMISSION</div>
         <div style={{ fontSize:18, color:"rgba(255,255,255,0.4)", letterSpacing:2, marginBottom:40 }}>Next round starting soon...</div>
         {!hasContent ? (
@@ -850,6 +905,7 @@ function DisplayScreenInner() {
   if (phase === "spin_to_win") {
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, padding:40 }}>
+      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         <div style={{ width:"100%", maxWidth:900 }}>
           <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeam || "Team"} victorySong={fastestSong || undefined} size="full" audioEnabled={true} />
         </div>
@@ -861,14 +917,25 @@ function DisplayScreenInner() {
     const sorted = [...scoreboardData].sort((a,b) => b.total_points - a.total_points);
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", padding:"48px 80px", fontFamily:font, color:"#fff" }}>
+      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         <div style={{ fontSize:45, fontWeight:800, color:purple, letterSpacing:4, marginBottom:40, textAlign:"center", textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>SCOREBOARD</div>
-        {sorted.map((s,i) => (
+        {sorted.map((s,i) => {
+          const teamRoundCards = roundCardPlays.filter(c => c.team_name === s.team_name && c.round_number === roundNumber);
+          return (
           <div key={s.team_name} style={{ display:"flex", alignItems:"center", gap:20, padding:"16px 24px", borderRadius:16, background:i===0?"rgba(255,215,0,0.1)":i===1?"rgba(192,192,192,0.08)":i===2?"rgba(205,127,50,0.08)":"rgba(255,255,255,0.04)", border:"2px solid "+(i===0?"rgba(255,215,0,0.4)":i===1?"rgba(192,192,192,0.3)":i===2?"rgba(205,127,50,0.3)":"rgba(255,255,255,0.08)"), marginBottom:12, boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>
             <span style={{ fontSize:40, fontWeight:900, color:i===0?"gold":i===1?"silver":i===2?"#cd7f32":"rgba(255,255,255,0.3)", minWidth:48 }}>{i+1}</span>
             <span style={{ fontSize:35, fontWeight:700, flex:1 }}>{s.team_name}</span>
+            {teamRoundCards.length > 0 && (
+              <div style={{ display:"flex", gap:6 }}>
+                {teamRoundCards.map((c, idx) => (
+                  <span key={idx} title={POWER_CARDS.find(p => p.type === c.card_type)?.title} style={{ width:16, height:16, borderRadius:4, background: POWER_CARDS.find(p => p.type === c.card_type)?.color || "#888" }} />
+                ))}
+              </div>
+            )}
             <span style={{ fontSize:45, fontWeight:900, color:purple }}>{s.total_points}</span>
           </div>
-        ))}
+          );
+        })}
         <div style={{ marginTop:32, textAlign:"center", fontSize:18, color:"rgba(255,255,255,0.2)", letterSpacing:3 }}>Quiz-It · Powered by Mac Entertainment</div>
       </div>
     );
@@ -883,6 +950,7 @@ function DisplayScreenInner() {
     if (trophyVisible) {
       return (
         <div style={{ minHeight:"100vh", background:"linear-gradient(1deg, #0a0020 0%, #1a003a 50%, #0a0020 100%)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, overflow:"hidden", position:"relative" }}>
+      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
           {/* Stars background */}
           <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse at center, rgba(190,38,193,0.15) 0%, transparent 70%)" }} />
 
@@ -986,6 +1054,7 @@ function DisplayScreenInner() {
     const confettiColors = ["#BE26C1","#F5B800","#22C55E","#38BDF8","#F87171","#A78BFA","#FB923C"];
     return (
       <div style={{ height:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',sans-serif", position:"relative", overflow:"hidden" }}>
+      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         {/* Confetti layer */}
         {fastestTeam && (
           <div style={{ position:"absolute", inset:0, pointerEvents:"none", overflow:"hidden" }}>
@@ -1037,6 +1106,7 @@ function DisplayScreenInner() {
     const correctKey = question.correct_answer.toLowerCase();
     return (
       <div style={{ height:"100vh", background:"#0D0110", display:"flex", flexDirection:"column", fontFamily:"'Inter',sans-serif", color:"#fff", animation:"flashReveal 0.45s ease-out", position:"relative" }}>
+      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         {/* HEADER */}
         <div style={{ flexShrink:0, padding:"14px 40px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid rgba(34,197,94,0.2)" }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -1106,6 +1176,7 @@ function DisplayScreenInner() {
     if (isPicture && pictureSubPhase === "image_only" && imageUrl) {
       return (
         <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, position:"relative" }}>
+      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
           <div style={{ position:"absolute", top:20, right:30, fontSize:18, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Q{questionIndex+1} - Quiz-It</div>
           <img src={imageUrl} alt="Quiz image" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; setImageLoadFailed(true); }} style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:16, objectFit:"contain", boxShadow:"0 0 60px rgba(190,38,193,0.3)", display: imageLoadFailed ? "none" : "block" }} />
           {imageLoadFailed && (
@@ -1123,6 +1194,7 @@ function DisplayScreenInner() {
     if (isPicture && pictureSubPhase === "question_visible") {
       return (
         <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", fontFamily:font, color:"#fff" }}>
+      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
           <div style={{ display:"flex", alignItems:"center", gap:16, padding:"20px 48px", borderBottom:"1px solid rgba(190,38,193,0.2)" }}>
             <div style={{ fontSize:16, letterSpacing:4, color:"rgba(255,255,255,0.3)" }}>Q{questionIndex+1}</div>
             <div style={{ padding:"4px 16px", borderRadius:999, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", fontSize:16, color:purple, letterSpacing:2 }}>PICTURE ROUND</div>
@@ -1168,6 +1240,7 @@ function DisplayScreenInner() {
         position:"relative", overflow:"hidden",
         background:"linear-gradient(160deg,#08001a 0%,#12002a 45%,#0a0018 100%)",
         animation: tLeft <= 3 && tLeft > 0 ? "screenPulse 0.8s ease-in-out infinite" : "none" }}>
+        <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 70% 50% at 50% 20%, rgba(190,38,193,0.12) 0%, transparent 65%)", pointerEvents:"none", zIndex:0 }} />
         <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 40% 30% at 80% 80%, rgba(190,38,193,0.05) 0%, transparent 60%)", pointerEvents:"none", zIndex:0 }} />
         <svg style={{ position:"absolute", bottom:0, left:0, width:"100%", height:180, pointerEvents:"none", zIndex:0 }} viewBox="0 0 1920 180" preserveAspectRatio="none">

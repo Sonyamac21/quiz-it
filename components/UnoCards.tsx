@@ -8,21 +8,32 @@ const CARDS = [
   { type: "x2",      label: "Boost",    emoji: "⚡", color: "#facc15", bg: "rgba(234,179,8,0.2)",   desc: "Doubles your points for every correct answer in the current round." },
 ];
 
-export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { teamName: string; sessionPin?: string; compact?: boolean }) {
+export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = false }: { teamName: string; sessionPin?: string; roundNumber?: number; compact?: boolean }) {
   const [used, setUsed] = useState<string[]>([]);
+  const [usedThisRound, setUsedThisRound] = useState<number[]>([]);
 
   useEffect(() => {
     if (!sessionPin) return;
     (async () => {
       const supabase = createSupabaseBrowserClient();
-      const { data } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin);
-      if (data) setUsed(data.map(d => d.card_type));
+      const { data } = await supabase.from("uno_cards").select("card_type, round_number").eq("team_name", teamName).eq("session_pin", sessionPin);
+      if (data) {
+        setUsed(data.map(d => d.card_type));
+        setUsedThisRound(data.map(d => d.round_number).filter((n): n is number => n != null));
+      }
     })();
   }, [teamName, sessionPin]);
   const [playing, setPlaying] = useState<string | null>(null);
 
+  // A team may only activate one Power Card per round. Once any card has been
+  // played with the current round_number, every other (not-yet-used) card is
+  // locked until the next round begins - this resets automatically since it's
+  // derived from usedThisRound rather than a separate flag that would need
+  // explicit clearing.
+  const roundLocked = roundNumber != null && usedThisRound.includes(roundNumber);
+
   const playCard = async (cardType: string) => {
-    if (used.includes(cardType) || playing) return;
+    if (used.includes(cardType) || playing || roundLocked) return;
     setPlaying(cardType);
     const supabase = createSupabaseBrowserClient();
     await supabase.from("uno_cards").insert({
@@ -31,6 +42,7 @@ export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { team
       used: true,
       played_at: new Date().toISOString(),
       session_pin: sessionPin || "",
+      round_number: roundNumber ?? null,
     });
     if (cardType === "block" && sessionPin) {
       // Store as pending — the 10-second lockout activates when the HOST presses
@@ -52,6 +64,7 @@ export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { team
       }
     }
     setUsed(prev => [...prev, cardType]);
+    if (roundNumber != null) setUsedThisRound(prev => [...prev, roundNumber]);
     setPlaying(null);
   };
 
@@ -60,23 +73,24 @@ export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { team
       <div style={{ display: "flex", gap: 8, justifyContent: "center", paddingTop: 6 }}>
         {CARDS.map(card => {
           const isUsed = used.includes(card.type);
+          const isLocked = isUsed || roundLocked;
           const isPlaying = playing === card.type;
           return (
             <button
               key={card.type}
               onClick={() => playCard(card.type)}
-              disabled={isUsed || !!playing}
+              disabled={isLocked || !!playing}
               title={card.desc}
               style={{
                 width: 56, height: 56, borderRadius: 12,
-                border: "2px solid " + (isUsed ? "rgba(255,255,255,0.1)" : card.color),
-                background: isUsed ? "rgba(255,255,255,0.04)" : card.bg,
-                color: isUsed ? "rgba(255,255,255,0.2)" : card.color,
-                cursor: isUsed ? "not-allowed" : "pointer",
+                border: "2px solid " + (isLocked ? "rgba(255,255,255,0.1)" : card.color),
+                background: isLocked ? "rgba(255,255,255,0.04)" : card.bg,
+                color: isLocked ? "rgba(255,255,255,0.2)" : card.color,
+                cursor: isLocked ? "not-allowed" : "pointer",
                 display: "flex", flexDirection: "column" as const,
                 alignItems: "center", justifyContent: "center", gap: 1,
-                opacity: isUsed ? 0.4 : 1,
-                boxShadow: isUsed ? "none" : "0 0 12px " + card.color + "44",
+                opacity: isLocked ? 0.4 : 1,
+                boxShadow: isLocked ? "none" : "0 0 12px " + card.color + "44",
                 transform: isPlaying ? "scale(0.93)" : "scale(1)",
                 transition: "all 0.15s", padding: 0,
               }}
@@ -98,21 +112,22 @@ export function UnoPlayerCards({ teamName, sessionPin, compact = false }: { team
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
         {CARDS.map(card => {
           const isUsed = used.includes(card.type);
+          const isLocked = isUsed || roundLocked;
           const isPlaying = playing === card.type;
           return (
             <button
               key={card.type}
               onClick={() => playCard(card.type)}
-              disabled={isUsed || !!playing}
+              disabled={isLocked || !!playing}
               style={{
                 width: "100%", padding: "14px 16px", borderRadius: 12,
-                border: "2px solid " + (isUsed ? "rgba(255,255,255,0.1)" : card.color),
-                background: isUsed ? "rgba(255,255,255,0.05)" : card.bg,
-                color: isUsed ? "rgba(255,255,255,0.3)" : "#fff",
-                cursor: isUsed ? "not-allowed" : "pointer",
+                border: "2px solid " + (isLocked ? "rgba(255,255,255,0.1)" : card.color),
+                background: isLocked ? "rgba(255,255,255,0.05)" : card.bg,
+                color: isLocked ? "rgba(255,255,255,0.3)" : "#fff",
+                cursor: isLocked ? "not-allowed" : "pointer",
                 display: "flex", flexDirection: "row" as const, alignItems: "center", gap: 14,
-                opacity: isUsed ? 0.5 : 1, transition: "all 0.2s",
-                boxShadow: isUsed ? "none" : "0 4px 16px " + card.color + "44",
+                opacity: isLocked ? 0.5 : 1, transition: "all 0.2s",
+                boxShadow: isLocked ? "none" : "0 4px 16px " + card.color + "44",
                 transform: isPlaying ? "scale(0.97)" : "scale(1)",
                 textAlign: "left" as const,
               }}

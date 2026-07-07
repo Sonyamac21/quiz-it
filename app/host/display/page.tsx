@@ -684,7 +684,7 @@ function DisplayScreenInner() {
           {connecting && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:14, marginBottom:12 }}>Connecting...</div>}
           {connectError && <div style={{ color:"#ef4444", fontSize:13, marginBottom:12 }}>{connectError}</div>}
           <button onClick={connect} disabled={pinInput.length!==4}
-            style={{ width:"100%", padding:14, borderRadius:12, background:pinInput.length===4?purple:"#333", color:"#fff", border:"none", fontSize:20, letterSpacing:3, cursor:pinInput.length===4?"pointer":"not-allowed", fontFamily:font }}>
+            style={{ width:"100%", padding:14, borderRadius:12, background:pinInput.length===4?purple:"#333", color:"#fff", border:"none", fontSize:20, letterSpacing:3, cursor:pinInput.length===4?"pointer":"not-allowed", fontFamily:font, boxShadow:pinInput.length===4?"0 2px 12px rgba(0,0,0,0.3)":"none" }}>
             Connect
           </button>
         </div>

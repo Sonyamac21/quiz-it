@@ -610,13 +610,11 @@ function QuizControllerInner() {
       // updating 0 rows, so only the host (using local state) saw the spin.
       const sid = sessionIdRef.current || sessionId;
       if (!sid) { console.error("triggerSpinIfChosen: no session ID available"); return; }
-      console.log("triggerSpinIfChosen: writing spin_to_win to session", sid);
       createSupabaseBrowserClient().from("sessions")
         .update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: nonce })
         .eq("id", sid)
         .then(({ error }) => {
           if (error) console.error("Failed to write spin_to_win phase:", error);
-          else console.log("spin_to_win phase written — display and player phones should now spin");
         });
       if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current);
       setTimeout(() => {

@@ -1355,7 +1355,7 @@ function QuizControllerInner() {
                       <div style={{ display:"flex", gap:4, marginLeft:"auto" }}>
                         <input type="number" value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="+/-" style={{ width:52, padding:"2px 4px", borderRadius:6, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:12, textAlign:"center" as const }} />
                         <button onClick={() => adjustScore(s.team_name, Number(adjustAmount))} style={{ padding:"2px 8px", borderRadius:6, background:"#BE26C1", border:"none", color:"#fff", fontSize:11, cursor:"pointer" }}>OK</button>
-                        <button onClick={() => { setAdjustTeam(null); setAdjustAmount(""); }} style={{ padding:"2px 6px", borderRadius:6, background:"rgba(255,255,255,0.08)", border:"none", color:"#aaa", fontSize:11, cursor:"pointer" }}>X</button>
+                        <button onClick={() => { setAdjustTeam(null); setAdjustAmount(""); }} aria-label="Cancel score adjustment" style={{ padding:"2px 6px", borderRadius:6, background:"rgba(255,255,255,0.08)", border:"none", color:"#aaa", fontSize:11, cursor:"pointer" }}>X</button>
                       </div>
                     ) : (
                       <button onClick={() => setAdjustTeam(s.team_name)} style={{ marginLeft:"auto", fontSize:10, padding:"2px 6px", borderRadius:6, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.45)", cursor:"pointer" }}>+/- pts</button>

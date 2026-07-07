@@ -146,6 +146,7 @@ export default function RoundsPage() {
                     disabled={!selectedRound}
                     onClick={() => selectedRound && duplicateRound(selectedRound)}
                     title="Duplicate selected round"
+                    aria-label="Duplicate selected round"
                     style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.06)", color: selectedRound ? "#fff" : "rgba(255,255,255,0.3)", cursor: selectedRound ? "pointer" : "not-allowed", fontSize: 14, boxShadow: selectedRound ? "0 2px 6px rgba(0,0,0,0.2)" : "none" }}
                   >⧉</button>
                   <button
@@ -153,6 +154,7 @@ export default function RoundsPage() {
                     disabled={!selectedRound}
                     onClick={() => selectedRound && deleteRound(selectedRound.id)}
                     title="Delete selected round"
+                    aria-label="Delete selected round"
                     style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.06)", color: selectedRound ? "#fff" : "rgba(255,255,255,0.3)", cursor: selectedRound ? "pointer" : "not-allowed", fontSize: 14, boxShadow: selectedRound ? "0 2px 6px rgba(0,0,0,0.2)" : "none" }}
                   >🗑</button>
                 </div>

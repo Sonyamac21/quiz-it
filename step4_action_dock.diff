@@ -1,0 +1,62 @@
+diff --git a/app/host/quiz/page.tsx b/app/host/quiz/page.tsx
+index 9fb6b9c..20fd9e4 100644
+--- a/app/host/quiz/page.tsx
++++ b/app/host/quiz/page.tsx
+@@ -1211,45 +1211,45 @@ function QuizControllerInner() {
+                 </div>
+               )}
+ 
+-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" as const, marginTop:16, paddingTop:16, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
++              <div style={{ display:"flex", gap:10, flexWrap:"wrap" as const, marginTop:20, paddingTop:20, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
+                 <button onClick={doStartRound}
+-                  style={{ padding:"10px 20px", borderRadius:8, background:"rgba(251,146,60,0.3)", border:"1px solid rgba(251,146,60,0.6)", color:"#fb923c", cursor:"pointer", fontSize:13 }}>
++                  style={{ padding:"11px 22px", borderRadius:10, background:"rgba(251,146,60,0.3)", border:"1px solid rgba(251,146,60,0.6)", color:"#fb923c", cursor:"pointer", fontSize:13, fontWeight:700, boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>
+                   Start Round
+                 </button>
+                 <button onClick={() => doPreviewQuestion(qIdx)} disabled={hostPhase==="preview"}
+-                  style={{ padding:"10px 20px", borderRadius:8, background:"rgba(56,189,248,0.2)", border:"1px solid rgba(56,189,248,0.5)", color:"#38bdf8", cursor:"pointer", fontSize:13 }}>
++                  style={{ padding:"11px 22px", borderRadius:10, background:hostPhase==="preview"?"rgba(255,255,255,0.04)":"rgba(56,189,248,0.2)", border:"1px solid "+(hostPhase==="preview"?"rgba(255,255,255,0.1)":"rgba(56,189,248,0.5)"), color:hostPhase==="preview"?"rgba(255,255,255,0.3)":"#38bdf8", cursor:hostPhase==="preview"?"not-allowed":"pointer", fontSize:13, fontWeight:700, boxShadow:hostPhase==="preview"?"none":"0 2px 8px rgba(0,0,0,0.2)" }}>
+                   Preview Q
+                 </button>
+                 <button onClick={doSendQuestion} disabled={hostPhase!=="preview"}
+-                  style={{ padding:"10px 20px", borderRadius:8, background:hostPhase==="preview"?"rgba(190,38,193,0.4)":"rgba(255,255,255,0.05)", border:"1px solid "+(hostPhase==="preview"?"#BE26C1":"rgba(255,255,255,0.1)"), color:hostPhase==="preview"?"#fff":"#444", cursor:hostPhase==="preview"?"pointer":"not-allowed", fontSize:13 }}>
++                  style={{ padding:"11px 22px", borderRadius:10, background:hostPhase==="preview"?"rgba(190,38,193,0.4)":"rgba(255,255,255,0.04)", border:"1px solid "+(hostPhase==="preview"?"#BE26C1":"rgba(255,255,255,0.1)"), color:hostPhase==="preview"?"#fff":"rgba(255,255,255,0.3)", cursor:hostPhase==="preview"?"pointer":"not-allowed", fontSize:13, fontWeight:700, boxShadow:hostPhase==="preview"?"0 2px 10px rgba(190,38,193,0.35)":"none" }}>
+                   Send Live
+                 </button>
+                 <button onClick={doStartTimer} disabled={hostPhase==="timer"}
+-                  style={{ padding:"10px 20px", borderRadius:8, background:hostPhase==="timer"?"#111":"rgba(251,191,36,0.3)", border:"1px solid "+(hostPhase==="timer"?"#333":"rgba(251,191,36,0.6)"), color:hostPhase==="timer"?"#444":"#fbbf24", cursor:hostPhase==="timer"?"not-allowed":"pointer", fontSize:13 }}>
++                  style={{ padding:"11px 22px", borderRadius:10, background:hostPhase==="timer"?"rgba(255,255,255,0.04)":"rgba(251,191,36,0.3)", border:"1px solid "+(hostPhase==="timer"?"rgba(255,255,255,0.1)":"rgba(251,191,36,0.6)"), color:hostPhase==="timer"?"rgba(255,255,255,0.3)":"#fbbf24", cursor:hostPhase==="timer"?"not-allowed":"pointer", fontSize:13, fontWeight:700, boxShadow:hostPhase==="timer"?"none":"0 2px 8px rgba(0,0,0,0.2)" }}>
+                   {hostPhase==="timer" ? timeLeft+"s" : "Timer"}
+                 </button>
+                 <button onClick={doRevealAnswer} disabled={hostPhase==="answer"}
+-                  style={{ padding:"10px 20px", borderRadius:8, background:hostPhase==="answer"?"#111":"rgba(34,197,94,0.3)", border:"1px solid "+(hostPhase==="answer"?"#333":"rgba(34,197,94,0.6)"), color:hostPhase==="answer"?"#444":"#22c55e", cursor:hostPhase==="answer"?"not-allowed":"pointer", fontSize:13 }}>
++                  style={{ padding:"11px 22px", borderRadius:10, background:hostPhase==="answer"?"rgba(255,255,255,0.04)":"rgba(34,197,94,0.3)", border:"1px solid "+(hostPhase==="answer"?"rgba(255,255,255,0.1)":"rgba(34,197,94,0.6)"), color:hostPhase==="answer"?"rgba(255,255,255,0.3)":"#22c55e", cursor:hostPhase==="answer"?"not-allowed":"pointer", fontSize:13, fontWeight:700, boxShadow:hostPhase==="answer"?"none":"0 2px 8px rgba(0,0,0,0.2)" }}>
+                   Reveal
+                 </button>
+                 <button onClick={doCelebrate}
+-                  style={{ padding:"10px 20px", borderRadius:8, background:"rgba(251,191,36,0.2)", border:"1px solid rgba(251,191,36,0.5)", color:"#fbbf24", cursor:"pointer", fontSize:13 }}>
++                  style={{ padding:"11px 22px", borderRadius:10, background:"rgba(251,191,36,0.2)", border:"1px solid rgba(251,191,36,0.5)", color:"#fbbf24", cursor:"pointer", fontSize:13, fontWeight:700, boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>
+                   Celebrate
+                 </button>
+-                <div style={{ width:1, height:24, background:"rgba(255,255,255,0.15)", margin:"0 6px" }} />
++                <div style={{ width:1, height:28, background:"rgba(255,255,255,0.15)", margin:"0 6px" }} />
+                 <button onClick={doDumpQuestion} title="Skip this question without scoring it - stays in the round for next time"
+-                  style={{ padding:"8px 14px", borderRadius:8, background:"transparent", border:"1px solid rgba(239,68,68,0.35)", color:"rgba(239,68,68,0.7)", cursor:"pointer", fontSize:11 }}>
++                  style={{ padding:"9px 16px", borderRadius:10, background:"transparent", border:"1px solid rgba(239,68,68,0.35)", color:"rgba(239,68,68,0.7)", cursor:"pointer", fontSize:11, fontWeight:600 }}>
+                   Dump Q
+                 </button>
+-                <div style={{ width:1, height:24, background:"rgba(255,255,255,0.15)", margin:"0 6px" }} />
++                <div style={{ width:1, height:28, background:"rgba(255,255,255,0.15)", margin:"0 6px" }} />
+                 {isLastQ ? (
+                   <button onClick={doEndRound}
+-                    style={{ padding:"10px 20px", borderRadius:8, background:"rgba(248,113,113,0.3)", border:"1px solid #f87171", color:"#f87171", cursor:"pointer", fontSize:13, marginLeft:"auto" }}>
++                    style={{ padding:"11px 22px", borderRadius:10, background:"rgba(248,113,113,0.3)", border:"1px solid #f87171", color:"#f87171", cursor:"pointer", fontSize:13, fontWeight:700, marginLeft:"auto", boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>
+                     End Round
+                   </button>
+                 ) : (
+                   <button onClick={() => doPreviewQuestion(qIdx+1)}
+-                    style={{ padding:"10px 20px", borderRadius:8, background:"#BE26C1", border:"none", color:"#fff", cursor:"pointer", fontSize:13, marginLeft:"auto" }}>
++                    style={{ padding:"11px 22px", borderRadius:10, background:"#BE26C1", border:"none", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700, marginLeft:"auto", boxShadow:"0 2px 10px rgba(190,38,193,0.4)" }}>
+                     Next Q
+                   </button>
+                 )}

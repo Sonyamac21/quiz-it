@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HardDeckPanel } from "@/components/HardDeckPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
+import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc } from "@/lib/quiz/scoreService";
 
 type Question = {
   id?: number;
@@ -345,14 +346,14 @@ function QuizControllerInner() {
 
   async function loadScores(pin: string) {
     const supabase = createSupabaseBrowserClient();
-    const { data } = await supabase.from("scores").select("team_name, total_points, round_points").eq("session_pin", pin).order("total_points", { ascending: false });
-    if (data) setScores(data);
+    const data = await getScoresSvc(supabase, pin);
+    setScores(data);
   }
 
   async function ensureScores(pin: string, teamList: Team[]) {
     const supabase = createSupabaseBrowserClient();
     for (const team of teamList) {
-      await supabase.from("scores").upsert({ session_pin: pin, team_name: team.team_name, total_points: 0, round_points: 0 }, { onConflict: "session_pin,team_name", ignoreDuplicates: true });
+      await initTeamScore(supabase, pin, team.team_name);
     }
     loadScores(pin);
   }
@@ -484,10 +485,8 @@ function QuizControllerInner() {
         const mtDelta = (mtBasePts + mtTimeBonus) * (hasBoost(team.team_name) ? 2 : 1);
         lastDeltasRef.current[team.team_name] = mtDelta;
         if (mtDelta === 0) continue;
-        const { data: existingMT } = await supabase.from("scores").select("total_points, round_points").eq("session_pin", sessionPin).eq("team_name", team.team_name).single();
-        const currentTotalMT = existingMT?.total_points ?? 0;
-        const currentRoundMT = existingMT?.round_points ?? 0;
-        await supabase.from("scores").upsert({ session_pin: sessionPin, team_name: team.team_name, total_points: currentTotalMT + mtDelta, round_points: currentRoundMT + mtDelta, updated_at: new Date().toISOString() }, { onConflict: "session_pin,team_name" });
+        const mtResult = await applyScoreDelta(supabase, sessionPin, team.team_name, mtDelta, { eventKey: `autoscore:${sessionPin}:${qIdx}:${team.team_name}:multitap` });
+        if (mtResult.scoreboardSyncError) console.error(`autoScore (multi tap, ${team.team_name}): score updated but scoreboard_data sync failed:`, mtResult.scoreboardSyncError);
         continue;
       }
       const isCorrect = isFuzzyMatch(ans.answer_text, correctText, q);
@@ -499,10 +498,8 @@ function QuizControllerInner() {
       const delta = (basePts + timeBonusPts) * (hasBoost(team.team_name) ? 2 : 1) + penalty;
       lastDeltasRef.current[team.team_name] = delta;
       if (delta === 0) continue;
-      const { data: existing } = await supabase.from("scores").select("total_points, round_points").eq("session_pin", sessionPin).eq("team_name", team.team_name).single();
-      const currentTotal = existing?.total_points ?? 0;
-      const currentRound = existing?.round_points ?? 0;
-      await supabase.from("scores").upsert({ session_pin: sessionPin, team_name: team.team_name, total_points: currentTotal + delta, round_points: currentRound + delta, updated_at: new Date().toISOString() }, { onConflict: "session_pin,team_name" });
+      const scoreResult = await applyScoreDelta(supabase, sessionPin, team.team_name, delta, { eventKey: `autoscore:${sessionPin}:${qIdx}:${team.team_name}` });
+      if (scoreResult.scoreboardSyncError) console.error(`autoScore (${team.team_name}): score updated but scoreboard_data sync failed:`, scoreResult.scoreboardSyncError);
     }
     loadScores(sessionPin);
   }
@@ -510,10 +507,10 @@ function QuizControllerInner() {
   async function adjustScore(teamName: string, delta: number) {
     if (!sessionPin || isNaN(delta) || delta === 0) return;
     const supabase = createSupabaseBrowserClient();
-    const { data: existing } = await supabase.from("scores").select("total_points, round_points").eq("session_pin", sessionPin).eq("team_name", teamName).single();
-    const currentTotal = existing?.total_points ?? 0;
-    const currentRound = existing?.round_points ?? 0;
-    await supabase.from("scores").upsert({ session_pin: sessionPin, team_name: teamName, total_points: currentTotal + delta, round_points: currentRound + delta, updated_at: new Date().toISOString() }, { onConflict: "session_pin,team_name" });
+    const result = await applyScoreDelta(supabase, sessionPin, teamName, delta);
+    if (result.scoreboardSyncError) {
+      alert(`Score for ${teamName} was updated, but the scoreboard failed to refresh (${result.scoreboardSyncError}). Display/handsets may show a stale total until the next score change.`);
+    }
     loadScores(sessionPin);
     setAdjustTeam(null);
     setAdjustAmount("");
@@ -522,14 +519,17 @@ function QuizControllerInner() {
   async function resetRoundPoints() {
     if (!sessionPin) return;
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("scores").update({ round_points: 0 }).eq("session_pin", sessionPin);
+    const result = await resetRoundPointsSvc(supabase, sessionPin);
+    if (result.scoreboardSyncError) console.error("resetRoundPoints: round points reset but scoreboard_data sync failed:", result.scoreboardSyncError);
     loadScores(sessionPin);
   }
 
   async function pushScoreboardToScreen() {
     if (!sessionId) return;
+    // scoreboard_data is kept fresh by the score service after every score
+    // mutation - no need to recompute or embed it here, just toggle visibility.
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "scoreboard", scoreboard_data: scores, show_scoreboard: true }).eq("id", sessionId);
+    await supabase.from("sessions").update({ phase: "scoreboard", show_scoreboard: true }).eq("id", sessionId);
     setShowScoreboard(true);
   }
 
@@ -542,8 +542,10 @@ function QuizControllerInner() {
 
   async function pushScoreboardToHandsets() {
     if (!sessionId) return;
+    // scoreboard_data is kept fresh by the score service after every score
+    // mutation - no need to recompute or embed it here, just toggle visibility.
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ show_scoreboard: true, scoreboard_data: scores }).eq("id", sessionId);
+    await supabase.from("sessions").update({ show_scoreboard: true }).eq("id", sessionId);
     setShowScoreboardOnHandsets(true);
   }
 
@@ -558,7 +560,9 @@ function QuizControllerInner() {
     if (!sessionId) { alert("Not connected to a session - cannot end quiz."); return; }
     quizEndRevealedRef.current = 0;
     const supabase = createSupabaseBrowserClient();
-    const { data, error } = await supabase.from("sessions").update({ phase: "quiz_end", scoreboard_data: scores, quiz_end_revealed_count: 0, quiz_end_trophy_visible: false }).eq("id", sessionId).select();
+    // scoreboard_data is kept fresh by the score service after every score
+    // mutation - no need to recompute or embed it here.
+    const { data, error } = await supabase.from("sessions").update({ phase: "quiz_end", quiz_end_revealed_count: 0, quiz_end_trophy_visible: false }).eq("id", sessionId).select();
     if (error) {
       console.error("doEndOfQuiz failed:", error);
       alert("Failed to end quiz: " + error.message);
@@ -614,7 +618,7 @@ function QuizControllerInner() {
         .then(({ error }) => {
           if (error) console.error("Failed to write spin_to_win phase:", error);
         });
-      if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current);
+      if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current, nonce);
       setTimeout(() => {
         const finalSid = sessionIdRef.current || sessionId;
         // spin_offered must be cleared here too - previously only spin_choice/nonce/target
@@ -641,10 +645,7 @@ function QuizControllerInner() {
           // otherwise a team that joined after "Initialise Scores" was clicked, or
           // simply hasn't answered correctly yet, was invisible on the leaderboard
           // entirely (it only ever showed teams that already had a scores row).
-          createSupabaseBrowserClient().from("scores").upsert(
-            { session_pin: pin, team_name: t.team_name, total_points: 0, round_points: 0 },
-            { onConflict: "session_pin,team_name", ignoreDuplicates: true }
-          ).then(() => loadScores(pin));
+          initTeamScore(createSupabaseBrowserClient(), pin, t.team_name).then(() => loadScores(pin));
         }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards" }, (payload) => {
@@ -848,14 +849,13 @@ function QuizControllerInner() {
     // Victory song now plays only on the display screen to avoid duplicate/echoing audio
   }
 
-  async function applySpinResult(winIdx: number, teamName: string) {
+  async function applySpinResult(winIdx: number, teamName: string, spinNonce?: number) {
     const supabase = createSupabaseBrowserClient();
-    const { data: allScores } = await supabase.from("scores").select("team_name, total_points, round_points").eq("session_pin", sessionPin);
-    if (!allScores) return;
+    const allScores = await getScoresSvc(supabase, sessionPin);
+    if (!allScores.length) return;
     const others = allScores.filter(s => s.team_name !== teamName).sort((a, b) => b.total_points - a.total_points);
     const mine = allScores.find(s => s.team_name === teamName);
     const myTotal = mine?.total_points ?? 0;
-    const myRound = mine?.round_points ?? 0;
     const label = SLOT_SEGS[winIdx]?.label;
     let newTotal = myTotal;
     // Numeric outcomes are a straightforward add/subtract, floored at 0.
@@ -869,27 +869,21 @@ function QuizControllerInner() {
     else if (label === "2nd Place") newTotal = others.length >= 2 ? others[1].total_points + 1 : Math.max(0, (others[0]?.total_points ?? 1) - 1);
     else if (label === "3rd Place") newTotal = others.length >= 3 ? others[2].total_points + 1 : Math.max(0, (others[others.length - 1]?.total_points ?? 1) - 1);
     else if (label === "Last Place") newTotal = Math.max(0, (others[others.length - 1]?.total_points ?? 1) - 1);
-    const delta = newTotal - myTotal;
-    if (delta === 0) return;
-    await supabase.from("scores").upsert(
-      { session_pin: sessionPin, team_name: teamName, total_points: newTotal, round_points: myRound + delta, updated_at: new Date().toISOString() },
-      { onConflict: "session_pin,team_name" }
-    );
-    loadScores(sessionPin);
-    // Keep sessions.scoreboard_data (the field player handsets actually read
-    // their scores from) in sync immediately too, not just the host's own
-    // local state - otherwise handsets keep showing the pre-spin total until
-    // the host happens to next manually push the scoreboard.
-    // Uses sessionIdRef.current, not the sessionId state variable - this
-    // function runs inside the realtime subscription's callback chain, whose
-    // closure was captured once when the subscription was set up (before
-    // sessionId had a value), so the plain state variable is permanently
-    // stale here and silently evaluated to null - the ref is always current.
-    const sid = sessionIdRef.current || sessionId;
-    if (sid) {
-      const freshScoreboard = allScores.map(s => s.team_name === teamName ? { ...s, total_points: newTotal, round_points: myRound + delta } : s);
-      await supabase.from("sessions").update({ scoreboard_data: freshScoreboard }).eq("id", sid);
+    // eventKey keyed on the spin_nonce written to the session row for this
+    // spin - guards against applySpinResult ever being invoked twice for the
+    // same spin (e.g. a future direct call plus a realtime-triggered call).
+    // setScoreAbsolute refreshes sessions.scoreboard_data itself as part of
+    // this call - no separate sync step needed here. If that refresh fails,
+    // the score write still succeeded but Display/Player may show a stale
+    // scoreboard until the next mutation; report it rather than pretend the
+    // spin fully succeeded.
+    const result = await setScoreAbsolute(supabase, sessionPin, teamName, newTotal, {
+      eventKey: spinNonce != null ? `spin:${sessionPin}:${spinNonce}` : undefined,
+    });
+    if (result.scoreboardSyncError) {
+      console.error("applySpinResult: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
     }
+    loadScores(sessionPin);
   }
 
   async function doOfferSpinToWin() {

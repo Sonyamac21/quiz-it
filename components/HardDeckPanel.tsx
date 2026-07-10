@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
+import { applyScoreDelta } from "@/lib/quiz/scoreService";
 
 type PlayingCard = { rank: number; suit: "♠" | "♥" | "♦" | "♣" };
 type HardDeckStatus =
@@ -157,12 +158,16 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
 
   async function applyBankedPoints(amount: number) {
     if (!team || amount <= 0) return;
-    const { data: existing } = await supabase.from("scores").select("*").eq("session_pin", sessionPin).eq("team_name", team).maybeSingle();
-    if (existing) {
-      await supabase.from("scores").update({ total_points: (existing.total_points || 0) + amount }).eq("session_pin", sessionPin).eq("team_name", team);
-    } else {
-      await supabase.from("scores").insert({ session_pin: sessionPin, team_name: team, total_points: amount, round_points: amount });
-    }
+    // Routed through the shared score service (scores table is authoritative).
+    // roundDelta: 0 preserves the pre-existing behaviour of this function,
+    // which only ever adjusted total_points for a team (a scores row already
+    // exists for every team by the time Hard Deck can run, created at team
+    // join / "Initialise Scores") and left round_points untouched.
+    const result = await applyScoreDelta(supabase, sessionPin, team, amount, {
+      roundDelta: 0,
+      eventKey: `harddeck:${sessionId}:${team}:${cards.length}`,
+    });
+    if (result.scoreboardSyncError) console.error("Hard Deck: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
     onScoreChange?.();
   }
 

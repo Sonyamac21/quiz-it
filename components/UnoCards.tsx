@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { setScoreAbsolute } from "@/lib/quiz/scoreService";
 
 const CARDS = [
   { type: "block",   label: "Time-Out", emoji: "⏸",  color: "#60a5fa", bg: "rgba(59,130,246,0.25)", desc: "Freezes all other teams for 10 seconds — activates when the host starts the timer." },
@@ -36,11 +37,12 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
     if (used.includes(cardType) || playing || roundLocked) return;
     setPlaying(cardType);
     const supabase = createSupabaseBrowserClient();
+    const playedAt = new Date().toISOString();
     const insertPromise = supabase.from("uno_cards").insert({
       team_name: teamName,
       card_type: cardType,
       used: true,
-      played_at: new Date().toISOString(),
+      played_at: playedAt,
       session_pin: sessionPin || "",
       round_number: roundNumber ?? null,
     });
@@ -48,6 +50,9 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
     // immediately, in parallel, instead of waiting for the insert to finish
     // first. This is what was causing the noticeable delay: the score change
     // was serialized behind an unrelated write.
+    // Routed through the shared score service (scores table is authoritative).
+    // eventKey ties this score event to the card-play timestamp so the same
+    // reverse can't be applied twice.
     const reversePromise = (cardType === "reverse" && sessionPin)
       ? (async () => {
           const { data: existing } = await supabase.from("scores").select("total_points").eq("session_pin", sessionPin).eq("team_name", teamName).maybeSingle();
@@ -55,7 +60,10 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
             const current = existing.total_points || 0;
             const sign = current < 0 ? -1 : 1;
             const reversed = sign * parseInt(Math.abs(current).toString().split("").reverse().join("") || "0", 10);
-            await supabase.from("scores").update({ total_points: reversed }).eq("session_pin", sessionPin).eq("team_name", teamName);
+            const result = await setScoreAbsolute(supabase, sessionPin, teamName, reversed, {
+              eventKey: `reverse:${sessionPin}:${teamName}:${playedAt}`,
+            });
+            if (result.scoreboardSyncError) console.error("Reverse card: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
           }
         })()
       : Promise.resolve();

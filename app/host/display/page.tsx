@@ -271,6 +271,12 @@ function DisplayScreenInner() {
   const [hardDeckWheelSpinning, setHardDeckWheelSpinning] = useState(false);
   const prevHardDeckStatusRef = useRef<string>("idle");
   const [teams, setTeams] = useState<{ team_name: string; victory_song?: string; photo_url?: string }[]>([]);
+  // teams is read inside realtime subscription callbacks set up once at
+  // connect-time, whose closures freeze component state at that moment
+  // (before the teams fetch has even resolved) - this ref always holds the
+  // current value regardless, matching the sessionId staleness fix pattern.
+  const teamsRef = useRef(teams);
+  useEffect(() => { teamsRef.current = teams; }, [teams]);
   const [showWinnerPhoto, setShowWinnerPhoto] = useState(false);
   const winnerPhotoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const winnerPhotoStartedForRef = useRef<string | null>(null);
@@ -359,7 +365,7 @@ function DisplayScreenInner() {
       setTimeout(() => playSound("airhorn.mp3", 1.0), 800);
       const winner = sorted[sorted.length - 1];
       if (winner) {
-        const winnerTeam = teams.find(t => t.team_name === winner.team_name);
+        const winnerTeam = teamsRef.current.find(t => t.team_name === winner.team_name);
         setTimeout(() => {
           // Same horn/cheer/victory-song celebration sequence used in Spin to Win (SlotReels.tsx)
           const crowd = new Audio("/sounds/crowd-cheer.mp3");
@@ -420,6 +426,9 @@ function DisplayScreenInner() {
     }
     setQuestion((data.current_question as Question) || null);
     setQuestionIndex((data.current_question_index as number) ?? 0);
+    if (data.picture_sub_phase === "question_visible" || data.picture_sub_phase === "image_only") {
+      setPictureSubPhase(data.picture_sub_phase);
+    }
     setRoundName((data.round_name as string) || "");
     setRoundNumber((data.round_number as number) || 1);
     const ft = (data.fastest_team as string) || null;
@@ -527,7 +536,7 @@ function DisplayScreenInner() {
           trophyCelebrationFiredRef.current = true;
           const sorted = [...scores].sort((a,b) => a.total_points - b.total_points);
           const winner = sorted[sorted.length - 1];
-          const winnerTeam = winner ? teams.find(t => t.team_name === winner.team_name) : null;
+          const winnerTeam = winner ? teamsRef.current.find(t => t.team_name === winner.team_name) : null;
           playSound("airhorn.mp3", 1.0);
           const crowd = new Audio("/sounds/crowd-cheer.mp3");
           crowd.volume = 0.9;
@@ -1079,7 +1088,9 @@ function DisplayScreenInner() {
               {fastestTeam}
             </div>
             {showWinnerPhoto && winnerTeam?.photo_url && (
-              <img src={winnerTeam.photo_url} alt={fastestTeam} style={{ width:200, height:200, borderRadius:"50%", objectFit:"cover", border:"4px solid "+purple, marginTop:24, animation:"goldRise 0.5s 0.5s ease-out both", opacity:0 }} />
+              <div style={{ display:"flex", justifyContent:"center", marginTop:24 }}>
+                <img src={winnerTeam.photo_url} alt={fastestTeam} style={{ width:"clamp(220px,20vw,340px)", height:"clamp(220px,20vw,340px)", borderRadius:"50%", objectFit:"cover", border:"4px solid "+purple, animation:"goldRise 0.5s 0.5s ease-out both", opacity:0 }} />
+              </div>
             )}
           </div>
         ) : (

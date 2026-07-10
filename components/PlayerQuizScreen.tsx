@@ -151,6 +151,30 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
 }
 
 export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
+  // Prevent the outer document from scrolling while the gameplay screen is
+  // mounted. Plain `overflow:hidden` on body is NOT reliably honoured by iOS
+  // Safari (a well-documented mobile Safari limitation) - position:fixed on
+  // the body is the technique that actually works cross-browser, including
+  // iOS. Scoped to this component only, fully restored on unmount (including
+  // scroll position), so no other screen is affected.
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prev = { position: body.style.position, top: body.style.top, left: body.style.left, right: body.style.right, width: body.style.width };
+    body.style.position = "fixed";
+    body.style.top = -scrollY + "px";
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    return () => {
+      body.style.position = prev.position;
+      body.style.top = prev.top;
+      body.style.left = prev.left;
+      body.style.right = prev.right;
+      body.style.width = prev.width;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
   const [phase, setPhase] = useState<Phase>("waiting");
   const [question, setQuestion] = useState<Question | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);

@@ -36,7 +36,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
     if (used.includes(cardType) || playing || roundLocked) return;
     setPlaying(cardType);
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("uno_cards").insert({
+    const insertPromise = supabase.from("uno_cards").insert({
       team_name: teamName,
       card_type: cardType,
       used: true,
@@ -44,6 +44,22 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       session_pin: sessionPin || "",
       round_number: roundNumber ?? null,
     });
+    // Reverse has no dependency on the uno_cards insert above - kick it off
+    // immediately, in parallel, instead of waiting for the insert to finish
+    // first. This is what was causing the noticeable delay: the score change
+    // was serialized behind an unrelated write.
+    const reversePromise = (cardType === "reverse" && sessionPin)
+      ? (async () => {
+          const { data: existing } = await supabase.from("scores").select("total_points").eq("session_pin", sessionPin).eq("team_name", teamName).maybeSingle();
+          if (existing) {
+            const current = existing.total_points || 0;
+            const sign = current < 0 ? -1 : 1;
+            const reversed = sign * parseInt(Math.abs(current).toString().split("").reverse().join("") || "0", 10);
+            await supabase.from("scores").update({ total_points: reversed }).eq("session_pin", sessionPin).eq("team_name", teamName);
+          }
+        })()
+      : Promise.resolve();
+    await insertPromise;
     if (cardType === "block" && sessionPin) {
       // Store as pending — the 10-second lockout activates when the HOST presses
       // the timer button, not immediately. This means on a 15-second question,
@@ -54,15 +70,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
         block_until: null,
       }).eq("pin", sessionPin);
     }
-    if (cardType === "reverse" && sessionPin) {
-      const { data: existing } = await supabase.from("scores").select("total_points").eq("session_pin", sessionPin).eq("team_name", teamName).maybeSingle();
-      if (existing) {
-        const current = existing.total_points || 0;
-        const sign = current < 0 ? -1 : 1;
-        const reversed = sign * parseInt(Math.abs(current).toString().split("").reverse().join("") || "0", 10);
-        await supabase.from("scores").update({ total_points: reversed }).eq("session_pin", sessionPin).eq("team_name", teamName);
-      }
-    }
+    await reversePromise;
     setUsed(prev => [...prev, cardType]);
     if (roundNumber != null) setUsedThisRound(prev => [...prev, roundNumber]);
     setPlaying(null);

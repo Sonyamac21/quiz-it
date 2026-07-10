@@ -188,11 +188,11 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
   const showRevealBaseButton = !showWheel && team && cards.length === 0;
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(5,2,10,0.97)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: 24 }}>
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100vh", boxSizing: "border-box" as const, background: "rgba(5,2,10,0.97)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 24, padding: 24, overflowY: "auto" }}>
       <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: (!showWheel && team) ? 16 : 28, color: (!showWheel && team) ? "rgba(190,38,193,0.5)" : "#BE26C1", letterSpacing: (!showWheel && team) ? 3 : 4, fontWeight: (!showWheel && team) ? 600 : 400 }}>THE HARD DECK</div>
 
       {showWheel && (
-        <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={380} forceResultIndex={wheelTarget ?? undefined} onSpinStart={() => pushState({ hard_deck_wheel_spinning: true })} />
+        <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={300} forceResultIndex={wheelTarget ?? undefined} onSpinStart={() => pushState({ hard_deck_wheel_spinning: true })} />
       )}
 
       {!showWheel && team && (

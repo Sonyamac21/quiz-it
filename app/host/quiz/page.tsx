@@ -650,6 +650,9 @@ function QuizControllerInner() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards" }, (payload) => {
         setUnoCards(prev => [payload.new as UnoCard, ...prev]);
       })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "scores", filter: "session_pin=eq." + pin }, () => {
+        loadScores(pin);
+      })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions" }, (payload) => {
         const s = payload.new as Record<string, unknown>;
         if (s.pin !== pin) return;
@@ -872,6 +875,21 @@ function QuizControllerInner() {
       { session_pin: sessionPin, team_name: teamName, total_points: newTotal, round_points: myRound + delta, updated_at: new Date().toISOString() },
       { onConflict: "session_pin,team_name" }
     );
+    loadScores(sessionPin);
+    // Keep sessions.scoreboard_data (the field player handsets actually read
+    // their scores from) in sync immediately too, not just the host's own
+    // local state - otherwise handsets keep showing the pre-spin total until
+    // the host happens to next manually push the scoreboard.
+    // Uses sessionIdRef.current, not the sessionId state variable - this
+    // function runs inside the realtime subscription's callback chain, whose
+    // closure was captured once when the subscription was set up (before
+    // sessionId had a value), so the plain state variable is permanently
+    // stale here and silently evaluated to null - the ref is always current.
+    const sid = sessionIdRef.current || sessionId;
+    if (sid) {
+      const freshScoreboard = allScores.map(s => s.team_name === teamName ? { ...s, total_points: newTotal, round_points: myRound + delta } : s);
+      await supabase.from("sessions").update({ scoreboard_data: freshScoreboard }).eq("id", sid);
+    }
   }
 
   async function doOfferSpinToWin() {
@@ -1136,7 +1154,7 @@ function QuizControllerInner() {
                   {(["a","b","c","d"] as const).map(l => {
                     const opt = currentQ[("option_"+l) as keyof Question] as string;
                     const isCorrect = l===currentQ.correct_answer.toLowerCase();
-                    const showCorrect = (hostPhase==="answer"||hostPhase==="preview") && isCorrect;
+                    const showCorrect = isCorrect;
                     return opt ? (
                       <div key={l} style={{ padding:"14px 18px", borderRadius:12, background:showCorrect?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.06)", border:"2px solid "+(showCorrect?"#22c55e":"rgba(255,255,255,0.15)"), fontSize:15, boxShadow:showCorrect?"0 0 16px rgba(34,197,94,0.3)":"none" }}>
                         <span style={{ color:"#BE26C1", fontWeight:800, marginRight:8 }}>{l.toUpperCase()}.</span>
@@ -1153,7 +1171,7 @@ function QuizControllerInner() {
                     const opt = currentQ[("option_"+l) as keyof Question] as string | null;
                     if (!opt) return null;
                     const isCorrect = (currentQ.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).includes(l);
-                    const showCorrect = (hostPhase==="answer"||hostPhase==="preview") && isCorrect;
+                    const showCorrect = isCorrect;
                     return (
                       <div key={l} style={{ padding:"14px 18px", borderRadius:12, background:showCorrect?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.06)", border:"2px solid "+(showCorrect?"#22c55e":"rgba(255,255,255,0.15)"), fontSize:15, boxShadow:showCorrect?"0 0 16px rgba(34,197,94,0.3)":"none" }}>
                         <span style={{ color:"#BE26C1", fontWeight:800, marginRight:8 }}>{l.toUpperCase()}.</span>
@@ -1189,7 +1207,7 @@ function QuizControllerInner() {
                 </div>
               )}
 
-              {hostPhase==="answer" && (
+              {(
                 <div style={{ padding:"16px 20px", borderRadius:12, background:"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.4)", marginBottom:20 }}>
                   <div style={{ fontSize:12, color:"rgba(34,197,94,0.7)", marginBottom:4, letterSpacing:2 }}>ANSWER</div>
                   <div style={{ fontSize:24, fontWeight:700, color:"#22c55e" }}>{getCorrectAnswerText(currentQ)}</div>

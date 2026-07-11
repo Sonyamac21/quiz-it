@@ -218,6 +218,37 @@ export default function QuestionsPage() {
     }
   }
 
+  // Theme Relevance Validator. Runs only when the host supplied a theme/topic.
+  // Judges whether the question GENUINELY belongs to the theme: answering must
+  // REQUIRE knowledge of the theme AND the answer must belong to the theme (and,
+  // for Picture/Audio rounds, the media subject must too). The explanation is
+  // deliberately NOT given to the judge and the judge is told to ignore it, so a
+  // generic question can never be "made themed" by an explanation that merely
+  // name-drops the theme. Applies to every AI-generated round type. Fails OPEN on
+  // a verification error so a transient API hiccup never hard-stalls a round.
+  async function checkThemeRelevance(q: Question, activeTheme: string): Promise<{ok: boolean; note: string}> {
+    const options = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f].filter(Boolean).join(" | ");
+    const isMedia = q.question_type === "picture" || q.question_type === "audio";
+    const subject = isMedia ? (q.option_a || "") : "";
+    const prompt =
+      "You are validating whether a pub-quiz question genuinely belongs to the theme \"" + activeTheme + "\". " +
+      "A question belongs to the theme ONLY IF answering it REQUIRES specific knowledge of " + activeTheme + " AND the correct answer is itself part of " + activeTheme + ". " +
+      "Judge ONLY the question and its answer" + (isMedia ? " and the described media subject" : "") + ". IGNORE any explanation entirely - a generic question is NOT made themed by an explanation that merely mentions " + activeTheme + ". " +
+      "Decisive test: could a generally-knowledgeable person who knows NOTHING about " + activeTheme + " still answer correctly? If yes, it does NOT belong to the theme - reject it. " +
+      "Example: theme 'Disney', question 'What animal is this?', answer 'Chameleon' => REJECT (a chameleon is a real animal; no Disney knowledge is required, even if an explanation mentions Pascal from Tangled). " +
+      "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"reason\"}. " +
+      "Theme: " + activeTheme + " | Question: " + (q.question_text || "") + " | Answer(key): " + (q.correct_answer || "") +
+      (options ? " | Options: " + options : "") +
+      (subject ? " | Media subject (internal search query, not shown to players): " + subject : "");
+    try {
+      const text = await callAPI(prompt, 300);
+      return JSON.parse(text);
+    } catch {
+      // Fail open - never let a verification hiccup stall a themed round.
+      return { ok: true, note: "theme-check-unavailable" };
+    }
+  }
+
   async function generateOne(type: string, topic: string): Promise<Question|null> {
     // (lastApiError set inside try/catch below, surfaced by callers)
     const typeInstructions: Record<string,string> = {
@@ -289,6 +320,18 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         throw new Error("JSON parse failed. Raw text (first 500 chars): " + text.slice(0, 500));
       }
       if (q) { q.question_type = type; }
+      // THEME RELEVANCE: if the host supplied a theme, every question (of ANY
+      // type) must genuinely require knowledge of that theme. Checked here -
+      // before any media fetch - so an off-theme candidate is rejected and
+      // regenerated via the existing retry system without wasting an image/video
+      // lookup. When no theme is supplied, behaviour is unchanged.
+      if (q && theme && theme.trim()) {
+        const themeCheck = await checkThemeRelevance(q, theme.trim());
+        if (!themeCheck.ok) {
+          lastApiErrorRef.current = "Off-theme for '" + theme.trim() + "' (" + themeCheck.note + ") - retrying";
+          return null;
+        }
+      }
       if (q && q.question_type === "audio" && q.option_a) {
         try {
           const ytKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;

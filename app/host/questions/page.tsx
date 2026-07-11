@@ -7,6 +7,11 @@ import { AudioRecorder } from "@/components/AudioRecorder";
 
 type Question = {
   id?: number;
+  // Stable client-side identity for a question while it lives in the editor
+  // list. Used as the React key and for remove/replace so list operations act
+  // on the exact item regardless of index shifts or concurrent async updates.
+  // Not persisted (stripped before saving a round).
+  _uid?: string;
   question_text: string;
   question_type: string;
   option_a: string | null;
@@ -63,6 +68,16 @@ function normalizeQuestionText(s: string): string {
   return (s || "").toLowerCase().trim().replace(/\s+/g, " ");
 }
 
+// Stable unique id for a question list item (client-side only).
+let uidCounter = 0;
+function genUid(): string {
+  try {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  } catch {}
+  uidCounter += 1;
+  return "q_" + Date.now().toString(36) + "_" + uidCounter;
+}
+
 export default function QuestionsPage() {
   const [roundType, setRoundType] = useState("regular");
   const [difficulty, setDifficulty] = useState("mixed");
@@ -87,6 +102,7 @@ export default function QuestionsPage() {
     if (!manualCorrect.trim()) { setManualError("Please enter the correct answer"); return; }
     setManualError("");
     const newQ: Question = {
+      _uid: genUid(),
       question_text: manualText.trim(),
       question_type: manualType,
       option_a: manualA.trim() || null,
@@ -413,6 +429,9 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         // for repeat-prevention purposes this one time.
         console.error("Failed to save question to library:", libErr);
       }
+      // Stamp a stable list identity so remove/replace and React keys act on the
+      // exact item, independent of index or concurrent async list updates.
+      q._uid = genUid();
       return q;
     } catch (e) {
       lastApiErrorRef.current = e instanceof Error ? e.message : "Unknown error";
@@ -614,7 +633,12 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       if (check.ok && isAcceptable(q, good)) {
         good.push(q);
         registerAccepted(q);
-        setQuestions([...good]);
+        // Append functionally to the LIVE list instead of replacing it with a
+        // snapshot of `good`. A full `setQuestions([...good])` here would resurrect
+        // any question the user removed (via removeAndReplace) while this loop was
+        // still running, because `good` has no knowledge of that removal. Appending
+        // by prev keeps concurrent removals intact.
+        setQuestions(prev => prev.some(x => x._uid === q._uid) ? prev : [...prev, q]);
         consecutiveCheckFailures = 0;
       } else {
         // Permanently blacklist this exact question for the rest of the session
@@ -645,6 +669,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
 
   async function removeAndReplace(i: number) {
     const removed = questions[i];
+    if (!removed) return;
+    const removedUid = removed._uid;
+    // Remember the removed item's position so its replacement takes the same slot
+    // rather than being appended at the bottom.
+    const removedIndex = i;
     try {
       const supabase = createSupabaseBrowserClient();
       await supabase.from("question_bank").insert({
@@ -657,7 +686,10 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     } catch(e) { console.error("Bank insert failed:", e); }
     registerAccepted(removed); // tracks both text and answer so replacement can't be same fact
     blacklistRejected(removed); // manual rejection: never regenerate this exact question this session
-    setQuestions(prev => prev.filter((_,idx) => idx !== i));
+    // Remove by stable identity, not index. The index can shift if a background
+    // generation loop appends questions between click and this update, and index
+    // removal on a stale snapshot is exactly what let the removed item come back.
+    setQuestions(prev => removedUid ? prev.filter(x => x._uid !== removedUid) : prev.filter((_, idx) => idx !== i));
     setStatus("Finding replacement...");
     const topicList = shuffle(TOPICS);
     let replaced = false;
@@ -666,10 +698,18 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       const newQ = await generateOne(removed.question_type, replaceTopic);
       if (!newQ) continue;
       const check = await checkQuestion(newQ);
-      const currentRound = questions.filter((_,idx) => idx !== i);
+      const currentRound = questions.filter(x => x._uid !== removedUid);
       if (check.ok && isAcceptable(newQ, currentRound)) {
         registerAccepted(newQ);
-        setQuestions(prev => [...prev, newQ]);
+        // Insert the replacement at the removed item's original position, keyed by
+        // uid so a re-run or double-invoke can't duplicate it.
+        setQuestions(prev => {
+          if (prev.some(x => x._uid === newQ._uid)) return prev;
+          const copy = [...prev];
+          const insertAt = Math.min(Math.max(removedIndex, 0), copy.length);
+          copy.splice(insertAt, 0, newQ);
+          return copy;
+        });
         setStatus("Replaced!");
         setTimeout(() => setStatus(""), 2000);
         replaced = true;
@@ -721,8 +761,10 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     if (questions.length === 0) { setStatus("No questions to save!"); return; }
     setSaving(true);
     const supabase = createSupabaseBrowserClient();
+    // Strip the client-only _uid so it is never persisted into the round JSON.
+    const questionsToSave = questions.map(q => { const copy = { ...q }; delete copy._uid; return copy; });
     const { error } = await supabase.from("rounds").insert({
-      name: roundName.trim(), round_type: roundType, difficulty: difficulty, questions: questions,
+      name: roundName.trim(), round_type: roundType, difficulty: difficulty, questions: questionsToSave,
     });
     setSaving(false);
     if (error) { setStatus("Save failed: " + error.message); return; }
@@ -834,7 +876,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         <>
           <div style={{ fontSize:12, color:"#666", textAlign:"center", marginBottom:12 }}>Drag to reorder · {questions.length} questions</div>
           {questions.map((q, i) => (
-            <div key={i} draggable onDragStart={() => onDragStart(i)} onDragOver={e => onDragOver(e, i)} onDragEnd={onDragEnd}
+            <div key={q._uid ?? i} draggable onDragStart={() => onDragStart(i)} onDragOver={e => onDragOver(e, i)} onDragEnd={onDragEnd}
               style={{ background:"linear-gradient(160deg, rgba(60,15,110,0.35), rgba(30,8,60,0.35))", border:"1px solid rgba(190,38,193,0.3)", borderRadius:14, padding:18, marginBottom:12, cursor:"grab", userSelect:"none", boxShadow:"inset 0 1px 1px rgba(255,255,255,0.05)" }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
                 <span style={{ color:"#555", fontSize:13, fontWeight:700, minWidth:24 }}>{i+1}.</span>
@@ -889,7 +931,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                 <div style={{ marginBottom:8 }}>
                   <ImageUploader
                     currentUrl={q.option_b || null}
-                    onUploaded={(url) => setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, option_b: url } : qq))}
+                    onUploaded={(url) => setQuestions(prev => prev.map(qq => qq._uid === q._uid ? { ...qq, option_b: url } : qq))}
                   />
                   <a href={"https://www.google.com/search?tbm=isch&q="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
                     style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(56,189,248,0.15)", border:"1px solid rgba(56,189,248,0.4)", color:"#38bdf8", textDecoration:"none", fontSize:13, fontWeight:600, marginTop:10, boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
@@ -904,7 +946,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                     songReference={q.option_a || null}
                     currentUrl={(q.option_b && q.option_b.includes("blob.vercel-storage.com")) ? q.option_b : null}
                     onUploaded={(url, fileMeta, clipMeta) => {
-                      setQuestions(prev => prev.map((qq, idx) => idx === i ? { ...qq, option_b: url || null } : qq));
+                      setQuestions(prev => prev.map(qq => qq._uid === q._uid ? { ...qq, option_b: url || null } : qq));
                     }}
                   />
                   <a href={"https://www.youtube.com/results?search_query="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"

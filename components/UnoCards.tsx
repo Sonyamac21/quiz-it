@@ -15,14 +15,31 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
 
   useEffect(() => {
     if (!sessionPin) return;
-    (async () => {
-      const supabase = createSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient();
+    const refetch = async () => {
       const { data } = await supabase.from("uno_cards").select("card_type, round_number").eq("team_name", teamName).eq("session_pin", sessionPin);
       if (data) {
         setUsed(data.map(d => d.card_type));
         setUsedThisRound(data.map(d => d.round_number).filter((n): n is number => n != null));
       }
-    })();
+    };
+    refetch();
+    // Keep EVERY rendered instance of this team's cards in sync via realtime.
+    // Each screen (question/answer/celebration) mounts its own UnoPlayerCards with
+    // independent local state; without this, a card played on one screen still
+    // looked available on another and could be played twice, and inventory drifted
+    // (cards appearing to vanish or stay usable). A played card now becomes
+    // unavailable everywhere immediately.
+    const channel = supabase
+      .channel("uno-cards-" + sessionPin + "-" + teamName)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + sessionPin }, (payload) => {
+        const row = payload.new as { team_name?: string; card_type?: string; round_number?: number | null };
+        if (row.team_name !== teamName) return;
+        if (row.card_type) setUsed(prev => prev.includes(row.card_type!) ? prev : [...prev, row.card_type!]);
+        if (row.round_number != null) setUsedThisRound(prev => prev.includes(row.round_number!) ? prev : [...prev, row.round_number!]);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [teamName, sessionPin]);
   const [playing, setPlaying] = useState<string | null>(null);
 

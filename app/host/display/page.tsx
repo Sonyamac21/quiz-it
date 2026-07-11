@@ -157,23 +157,23 @@ function PowerCardOverlays({ currentAnnounce, announceVisible, roundCardPlays, r
     <>
       {currentAnnounce && (
         <div style={{
-          position: "fixed", top: 24, left: "50%",
-          transform: announceVisible ? "translate(-50%, 0)" : "translate(-50%, -12px)",
+          position: "fixed", top: 28, left: "50%",
+          transform: announceVisible ? "translate(-50%, 0) scale(1)" : "translate(-50%, -16px) scale(0.96)",
           opacity: announceVisible ? 1 : 0,
           transition: "opacity 0.35s ease, transform 0.35s ease",
           zIndex: 9999, pointerEvents: "none",
-          display: "flex", alignItems: "center", gap: 12,
-          padding: "10px 20px", borderRadius: 14,
-          background: "rgba(20,5,40,0.92)",
-          border: "1px solid " + (POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#BE26C1"),
-          boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+          display: "flex", alignItems: "center", gap: 18,
+          padding: "18px 34px", borderRadius: 18,
+          background: "rgba(20,5,40,0.96)",
+          border: "2px solid " + (POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#BE26C1"),
+          boxShadow: "0 8px 40px rgba(0,0,0,0.55), 0 0 30px " + (POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#BE26C1") + "66",
           fontFamily: "'Inter', sans-serif",
         }}>
-          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1, color: POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#BE26C1" }}>
+          <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1.5, color: POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#BE26C1" }}>
             {"\u26A1 POWER CARD"}
           </span>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>{currentAnnounce.team}</span>
-          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
+          <span style={{ fontSize: 24, fontWeight: 800, color: "#fff" }}>{currentAnnounce.team}</span>
+          <span style={{ fontSize: 22, fontWeight: 700, color: POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#fff" }}>
             {POWER_CARDS.find(p => p.type === currentAnnounce.type)?.title || currentAnnounce.type}
           </span>
         </div>
@@ -328,8 +328,8 @@ function DisplayScreenInner() {
   useEffect(() => {
     if (!currentAnnounce) return;
     setAnnounceVisible(true);
-    const fadeOutTimer = setTimeout(() => setAnnounceVisible(false), 1200);
-    const clearTimer = setTimeout(() => setCurrentAnnounce(null), 1500);
+    const fadeOutTimer = setTimeout(() => setAnnounceVisible(false), 3200);
+    const clearTimer = setTimeout(() => setCurrentAnnounce(null), 3600);
     return () => { clearTimeout(fadeOutTimer); clearTimeout(clearTimer); };
   }, [currentAnnounce]);
   const victorySongRef = useRef<HTMLAudioElement|null>(null);
@@ -367,23 +367,25 @@ function DisplayScreenInner() {
     winnerCelebrationFiredRef.current = true;
     stopClapping();
     const winnerTeam = winnerName ? teamsRef.current.find(t => t.team_name === winnerName) : null;
-    playSound("airhorn.mp3", 1.0);
+    // The winner's victory theme must be the PRIMARY audio. The airhorn/crowd are
+    // brief accents kept well below it so they never mask the song.
+    playSound("airhorn.mp3", 0.6);
     const crowd = new Audio("/sounds/crowd-cheer.mp3");
-    crowd.volume = 0.9;
+    crowd.volume = 0.35;
     crowd.play().catch(() => {});
     quizEndCrowdRef.current = crowd;
-    // Start the winning team's configured victory song and let it play to its
-    // natural end - no forced stop timer, so it is never cut short by cleanup.
+    // Start the winning team's configured victory song at full volume and let it
+    // play to its natural end - no forced stop timer, so it is never cut short.
     if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
     if (winnerTeam?.victory_song) {
       const song = new Audio("/sounds/" + encodeURIComponent(winnerTeam.victory_song) + ".mp3");
-      song.volume = 0.85;
+      song.volume = 1.0;
       song.loop = false;
       song.play().catch(() => {});
       victorySongRef.current = song;
     }
-    // Fade the crowd cheer down after a few seconds so it doesn't sit under the
-    // victory song for the whole podium; the victory song itself is left alone.
+    // Fade the crowd cheer out quickly (starts low, ~2s) so the winner theme is
+    // the only thing playing for the rest of the podium.
     setTimeout(() => {
       const crowdEl = quizEndCrowdRef.current;
       if (!crowdEl) return;
@@ -395,8 +397,8 @@ function DisplayScreenInner() {
           clearInterval(fadeInterval);
           if (quizEndCrowdRef.current === crowdEl) quizEndCrowdRef.current = null;
         }
-      }, 200);
-    }, 4000);
+      }, 150);
+    }, 2000);
   }
   function handleRevealNext(nextCount: number) {
     const sorted = [...quizEndScores].sort((a,b) => a.total_points - b.total_points);
@@ -1092,7 +1094,7 @@ function DisplayScreenInner() {
             )}
           </div>
         ) : (
-          <div style={{ fontSize:52, fontWeight:800, color:"rgba(255,255,255,0.25)", fontFamily:"'Inter',sans-serif", textAlign:"center" }}>No correct answers this round</div>
+          <div style={{ fontSize:52, fontWeight:800, color:"rgba(255,255,255,0.25)", fontFamily:"'Inter',sans-serif", textAlign:"center" }}>{question?.question_type === "multi_tap" ? "Nobody got all answers correct." : "No correct answers this round"}</div>
         )}
         {/* Brand */}
         <div style={{ position:"absolute", bottom:22, textAlign:"center", zIndex:2 }}>

@@ -117,7 +117,7 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
   }
 
   return (
-    <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", padding:20, fontFamily:font, color:"#fff" }}>
+    <div style={{ height:"100dvh", overflowY:"auto", WebkitOverflowScrolling:"touch" as const, background:bg, display:"flex", flexDirection:"column", padding:20, boxSizing:"border-box" as const, fontFamily:font, color:"#fff" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
         <div style={{ fontSize:11, letterSpacing:3, color:"rgba(255,255,255,0.3)" }}>Q{questionIndex+1} — PICTURE ROUND</div>
       {timeLeft !== null && timeLeft > 0 && (
@@ -254,10 +254,15 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     let sentinel: WakeLockSentinel | null = null;
     const nav = navigator as Navigator & { wakeLock?: { request: (type: string) => Promise<WakeLockSentinel> } };
     async function acquire() {
-      if (!active || document.visibilityState !== "visible" || !nav.wakeLock) return;
+      if (!active || document.visibilityState !== "visible" || !nav.wakeLock || sentinel) return;
       try {
         sentinel = await nav.wakeLock.request("screen");
-        sentinel.addEventListener("release", () => { sentinel = null; });
+        sentinel.addEventListener("release", () => {
+          sentinel = null;
+          // The OS can release the lock spuriously; if we're still visible and the
+          // session is active, re-acquire immediately so the screen never sleeps.
+          if (active && document.visibilityState === "visible") acquire();
+        });
       } catch {}
     }
     const onVisible = () => { if (document.visibilityState === "visible") acquire(); };
@@ -320,6 +325,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
     // Polling every 500ms to keep handset in sync
     const pollInterval = setInterval(fetchSession, 500);
+    // Re-poll the team order too. A handset that connected before some teams had
+    // joined would otherwise keep a shorter/stale list, so the SAME Hard Deck
+    // wheel index would point to a DIFFERENT team than on other phones. Refetching
+    // (ordered by created_at, identical query on every device) keeps every handset
+    // on the exact same team list the wheel is built from.
+    const teamPollInterval = setInterval(fetchTeamOrder, 3000);
 
     // Mobile browsers throttle or fully pause setInterval (and can drop the
     // realtime websocket) while the phone screen is locked or the tab is
@@ -327,7 +338,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     // stale state with no question visible until the next natural event. Force
     // an immediate resync the instant the tab/page becomes visible or focused
     // again, instead of waiting on a timer that may not have been running.
-    const onVisible = () => { if (document.visibilityState === "visible") fetchSession(); };
+    const onVisible = () => { if (document.visibilityState === "visible") { fetchSession(); fetchTeamOrder(); } };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", fetchSession);
 
@@ -345,6 +356,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
+      clearInterval(teamPollInterval);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", fetchSession);
     };
@@ -588,12 +600,14 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
 
         {hardDeckCards.length > 0 && (
-          <div style={{ padding: "16px 20px", borderRadius: 18, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 16px rgba(0,0,0,0.4), 0 0 24px rgba(190,38,193,0.15)" }}>
-            <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ padding: "clamp(8px,3vw,16px)", borderRadius: 18, maxWidth: "96vw", boxSizing: "border-box" as const, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 16px rgba(0,0,0,0.4), 0 0 24px rgba(190,38,193,0.15)" }}>
+            {/* Card size is viewport-relative so all five cards fit across a phone
+                with no horizontal overflow/scroll. */}
+            <div style={{ display: "flex", gap: "clamp(4px,1.5vw,12px)", justifyContent: "center", flexWrap: "nowrap" as const }}>
               {hardDeckCards.map((c, i) => (
-                <div key={i} style={{ width: 90, height: 128, borderRadius: 12, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 900, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -8px 12px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)" }}>
+                <div key={i} style={{ width: "min(90px,16vw)", height: "min(128px,23vw)", flexShrink: 0, borderRadius: 12, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: "min(28px,5.5vw)", fontWeight: 900, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -8px 12px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)" }}>
                   <div>{rankLabel(c.rank)}</div>
-                  <div style={{ fontSize: 36 }}>{c.suit}</div>
+                  <div style={{ fontSize: "min(34px,7vw)" }}>{c.suit}</div>
                 </div>
               ))}
             </div>

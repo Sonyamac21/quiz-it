@@ -182,7 +182,7 @@ function QuizControllerInner() {
         setSpinChoice((data.spin_choice as string) || null);
         triggerSpinIfChosen((data.spin_choice as string) || null, sessionPin);
       }
-    }, 1500);
+    }, 500);
     return () => clearInterval(interval);
   }, [spinOffered, sessionPin]);
 
@@ -325,9 +325,19 @@ function QuizControllerInner() {
     }
   }
 
-  async function loadAnswers(pin: string, idx: number) {
+  // answers.question_index resets to 0 every round, so filtering by index alone
+  // returns rows from ALL rounds at that index. Scope to the CURRENT round by
+  // only accepting answers submitted at/after this round started. Used by every
+  // host answer read so the host, scoring, and "fastest" all see the same
+  // current-round-only set.
+  function scopedAnswersQuery(pin: string, idx: number) {
     const supabase = createSupabaseBrowserClient();
-    const { data } = await supabase.from("answers").select("*").eq("session_pin", pin).eq("question_index", idx).order("submitted_at", { ascending: true });
+    let q = supabase.from("answers").select("*").eq("session_pin", pin).eq("question_index", idx);
+    if (roundStartedRef.current) q = q.gte("submitted_at", new Date(roundStartedRef.current).toISOString());
+    return q.order("submitted_at", { ascending: true });
+  }
+  async function loadAnswers(pin: string, idx: number) {
+    const { data } = await scopedAnswersQuery(pin, idx);
     if (data) setAnswers(data);
   }
   // Safety-net polling in case a realtime answer INSERT event is missed.
@@ -486,8 +496,13 @@ function QuizControllerInner() {
         // over-awarded points (e.g. 2 correct + 4 decoys meant credit for 6
         // things instead of 2) - that was never the intended scoring rule.
         let mtBasePts = correctTaps.length * pointsPerQ;
-        if (wipeoutMode && qIdx >= 5 && wrongTaps.length > 0) mtBasePts = 0;
-        const mtTimeBonus = rankBonus[team.team_name] ?? 0;
+        // Wipeout: a single wrong tap zeroes the ENTIRE question for that team -
+        // base AND time bonus. Previously only the base was zeroed, so a team that
+        // triggered wipeout still banked the speed bonus (points they should not
+        // have got).
+        const mtWipedOut = wipeoutMode && qIdx >= 5 && wrongTaps.length > 0;
+        if (mtWipedOut) mtBasePts = 0;
+        const mtTimeBonus = mtWipedOut ? 0 : (rankBonus[team.team_name] ?? 0);
         const mtDelta = (mtBasePts + mtTimeBonus) * (hasBoost(team.team_name) ? 2 : 1);
         lastDeltasRef.current[team.team_name] = mtDelta;
         if (mtDelta === 0) continue;
@@ -842,7 +857,7 @@ function QuizControllerInner() {
     // submits, that state can still be lagging the database by up to ~2.5s,
     // which silently scored against incomplete/stale data (missed points,
     // leaderboard reflecting an earlier question's submissions).
-    const { data: freshAnswers } = await supabase.from("answers").select("*").eq("session_pin", sessionPin).eq("question_index", qIdx).order("submitted_at", { ascending: true });
+    const { data: freshAnswers } = await scopedAnswersQuery(sessionPin, qIdx);
     const answersToScore = freshAnswers ?? answers;
     setAnswers(answersToScore);
     await autoScore(teams, currentQ, answersToScore);
@@ -850,7 +865,6 @@ function QuizControllerInner() {
 
   async function doCelebrate() {
     if (!sessionId) return;
-    const supabaseC = createSupabaseBrowserClient();
     // Determine "fastest correct" from a fresh read scoped to THIS session and
     // THIS question index, rather than the `answers` React state which can carry
     // stale/late rows. Eligibility strictly requires: an answer was actually
@@ -859,11 +873,7 @@ function QuizControllerInner() {
     // previous-question/other-session rows can never qualify.
     let scopedAnswers: Answer[] = answers.filter(a => a.session_pin === sessionPin && a.question_index === qIdx);
     if (sessionPin) {
-      const { data: freshCelebAnswers } = await supabaseC
-        .from("answers").select("*")
-        .eq("session_pin", sessionPin)
-        .eq("question_index", qIdx)
-        .order("submitted_at", { ascending: true });
+      const { data: freshCelebAnswers } = await scopedAnswersQuery(sessionPin, qIdx);
       if (freshCelebAnswers) scopedAnswers = freshCelebAnswers as Answer[];
     }
     const correctAnswers = scopedAnswers.filter(a =>
@@ -994,8 +1004,11 @@ function QuizControllerInner() {
     return (
       <div style={{ display:"flex", gap:4 }}>
         {(["block","reverse","x2"] as const).map(ct => (
-          <span key={ct} title={cardLabel[ct] + (used.has(ct) ? " (used)" : " (available)")}
-            style={{ width:8, height:8, borderRadius:"50%", background: used.has(ct) ? "rgba(255,255,255,0.12)" : cardColor[ct], border: used.has(ct) ? "1px solid rgba(255,255,255,0.15)" : "none" }} />
+          <span key={ct} title={cardLabel[ct] + (used.has(ct) ? " (played)" : " (available)")}
+            style={{ width:9, height:9, borderRadius:"50%",
+              background: used.has(ct) ? cardColor[ct] : "transparent",
+              border: used.has(ct) ? "none" : "1px solid rgba(255,255,255,0.2)",
+              boxShadow: used.has(ct) ? "0 0 6px " + cardColor[ct] : "none" }} />
         ))}
       </div>
     );
@@ -1188,7 +1201,7 @@ function QuizControllerInner() {
                   )}
                 </>
               ) : (
-                <div style={{ fontSize:24, color:"rgba(255,255,255,0.4)", marginBottom:32 }}>No correct answers this round</div>
+                <div style={{ fontSize:24, color:"rgba(255,255,255,0.4)", marginBottom:32 }}>{currentQ?.question_type === "multi_tap" ? "Nobody got all answers correct." : "No correct answers this round"}</div>
               )}
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>{isLastQ ? "SPACE: End Round" : "SPACE: Preview Next Question"}</div>
             </div>
@@ -1401,7 +1414,6 @@ function QuizControllerInner() {
                     <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const }}>{s.total_points}</span>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", paddingLeft:36, marginTop:4, gap:6 }}>
-                    <span style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.4)" }}>Rd: +{s.round_points}</span>
                     {answered && <span style={{ fontSize:13, color:"#22c55e", fontStyle:"italic", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>}
                     <PowerCardDots teamName={s.team_name} />
                     {adjustTeam === s.team_name ? (

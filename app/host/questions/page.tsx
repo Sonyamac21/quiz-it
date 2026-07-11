@@ -223,7 +223,7 @@ export default function QuestionsPage() {
     const typeInstructions: Record<string,string> = {
       multi_tap: "multi_tap: exactly 6 options in option_a through option_f. Some are correct answers, some are decoys (wrong). Mix the count - between 2 and 4 of the 6 should be correct. correct_answer must be a comma-separated list of the correct option letters in order, e.g. \"b,d,f\" or \"a,c\". Make decoys plausible, not obviously wrong.",
       multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
-      text_answer: "text_answer: short word or phrase answer, all options must be null",
+      text_answer: "text_answer: the correct_answer MUST be a SINGLE word - no spaces, no commas, no \"and\", no \"&\", no \"/\", no multiple names, no multiple items, no hyphen-joined names. If the natural answer would be more than one word, choose a different question whose answer is a single word. All options must be null.",
       number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
       sequence: "sequence: 4 items that have a definite correct chronological/logical order, written into option_a/b/c/d in that correct order. correct_answer must be exactly \"a,b,c,d\" (the order will be randomized programmatically afterward, so always write them in true correct order here).",
       picture: "picture: this generates a PICTURE ROUND question. There are two SEPARATE pieces of information you must produce - do not mix them: (1) option_a is an internal media search query, NEVER shown to players, used only to fetch a stock photo - a short, generic Google Images search query (3-5 words), e.g. \"Eiffel Tower Paris\" or \"red panda animal\" or \"Italian flag\". The subject MUST be one of: a famous landmark or building, an animal or species, a national flag, a well-known food or dish, or a sports venue/stadium. Do NOT use company/brand logos, famous people, movie stills, album covers, TV characters, or any copyrighted artwork or photography - these will not be found on stock photo sites (Pixabay specifically does not carry trademarked logos, so brand questions always return an unrelated photo). (2) question_text is the actual question shown to players underneath the image - it must be a short, generic question ABOUT the image itself, e.g. \"Name this landmark\", \"Which country is this flag from?\", \"What animal is this?\", \"Which city is this stadium in?\". question_text must NEVER contain the words \"Show teams this image\", must NEVER name or describe the actual subject (that would give away the answer), and must NEVER be an unrelated trivia question - it must always be directly answerable by looking at the image. option_b/c/d must be null. correct_answer is the specific answer to question_text (the landmark name, the country, the animal, etc).",
@@ -387,48 +387,32 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           return null;
         }
       }
-      // Save into the master question library so it persists independently of
-      // whatever round it ends up in - this is the foundation repeat-prevention
-      // is built on. If an identical question (same text+type) already exists,
-      // the unique index means this is a no-op and we just attach the existing id.
-      try {
-        const libRow = {
-          question_text: q.question_text,
-          correct_answer: q.correct_answer,
-          option_a: ["picture","audio"].includes(q.question_type) ? null : q.option_a,
-          option_b: ["picture","audio"].includes(q.question_type) ? null : q.option_b,
-          option_c: q.option_c,
-          option_d: q.option_d,
-          option_e: q.option_e,
-          option_f: q.option_f,
-          explanation: q.explanation,
-          difficulty: q.difficulty,
-          question_type: q.question_type,
-          media_url: ["picture","audio"].includes(q.question_type) ? q.option_b : null,
-        };
-        const { data: libData } = await createSupabaseBrowserClient()
-          .from("questions")
-          .upsert(libRow, { onConflict: "question_text,question_type", ignoreDuplicates: true })
-          .select("id")
-          .maybeSingle();
-        if (libData?.id) {
-          q.id = libData.id;
-        } else {
-          // Row already existed (ignoreDuplicates skipped the insert) - look up its id.
-          const { data: existing } = await createSupabaseBrowserClient()
-            .from("questions")
-            .select("id")
-            .ilike("question_text", q.question_text)
-            .eq("question_type", q.question_type)
-            .maybeSingle();
-          if (existing?.id) q.id = existing.id;
+      // Text Answer answers MUST be a single word. This applies ONLY to
+      // text_answer - Multi Tap, Higher/Lower, Picture, Audio and every other
+      // type are unaffected. Reject (return null) so the caller generates another
+      // question if the answer contains a space, comma, "&", "/", the word "and",
+      // or hyphen-joined multiple names (i.e. any multi-word / multi-item answer).
+      if (q && q.question_type === "text_answer") {
+        const ans = (q.correct_answer || "").trim();
+        const invalid =
+          ans === "" ||
+          /\s/.test(ans) ||                            // whitespace = more than one word
+          ans.includes(",") ||                         // comma-separated items
+          ans.includes("&") ||                         // ampersand joiner
+          ans.includes("/") ||                         // slash joiner
+          /\band\b/i.test(ans) ||                      // the word "and" as a joiner
+          /[A-Za-z]+-[A-Z][a-zA-Z]*/.test(ans);        // hyphen joining multiple names (e.g. Lennon-McCartney)
+        if (invalid) {
+          lastApiErrorRef.current = "Text Answer must be a single word (got '" + ans + "') - retrying";
+          return null;
         }
-      } catch (libErr) {
-        // Never let library bookkeeping block actual question generation -
-        // worst case a question is missing its id and just won't be tracked
-        // for repeat-prevention purposes this one time.
-        console.error("Failed to save question to library:", libErr);
       }
+      // NOTE: the question is NOT written to the permanent library here. Insertion
+      // into the Question Memory happens only when a question is ACCEPTED (see
+      // commitToMemory, called from Generate/Top Up/Replace). Writing every raw
+      // candidate here previously polluted the permanent library with rejected /
+      // moderation-failed questions and made the pre-accept memory check match the
+      // candidate against itself.
       // Stamp a stable list identity so remove/replace and React keys act on the
       // exact item, independent of index or concurrent async list updates.
       q._uid = genUid();
@@ -493,40 +477,127 @@ Return ONLY a valid JSON array with 1 item, no markdown:
   // Used in the generate loop, removeAndReplace, and topUp so all three
   // paths have identical protection - previously only the generate loop had
   // inline checks; the other two paths had none at all.
-  function isAcceptable(q: Question, currentRound: Question[]): boolean {
-    const STOP = new Set(["what","which","where","when","who","that","this","with","from","have","been","were","they","their","about","only","does","into","than","other","more","over","some","also","after","before","known","its","the","and","for","are","but","not","you","all","can","had","her","him","his","how","man","new","now","old","see","two","way","who","boy","did","its","let","put","say","she","too","use","was"]);
-    const sigWords = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !STOP.has(w));
+  // Returns null if the question is acceptable, otherwise a short reason string
+  // identifying WHICH rule rejected it. This is the single place the accept/reject
+  // logic lives; isAcceptable() is the boolean view of it.
+  function duplicateRejectionReason(q: Question, currentRound: Question[]): string | null {
+    // Words that are structural quiz scaffolding OR generic to almost any topic.
+    // These must NOT count toward "similarity", otherwise every question in a
+    // single-theme round looks like a duplicate of every other one.
+    const COMMON = new Set([
+      // question scaffolding / stopwords
+      "what","which","where","when","who","that","this","with","from","have","been","were","they","their","about","only","does","into","than","other","more","over","some","also","after","before","known","the","and","for","are","but","not","you","all","can","had","her","him","his","how","man","new","now","old","see","two","way","boy","did","its","let","put","say","she","too","use","was","your","them","then","here","there","was","are",
+      // generic topic nouns/verbs that recur across a themed round
+      "film","films","movie","movies","song","songs","music","character","characters","name","named","names","actor","actress","actors","voice","voiced","played","plays","play","called","feature","features","featured","animated","animation","show","shows","series","episode","famous","first","last","title","titled","released","release","year","years","won","wins","winner","story","stories","franchise","sequel","original","company","brand","team","player","country","city","capital","word","words","number",
+    ]);
+    // Also ignore the chosen theme/topic tokens themselves (e.g. "disney",
+    // "90s", "movies") - sharing the theme is expected, not a duplicate signal.
+    const themeTokens = (theme || "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
+    const ignore = new Set<string>([...COMMON, ...themeTokens]);
+    const sigWords = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
 
     const normText = normalizeQuestionText(q.question_text);
     const normAnswer = (q.correct_answer || "").toLowerCase().trim();
 
-    // a0) Rejected earlier this session - permanently blacklisted, never allow
-    // the exact same question to come back regardless of why it was rejected.
-    if (rejectedRef.current.has(normText)) return false;
+    // a0) Blacklisted earlier this session - never allow the exact same question back.
+    if (rejectedRef.current.has(normText)) return "blacklist";
 
-    // a) Exact text match - already in this round or historical session
-    if (usedRef.current.some(t => normalizeQuestionText(t) === normText)) return false;
-    if (currentRound.some(g => normalizeQuestionText(g.question_text) === normText)) return false;
+    // a) Exact text duplicate - verbatim match against this round or history.
+    if (usedRef.current.some(t => normalizeQuestionText(t) === normText)) return "exact-text:used-or-history";
+    if (currentRound.some(g => normalizeQuestionText(g.question_text) === normText)) return "exact-text:current-round";
 
-    // b) Same answer already in this round (catches "Bat" / "Bat" pattern)
+    // b) Same answer already used IN THE CURRENT ROUND (genuinely repetitive).
+    //    Deliberately scoped to the current round only - NOT to usedAnswersRef,
+    //    which accumulates answers from older generation sessions/historical state
+    //    and would otherwise make themed replacement impossible.
     if (normAnswer && currentRound.some(g =>
       g.question_type === q.question_type &&
       (g.correct_answer || "").toLowerCase().trim() === normAnswer
-    )) return false;
-    if (normAnswer && usedAnswersRef.current.includes(normAnswer)) return false;
+    )) return "same-answer:current-round";
 
-    // c) Semantic similarity - ≥55% significant-word overlap with any round question
+    // c) Near-identical wording - high overlap on DISTINCTIVE words only (theme
+    //    and common words already stripped). Requires at least 2 shared
+    //    distinctive words so incidental overlap or a shared theme word alone
+    //    cannot trip it.
     const newWords = sigWords(q.question_text);
-    if (newWords.length > 0) {
+    if (newWords.length >= 2) {
       for (const g of currentRound) {
         const existWords = sigWords(g.question_text);
-        if (existWords.length === 0) continue;
+        if (existWords.length < 2) continue;
         const shared = newWords.filter(w => existWords.includes(w)).length;
+        if (shared < 2) continue;
         const overlap = shared / Math.min(newWords.length, existWords.length);
-        if (overlap >= 0.55) return false;
+        if (overlap >= 0.6) return "near-identical";
       }
     }
-    return true;
+    return null;
+  }
+
+  function isAcceptable(q: Question, currentRound: Question[]): boolean {
+    return duplicateRejectionReason(q, currentRound) === null;
+  }
+
+  // ── Permanent Question Memory (cross-session, DB-backed) ───────────────────
+  // The authoritative store is the public.questions table; the check runs
+  // server-side in Postgres (check_question_memory RPC) so it persists across
+  // all sessions/dates and never relies on browser/React state. Returns true if
+  // an identical or substantially-similar question already exists in memory.
+  // Fails OPEN (returns false) if the RPC/migration isn't available yet, so
+  // generation is never hard-blocked by a missing memory backend.
+  async function isDuplicateInMemory(q: Question): Promise<boolean> {
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase.rpc("check_question_memory", {
+        p_text: q.question_text,
+        p_type: q.question_type,
+        p_threshold: 0.6,
+      });
+      if (error) { console.error("Question Memory check unavailable (allowing question):", error.message); return false; }
+      return data != null; // a matching id means a same/similar question already exists
+    } catch (e) {
+      console.error("Question Memory check error (allowing question):", e);
+      return false;
+    }
+  }
+
+  // Persist an ACCEPTED question into the permanent Question Memory and attach
+  // its library id. Idempotent (unique on question_text,question_type).
+  async function commitToMemory(q: Question) {
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const libRow = {
+        question_text: q.question_text,
+        correct_answer: q.correct_answer,
+        option_a: ["picture","audio"].includes(q.question_type) ? null : q.option_a,
+        option_b: ["picture","audio"].includes(q.question_type) ? null : q.option_b,
+        option_c: q.option_c,
+        option_d: q.option_d,
+        option_e: q.option_e,
+        option_f: q.option_f,
+        explanation: q.explanation,
+        difficulty: q.difficulty,
+        question_type: q.question_type,
+        media_url: ["picture","audio"].includes(q.question_type) ? q.option_b : null,
+      };
+      const { data: libData } = await supabase
+        .from("questions")
+        .upsert(libRow, { onConflict: "question_text,question_type", ignoreDuplicates: true })
+        .select("id")
+        .maybeSingle();
+      if (libData?.id) {
+        q.id = libData.id;
+      } else {
+        const { data: existing } = await supabase
+          .from("questions")
+          .select("id")
+          .ilike("question_text", q.question_text)
+          .eq("question_type", q.question_type)
+          .maybeSingle();
+        if (existing?.id) q.id = existing.id;
+      }
+    } catch (libErr) {
+      console.error("Failed to save question to permanent memory:", libErr);
+    }
   }
 
   function registerAccepted(q: Question) {
@@ -630,7 +701,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       consecutiveFailures = 0;
       setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
       const check = await checkQuestion(q);
-      if (check.ok && isAcceptable(q, good)) {
+      // Gate order: moderation -> in-round duplicate detection -> permanent
+      // Question Memory (cross-session). Memory is the last, async check so we
+      // only pay the round-trip for questions that already passed the cheap ones.
+      if (check.ok && isAcceptable(q, good) && !(await isDuplicateInMemory(q))) {
+        await commitToMemory(q); // accepted -> becomes part of permanent memory
         good.push(q);
         registerAccepted(q);
         // Append functionally to the LIVE list instead of replacing it with a
@@ -645,7 +720,8 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         // so the retry can never reproduce it (and the AI is told to avoid it).
         blacklistRejected(q);
         consecutiveCheckFailures++;
-        setStatus("Question " + (good.length + 1) + " failed check (" + check.note.substring(0,40) + ") - retrying...");
+        const failReason = !check.ok ? check.note.substring(0,40) : "duplicate";
+        setStatus("Question " + (good.length + 1) + " failed check (" + failReason + ") - retrying...");
         // Same logic as generateOne failures above - if questions keep failing the
         // safety/duplicate check over and over, that's systemic (e.g. exclusion
         // list too aggressive, or the moderator prompt rejecting too much), not a
@@ -667,13 +743,63 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     }
   }
 
+  // Max replacement attempts before giving up and leaving the ORIGINAL question
+  // in place (the round never ends short because of a failed replacement).
+  const MAX_REPLACE_ATTEMPTS = 20;
+
   async function removeAndReplace(i: number) {
     const removed = questions[i];
     if (!removed) return;
     const removedUid = removed._uid;
-    // Remember the removed item's position so its replacement takes the same slot
-    // rather than being appended at the bottom.
-    const removedIndex = i;
+
+    // IMPORTANT: do NOT remove the question yet. Generate a valid replacement
+    // FIRST, keep the original visible the whole time, and only swap it out
+    // atomically once we actually have a good replacement. Removing first (the
+    // old behaviour) left the round one short whenever every replacement attempt
+    // failed.
+
+    // Blacklist the removed question up front so no replacement attempt can hand
+    // back the same question (the AI is told to avoid it and isAcceptable rejects
+    // it), but this does not touch the visible list.
+    blacklistRejected(removed);
+
+    setStatus("Finding replacement...");
+    const topicList = shuffle(TOPICS);
+    let newQ: Question | null = null;
+
+    // Keep requesting genuinely new questions through every rejection reason
+    // (AI produced nothing/invalid, moderation reject, duplicate reject) until we
+    // get a valid one or hit the retry ceiling.
+    for (let attempt = 0; attempt < MAX_REPLACE_ATTEMPTS && !newQ; attempt++) {
+      setStatus("Finding replacement... (attempt " + (attempt + 1) + " of " + MAX_REPLACE_ATTEMPTS + ")");
+      const replaceTopic = theme || topicList[attempt % topicList.length];
+      const candidate = await generateOne(removed.question_type, replaceTopic);
+      if (!candidate) continue; // AI produced nothing/invalid - try again
+      const check = await checkQuestion(candidate);
+      if (!check.ok) { blacklistRejected(candidate); continue; } // moderation reject
+      // Compare against every OTHER question currently in the round (excluding the
+      // one being replaced) so the replacement isn't rejected for matching the
+      // very item it is swapping out.
+      const currentRound = questions.filter(x => x._uid !== removedUid);
+      if (isAcceptable(candidate, currentRound) && !(await isDuplicateInMemory(candidate))) {
+        newQ = candidate;
+      } else {
+        blacklistRejected(candidate); // in-round or permanent-memory duplicate - keep trying
+      }
+    }
+
+    if (!newQ) {
+      // Every attempt failed: leave the ORIGINAL question exactly where it is so
+      // the round keeps its full count, and report a proper error.
+      setStatus("Couldn't generate a replacement after " + MAX_REPLACE_ATTEMPTS + " tries - the original question is kept. Try Remove again."
+        + (lastApiErrorRef.current ? " (last error: " + lastApiErrorRef.current + ")" : ""));
+      return;
+    }
+
+    // We have a valid replacement. Now commit the removal bookkeeping for the old
+    // question and swap it out atomically, in place, keeping its position.
+    const replacement: Question = newQ;
+    await commitToMemory(replacement); // accepted -> becomes part of permanent memory
     try {
       const supabase = createSupabaseBrowserClient();
       await supabase.from("question_bank").insert({
@@ -684,42 +810,23 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         round_type: removed.round_type,
       });
     } catch(e) { console.error("Bank insert failed:", e); }
-    registerAccepted(removed); // tracks both text and answer so replacement can't be same fact
-    blacklistRejected(removed); // manual rejection: never regenerate this exact question this session
-    // Remove by stable identity, not index. The index can shift if a background
-    // generation loop appends questions between click and this update, and index
-    // removal on a stale snapshot is exactly what let the removed item come back.
-    setQuestions(prev => removedUid ? prev.filter(x => x._uid !== removedUid) : prev.filter((_, idx) => idx !== i));
-    setStatus("Finding replacement...");
-    const topicList = shuffle(TOPICS);
-    let replaced = false;
-    for (let attempt = 0; attempt < 10 && !replaced; attempt++) {
-      const replaceTopic = theme || topicList[attempt % topicList.length];
-      const newQ = await generateOne(removed.question_type, replaceTopic);
-      if (!newQ) continue;
-      const check = await checkQuestion(newQ);
-      const currentRound = questions.filter(x => x._uid !== removedUid);
-      if (check.ok && isAcceptable(newQ, currentRound)) {
-        registerAccepted(newQ);
-        // Insert the replacement at the removed item's original position, keyed by
-        // uid so a re-run or double-invoke can't duplicate it.
-        setQuestions(prev => {
-          if (prev.some(x => x._uid === newQ._uid)) return prev;
-          const copy = [...prev];
-          const insertAt = Math.min(Math.max(removedIndex, 0), copy.length);
-          copy.splice(insertAt, 0, newQ);
-          return copy;
-        });
-        setStatus("Replaced!");
-        setTimeout(() => setStatus(""), 2000);
-        replaced = true;
+    registerAccepted(removed); // tracks both text and answer so future questions can't repeat this fact
+    registerAccepted(replacement);
+    setQuestions(prev => {
+      if (prev.some(x => x._uid === replacement._uid)) return prev; // guard double-invoke
+      const idx = removedUid ? prev.findIndex(x => x._uid === removedUid) : i;
+      const copy = [...prev];
+      if (idx === -1) {
+        // Original somehow already gone - just place the replacement at its
+        // remembered index rather than dropping it.
+        copy.splice(Math.min(Math.max(i, 0), copy.length), 0, replacement);
       } else {
-        // Rejected replacement is blacklisted too, so the next attempt can't
-        // hand back the same failed question.
-        blacklistRejected(newQ);
+        copy.splice(idx, 1, replacement); // atomic in-place replacement, same position
       }
-    }
-    if (!replaced) setStatus(lastApiErrorRef.current ? "Generation failed: " + lastApiErrorRef.current : "Could not find replacement - try generating again.");
+      return copy;
+    });
+    setStatus("Replaced!");
+    setTimeout(() => setStatus(""), 2000);
   }
 
   async function topUp() {
@@ -745,7 +852,8 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       if (!q) continue;
       const check = await checkQuestion(q);
       const currentForTopup = [...questions, ...added];
-      if (check.ok && isAcceptable(q, currentForTopup)) {
+      if (check.ok && isAcceptable(q, currentForTopup) && !(await isDuplicateInMemory(q))) {
+        await commitToMemory(q); // accepted -> becomes part of permanent memory
         registerAccepted(q);
         added.push(q);
         setQuestions(prev => [...prev, q]);

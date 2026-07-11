@@ -249,6 +249,53 @@ export default function QuestionsPage() {
     }
   }
 
+  // The natural answer a player would actually type/say, resolving letter keys
+  // (multiple_choice / sequence / multi_tap) to their option text so the quality
+  // judge sees the real answer rather than "b" or "a,c".
+  function resolveAnswerText(q: Question): string {
+    const map: Record<string, string | null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d, e: q.option_e, f: q.option_f };
+    const key = (q.correct_answer || "").trim().toLowerCase();
+    if (q.question_type === "multiple_choice") return map[key] || q.correct_answer;
+    if (q.question_type === "multi_tap" || q.question_type === "sequence") {
+      const parts = key.split(",").map(s => s.trim()).map(l => map[l]).filter(Boolean) as string[];
+      return parts.length ? parts.join(", ") : q.correct_answer;
+    }
+    return q.correct_answer;
+  }
+
+  // FINAL Quiz Quality Validator - the last gate, run only after moderation,
+  // factual/answer validation, duplicate detection, permanent Question Memory,
+  // theme validation and picture validation have all passed. An experienced pub
+  // quiz host judges the whole question as a player would experience it and only
+  // passes an unequivocal YES. Fails OPEN on a verification error so a transient
+  // API hiccup never hard-stalls generation.
+  async function finalQualityCheck(q: Question): Promise<{ok: boolean; note: string}> {
+    const resolvedAnswer = resolveAnswerText(q);
+    const options = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f].filter(Boolean).join(" | ");
+    const isMedia = q.question_type === "picture" || q.question_type === "audio";
+    const subject = isMedia ? (q.option_a || "") : "";
+    const activeTheme = (theme || "").trim();
+    const prompt =
+      "You are an experienced professional pub quiz host performing FINAL quality control on ONE question before it goes live. " +
+      "Ask yourself: \"Would an experienced professional quiz host WILLINGLY use this EXACT question in a live pub quiz?\" Pass ONLY if the answer is an unequivocal YES. " +
+      "Reject (ok:false) if it suffers from ANY of: (1) unnatural wording; (2) awkward grammar; (3) artificially restricted answers; (4) an answer that is technically correct but not what a player would naturally type; (5) it depends on the explanation to make sense; (6) trivial or pointless; (7) poor quiz design; (8) misleading; (9) a generic question disguised as themed; (10) an image that does not directly represent the answer; (11) it gives the answer away; (12) it could reasonably have multiple correct answers; (13) it requires excessive interpretation; (14) it doesn't feel enjoyable to play; (15) anything a competent quiz writer would immediately rewrite. " +
+      "Examples that MUST fail: Text Answer 'In which movie does a boy say \"I see dead people\"?' answer 'Sixth' (nobody naturally types 'Sixth'). Number 'How many teams are in the Premier League? To the nearest 5' (the 'nearest 5' is pointless). A picture of a real bear asking 'What animal is Yogi Bear?' (the image gives away 'bear'). Disney-themed 'What animal is this?' over a real chameleon (not actually a Disney question). " +
+      "Judge the question exactly as a player would experience it. DO NOT rely on the explanation to make it make sense. " +
+      "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"short reason\"}. " +
+      "Type: " + q.question_type + " | Theme: " + (activeTheme || "none") +
+      " | Question: " + (q.question_text || "") +
+      " | Answer a player would type: " + (resolvedAnswer || "") +
+      (options ? " | Options: " + options : "") +
+      (subject ? " | Image/Audio subject (internal search query, not shown to players): " + subject : "");
+    try {
+      const text = await callAPI(prompt, 300);
+      return JSON.parse(text);
+    } catch {
+      // Fail open - never let a verification hiccup stall generation.
+      return { ok: true, note: "quality-check-unavailable" };
+    }
+  }
+
   async function generateOne(type: string, topic: string): Promise<Question|null> {
     // (lastApiError set inside try/catch below, surfaced by callers)
     const typeInstructions: Record<string,string> = {
@@ -745,9 +792,10 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
       const check = await checkQuestion(q);
       // Gate order: moderation -> in-round duplicate detection -> permanent
-      // Question Memory (cross-session). Memory is the last, async check so we
-      // only pay the round-trip for questions that already passed the cheap ones.
-      if (check.ok && isAcceptable(q, good) && !(await isDuplicateInMemory(q))) {
+      // Question Memory (cross-session) -> FINAL quiz quality check. Each stage is
+      // short-circuited so the expensive AI checks only run once the cheaper ones
+      // pass; the final quality judge is the very last gate before acceptance.
+      if (check.ok && isAcceptable(q, good) && !(await isDuplicateInMemory(q)) && (await finalQualityCheck(q)).ok) {
         await commitToMemory(q); // accepted -> becomes part of permanent memory
         good.push(q);
         registerAccepted(q);
@@ -763,7 +811,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         // so the retry can never reproduce it (and the AI is told to avoid it).
         blacklistRejected(q);
         consecutiveCheckFailures++;
-        const failReason = !check.ok ? check.note.substring(0,40) : "duplicate";
+        const failReason = !check.ok ? check.note.substring(0,40) : "duplicate/quality";
         setStatus("Question " + (good.length + 1) + " failed check (" + failReason + ") - retrying...");
         // Same logic as generateOne failures above - if questions keep failing the
         // safety/duplicate check over and over, that's systemic (e.g. exclusion
@@ -824,10 +872,10 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       // one being replaced) so the replacement isn't rejected for matching the
       // very item it is swapping out.
       const currentRound = questions.filter(x => x._uid !== removedUid);
-      if (isAcceptable(candidate, currentRound) && !(await isDuplicateInMemory(candidate))) {
+      if (isAcceptable(candidate, currentRound) && !(await isDuplicateInMemory(candidate)) && (await finalQualityCheck(candidate)).ok) {
         newQ = candidate;
       } else {
-        blacklistRejected(candidate); // in-round or permanent-memory duplicate - keep trying
+        blacklistRejected(candidate); // in-round/memory duplicate or final-quality reject - keep trying
       }
     }
 
@@ -895,7 +943,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       if (!q) continue;
       const check = await checkQuestion(q);
       const currentForTopup = [...questions, ...added];
-      if (check.ok && isAcceptable(q, currentForTopup) && !(await isDuplicateInMemory(q))) {
+      if (check.ok && isAcceptable(q, currentForTopup) && !(await isDuplicateInMemory(q)) && (await finalQualityCheck(q)).ok) {
         await commitToMemory(q); // accepted -> becomes part of permanent memory
         registerAccepted(q);
         added.push(q);

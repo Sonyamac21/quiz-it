@@ -149,7 +149,26 @@ export default function QuestionsPage() {
   }
 
   async function checkQuestion(q: Question): Promise<{ok: boolean; note: string}> {
-    const allText = [q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer].filter(Boolean).join(" ");
+    // Include ALL six options (a–f), not just a–d. Multi Tap questions carry
+    // correct_answer as a comma-separated letter key that can reference option_e
+    // or option_f (e.g. "b,e"). Previously those two options were omitted here,
+    // so the moderator was handed a key referencing options it could not see and
+    // rejected the question as "the answer key references a non-existent option"
+    // even though the key was valid - failing the whole round. For Multi Tap we
+    // also resolve the letter key to the actual option TEXTS so the moderator
+    // checks the real answers instead of an opaque "b,e".
+    const optionTexts = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f];
+    let answerForCheck: string = q.correct_answer;
+    if (q.question_type === "multi_tap") {
+      const letters = ["a", "b", "c", "d", "e", "f"];
+      const correctTexts = (q.correct_answer || "")
+        .split(",")
+        .map(s => s.trim().toLowerCase())
+        .map(l => optionTexts[letters.indexOf(l)])
+        .filter(Boolean);
+      if (correctTexts.length) answerForCheck = correctTexts.join(", ");
+    }
+    const allText = [q.question_text, ...optionTexts, answerForCheck].filter(Boolean).join(" ");
     const prompt = "You are a content moderator for a quiz night in Dubai, UAE. Check this question is safe for a mixed international audience. Reject if it contains: sexual references, crude body parts, alcohol, pork, drugs, religion, LGBTQ+ topics or references, references to Iran or Israel, or anything offensive. Also verify the answer is factually correct. Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"reason\"}. Content: " + allText;
     try {
       const text = await callAPI(prompt, 300);
@@ -308,6 +327,21 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         });
         letters.forEach(l => { q["option_" + l] = newOptions[l] ?? null; });
         q.correct_answer = newCorrect.sort().join(",");
+        // Guarantee the answer key is valid before this question can ship:
+        // non-empty, and every referenced letter maps to a present (non-null)
+        // option. If the AI response produced a key that can't satisfy this
+        // (e.g. it referenced an option it never filled in), treat the whole
+        // response as invalid and return null so the caller retries generation,
+        // rather than emitting a Multi Tap question with a broken answer key.
+        const finalKeyLetters = q.correct_answer.split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+        const keyValid = finalKeyLetters.length > 0 && finalKeyLetters.every((l: string) => {
+          const opt = q["option_" + l];
+          return opt !== null && opt !== undefined && opt !== "";
+        });
+        if (!keyValid) {
+          lastApiErrorRef.current = "Multi Tap answer key invalid ('" + (q.correct_answer || "") + "') - retrying";
+          return null;
+        }
       }
       // Save into the master question library so it persists independently of
       // whatever round it ends up in - this is the foundation repeat-prevention

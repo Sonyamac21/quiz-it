@@ -190,12 +190,12 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
     } catch {}
   };
   const playNegativeSounds = () => {
-    if (!audioEnabled) return;
-    try {
-      const trombone = new Audio("/sounds/sad-trombone.mp3");
-      trombone.volume = 0.9;
-      trombone.play().catch(() => {});
-    } catch {}
+    // Intentionally no audio. Spin to Win must NOT play the sad-trombone /
+    // question "wrong answer" sound on a penalty outcome - that shared clip
+    // read as normal-question incorrect-answer feedback and was the "stray sad
+    // trombone" reported after a spin resolved. The penalty is conveyed by the
+    // reel result overlay and bulbs; no question-reveal audio is triggered here.
+    return;
   };
 
   // Seeded pseudo-random number generator (mulberry32).

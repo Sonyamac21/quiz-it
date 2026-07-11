@@ -42,9 +42,10 @@ function OverlayPanel({ seg, teamName, onDismiss }: { seg: Seg; teamName: string
 type SlotMachineProps = {
   initialTeamName?: string;
   initialVictorySong?: string;
+  sessionPin?: string;
 };
 
-export default function SlotMachine({ initialTeamName, initialVictorySong }: SlotMachineProps = {}) {
+export default function SlotMachine({ initialTeamName, initialVictorySong, sessionPin }: SlotMachineProps = {}) {
   const [teamName, setTeamName] = useState(initialTeamName || "Loading...");
   const [victorySong, setVictorySong] = useState(initialVictorySong || "");
   const [teamLoading, setTeamLoading] = useState(!initialTeamName);
@@ -78,24 +79,31 @@ export default function SlotMachine({ initialTeamName, initialVictorySong }: Slo
     setTeamLoading(true);
     setTeamError(false);
     try {
+      // Must be scoped to the active session. Previously this queried the
+      // newest team across the ENTIRE teams table (no session filter, and the
+      // wrong `name` column), so it could surface a team from a completely
+      // different / historical session. Without a session pin there is no safe
+      // way to pick a team, so we do not guess a global one.
+      if (!sessionPin) { setTeamName("Team"); setTeamError(true); return; }
       const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       );
       const { data, error } = await supabase
         .from("teams")
-        .select("name, victory_song")
+        .select("team_name, victory_song")
+        .eq("session_pin", sessionPin)
         .order("created_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       if (error || !data) { setTeamName("Team"); setTeamError(true); }
       else {
-        setTeamName(data.name || "Team");
+        setTeamName(data.team_name || "Team");
         setVictorySong(data.victory_song || "");
       }
     } catch { setTeamName("Team"); setTeamError(true); }
     finally { setTeamLoading(false); }
-  }, []);
+  }, [sessionPin]);
 
   useEffect(() => { if (!initialTeamName) fetchLatestTeam(); }, [fetchLatestTeam, initialTeamName]);
 

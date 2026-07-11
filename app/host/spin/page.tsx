@@ -7,7 +7,8 @@ function SpinPageInner() {
   const params = useSearchParams();
   const teamName = params.get("team") || undefined;
   const victorySong = params.get("song") || undefined;
-  return <SlotMachine initialTeamName={teamName} initialVictorySong={victorySong} />;
+  const sessionPin = params.get("pin") || undefined;
+  return <SlotMachine initialTeamName={teamName} initialVictorySong={victorySong} sessionPin={sessionPin} />;
 }
 
 export default function SpinPage() {

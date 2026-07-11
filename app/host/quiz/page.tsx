@@ -153,6 +153,12 @@ function QuizControllerInner() {
   const [venueName, setVenueName] = useState<string | null>(null);
   const lastDeltasRef = useRef<Record<string, number>>({});
   const roundQuestionsRef = useRef<Question[]>([]);
+  // Always-current question index for the realtime answers handler, whose
+  // channel callback otherwise closes over qIdx=0 from subscribe time. Without
+  // it, a late INSERT for a *different* question index would be appended to the
+  // current `answers` array and could be picked as "fastest correct".
+  const qIdxRef = useRef(0);
+  useEffect(() => { qIdxRef.current = qIdx; }, [qIdx]);
 
   const currentQ = selectedRound?.questions[qIdx] || null;
   const isLastQ = selectedRound ? qIdx >= selectedRound.questions.length - 1 : false;
@@ -618,7 +624,7 @@ function QuizControllerInner() {
         .then(({ error }) => {
           if (error) console.error("Failed to write spin_to_win phase:", error);
         });
-      if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current, nonce);
+      if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current, nonce, pin);
       setTimeout(() => {
         const finalSid = sessionIdRef.current || sessionId;
         // spin_offered must be cleared here too - previously only spin_choice/nonce/target
@@ -635,7 +641,13 @@ function QuizControllerInner() {
     supabase.channel("quiz-host-" + pin)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "answers" }, (payload) => {
         const a = payload.new as Answer;
-        if (a.session_pin === pin) setAnswers(prev => [...prev, a]);
+        // Scope strictly to this session AND the current question index. A stale
+        // or retried insert for a previous question must never leak into the
+        // live `answers` array (it would otherwise be eligible as "fastest
+        // correct" even though it belongs to a different question).
+        if (a.session_pin === pin && a.question_index === qIdxRef.current) {
+          setAnswers(prev => prev.some(x => x.id === a.id) ? prev : [...prev, a]);
+        }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams" }, (payload) => {
         const t = payload.new as Team;
@@ -649,7 +661,12 @@ function QuizControllerInner() {
         }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards" }, (payload) => {
-        setUnoCards(prev => [payload.new as UnoCard, ...prev]);
+        const c = payload.new as UnoCard & { session_pin?: string };
+        // Scope to this session - the INSERT event is table-wide, so without
+        // this check a power card played in a different concurrent session would
+        // be appended to this host's list and leaderboard.
+        if (c.session_pin && c.session_pin !== pin) return;
+        setUnoCards(prev => prev.some(x => x.id === c.id) ? prev : [c, ...prev]);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "scores", filter: "session_pin=eq." + pin }, () => {
         loadScores(pin);
@@ -829,8 +846,28 @@ function QuizControllerInner() {
 
   async function doCelebrate() {
     if (!sessionId) return;
-    const correctAnswers = answers.filter(a =>
-      currentQ && isAnswerCorrect(a, currentQ)
+    const supabaseC = createSupabaseBrowserClient();
+    // Determine "fastest correct" from a fresh read scoped to THIS session and
+    // THIS question index, rather than the `answers` React state which can carry
+    // stale/late rows. Eligibility strictly requires: an answer was actually
+    // submitted (non-blank text), it is correct, it belongs to the current
+    // question index, and it belongs to the current session. Null/blank/missing/
+    // previous-question/other-session rows can never qualify.
+    let scopedAnswers: Answer[] = answers.filter(a => a.session_pin === sessionPin && a.question_index === qIdx);
+    if (sessionPin) {
+      const { data: freshCelebAnswers } = await supabaseC
+        .from("answers").select("*")
+        .eq("session_pin", sessionPin)
+        .eq("question_index", qIdx)
+        .order("submitted_at", { ascending: true });
+      if (freshCelebAnswers) scopedAnswers = freshCelebAnswers as Answer[];
+    }
+    const correctAnswers = scopedAnswers.filter(a =>
+      currentQ &&
+      !!a.answer_text && a.answer_text.trim() !== "" &&
+      a.question_index === qIdx &&
+      a.session_pin === sessionPin &&
+      isAnswerCorrect(a, currentQ)
     ).sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
     const fastest = correctAnswers[0] || null;
     const fastestTeamName = fastest?.team_name || null;
@@ -849,9 +886,17 @@ function QuizControllerInner() {
     // Victory song now plays only on the display screen to avoid duplicate/echoing audio
   }
 
-  async function applySpinResult(winIdx: number, teamName: string, spinNonce?: number) {
+  async function applySpinResult(winIdx: number, teamName: string, spinNonce: number | undefined, pin: string) {
+    // `pin` is passed explicitly rather than read from the `sessionPin` state:
+    // this function is reached from the realtime sessions-UPDATE handler, whose
+    // callback closes over the render at channel-subscribe time (when sessionPin
+    // was still "") and never updates. Using that stale "" meant getScores("")
+    // returned no rows and the whole spin payout silently no-opped, while
+    // spinTriggeredRef was already set - blocking the correctly-scoped 1.5s poll
+    // path from ever retrying. The verified pin threads through cleanly here.
+    if (!pin) { console.error("applySpinResult: no session pin available"); return; }
     const supabase = createSupabaseBrowserClient();
-    const allScores = await getScoresSvc(supabase, sessionPin);
+    const allScores = await getScoresSvc(supabase, pin);
     if (!allScores.length) return;
     const others = allScores.filter(s => s.team_name !== teamName).sort((a, b) => b.total_points - a.total_points);
     const mine = allScores.find(s => s.team_name === teamName);
@@ -877,13 +922,13 @@ function QuizControllerInner() {
     // the score write still succeeded but Display/Player may show a stale
     // scoreboard until the next mutation; report it rather than pretend the
     // spin fully succeeded.
-    const result = await setScoreAbsolute(supabase, sessionPin, teamName, newTotal, {
-      eventKey: spinNonce != null ? `spin:${sessionPin}:${spinNonce}` : undefined,
+    const result = await setScoreAbsolute(supabase, pin, teamName, newTotal, {
+      eventKey: spinNonce != null ? `spin:${pin}:${spinNonce}` : undefined,
     });
     if (result.scoreboardSyncError) {
       console.error("applySpinResult: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
     }
-    loadScores(sessionPin);
+    loadScores(pin);
   }
 
   async function doOfferSpinToWin() {

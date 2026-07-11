@@ -30,9 +30,9 @@ export function buildTeamSegments(teamNames: string[]): WheelSegment[] {
 }
 
 type Seg = WheelSegment;
-type Props = { onResult: (seg: Seg) => void; size?: number; teamName?: string; segments?: WheelSegment[]; forceResultIndex?: number; autoSpin?: boolean; onSpinStart?: () => void };
+type Props = { onResult: (seg: Seg) => void; size?: number; teamName?: string; segments?: WheelSegment[]; forceResultIndex?: number; autoSpin?: boolean; onSpinStart?: () => void; allowManualSpin?: boolean };
 
-export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, autoSpin, onSpinStart }: Props) {
+export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, autoSpin, onSpinStart, allowManualSpin = true }: Props) {
   const SEGS = segments && segments.length > 0 ? segments : DEFAULT_SEGS;
   const N = SEGS.length;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -214,7 +214,11 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
         <div style={{ position:"absolute", left:0, right:0, top:"50%", height:2, background:"linear-gradient(90deg,transparent,rgba(190,38,193,0.6),transparent)", transform:"translateY(-50%)", zIndex:5 }} />
         <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", maxWidth:"90vw" }} />
       </div>
-      {!autoSpin && (
+      {/* The manual spin button is HOST-ONLY. Passive surfaces (player handsets
+          and the venue display) pass allowManualSpin={false} and drive the wheel
+          purely via autoSpin/forceResultIndex, so only the host can start the
+          Hard Deck team-selection spin. */}
+      {allowManualSpin && !autoSpin && (
         <button onClick={spin} disabled={spinning} style={{ padding:"14px 52px", background:spinning?"#1a1a2e":"#BE26C1", color:"#fff", border:"none", borderRadius:50, fontSize:18, fontFamily:"sans-serif", letterSpacing:3, cursor:spinning?"not-allowed":"pointer", boxShadow:spinning?"none":"0 0 24px rgba(190,38,193,0.5)", opacity:spinning?0.4:1, transition:"all 0.2s" }}>
           {spinning ? "Spinning..." : "Spin The Wheel"}
         </button>

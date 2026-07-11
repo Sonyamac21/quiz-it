@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { applyScoreDelta } from "@/lib/quiz/scoreService";
@@ -192,7 +193,14 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
 
   const showRevealBaseButton = !showWheel && team && cards.length === 0;
 
-  return (
+  // Rendered through a portal to <body> rather than inline. This component is
+  // mounted inside the host header, which uses `backdrop-filter: blur()`; that
+  // property makes the header a containing block for `position: fixed`
+  // descendants, so this overlay was being positioned/clipped relative to the
+  // thin header bar instead of the viewport (title pushed off the top of the
+  // page, controls unreachable). Portaling to <body> escapes that context so
+  // the fixed overlay fills the real viewport and is fully usable.
+  const overlay = (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100vh", boxSizing: "border-box" as const, background: "rgba(5,2,10,0.97)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 24, padding: 24, overflowY: "auto" }}>
       <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: (!showWheel && team) ? 16 : 28, color: (!showWheel && team) ? "rgba(190,38,193,0.5)" : "#BE26C1", letterSpacing: (!showWheel && team) ? 3 : 4, fontWeight: (!showWheel && team) ? 600 : 400 }}>THE HARD DECK</div>
 
@@ -282,4 +290,6 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
       <button onClick={closePanel} style={{ marginTop: 16, padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(overlay, document.body) : null;
 }

@@ -19,7 +19,7 @@ type Question = {
   correct_answer: string;
 };
 
-type Phase = "waiting" | "question" | "answer" | "celebration" | "hard_deck" | "intermission" | "spin_to_win";
+type Phase = "waiting" | "question" | "answer" | "celebration" | "hard_deck" | "intermission" | "spin_to_win" | "quiz_end";
 
 interface Props {
   teamName: string;
@@ -211,10 +211,21 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [intermissionOffers, setIntermissionOffers] = useState("");
   const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
+  const [quizEndRevealedCount, setQuizEndRevealedCount] = useState(0);
+  const [quizEndTrophyVisible, setQuizEndTrophyVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastQIndexRef = useRef(-1);
   const lastQTextRef = useRef("");
   const lastPhaseRef = useRef<string>("");
+  // Mirrors the display's spin handling: force this handset into the
+  // spin_to_win phase as soon as a spin (spin_choice="spin" + a fresh
+  // spin_nonce) is seen, independent of whether the `phase` column write was
+  // delivered. Without this, a dropped realtime phase update left the handset
+  // showing the question/celebration answer-feedback screen during a spin -
+  // i.e. the selected contestant appearing to have "answered incorrectly"
+  // when no question was in play. Handled-once per nonce so the return trip to
+  // "celebration" (nonce cleared) isn't re-forced back into the spin.
+  const spinNonceHandledRef = useRef<number | null>(null);
 
 
   const bg = "#080810";
@@ -280,7 +291,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data")
+        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, quiz_end_revealed_count, quiz_end_trophy_visible")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -332,8 +343,15 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const newQ = data.current_question as Question | null;
     const newIdx = (data.current_question_index as number) ?? 0;
     const ft = (data.fastest_team as string) || null;
+    const spinChoiceVal = (data.spin_choice as string) || null;
+    const spinNonceVal = (data.spin_nonce as number) ?? null;
 
-    setPhase(newPhase);
+    if (spinChoiceVal === "spin" && spinNonceVal !== null && spinNonceHandledRef.current !== spinNonceVal) {
+      spinNonceHandledRef.current = spinNonceVal;
+      setPhase("spin_to_win");
+    } else {
+      setPhase(newPhase);
+    }
     setQuestion(newQ);
     setFastestTeamName(ft);
     setFastestSongName((data.fastest_song as string) || null);
@@ -361,6 +379,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setIntermissionOffers((data.intermission_offers as string) || "");
     setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
     setIntermissionOtherQuizzes((data.intermission_other_quizzes as string) || "");
+    setQuizEndRevealedCount((data.quiz_end_revealed_count as number) || 0);
+    setQuizEndTrophyVisible(!!data.quiz_end_trophy_visible);
 
     // Reset answer state when phase changes to question, question index changes, OR the question content itself changes (e.g. host used Dump Question to swap content without changing the index)
     const newQText = newQ?.question_text || "";
@@ -543,6 +563,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               size={240}
               forceResultIndex={hardDeckWheelTarget}
               autoSpin={hardDeckWheelSpinning}
+              allowManualSpin={false}
             />
           </div>
         )}
@@ -937,6 +958,46 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
         </div>
         <PowerCards />
+      </div>
+    );
+  }
+
+  // FINALE — podium / final-standings reveal. The handset must follow the same
+  // current-session finale phase as the Display instead of dropping back to the
+  // lobby "You are In!" confirmation. It shows an "Eyes Up" watch-the-screen
+  // state during the live reveal, then this team's own final position once the
+  // podium (trophy) is shown.
+  if (phase === "quiz_end") {
+    const sortedFinal = [...phoneScoreboardData].sort((a, b) => b.total_points - a.total_points);
+    const myIndex = sortedFinal.findIndex(s => s.team_name === teamName);
+    const myRank = myIndex >= 0 ? myIndex + 1 : null;
+    const myScore = myIndex >= 0 ? sortedFinal[myIndex].total_points : null;
+    const revealComplete = quizEndTrophyVisible || (sortedFinal.length > 0 && quizEndRevealedCount >= sortedFinal.length);
+    const myRankRevealed = myRank !== null && (quizEndTrophyVisible || (sortedFinal.length - quizEndRevealedCount) < myRank);
+    const ordinal = (n: number) => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+    return (
+      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font, color: "#fff" }}>
+        <div style={{ fontSize: 13, letterSpacing: 4, color: "rgba(255,255,255,0.4)" }}>{revealComplete ? "FINAL RESULTS" : "FINAL STANDINGS"}</div>
+        {!myRankRevealed ? (
+          <>
+            <div style={{ fontSize: 40 }}>{"\u{1F440}"}</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: purple, letterSpacing: 2 }}>EYES UP!</div>
+            <div style={{ fontSize: 15, color: "rgba(255,255,255,0.55)" }}>Watch the big screen for the results…</div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: myRank === 1 ? 64 : 40, marginBottom: 4 }}>{myRank === 1 ? "\u{1F3C6}" : myRank === 2 ? "\u{1F948}" : myRank === 3 ? "\u{1F949}" : "\u{2B50}"}</div>
+            <div style={{ fontSize: 30, fontWeight: 900, color: "#fff", letterSpacing: 1 }}>{teamName}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: myRank && myRank <= 3 ? "#facc15" : purple, letterSpacing: 1 }}>{myRank ? ordinal(myRank) + " place" : "Thanks for playing!"}</div>
+            {myScore !== null && (
+              <div style={{ padding: "14px 28px", borderRadius: 16, background: "rgba(190,38,193,0.15)", border: "2px solid rgba(190,38,193,0.45)", marginTop: 4 }}>
+                <div style={{ fontSize: 10, letterSpacing: 3, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>FINAL SCORE</div>
+                <div style={{ fontSize: 40, fontWeight: 900, color: purple, lineHeight: 1 }}>{myScore}</div>
+              </div>
+            )}
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 8 }}>Full results on the big screen</div>
+          </>
+        )}
       </div>
     );
   }

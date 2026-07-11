@@ -54,6 +54,15 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+// Canonical form for comparing question text: trim, lowercase, and collapse
+// all runs of whitespace to a single space. Used by both the rejected-question
+// blacklist and the exact-duplicate checks so "Whats the  Capital " and
+// "what's the capital" compare equal (punctuation aside) rather than slipping
+// through on incidental spacing/case differences.
+function normalizeQuestionText(s: string): string {
+  return (s || "").toLowerCase().trim().replace(/\s+/g, " ");
+}
+
 export default function QuestionsPage() {
   const [roundType, setRoundType] = useState("regular");
   const [difficulty, setDifficulty] = useState("mixed");
@@ -104,8 +113,23 @@ export default function QuestionsPage() {
   // even when their question text is completely different - the root cause of
   // the "Bat / Bat" duplicate that slipped through the text-only check.
   const usedAnswersRef = useRef<string[]>([]);
+  // Permanent per-session blacklist of the normalised text of every question
+  // that was rejected during this generation session (moderation fail, duplicate/
+  // quality fail, or manual removal). Once a question lands here it can never be
+  // accepted again for the rest of the session, and it is also fed into the
+  // generation prompt so the AI is explicitly told not to reproduce it. Survives
+  // every retry, top-up and replace within the session; reset when a brand-new
+  // Generate run starts.
+  const rejectedRef = useRef<Set<string>>(new Set());
   const lastApiErrorRef = useRef<string>("");
   const dragIdx = useRef<number|null>(null);
+
+  // Record a produced-but-rejected question so it is never regenerated/accepted
+  // again this session.
+  function blacklistRejected(q: Question) {
+    const norm = normalizeQuestionText(q.question_text);
+    if (norm) rejectedRef.current.add(norm);
+  }
 
   useEffect(() => { loadUsedQuestions(); }, []);
 
@@ -192,7 +216,11 @@ export default function QuestionsPage() {
     // Cap to last 40 entries AND hard-truncate the assembled text - 150 entries
     // was overflowing the 8000-char prompt limit after enough generation history
     // built up, causing every generation to fail outright with "Prompt too long".
-    let exclusions = usedRef.current.slice(-40).map((q,i) => (i+1)+". "+q).join("; ");
+    // Questions rejected during THIS session are listed first so they survive the
+    // truncation cap - the AI must be told not to reproduce them (the blacklist in
+    // isAcceptable is the hard guard; this just stops wasted retries).
+    const rejectedList = Array.from(rejectedRef.current);
+    let exclusions = [...rejectedList, ...usedRef.current.slice(-40)].map((q,i) => (i+1)+". "+q).join("; ");
     if (exclusions.length > 3000) exclusions = exclusions.slice(0, 3000);
     const usedAnswersList = usedAnswersRef.current.slice(-30).filter(Boolean).join(", ");
     const exclusionNote = (exclusions || usedAnswersList)
@@ -450,12 +478,16 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     const STOP = new Set(["what","which","where","when","who","that","this","with","from","have","been","were","they","their","about","only","does","into","than","other","more","over","some","also","after","before","known","its","the","and","for","are","but","not","you","all","can","had","her","him","his","how","man","new","now","old","see","two","way","who","boy","did","its","let","put","say","she","too","use","was"]);
     const sigWords = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !STOP.has(w));
 
-    const normText = q.question_text.toLowerCase().trim();
+    const normText = normalizeQuestionText(q.question_text);
     const normAnswer = (q.correct_answer || "").toLowerCase().trim();
 
+    // a0) Rejected earlier this session - permanently blacklisted, never allow
+    // the exact same question to come back regardless of why it was rejected.
+    if (rejectedRef.current.has(normText)) return false;
+
     // a) Exact text match - already in this round or historical session
-    if (usedRef.current.some(t => t.toLowerCase().trim() === normText)) return false;
-    if (currentRound.some(g => g.question_text.toLowerCase().trim() === normText)) return false;
+    if (usedRef.current.some(t => normalizeQuestionText(t) === normText)) return false;
+    if (currentRound.some(g => normalizeQuestionText(g.question_text) === normText)) return false;
 
     // b) Same answer already in this round (catches "Bat" / "Bat" pattern)
     if (normAnswer && currentRound.some(g =>
@@ -509,6 +541,10 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     setLoading(true);
     setQuestions([]);
     setRoundName("");
+    // Fresh generation session: start the rejected-question blacklist empty so it
+    // only reflects questions rejected during this run (it then persists across
+    // every retry, top-up and replace until the next Generate).
+    rejectedRef.current = new Set();
     let types: string[];
     if (roundType === "music") {
       types = Array(count).fill("audio");
@@ -581,6 +617,9 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         setQuestions([...good]);
         consecutiveCheckFailures = 0;
       } else {
+        // Permanently blacklist this exact question for the rest of the session
+        // so the retry can never reproduce it (and the AI is told to avoid it).
+        blacklistRejected(q);
         consecutiveCheckFailures++;
         setStatus("Question " + (good.length + 1) + " failed check (" + check.note.substring(0,40) + ") - retrying...");
         // Same logic as generateOne failures above - if questions keep failing the
@@ -617,6 +656,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       });
     } catch(e) { console.error("Bank insert failed:", e); }
     registerAccepted(removed); // tracks both text and answer so replacement can't be same fact
+    blacklistRejected(removed); // manual rejection: never regenerate this exact question this session
     setQuestions(prev => prev.filter((_,idx) => idx !== i));
     setStatus("Finding replacement...");
     const topicList = shuffle(TOPICS);
@@ -633,6 +673,10 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         setStatus("Replaced!");
         setTimeout(() => setStatus(""), 2000);
         replaced = true;
+      } else {
+        // Rejected replacement is blacklisted too, so the next attempt can't
+        // hand back the same failed question.
+        blacklistRejected(newQ);
       }
     }
     if (!replaced) setStatus(lastApiErrorRef.current ? "Generation failed: " + lastApiErrorRef.current : "Could not find replacement - try generating again.");
@@ -665,6 +709,8 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         registerAccepted(q);
         added.push(q);
         setQuestions(prev => [...prev, q]);
+      } else {
+        blacklistRejected(q);
       }
     }
     setStatus(added.length === needed ? "Ready! Drag to reorder, then name and save." : "Added " + added.length + " of " + needed + " needed.");

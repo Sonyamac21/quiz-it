@@ -491,7 +491,7 @@ function QuizControllerInner() {
         const mtDelta = (mtBasePts + mtTimeBonus) * (hasBoost(team.team_name) ? 2 : 1);
         lastDeltasRef.current[team.team_name] = mtDelta;
         if (mtDelta === 0) continue;
-        const mtResult = await applyScoreDelta(supabase, sessionPin, team.team_name, mtDelta, { eventKey: `autoscore:${sessionPin}:${qIdx}:${team.team_name}:multitap` });
+        const mtResult = await applyScoreDelta(supabase, sessionPin, team.team_name, mtDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:multitap` });
         if (mtResult.scoreboardSyncError) console.error(`autoScore (multi tap, ${team.team_name}): score updated but scoreboard_data sync failed:`, mtResult.scoreboardSyncError);
         continue;
       }
@@ -504,7 +504,7 @@ function QuizControllerInner() {
       const delta = (basePts + timeBonusPts) * (hasBoost(team.team_name) ? 2 : 1) + penalty;
       lastDeltasRef.current[team.team_name] = delta;
       if (delta === 0) continue;
-      const scoreResult = await applyScoreDelta(supabase, sessionPin, team.team_name, delta, { eventKey: `autoscore:${sessionPin}:${qIdx}:${team.team_name}` });
+      const scoreResult = await applyScoreDelta(supabase, sessionPin, team.team_name, delta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}` });
       if (scoreResult.scoreboardSyncError) console.error(`autoScore (${team.team_name}): score updated but scoreboard_data sync failed:`, scoreResult.scoreboardSyncError);
     }
     loadScores(sessionPin);
@@ -627,11 +627,15 @@ function QuizControllerInner() {
       if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current, nonce, pin);
       setTimeout(() => {
         const finalSid = sessionIdRef.current || sessionId;
-        // spin_offered must be cleared here too - previously only spin_choice/nonce/target
-        // were reset, leaving spin_offered stuck true in the DB. That let the fastest
-        // team's handset re-show the "SPIN TO WIN?" prompt after the spin had already
-        // resolved, since its render condition only checks spinOffered && !spinChoice.
-        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration", spin_offered: false, spin_choice: null, spin_nonce: null, spin_target_idx: null }).eq("id", finalSid).then(({ error }) => { if (error) console.error("SESSION UPDATE FAILED [spinTimeout]:", error); });
+        // Only return to "celebration" if the session is STILL on the spin
+        // (phase === "spin_to_win"). If the host already advanced (Continue / Next
+        // Question / End Round), that move set fastest_team = null and changed the
+        // phase; an unconditional write here would re-enter "celebration" with no
+        // winner and make the Display fire the sad-trombone + "No correct answers"
+        // and every handset re-show wrong-answer feedback. The .eq("phase",
+        // "spin_to_win") guard makes this a no-op in that case. The spin_* columns
+        // are cleared in the same guarded write.
+        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration", spin_offered: false, spin_choice: null, spin_nonce: null, spin_target_idx: null }).eq("id", finalSid).eq("phase", "spin_to_win").then(({ error }) => { if (error) console.error("SESSION UPDATE FAILED [spinTimeout]:", error); });
       }, 20000);
     }
   }
@@ -898,22 +902,38 @@ function QuizControllerInner() {
     const supabase = createSupabaseBrowserClient();
     const allScores = await getScoresSvc(supabase, pin);
     if (!allScores.length) return;
-    const others = allScores.filter(s => s.team_name !== teamName).sort((a, b) => b.total_points - a.total_points);
+    // Other teams' TOTALS, highest first. Rank outcomes are computed purely from
+    // these so a team lands on the score needed to occupy that leaderboard
+    // position - never the ordinal number (1/2/3) and never an arbitrary 0.
+    const othersDesc = allScores.filter(s => s.team_name !== teamName).map(s => s.total_points).sort((a, b) => b - a);
     const mine = allScores.find(s => s.team_name === teamName);
     const myTotal = mine?.total_points ?? 0;
     const label = SLOT_SEGS[winIdx]?.label;
+    // To occupy overall rank R, exactly R-1 other teams must be above you, so sit
+    // one point above the R-th highest other team (othersDesc[R-1]). Deterministic
+    // for ties (fixed sort). If there aren't that many other teams, the rank can't
+    // exist below the team's current standing - keep the team's own score rather
+    // than reducing it to a meaningless value.
+    const scoreForRank = (rank: number): number => {
+      const idx = rank - 1;
+      if (idx < othersDesc.length) return othersDesc[idx] + 1;
+      return myTotal;
+    };
     let newTotal = myTotal;
     // Numeric outcomes are a straightforward add/subtract, floored at 0.
     if (label === "+50 Points") newTotal = myTotal + 50;
     else if (label === "-10 Points") newTotal = Math.max(0, myTotal - 10);
     else if (label === "-20 Points") newTotal = Math.max(0, myTotal - 20);
     else if (label === "-30 Points") newTotal = Math.max(0, myTotal - 30);
-    // Rank outcomes slot the team in 1 point above/below whoever currently holds
-    // the position next to that rank, so they land exactly on it.
-    else if (label === "1st Place") newTotal = (others[0]?.total_points ?? 0) + 1;
-    else if (label === "2nd Place") newTotal = others.length >= 2 ? others[1].total_points + 1 : Math.max(0, (others[0]?.total_points ?? 1) - 1);
-    else if (label === "3rd Place") newTotal = others.length >= 3 ? others[2].total_points + 1 : Math.max(0, (others[others.length - 1]?.total_points ?? 1) - 1);
-    else if (label === "Last Place") newTotal = Math.max(0, (others[others.length - 1]?.total_points ?? 1) - 1);
+    // 1st place is a reward: guarantee first, but never REDUCE the team's score
+    // (e.g. when other teams still have 0, this must not drop a leader to 1).
+    else if (label === "1st Place") newTotal = Math.max(myTotal, scoreForRank(1));
+    else if (label === "2nd Place") newTotal = scoreForRank(2);
+    else if (label === "3rd Place") newTotal = scoreForRank(3);
+    // Last place: sit one below the current lowest other team, floored at 0. Only
+    // becomes 0 when 0 is genuinely last (lowest other is 0 or 1). With no other
+    // teams there is no "last" to move to, so keep the team's score.
+    else if (label === "Last Place") newTotal = othersDesc.length ? Math.max(0, othersDesc[othersDesc.length - 1] - 1) : myTotal;
     // eventKey keyed on the spin_nonce written to the session row for this
     // spin - guards against applySpinResult ever being invoked twice for the
     // same spin (e.g. a future direct call plus a realtime-triggered call).

@@ -769,12 +769,16 @@ function DisplayScreenInner() {
           <div style={{ fontSize:48, color:"#fff", fontWeight:800, letterSpacing:2 }}>{hardDeckTeam}</div>
         )}
         {hardDeckCards.length > 0 && (
-          <div style={{ padding: "40px 48px", borderRadius: 32, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 2px 2px rgba(255,255,255,0.05), inset 0 -2px 40px rgba(0,0,0,0.4), 0 0 60px rgba(190,38,193,0.15)" }}>
-            <div style={{ display:"flex", gap:24 }}>
+          <div style={{ padding: "clamp(12px,2vw,32px)", borderRadius: 32, maxWidth: "96vw", boxSizing: "border-box" as const, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 2px 2px rgba(255,255,255,0.05), inset 0 -2px 40px rgba(0,0,0,0.4), 0 0 60px rgba(190,38,193,0.15)" }}>
+            {/* Cards sized relative to the viewport so the full row (up to 5 cards)
+                plus the title/team/points area always fits inside a 16:9 display
+                with no clipping or horizontal scroll. Layout only - mechanics
+                unchanged. */}
+            <div style={{ display:"flex", gap:"clamp(8px,1.5vw,24px)", justifyContent:"center", flexWrap:"nowrap" as const }}>
               {hardDeckCards.map((c, i) => (
-                <div key={i} style={{ width:280, height:400, borderRadius:28, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "2px solid rgba(0,0,0,0.08)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontSize:96, fontWeight:900, color:(c.suit==="♥"||c.suit==="♦")?"#dc2626":"#111", boxShadow:"inset 0 2px 0 rgba(255,255,255,0.9), inset 0 -14px 24px rgba(0,0,0,0.05), 0 16px 60px rgba(0,0,0,0.55), 0 0 0 2px rgba(212,175,90,0.3)" }}>
+                <div key={i} style={{ width:"min(200px,15vw)", height:"min(286px,40vh)", flexShrink:0, borderRadius:"clamp(10px,1.4vw,28px)", background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "2px solid rgba(0,0,0,0.08)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontSize:"min(56px,7vw)", fontWeight:900, color:(c.suit==="♥"||c.suit==="♦")?"#dc2626":"#111", boxShadow:"inset 0 2px 0 rgba(255,255,255,0.9), inset 0 -14px 24px rgba(0,0,0,0.05), 0 16px 60px rgba(0,0,0,0.55), 0 0 0 2px rgba(212,175,90,0.3)" }}>
                   <div>{rankLabel(c.rank)}</div>
-                  <div style={{ fontSize:120 }}>{c.suit}</div>
+                  <div style={{ fontSize:"min(72px,9vw)" }}>{c.suit}</div>
                 </div>
               ))}
             </div>

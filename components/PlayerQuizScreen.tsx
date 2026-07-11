@@ -243,22 +243,35 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const interval = setInterval(tick, 500);
     return () => clearInterval(interval);
   }, [blockUntil]);
+  // Keep the phone awake while the quiz session is ACTIVE. The Screen Wake Lock
+  // is auto-released by the OS whenever the tab is hidden or the screen turns
+  // off, so it must be re-acquired on visibility/focus and when the sentinel
+  // fires its own 'release' event - otherwise the phone starts sleeping mid-game.
+  // Released on unmount (player leaves) and when the session ends (status
+  // "finished"), which re-runs this effect and skips re-acquiring.
   useEffect(() => {
-    let wakeLock: WakeLockSentinel | null = null;
-    async function requestWakeLock() {
+    const active = sessionStatus !== "finished";
+    let sentinel: WakeLockSentinel | null = null;
+    const nav = navigator as Navigator & { wakeLock?: { request: (type: string) => Promise<WakeLockSentinel> } };
+    async function acquire() {
+      if (!active || document.visibilityState !== "visible" || !nav.wakeLock) return;
       try {
-        if ("wakeLock" in navigator) {
-          wakeLock = await (navigator as Navigator & { wakeLock: { request: (type: string) => Promise<WakeLockSentinel> } }).wakeLock.request("screen");
-        }
+        sentinel = await nav.wakeLock.request("screen");
+        sentinel.addEventListener("release", () => { sentinel = null; });
       } catch {}
     }
-    requestWakeLock();
-    document.addEventListener("visibilitychange", requestWakeLock);
+    const onVisible = () => { if (document.visibilityState === "visible") acquire(); };
+    if (active) {
+      acquire();
+      document.addEventListener("visibilitychange", onVisible);
+      window.addEventListener("focus", acquire);
+    }
     return () => {
-      document.removeEventListener("visibilitychange", requestWakeLock);
-      if (wakeLock) wakeLock.release().catch(() => {});
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", acquire);
+      if (sentinel) { sentinel.release().catch(() => {}); sentinel = null; }
     };
-  }, []);
+  }, [sessionStatus]);
   // Backup: a silent looping audio track discourages most mobile browsers from sleeping the screen,
   // since actively playing media is treated differently from an idle tab.
   useEffect(() => {

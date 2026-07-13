@@ -33,6 +33,7 @@ const ROUND_LAUNCHER_TYPES: { key: string; label: string; color: string; bg: str
   { key: "bonus",     label: "Bonus / Themed",     color: "#a78bfa", bg: "rgba(167,139,250,0.16)" },
   { key: "music",     label: "Music",              color: "#fb923c", bg: "rgba(251,146,60,0.16)" },
   { key: "multi_tap", label: "Multi Tap",          color: "#22c55e", bg: "rgba(34,197,94,0.16)" },
+  { key: "pursuit",   label: "The Pursuit",        color: "#38bdf8", bg: "rgba(56,189,248,0.16)" },
 ];
 
 export default function RoundsPage() {

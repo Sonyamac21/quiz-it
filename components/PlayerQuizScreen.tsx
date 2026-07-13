@@ -6,6 +6,7 @@ import { UnoPlayerCards } from "@/components/UnoCards";
 import { AnswerKeypad } from "@/components/AnswerKeypad";
 import { SlotReels } from "@/components/SlotReels";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
+import { PursuitPhase, readPursuitState, readQIndex, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 
 type Question = {
   question_text: string;
@@ -19,7 +20,7 @@ type Question = {
   correct_answer: string;
 };
 
-type Phase = "waiting" | "question" | "answer" | "celebration" | "hard_deck" | "intermission" | "spin_to_win" | "quiz_end";
+type Phase = "waiting" | "question" | "answer" | "celebration" | "hard_deck" | "intermission" | "spin_to_win" | "quiz_end" | "pursuit";
 
 interface Props {
   teamName: string;
@@ -206,6 +207,11 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [hardDeckCards, setHardDeckCards] = useState<{rank:number; suit:string}[]>([]);
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number | null>(null);
   const [hardDeckWheelSpinning, setHardDeckWheelSpinning] = useState(false);
+  // THE PURSUIT — handset mirror of pursuit_status + the current question index.
+  // During the "question"/"reveal" sub-phases the handset reuses the normal
+  // question / answer screens (see the render conditions below).
+  const [pursuitStatus, setPursuitStatus] = useState<PursuitPhase>("idle");
+  const [pursuitQIndex, setPursuitQIndex] = useState(-1);
   const [sessionStatus, setSessionStatus] = useState<string>("waiting");
   const [allTeamNames, setAllTeamNames] = useState<string[]>([]);
   const [intermissionOffers, setIntermissionOffers] = useState("");
@@ -309,7 +315,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, quiz_end_revealed_count, quiz_end_trophy_visible")
+        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -399,6 +405,11 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setHardDeckWheelSpinning(!!data.hard_deck_wheel_spinning);
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
     setHardDeckGuess((data.hard_deck_guess as string) || null);
+    // THE PURSUIT — hydrate handset mirror (pursuit_status + current question idx).
+    const pursuitState = readPursuitState(data);
+    const newPursuitStatus = pursuitState.status;
+    setPursuitStatus(newPursuitStatus);
+    setPursuitQIndex(readQIndex(pursuitState));
     setSpinOffered(!!data.spin_offered);
     setSpinChoice((data.spin_choice as string) || null);
     setIntermissionOffers((data.intermission_offers as string) || "");
@@ -409,7 +420,11 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
     // Reset answer state when phase changes to question, question index changes, OR the question content itself changes (e.g. host used Dump Question to swap content without changing the index)
     const newQText = newQ?.question_text || "";
-    if (newPhase === "question" && (newIdx !== lastQIndexRef.current || lastPhaseRef.current !== "question" || newQText !== lastQTextRef.current)) {
+    // The Pursuit reuses the normal question screen: treat its "question" sub-phase
+    // as an effective "question" phase so answer state resets between race questions.
+    const inPursuitQuestion = newPhase === "pursuit" && newPursuitStatus === "question";
+    const effPhase = inPursuitQuestion ? "question" : newPhase;
+    if (effPhase === "question" && (newIdx !== lastQIndexRef.current || lastPhaseRef.current !== "question" || newQText !== lastQTextRef.current)) {
       lastQIndexRef.current = newIdx;
       lastQTextRef.current = newQText;
       setQuestionIndex(newIdx);
@@ -419,7 +434,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       setTappedItems([]);
       setMySubmittedDisplay("");
     }
-    lastPhaseRef.current = newPhase;
+    lastPhaseRef.current = effPhase;
 
     if (data.timer_started_at && data.timer_duration) {
       const started = new Date(data.timer_started_at as string).getTime();
@@ -697,6 +712,27 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     );
   }
 
+  // THE PURSUIT — non-question sub-phases only. The "question" and "reveal"
+  // sub-phases fall through to the normal question / answer screens below (their
+  // render conditions include the pursuit sub-phase), so every team answers the
+  // pursuit question exactly as it answers any other — no special screens.
+  if (phase === "pursuit" && pursuitStatus !== "question" && pursuitStatus !== "reveal") {
+    const message =
+      pursuitStatus === "intro" ? "Seven questions. One wrong answer and you're out. Get ready!"
+      : pursuitStatus === "advance" ? "Runners are moving — watch the big screen!"
+      : pursuitStatus === "complete" || pursuitStatus === "results" ? "That's the finish. Final standings on the big screen."
+      : "The Pursuit is starting soon…";
+    return (
+      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
+        <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 22, color: "#38bdf8", letterSpacing: 3 }}>THE PURSUIT</div>
+        {pursuitQIndex >= 0 && pursuitStatus === "advance" && (
+          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>QUESTION {pursuitQIndex + 1} / {PURSUIT_TOTAL_QUESTIONS}</div>
+        )}
+        <div style={{ fontSize: 15, color: "rgba(255,255,255,0.6)", maxWidth: 300 }}>{message}</div>
+      </div>
+    );
+  }
+
   if (phase === "intermission") {
     const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes;
     return (
@@ -823,7 +859,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     );
   }
 
-  if (phase === "answer" && question) {
+  if ((phase === "answer" || (phase === "pursuit" && pursuitStatus === "reveal")) && question) {
     const correctText = getCorrectAnswerText(question);
     return (
       <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", padding: 20, fontFamily: font, color: "#fff" }}>
@@ -843,7 +879,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     );
   }
 
-  if ((phase === "question") && question) {
+  if ((phase === "question" || (phase === "pursuit" && pursuitStatus === "question")) && question) {
     const isPicture = question.question_type === "picture";
     const isMultiChoice = question.question_type === "multiple_choice";
     const isSequence = question.question_type === "sequence";

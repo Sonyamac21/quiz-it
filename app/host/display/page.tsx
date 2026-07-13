@@ -6,6 +6,8 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { SlotReels } from "@/components/SlotReels";
+import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitCorrectAnswerText } from "@/lib/quiz/pursuit";
+import { PursuitBoard } from "@/components/PursuitBoard";
 
 type Question = {
   question_text: string;
@@ -22,7 +24,7 @@ type Question = {
   fade_out?: boolean;
 };
 type Score = { team_name: string; total_points: number; };
-type Phase = "waiting" | "round_start" | "question" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission" | "spin_to_win";
+type Phase = "waiting" | "round_start" | "question" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission" | "spin_to_win" | "pursuit";
 
 // Real, automatic audio playback for "audio" question types - this replaces
 // what used to be the host manually alt-tabbing to YouTube on their own laptop.
@@ -270,6 +272,10 @@ function DisplayScreenInner() {
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number|null>(null);
   const [hardDeckWheelSpinning, setHardDeckWheelSpinning] = useState(false);
   const prevHardDeckStatusRef = useRef<string>("idle");
+  // THE PURSUIT — display-side mirror of pursuit_status + the pursuit_data race.
+  const [pursuitStatus, setPursuitStatus] = useState<PursuitPhase>("idle");
+  const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
+  const [pursuitQIndex, setPursuitQIndex] = useState(-1);
   const [teams, setTeams] = useState<{ team_name: string; victory_song?: string; photo_url?: string }[]>([]);
   // teams is read inside realtime subscription callbacks set up once at
   // connect-time, whose closures freeze component state at that moment
@@ -481,6 +487,13 @@ function DisplayScreenInner() {
         }
         prevHardDeckStatusRef.current = newHDStatus;
       }
+    }
+    {
+      // THE PURSUIT — hydrate the display mirror from pursuit_status + pursuit_data.
+      const p = readPursuitState(data);
+      setPursuitStatus(p.status);
+      setPursuitRace(readRace(p));
+      setPursuitQIndex(readQIndex(p));
     }
     setIntermissionOffers((data.intermission_offers as string) || "");
     setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
@@ -811,6 +824,22 @@ function DisplayScreenInner() {
           <div style={{ fontSize:44, color:"#ef4444", fontWeight:800 }}>BUST!</div>
         )}
       </div>
+    );
+  }
+
+  // THE PURSUIT — the race board is the hero (prototype v1.0). All race/scoring
+  // logic stays in the state machine; the board is pure presentation.
+  if (phase === "pursuit") {
+    return (
+      <PursuitBoard
+        status={pursuitStatus}
+        race={pursuitRace}
+        teamNames={teams.map(t => t.team_name)}
+        qIndex={pursuitQIndex}
+        questionText={question?.question_text ?? null}
+        questionCategory={question?.question_type ?? null}
+        correctAnswer={question ? pursuitCorrectAnswerText(question) : null}
+      />
     );
   }
 

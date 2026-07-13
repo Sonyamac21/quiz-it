@@ -53,10 +53,11 @@ export async function POST(req: NextRequest) {
     if (authError || !data.user) {
       return NextResponse.json({ error: { message: "Not logged in - please log in again." } }, { status: 401 });
     }
+    const userId = data.user.id;
 
     // 2. Rate limit per logged-in user (not just per IP, since a host could
     //    be on a shared venue network).
-    if (isRateLimited(data.user.id)) {
+    if (isRateLimited(userId)) {
       return NextResponse.json(
         { error: { message: "Too many requests, slow down." } },
         { status: 429 },

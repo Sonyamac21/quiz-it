@@ -4,6 +4,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ImageUploader } from "@/components/ImageUploader";
 import { AudioUploader } from "@/components/AudioUploader";
 import { AudioRecorder } from "@/components/AudioRecorder";
+import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 
 type Question = {
   id?: number;
@@ -82,7 +83,11 @@ export default function QuestionsPage() {
   const [roundType, setRoundType] = useState("regular");
   const [difficulty, setDifficulty] = useState("mixed");
   const [theme, setTheme] = useState("");
-  const [count, setCount] = useState(15);
+  const [questionCount, setQuestionCount] = useState(15);
+  // The Pursuit is always exactly 7 gates. The generator reads this single `count`
+  // value, so Pursuit runs the identical pipeline with the length fixed inline —
+  // no separate effect or second code path.
+  const count = roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : questionCount;
   const [questions, setQuestions] = useState<Question[]>([]);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualType, setManualType] = useState("multiple_choice");
@@ -730,6 +735,12 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       types = Array(count).fill("audio");
     } else if (roundType === "multi_tap") {
       types = Array(count).fill("multi_tap");
+    } else if (roundType === "pursuit") {
+      // The Pursuit runs on the standard, text-answerable question types (no
+      // picture/audio, whose media the race board doesn't display), 7 gates.
+      types = shuffle(Array.from({ length: count }, (_, i) =>
+        ["multiple_choice", "text_answer", "number", "sequence"][i % 4]
+      ));
     } else {
       const mcCount = Math.round(count * 0.25);
       const taCount = Math.round(count * 0.20);
@@ -1006,13 +1017,18 @@ Return ONLY a valid JSON array with 1 item, no markdown:
               <option value="bonus">Bonus / themed</option>
               <option value="music">Music round</option>
               <option value="multi_tap">Multi Tap round</option>
+              <option value="pursuit">The Pursuit</option>
             </select>
           </div>
           <div>
             <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>QUESTIONS</label>
-            <select value={count} onChange={e => setCount(parseInt(e.target.value))} style={{ width:"100%", padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
-              {[5,10,15].map(c => <option key={c} value={c}>{c} questions</option>)}
-            </select>
+            {roundType === "pursuit" ? (
+              <div style={{ width:"100%", padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"rgba(255,255,255,0.55)", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box" }}>7 questions (fixed)</div>
+            ) : (
+              <select value={count} onChange={e => setQuestionCount(parseInt(e.target.value))} style={{ width:"100%", padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
+                {[5,10,15].map(c => <option key={c} value={c}>{c} questions</option>)}
+              </select>
+            )}
           </div>
           <div>
             <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>DIFFICULTY</label>
@@ -1023,6 +1039,16 @@ Return ONLY a valid JSON array with 1 item, no markdown:
             </div>
           </div>
         </div>
+        {roundType === "pursuit" && (
+          <div style={{ marginBottom:16, padding:"12px 16px", borderRadius:12, background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.35)" }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"#38bdf8", letterSpacing:2, marginBottom:8 }}>THE PURSUIT</div>
+            <ul style={{ margin:0, paddingLeft:18, fontSize:13, lineHeight:1.6, color:"rgba(255,255,255,0.8)" }}>
+              <li>Every team races through all seven questions at once — each correct answer moves your runner one gate forward.</li>
+              <li>One wrong answer and you&rsquo;re out of the pursuit (you stay on the board, frozen). Multiple teams can finish.</li>
+              <li>Scoring climbs 10, 20, 30&hellip; up to a 100-point payout for clearing all seven.</li>
+            </ul>
+          </div>
+        )}
         <div style={{ marginBottom:16 }}>
           <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>THEME / TOPIC (optional)</label>
           <input value={theme} onChange={e => setTheme(e.target.value)} placeholder="e.g. 90s movies, space... leave blank for random variety" style={{ width:"100%", padding:"10px 16px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box" }} />

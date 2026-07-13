@@ -4,6 +4,7 @@ import { SlotReels, SLOT_SEGS } from "@/components/SlotReels";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HardDeckPanel } from "@/components/HardDeckPanel";
+import { PursuitPanel } from "@/components/PursuitPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc } from "@/lib/quiz/scoreService";
 
@@ -24,7 +25,7 @@ type Question = {
   fade_in?: boolean;
   fade_out?: boolean;
 };
-type Round = { id: string; name: string; questions: Question[]; };
+type Round = { id: string; name: string; questions: Question[]; round_type?: string; };
 type Team = { id: string; team_name: string; victory_song: string; session_pin: string; };
 type Answer = { session_pin: string; id: string; team_name: string; question_index: number; answer_text: string; submitted_at: string; };
 type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
@@ -67,6 +68,11 @@ const RULES = {
   spin_to_win: [
     "A bonus feature the host can offer manually after any correct answer \u2014 usually saved for the final question, giving the fastest team one last chance to steal a prize!",
     "Spin for a shot at big points... or a big penalty. Your choice \u2014 spin or pass!",
+  ],
+  pursuit: [
+    "Every team races through seven questions at the same time \u2014 each correct answer moves your runner forward one stage.",
+    "One wrong answer and you're out of the pursuit (you stay on the board, frozen). Multiple teams can finish.",
+    "Scoring climbs 10, 20, 30\u2026 up to a 100-point payout for clearing all seven.",
   ],
 };
 
@@ -238,7 +244,12 @@ function QuizControllerInner() {
 
   async function loadRounds() {
     const supabase = createSupabaseBrowserClient();
-    const { data } = await supabase.from("rounds").select("id, name, questions").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("rounds").select("id, name, questions, round_type").order("created_at", { ascending: false });
+    // The round selector is populated from this query. If it fails (most commonly
+    // an RLS denial because the browser client has no authenticated Supabase
+    // session) the dropdown has nothing to choose — surface why instead of an
+    // empty list silently.
+    if (error) console.error("loadRounds failed — round selector will be empty:", error.message);
     if (data) setRounds(data);
   }
 
@@ -1072,8 +1083,8 @@ function QuizControllerInner() {
           if (sessionId) createSupabaseBrowserClient().from("sessions").update({ round_id: r?.id || null }).eq("id", sessionId);
         }}
           style={{ padding:"6px 12px", borderRadius:10, background:"rgba(255,255,255,0.06)", color:"#fff", border:"1px solid rgba(190,38,193,0.35)", fontSize:12, cursor:"pointer" }}>
-          <option value="">Select round...</option>
-          {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          <option value="">{rounds.length ? "Select round..." : "No rounds found — check host login"}</option>
+          {rounds.filter(r => r.round_type !== "pursuit").map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
         <button onClick={() => setRulesOpen(true)} style={{ padding:"6px 14px", borderRadius:10, background:"rgba(255,255,255,0.05)", border:"1px solid rgba(190,38,193,0.35)", color:"#BE26C1", fontSize:12, cursor:"pointer", fontWeight:600 }}>{"\u{1F4CB}"} Rules</button>
         {rulesOpen && (
@@ -1114,10 +1125,19 @@ function QuizControllerInner() {
               )}
 
               {selectedRound && (
-                <div>
+                <div style={{ marginBottom:20 }}>
                   <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>SPIN TO WIN</div>
                   <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
                     {RULES.spin_to_win.map((r,i) => <li key={i}>{r}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              {selectedRound && (
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#38bdf8", letterSpacing:2, marginBottom:8 }}>THE PURSUIT</div>
+                  <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
+                    {RULES.pursuit.map((r,i) => <li key={i}>{r}</li>)}
                   </ul>
                 </div>
               )}
@@ -1125,6 +1145,7 @@ function QuizControllerInner() {
           </div>
         )}
         {sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
+        {sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} onScoreChange={() => loadScores(sessionPin)} />}
         <a href="/host/display" target="_blank" style={{ padding:"6px 14px", borderRadius:10, background:"#BE26C1", color:"#fff", textDecoration:"none", fontSize:11, fontWeight:700, letterSpacing:0.5, boxShadow:"0 0 12px rgba(190,38,193,0.4)" }}>Display</a>
       </div>
 

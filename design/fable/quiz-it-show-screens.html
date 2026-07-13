@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QUIZ-IT · Display & Handset Screens v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Bruno+Ace+SC&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--deep:#0A0118;--raised:#150A2E;--over:#1D1140;--line:#2E1A52;--tx:#fff;--tx2:#B9A8D9;--tx3:#6B5A8E;
+--pu:#BE26C1;--pub:#D94FDC;--pud:#8A1B8D;--gr:#2EE06E;--rd:#FF3B4E;--go:#E8C36A;--bo:#FFC533;--to:#38A8FF;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#070013;color:var(--tx);font-family:Inter,sans-serif;padding:32px 24px 120px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1220px;margin:0 auto}
+h1{font-family:'Bruno Ace SC',cursive;font-size:22px}.q{color:var(--pu)}
+.lead{color:var(--tx2);font-size:13px;margin:6px 0 34px;max-width:900px;line-height:1.6}
+h2{font-size:13px;letter-spacing:.22em;color:var(--pub);margin:42px 0 8px}
+.why{font-size:12.5px;color:var(--tx2);line-height:1.6;margin-bottom:12px;max-width:940px}
+.why b{color:var(--tx)}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.tile{background:var(--deep);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.scr{aspect-ratio:16/9;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
+ gap:5%;overflow:hidden;border-bottom:1px solid var(--line)}
+.scr::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 55% 45% at 50% 58%,rgba(190,38,193,.10),transparent 70%)}
+.cap{padding:10px 14px}
+.cn{font:800 11px Inter;letter-spacing:.12em}
+.cd{font:400 11px Inter;color:var(--tx2);line-height:1.5;margin-top:3px}
+.bab{position:absolute;right:4%;bottom:4%;font:400 6px Inter;color:var(--tx3);letter-spacing:.05em}
+.wm{font-family:'Bruno Ace SC',cursive}.wm .q{color:var(--pu)}
+.stamp{font:800 5.2cqw Inter;letter-spacing:.14em;position:relative;z-index:2}
+.sub{font:600 2.4cqw Inter;color:var(--tx2);letter-spacing:.2em;position:relative;z-index:2}
+.whis{font:400 2cqw Inter;color:var(--tx3);letter-spacing:.14em;position:relative;z-index:2}
+.scr{container-type:inline-size}
+.bloom{width:18%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(190,38,193,.5),transparent 70%);
+ animation:bl 4s ease-in-out infinite;position:relative;z-index:2}
+@keyframes bl{0%,100%{transform:scale(.85);opacity:.6}50%{transform:scale(1.05);opacity:1}}
+.crest{background:linear-gradient(135deg,var(--pud),var(--over));border:1px solid var(--pu);color:#fff;
+ display:inline-flex;align-items:center;justify-content:center;font-weight:800;
+ clip-path:polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%);position:relative;z-index:2}
+.recdot{width:2.4cqw;aspect-ratio:1;border-radius:50%;background:var(--pud);animation:rp 1.6s infinite;position:relative;z-index:2}
+@keyframes rp{0%,100%{opacity:.35}50%{opacity:1;box-shadow:0 0 10px rgba(190,38,193,.6)}}
+/* phones */
+.gp{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.ph{background:var(--deep);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.pscr{aspect-ratio:9/17;position:relative;display:flex;flex-direction:column;padding:9% 8%;overflow:hidden;
+ border-bottom:1px solid var(--line);container-type:inline-size}
+.pscr::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 70% 40% at 50% 38%,rgba(190,38,193,.10),transparent 70%)}
+.strip{display:flex;justify-content:space-between;align-items:center;margin-bottom:8%;position:relative;z-index:2}
+.strip .crest{width:11cqw;height:11cqw;font-size:4cqw}
+.strip span{font:600 3.6cqw Inter;color:var(--tx2);letter-spacing:.08em}
+.pstA{font:800 9cqw/1.15 Inter;position:relative;z-index:2}
+.pstB{font:600 4.6cqw Inter;color:var(--tx2);margin-top:3%;position:relative;z-index:2;line-height:1.45}
+.mid{margin:auto 0;text-align:center;position:relative;z-index:2}
+.bar{height:13cqw;border-radius:3.5cqw;display:flex;align-items:center;justify-content:center;
+ font:800 4.4cqw Inter;letter-spacing:.2em;position:relative;z-index:2;border:1px solid var(--line);background:var(--raised)}
+.bar.pri{background:var(--pu);border-color:var(--pub);box-shadow:0 0 18px rgba(190,38,193,.35)}
+.opt{height:12cqw;border-radius:3.5cqw;background:var(--raised);border:1px solid var(--line);
+ display:flex;align-items:center;gap:3cqw;padding:0 4cqw;font:600 4.2cqw Inter;margin-bottom:2.5cqw;position:relative;z-index:2}
+.opt .ch{width:7cqw;height:7cqw;border-radius:2cqw;background:var(--over);border:1px solid var(--line);
+ display:flex;align-items:center;justify-content:center;font:700 3.4cqw Inter;color:var(--tx2);flex:none}
+.opt.sel{border-color:var(--pub);box-shadow:0 0 14px rgba(217,79,220,.35)}
+.opt.dim{opacity:.4}
+.seal{margin:auto 0;text-align:center;position:relative;z-index:2}
+.seal .plate{display:inline-block;background:var(--raised);border:1px solid var(--pub);border-radius:4cqw;
+ padding:5cqw 8cqw;font:800 5cqw Inter;box-shadow:0 0 18px rgba(217,79,220,.3)}
+.mono2{display:flex;gap:3cqw;position:relative;z-index:2}
+.mono2 .m{flex:1;height:20cqw;border-radius:4cqw;display:flex;flex-direction:column;align-items:center;justify-content:center;
+ font:800 5.4cqw Inter;letter-spacing:.14em;background:var(--raised)}
+.mono2 .m small{font:600 2.8cqw Inter;color:var(--tx2);letter-spacing:.1em;margin-top:1.5cqw}
+.pcap{padding:10px 14px}
+/* set-piece template */
+.spt .scr::before{background:radial-gradient(ellipse 50% 60% at 50% 52%,rgba(190,38,193,.18),rgba(10,1,24,.9) 78%)}
+.spt-title{font-family:'Bruno Ace SC',cursive;font-size:5cqw;letter-spacing:.12em;position:relative;z-index:2;
+ text-shadow:0 0 24px rgba(190,38,193,.6)}
+</style></head><body><div class="wrap">
+<h1><span class="q">QUIZ-</span>IT · DISPLAY & HANDSET — COMPLETE STATE SET</h1>
+<div class="lead">Every remaining Display and Handset state, plus the premium-round template that lets Hot Seat, Zero In
+and future set-pieces arrive without a redesign. Show-moment screens (Question, Reveal, Leaderboard, Hard Deck,
+Pursuit, Lobby, Winner) are locked in the approved mock-ups file; this file completes the connective tissue —
+and connective tissue is where products usually betray themselves. Not this one.</div>
+
+<h2>DISPLAY — SHOW STRUCTURE</h2>
+<div class="g3">
+<div class="tile"><div class="scr"><div class="stamp">ROUND 2</div><div class="sub">MUSIC · 8 QUESTIONS · 20 PTS + SPEED</div>
+<div class="whis">DANGER ZONE IS ON — WRONG ANSWERS COST</div><div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">ROUND START</div><div class="cd">Stamp + sweep, one rules line max (only when a modifier is armed). Holds for the host's intro, then deals Q1.</div></div></div>
+<div class="tile"><div class="scr"><div class="stamp">END OF ROUND 2</div>
+<div class="sub">FASTEST: QUIZZLY BEARS · BIGGEST CLIMBER: FACT HUNTERS ▲3</div>
+<div class="whis">ONLY ONE TEAM KNEW Q7</div><div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">ROUND END</div><div class="cd">The act break: stamp, three dealt captions (speed · climber · host's pick), then exhale to intermission.</div></div></div>
+<div class="tile"><div class="scr"><div class="stamp" style="font-size:4cqw">THAT'S A WRAP</div>
+<div class="sub">14 TEAMS · 47 QUESTIONS · WON BY QUIZZLY BEARS</div>
+<div class="whis">QUIZ-IT · SEE YOU NEXT THURSDAY</div><div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">QUIZ COMPLETE (the bow)</div><div class="cd">After the coronation fades: quiet, warm, next date resting on screen as the venue's music returns.</div></div></div>
+<div class="tile"><div class="scr"><div class="bloom"></div><div class="sub" style="font-size:2.8cqw">ROUND 3 COMING UP</div>
+<div class="whis">STANDINGS ON YOUR PHONES · KITCHEN CLOSES AT 10</div><div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">INTERMISSION</div><div class="cd">The holding shot: bloom breath, resting standings, the venue's earned line in the show's typography. System audio out.</div></div></div>
+<div class="tile"><div class="scr"><div class="bloom"></div><div class="sub" style="font-size:2.8cqw">YOUR HOST WILL BE RIGHT BACK</div><div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">WAITING FOR HOST / PAUSED</div><div class="cd">The show's language, never an error's. Timer state is preserved beneath.</div></div></div>
+<div class="tile spt"><div class="scr"><div class="spt-title"><span style="color:var(--pu)">SPIN</span> TO WIN</div>
+<div class="sub">FASTEST CORRECT ANSWER: QUIZZLY BEARS</div>
+<div class="whis">[ THE MACHINE BUILDS HERE — SEE LIVE SHOW SPEC M6 ]</div><div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">SPIN TO WIN — summons frame</div><div class="cd">Bruno Ace SC title, purple flood, the earning honoured. Machine build → charge → reel-by-reel verdict per storyboard 6.</div></div></div>
+</div>
+
+<h2>DISPLAY — SYSTEM STATES</h2>
+<div class="why"><b>System trouble never breaks character:</b> purple, calm, present tense, states what's safe. No codes on the Display, ever.</div>
+<div class="g3">
+<div class="tile"><div class="scr"><div class="bloom"></div><div class="whis">SETTING THE STAGE…</div><div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">LOADING</div><div class="cd">Bloom breath + one whisper. No spinner, no progress %, no logs.</div></div></div>
+<div class="tile"><div class="scr"><div class="recdot"></div><div class="sub" style="font-size:2.6cqw">RECONNECTING TO THE SHOW…</div>
+<div class="whis">THE GAME STATE IS SAFE</div><div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">RECONNECTING</div><div class="cd">Last good frame stays beneath, dimmed one step. Recovery under 10s is silent.</div></div></div>
+<div class="tile"><div class="scr"><div class="wm" style="font-size:4cqw"><span class="q">QUIZ-</span>IT</div>
+<div class="sub" style="font-size:2.6cqw">WE'LL BE BACK IN A MOMENT</div>
+<div class="whis">YOUR HOST HAS THE ROOM</div><div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">CONNECTION LOST</div><div class="cd">Beyond ~30s the screen stops claiming to reconnect and hands the room to the human. Scores are safe server-side; the host narrates.</div></div></div>
+<div class="tile"><div class="scr"><div class="wm" style="font-size:5cqw"><span class="q">QUIZ-</span>IT</div>
+<div class="whis">NO SHOW SCHEDULED ON THIS SCREEN</div><div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">NO SESSION</div><div class="cd">The wordmark at rest — a dark, dignified brand plate. Venues may leave it on all day.</div></div></div>
+<div class="tile"><div class="scr"><div class="wm" style="font-size:4cqw"><span class="q">QUIZ-</span>IT</div>
+<div class="sub" style="font-size:2.4cqw">POLISHING THE STAGE</div>
+<div class="whis">BACK BEFORE SHOWTIME</div><div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">MAINTENANCE</div><div class="cd">Honest, brief, in-voice. Never a wrench icon, never a sad robot.</div></div></div>
+<div class="tile"><div class="scr"><div class="stamp" style="font-size:3.6cqw">THE PURSUIT</div>
+<div class="sub">DEMO — SAMPLE TEAMS PLAYING AUTOMATICALLY</div>
+<div class="whis">FOR VENUE PREVIEWS & SALES</div><div class="bab">QUIZ-IT · DEMO</div></div>
+<div class="cap"><div class="cn">DEMO MODE</div><div class="cd">Full show loop with sample teams, watermarked DEMO in the badge. The sales tool is the product itself.</div></div></div>
+</div>
+
+<h2>HANDSET — JOIN → PLAY</h2>
+<div class="gp">
+<div class="ph"><div class="pscr"><div class="mid">
+ <div class="wm" style="font-size:7cqw"><span class="q">QUIZ-</span>IT</div>
+ <div class="pstB">Thursday Quiz Night · The Observatory</div></div>
+ <div class="bar pri">JOIN THE SHOW</div></div>
+<div class="pcap"><div class="cn">JOIN (entry)</div><div class="cd">Wordmark ignition + one action. PIN keypad follows (approved mock-up).</div></div></div>
+<div class="ph"><div class="pscr"><div class="mid">
+ <div class="pstA" style="font-size:7cqw">Who are you tonight?</div>
+ <div style="border-bottom:2px solid var(--pub);font:800 8cqw Inter;padding:4cqw 0;margin-top:6cqw;text-shadow:0 0 14px rgba(217,79,220,.4)">Quizzly Be|</div>
+ <div class="pstB">This is how you'll appear on the big screen.</div></div>
+ <div class="bar pri">TAKE THE STAGE</div></div>
+<div class="pcap"><div class="cn">TEAM NAME</div><div class="cd">Statement-scale glowing entry, live mirror of the Display rendering. Taken-name line is kind.</div></div></div>
+<div class="ph"><div class="pscr"><div class="mid">
+ <span class="crest" style="width:26cqw;height:26cqw;font-size:9cqw">QB</span>
+ <div class="pstA" style="font-size:6.6cqw;margin-top:5cqw">Quizzly Bears</div>
+ <div class="pstB">Waiting for your host…<br>14 teams in the room tonight</div></div></div>
+<div class="pcap"><div class="cn">WAITING (lobby)</div><div class="cd">Crest birth, then stillness. One Cascade haptic when the crest completes.</div></div></div>
+<div class="ph"><div class="pscr"><div class="strip"><span class="crest">QB</span><span>Q4 · 20 PTS</span></div>
+ <div class="pstA" style="font-size:6.4cqw">Which planet has the shortest day?</div>
+ <div style="margin-top:auto;position:relative;z-index:2">
+ <div class="opt dim"><div class="ch">A</div>Mercury</div>
+ <div class="opt sel"><div class="ch">B</div>Jupiter</div>
+ <div class="opt dim"><div class="ch">C</div>Neptune</div>
+ <div class="bar pri">LOCK IT IN</div></div></div>
+<div class="pcap"><div class="cn">QUESTION + SELECTED</div><div class="cd">Two-stage answering. Non-selected options drop to 40%. Timer is the edge ring (not shown at tile scale).</div></div></div>
+</div>
+<div class="gp" style="margin-top:14px">
+<div class="ph"><div class="pscr"><div class="strip"><span class="crest">QB</span><span>Q4</span></div>
+ <div class="seal"><div class="plate">JUPITER</div>
+ <div class="pstA" style="font-size:8cqw;margin-top:5cqw">LOCKED.</div>
+ <div class="pstB">Answer sealed until the reveal.</div></div></div>
+<div class="pcap"><div class="cn">ANSWER SUBMITTED / LOCKED</div><div class="cd">The vault-shut moment + Lock haptic. Purple, never green — locked ≠ correct.</div></div></div>
+<div class="ph"><div class="pscr" style="background:radial-gradient(ellipse 80% 60% at 50% 45%,rgba(46,224,110,.16),transparent 70%)">
+ <div class="mid"><div class="pstA" style="font-size:9cqw;color:#fff">CORRECT.</div>
+ <div class="pstA" style="font-size:7cqw;color:var(--gr);margin-top:4cqw">+165</div>
+ <div class="pstB">Base 150 · speed 15 ⚡ · Fastest in the room</div></div></div>
+<div class="pcap"><div class="cn">CORRECT + POINTS</div><div class="cd">Green spent at full intensity, count-up, speed anatomy. Hit + Cascade haptic, half-beat after the stage.</div></div></div>
+<div class="ph"><div class="pscr"><div class="mid">
+ <div class="pstB" style="font-size:4cqw">Your answer · <span style="color:var(--rd)">Venus</span></div>
+ <div class="pstA" style="font-size:7cqw;margin-top:4cqw">Jupiter</div>
+ <div class="pstB">That one stung — next one's yours.</div></div></div>
+<div class="pcap"><div class="cn">INCORRECT</div><div class="cd">Red for under a second, then the correct answer takes the Statement position. One muted Thud. Variation-pool sign-offs.</div></div></div>
+<div class="ph"><div class="pscr"><div class="mid">
+ <span class="crest" style="width:16cqw;height:16cqw;font-size:6cqw;opacity:.5">QB</span>
+ <div class="pstB" style="margin-top:6cqw;letter-spacing:.3em">EYES UP.</div>
+ <div class="pstB" style="font-size:3.4cqw;color:var(--tx3)">4TH · 3,250 · NEXT QUESTION SOON</div></div></div>
+<div class="pcap"><div class="cn">WAITING FOR NEXT QUESTION</div><div class="cd">Near-black Eyes Up idle. The deal-in Pulse is the recall signal. Battery lives here.</div></div></div>
+</div>
+
+<h2>HANDSET — SET-PIECES & FINALE</h2>
+<div class="gp">
+<div class="ph"><div class="pscr"><div class="strip"><span class="crest">QB</span><span>THE HARD DECK</span></div>
+ <div class="mid"><div class="pstB">THE POT</div><div class="pstA" style="font-size:11cqw">20</div></div>
+ <div class="mono2"><div class="m" style="border:1px solid rgba(232,195,106,.55)">STICK<small>BANK 20</small></div>
+ <div class="m" style="border:1px solid var(--pub);box-shadow:0 0 18px rgba(190,38,193,.3)">GAMBLE<small>NEXT · 40</small></div></div></div>
+<div class="pcap"><div class="cn">HARD DECK — controller</div><div class="cd">Hold-to-commit monoliths; the charge is mirrored on stage. HIGHER/LOWER state uses the same monolith pair.</div></div></div>
+<div class="ph"><div class="pscr"><div class="strip"><span class="crest">QB</span><span>THE PURSUIT · GATE 5</span></div>
+ <div class="mid"><div style="display:flex;gap:2cqw;justify-content:center;position:relative;z-index:2">
+ <i style="width:8cqw;aspect-ratio:1;border-radius:2cqw;background:rgba(46,224,110,.18);border:1px solid var(--gr)"></i>
+ <i style="width:8cqw;aspect-ratio:1;border-radius:2cqw;background:rgba(46,224,110,.18);border:1px solid var(--gr)"></i>
+ <i style="width:8cqw;aspect-ratio:1;border-radius:2cqw;background:rgba(46,224,110,.18);border:1px solid var(--gr)"></i>
+ <i style="width:8cqw;aspect-ratio:1;border-radius:2cqw;background:rgba(46,224,110,.18);border:1px solid var(--gr)"></i>
+ <i style="width:8cqw;aspect-ratio:1;border-radius:2cqw;background:var(--raised);border:1px solid var(--pub)"></i>
+ <i style="width:8cqw;aspect-ratio:1;border-radius:2cqw;background:var(--raised);border:1px solid var(--line)"></i>
+ <i style="width:8cqw;aspect-ratio:1;border-radius:2cqw;background:var(--raised);border:1px solid var(--line)"></i></div>
+ <div class="pstA" style="font-size:6cqw;margin-top:5cqw">40 banked</div>
+ <div class="pstB">Gate 5 is live — answer on the question screen.</div></div></div>
+<div class="pcap"><div class="cn">PURSUIT — your lane mirror</div><div class="cd">Between gates: your seven blocks + banked tally only. Never the full grid — that's the stage's story.</div></div></div>
+<div class="ph"><div class="pscr"><div class="mid">
+ <div class="spt-title" style="font-size:6cqw"><span style="color:var(--pu)">SPIN</span> TO WIN</div>
+ <div style="width:38cqw;aspect-ratio:1;border-radius:50%;margin:7cqw auto 0;background:var(--raised);
+ border:2px solid var(--pub);box-shadow:0 0 30px rgba(190,38,193,.4);display:flex;align-items:center;justify-content:center;
+ font:800 7cqw Inter;letter-spacing:.2em;position:relative;z-index:2">SPIN</div>
+ <div class="pstB">Hold to charge — release to spin the machine.</div></div></div>
+<div class="pcap"><div class="cn">SPIN TO WIN — controller</div><div class="cd">The one circular control in the product. Everyone else's phone: Eyes Up with "[Team] is at the wheel."</div></div></div>
+<div class="ph"><div class="pscr" style="background:radial-gradient(ellipse 90% 70% at 50% 80%,rgba(232,195,106,.3),transparent 70%)">
+ <div class="mid"><span class="crest" style="width:20cqw;height:20cqw;font-size:7cqw;border-color:var(--go);box-shadow:0 0 24px rgba(232,195,106,.5)">QB</span>
+ <div class="pstA" style="font-size:8cqw;margin-top:4cqw">CHAMPIONS</div>
+ <div class="pstB" style="color:var(--go)">Get up there — your photo's waiting.</div></div></div>
+<div class="pcap"><div class="cn">WINNER</div><div class="cd">The only unrestrained handset celebration — gold flood, crowned crest, longest Cascade, then steers to the photo.</div></div></div>
+</div>
+<div class="gp" style="margin-top:14px">
+<div class="ph"><div class="pscr"><div class="strip"><span class="crest">QB</span><span>YOUR NIGHT</span></div>
+ <div style="position:relative;z-index:2;background:var(--raised);border:1px solid var(--line);border-radius:4cqw;padding:5cqw;margin-top:2cqw">
+ <div class="pstA" style="font-size:6cqw">4th · 3,250</div>
+ <div class="pstB" style="font-size:3.6cqw">Fastest answer 2.1s · longest streak ×5<br>Superlative: <b style="color:#fff">Photo Finish</b></div></div>
+ <div style="margin-top:auto;position:relative;z-index:2"><div class="bar pri">SAVE & SHARE</div>
+ <div class="pstB" style="text-align:center;font-size:3.2cqw">Same tables next Thursday.</div></div></div>
+<div class="pcap"><div class="cn">QUIZ FINISHED — "Your Night"</div><div class="cd">Composed share card, one superlative per team, next-show line. The last screen is the first ad for next week.</div></div></div>
+<div class="ph"><div class="pscr"><div class="strip" style="opacity:.6"><span class="crest">QB</span><span>Q6 · LIVE</span></div>
+ <div style="position:relative;z-index:2;display:flex;align-items:center;gap:2.5cqw;font:600 3.6cqw Inter;color:var(--tx2)">
+ <i style="width:2.5cqw;aspect-ratio:1;border-radius:50%;background:var(--pud);animation:rp 1.6s infinite"></i>
+ Reconnecting to the show…</div>
+ <div class="mid" style="opacity:.5"><div class="pstA" style="font-size:5.6cqw">Which country has the longest coastline?</div></div>
+ <div class="pstB" style="font-size:3.2cqw;position:relative;z-index:2">Still with you — the show carries on on the big screen.</div></div>
+<div class="pcap"><div class="cn">CONNECTION LOST / RECONNECTING</div><div class="cd">Content stays visible, dimmed one step; whisper strip; zero panic. Rejoin flow restores identity, score, and locked answer.</div></div></div>
+<div class="ph"><div class="pscr"><div class="strip"><span class="crest">QB</span><span>SETTINGS</span></div>
+ <div style="position:relative;z-index:2;font:600 4cqw Inter;line-height:2.6">
+ Haptics <span style="float:right;color:var(--pub)">Full ▾</span><br>
+ Reduce motion <span style="float:right;color:var(--tx3)">Off</span><br>
+ Text size <span style="float:right;color:var(--tx3)">System</span><br>
+ Leave team <span style="float:right;color:var(--tx3)">Hold ⏻</span></div>
+ <div class="pstB" style="margin-top:auto;font-size:3.2cqw;position:relative;z-index:2">Quiz-It · Powered by Mac Entertainment</div></div>
+<div class="pcap"><div class="cn">SETTINGS</div><div class="cd">Reachable only outside timed play. Four things, nothing more. Leaving a team is a hold.</div></div></div>
+<div class="ph"><div class="pscr"><div class="mid">
+ <span class="crest" style="width:22cqw;height:22cqw;font-size:8cqw">QB</span>
+ <div class="pstA" style="font-size:6.4cqw;margin-top:4cqw">Quizzly Bears</div>
+ <div class="pstB" style="font-size:3.6cqw">12 nights played · 2 wins<br>Best superlative: Hard Deck Braveheart</div></div>
+ <div class="bar">EDIT CREST GEOMETRY</div></div>
+<div class="pcap"><div class="cn">PLAYER / TEAM PROFILE</div><div class="cd">Night-count and honours — pride, not gamification. Crest geometry (never colour) is the one customisation.</div></div></div>
+</div>
+
+<h2>FUTURE PREMIUM ROUNDS — THE SET-PIECE TEMPLATE</h2>
+<div class="why"><b>Hot Seat, Zero In and everything after arrive through one template, not a redesign.</b> Every premium round gets:
+a Bruno Ace SC title ignition with its own signature audio · a takeover colour treatment built from the existing palette ·
+one selection ritual (wheel / earned / all-play) · one controller transformation on the handset · Eyes Up for spectators ·
+one hero object on the stage (the cards, the machine, the grid, the chair, the range) · Gear-3 celebration ceiling ·
+and a respect-line for every loser. Fill the template, inherit the show.</div>
+<div class="g3">
+<div class="tile spt"><div class="scr"><div class="spt-title"><span style="color:var(--pu)">HOT</span> SEAT</div>
+<div class="sub">ONE CHAIR · RAPID FIRE · THE ROOM WATCHES</div>
+<div class="whis">HERO OBJECT: THE ILLUMINATED CHAIR · SELECTION: WHEEL · CONTROLLER: PASS/ANSWER</div>
+<div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">HOT SEAT — placeholder</div><div class="cd">Template filled: spotlight vignette (Hard Deck's), rapid-fire ticks (Close language at Gear 1), streak flame on the stage.</div></div></div>
+<div class="tile spt"><div class="scr"><div class="spt-title"><span style="color:var(--pu)">ZERO</span> IN</div>
+<div class="sub">EVERY TEAM GUESSES · CLOSEST WINS · THE RANGE NARROWS</div>
+<div class="whis">HERO OBJECT: THE NUMBER RANGE · SELECTION: ALL-PLAY · CONTROLLER: DIAL/SLIDER</div>
+<div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">ZERO IN — placeholder</div><div class="cd">Template filled: a great horizontal range that visibly narrows as guesses land (Pursuit's geometry-as-story), reveal by the Crack.</div></div></div>
+<div class="tile spt"><div class="scr"><div class="spt-title" style="color:var(--tx3)">［ NEXT ROUND ］</div>
+<div class="sub" style="color:var(--tx3)">TITLE · SELECTION · HERO OBJECT · CONTROLLER · RESPECT LINE</div>
+<div class="whis">THE FIVE BLANKS EVERY NEW ROUND MUST FILL</div>
+<div class="bab">QUIZ-IT</div></div>
+<div class="cap"><div class="cn">THE TEMPLATE ITSELF</div><div class="cd">If a proposed round can't fill the five blanks inside the existing tokens, it isn't ready — the system stays closed.</div></div></div>
+</div>
+
+<div class="why" style="margin-top:36px;color:var(--tx3)">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac · Display & Handset Screens v1.0 — 12 display states · 16 handset states · 3 future-round templates.</div>
+</div></body></html>

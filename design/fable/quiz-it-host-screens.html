@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QUIZ-IT · Host Screens v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Bruno+Ace+SC&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--deep:#0A0118;--raised:#150A2E;--over:#1D1140;--line:#2E1A52;--tx:#fff;--tx2:#B9A8D9;--tx3:#6B5A8E;
+--pu:#BE26C1;--pub:#D94FDC;--pud:#8A1B8D;--gr:#2EE06E;--rd:#FF3B4E;--go:#E8C36A;--bo:#FFC533;--to:#38A8FF;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#070013;color:var(--tx);font-family:Inter,sans-serif;padding:32px 24px 120px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-family:'Bruno Ace SC',cursive;font-size:22px}.q{color:var(--pu)}
+.lead{color:var(--tx2);font-size:13px;margin:6px 0 34px;max-width:880px;line-height:1.6}
+h2{font-size:13px;letter-spacing:.22em;color:var(--pub);margin:44px 0 8px}
+.why{font-size:12.5px;color:var(--tx2);line-height:1.6;margin-bottom:12px;max-width:920px}
+.why b{color:var(--tx)}
+/* console frame */
+.frame{background:var(--deep);border:1px solid var(--line);border-radius:20px;overflow:hidden;
+ box-shadow:0 24px 80px rgba(5,0,13,.7);margin-bottom:10px}
+.top{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--line);
+ background:rgba(21,10,46,.5)}
+.wm{font-family:'Bruno Ace SC',cursive;font-size:13px}.wm .q{color:var(--pu)}
+.bc{font:600 12px Inter;color:var(--tx2)}
+.top .sp{flex:1}
+.pill{font:600 11px Inter;color:var(--tx2);border:1px solid var(--line);border-radius:99px;padding:5px 12px}
+.pill.live{color:#fff;border-color:var(--pub);background:rgba(190,38,193,.15)}
+.body{display:flex;min-height:300px}
+.pad{padding:22px 24px;flex:1}
+/* controls */
+.btn{display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 20px;border-radius:14px;
+ font:700 12.5px Inter;letter-spacing:.05em;border:1px solid var(--line);background:var(--raised);color:#fff;cursor:pointer}
+.btn.pri{background:var(--pu);border-color:var(--pub);box-shadow:0 0 14px rgba(190,38,193,.3)}
+.btn.big{height:66px;padding:0 34px;font-size:15px;letter-spacing:.12em}
+.btn.hold{position:relative;overflow:hidden}
+.btn.hold i{position:absolute;left:0;top:0;bottom:0;width:45%;background:linear-gradient(90deg,var(--pud),var(--pu));opacity:.8}
+.btn.hold span{position:relative;z-index:2}
+.inp{height:44px;background:var(--raised);border:1px solid var(--line);border-radius:14px;color:#fff;
+ font:600 13px Inter;padding:0 14px;width:100%}
+.inp::placeholder{color:var(--tx3)}
+.lbl{font:600 10.5px Inter;letter-spacing:.16em;color:var(--tx3);margin:14px 0 7px;text-transform:uppercase}
+.panel{background:var(--raised);border:1px solid var(--line);border-radius:18px;padding:16px 18px;margin-bottom:12px}
+.panel h4{font:800 13.5px Inter;margin-bottom:4px}
+.panel .s{font:400 12px Inter;color:var(--tx2);line-height:1.55}
+.rowf{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{font:600 10.5px Inter;letter-spacing:.14em;color:var(--tx3);text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+.tbl td{padding:10px;border-bottom:1px solid rgba(46,26,82,.5);color:var(--tx2)}
+.tbl td b{color:#fff}
+.num{font-variant-numeric:tabular-nums;text-align:right}
+.crest{background:linear-gradient(135deg,var(--pud),var(--over));border:1px solid var(--pu);color:#fff;
+ display:inline-flex;align-items:center;justify-content:center;font-weight:800;
+ clip-path:polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.d-on{background:var(--pub);box-shadow:0 0 6px rgba(217,79,220,.6)}
+.d-off{background:var(--tx3)}
+.chip{display:inline-flex;padding:5px 11px;border-radius:99px;font:600 11px Inter;border:1px solid var(--line);
+ color:var(--tx2);margin:0 6px 6px 0;background:var(--raised)}
+.chip.on{border-color:var(--pub);color:#fff;background:rgba(190,38,193,.15)}
+.sw{display:inline-block;width:40px;height:23px;border-radius:99px;background:var(--raised);border:1px solid var(--line);position:relative;vertical-align:middle}
+.sw i{position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:var(--tx3)}
+.sw.on{background:var(--pud);border-color:var(--pub)}
+.sw.on i{left:19px;background:#fff}
+.stat{background:var(--raised);border:1px solid var(--line);border-radius:18px;padding:16px 20px;min-width:150px}
+.stat b{font:800 26px Inter;font-variant-numeric:tabular-nums}
+.stat span{display:block;font:600 10px Inter;letter-spacing:.16em;color:var(--tx3);margin-top:4px}
+.center{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:280px}
+.bloom{width:60px;height:60px;border-radius:50%;background:radial-gradient(circle,rgba(190,38,193,.5),transparent 70%);
+ animation:bl 3.5s ease-in-out infinite;margin-bottom:14px}
+@keyframes bl{0%,100%{transform:scale(.85);opacity:.6}50%{transform:scale(1.05);opacity:1}}
+/* mission control regions */
+.mc{display:grid;grid-template-columns:250px 1fr 230px;min-height:430px}
+.mc .onair{border-right:1px solid var(--line);padding:16px}
+.mc .desk{padding:16px 18px}
+.mc .rail{border-left:1px solid var(--line);padding:16px;display:flex;flex-direction:column}
+.mini{aspect-ratio:16/9;background:var(--deep);border:1px solid var(--pud);border-radius:12px;position:relative;
+ display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 0 18px rgba(190,38,193,.15)}
+.mini .mq{font:800 11px Inter;text-align:center;padding:0 10px}
+.mini .ml{position:absolute;top:6px;left:8px;font:600 8px Inter;letter-spacing:.2em;color:var(--pub)}
+.insight{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.insight .k{font:600 9.5px Inter;letter-spacing:.16em;color:var(--tx3)}
+.insight .v{font:700 13px Inter;margin-top:3px}
+.insight .cast{float:right;font:700 9.5px Inter;color:var(--pub);border:1px solid var(--pud);border-radius:99px;padding:3px 9px}
+.pads{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:auto}
+.pad2{height:44px;border-radius:12px;background:var(--raised);border:1px solid var(--line);
+ display:flex;align-items:center;justify-content:center;font:700 9.5px Inter;letter-spacing:.08em;color:var(--tx2)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+</style></head><body><div class="wrap">
+<h1><span class="q">QUIZ-</span>IT · HOST SCREENS — COMPLETE SET</h1>
+<div class="lead">Every host-facing screen, implementation quality, in the locked console language: calm authority,
+fixed geography, one primary action, everything phrased as show material. Mission Control per the approved spec.
+The console never celebrates and never shows red errors — trouble is purple, calm, and states what's safe.</div>
+
+<!-- LOGIN + FORGOT -->
+<h2>LOGIN · FORGOT PASSWORD</h2>
+<div class="why"><b>The show starts at sign-in.</b> Auth screens are the stage at rest: wordmark ignition, one panel, zero marketing clutter.</div>
+<div class="grid2">
+<div class="frame"><div class="body"><div class="pad center">
+ <div class="wm" style="font-size:26px;margin-bottom:6px"><span class="q">QUIZ-</span>IT</div>
+ <div style="font:400 11px Inter;color:var(--tx3);margin-bottom:22px">POWERED BY MAC ENTERTAINMENT</div>
+ <div style="width:300px;text-align:left">
+  <div class="lbl">Email</div><input class="inp" value="sonya@sonyamac.co.uk">
+  <div class="lbl">Password</div><input class="inp" type="password" value="••••••••••">
+  <div style="height:18px"></div><button class="btn pri" style="width:100%">SIGN IN</button>
+  <div style="text-align:center;font:600 11.5px Inter;color:var(--tx2);margin-top:14px">Forgotten your password?</div>
+ </div></div></div></div>
+<div class="frame"><div class="body"><div class="pad center">
+ <div class="wm" style="font-size:20px;margin-bottom:18px"><span class="q">QUIZ-</span>IT</div>
+ <div style="width:300px;text-align:left">
+  <div style="font:800 16px Inter;margin-bottom:4px">Reset your password</div>
+  <div style="font:400 12px Inter;color:var(--tx2);margin-bottom:8px">We'll email you a reset link. It's valid for one hour.</div>
+  <div class="lbl">Email</div><input class="inp" placeholder="you@venue.com">
+  <div style="height:16px"></div><button class="btn pri" style="width:100%">SEND RESET LINK</button>
+  <div style="text-align:center;font:600 11.5px Inter;color:var(--tx2);margin-top:14px">← Back to sign in</div>
+ </div></div></div></div>
+</div>
+
+<!-- DASHBOARD -->
+<h2>DASHBOARD (home)</h2>
+<div class="why"><b>One question answered instantly: "is there a show tonight, and is it ready?"</b> Tonight's session is the hero card; everything else is a shelf.</div>
+<div class="frame"><div class="top"><span class="wm"><span class="q">QUIZ-</span>IT</span><span class="bc">Dashboard</span><span class="sp"></span>
+ <span class="pill">The Observatory, Dubai</span><span class="pill">Sonya M.</span></div>
+<div class="body"><div class="pad">
+ <div class="panel" style="border-color:var(--pud);display:flex;align-items:center;gap:18px">
+  <div style="flex:1"><h4>Thursday Quiz Night — tonight, 8:00 PM</h4>
+  <div class="s">3 rounds ready · Spin to Win · The Hard Deck · The Pursuit · Power Cards on</div></div>
+  <button class="btn">Preview display</button><button class="btn pri big">OPEN MISSION CONTROL</button></div>
+ <div class="grid3">
+  <div class="panel"><h4>Round Library</h4><div class="s">14 rounds · 1,240 questions</div></div>
+  <div class="panel"><h4>Quiz History</h4><div class="s">Last show: 12 Jul · 14 teams · won by Quizzly Bears</div></div>
+  <div class="panel"><h4>Statistics</h4><div class="s">Avg 13.2 teams/night · 96% return venues</div></div>
+ </div>
+ <div class="rowf" style="margin-top:6px"><button class="btn">+ NEW SESSION</button><button class="btn">Venues</button><button class="btn">Settings</button></div>
+</div></div></div>
+
+<!-- SESSION CREATION + RECOVERY -->
+<h2>SESSION CREATION · SESSION RECOVERY</h2>
+<div class="why"><b>Creation is a three-decision wizard</b> (what, where, which rounds) — not a settings dump; defaults come from the venue profile.
+<b>Recovery never looks like a crash:</b> the console offers the running show back, stating exactly where it left off.</div>
+<div class="grid2">
+<div class="frame"><div class="top"><span class="bc">New session · step 2 of 3</span></div><div class="body"><div class="pad">
+ <div class="lbl">Show name (appears on the Display)</div><input class="inp" value="Thursday Quiz Night">
+ <div class="lbl">Venue</div><input class="inp" value="The Observatory, Dubai">
+ <div class="lbl">Rounds — drag to order</div>
+ <div class="panel" style="padding:12px 14px"><b style="font-size:13px">1 · General Knowledge</b> <span class="s">· 8 Qs</span></div>
+ <div class="panel" style="padding:12px 14px"><b style="font-size:13px">2 · Music</b> <span class="s">· 8 Qs · Danger Zone</span></div>
+ <div class="panel" style="padding:12px 14px;border-style:dashed;color:var(--tx3);text-align:center">+ Add round or set-piece</div>
+ <div class="rowf" style="justify-content:flex-end"><button class="btn">Back</button><button class="btn pri">NEXT — SET-PIECES</button></div>
+</div></div></div>
+<div class="frame"><div class="body"><div class="pad center">
+ <div class="bloom"></div>
+ <div style="font:800 17px Inter;margin-bottom:6px">Welcome back — your show is still live</div>
+ <div style="font:400 12.5px Inter;color:var(--tx2);max-width:340px;line-height:1.6;margin-bottom:18px">
+ Thursday Quiz Night · Round 2, Question 4 · timer was running with 12s left · 14 teams connected. Everything is safe.</div>
+ <div class="rowf"><button class="btn pri big">RESUME THE SHOW</button><button class="btn hold"><i></i><span>HOLD TO END INSTEAD</span></button></div>
+</div></div></div>
+</div>
+
+<!-- MISSION CONTROL -->
+<h2>MISSION CONTROL (live show)</h2>
+<div class="why"><b>The approved three-region geometry, rendered.</b> ON AIR mirror left · the desk centre · trigger rail right.
+Space = big button. The insight cards are host material with one-press CAST.</div>
+<div class="frame"><div class="top"><span class="wm"><span class="q">QUIZ-</span>IT</span>
+ <span class="pill live"><span class="dot d-on"></span>ROUND 2 · Q4 · TIMER RUNNING</span><span class="sp"></span>
+ <span class="pill">14 teams</span><span class="pill">⏱ 0:12</span><span class="pill">PAUSE (P)</span></div>
+<div class="mc">
+ <div class="onair">
+  <div class="lbl" style="margin-top:0">On air — the room sees</div>
+  <div class="mini"><span class="ml">LIVE</span><div class="mq">Which planet has the shortest day in the solar system?</div></div>
+  <div class="lbl">Answers in — lock order</div>
+  <div style="line-height:2"><span class="crest" style="width:20px;height:20px;font-size:7px">QB</span>
+  <span class="crest" style="width:20px;height:20px;font-size:7px">SO</span>
+  <span class="crest" style="width:20px;height:20px;font-size:7px">NO</span>
+  <span class="crest" style="width:20px;height:20px;font-size:7px">FA</span>
+  <span style="font:600 11px Inter;color:var(--tx2)"> +7 · <b style="color:#fff">11 of 14 in</b></span></div>
+  <div class="lbl">Question controls</div>
+  <div class="rowf"><button class="btn" style="height:36px">+15s (E)</button><button class="btn hold" style="height:36px"><i></i><span>DUMP Q</span></button></div>
+ </div>
+ <div class="desk">
+  <div class="panel"><h4>Q4 · Which planet has the shortest day in the solar system?</h4>
+  <div class="s" style="color:var(--gr)">Answer: Jupiter — a day lasts under 10 hours.</div>
+  <div class="s">Host note: brutal one. Expect groans. Danger Zone is ON this round.</div></div>
+  <div class="insight"><span class="cast">CAST</span><div class="k">BIGGEST SCORER THIS ROUND</div><div class="v">Sharp Objects · 240 pts</div></div>
+  <div class="insight"><span class="cast">CAST</span><div class="k">FASTEST ANSWER</div><div class="v">Quizzly Bears · 2.1s on Q3</div></div>
+  <div class="insight"><span class="cast">CAST</span><div class="k">BIGGEST CLIMBER</div><div class="v">Fact Hunters ▲3 tonight</div></div>
+  <div class="insight"><span class="cast">CAST</span><div class="k">HIGHEST ACCURACY</div><div class="v">Night Owls · 9 of 10</div></div>
+ </div>
+ <div class="rail">
+  <div class="lbl" style="margin-top:0">Next: Reveal → Standings</div>
+  <button class="btn pri big" style="width:100%">REVEAL THE ANSWER<br><span style="font:600 9px Inter;letter-spacing:.2em;opacity:.8">SPACE</span></button>
+  <div class="lbl">Quick actions</div>
+  <div class="rowf"><button class="btn" style="height:36px">Fast Track</button><button class="btn" style="height:36px">Teams (T)</button></div>
+  <div class="lbl">Sound desk</div>
+  <div class="pads"><div class="pad2">AIRHORN</div><div class="pad2">CHEER</div><div class="pad2">APPLAUSE</div>
+  <div class="pad2">TROMBONE</div><div class="pad2">STING</div><div class="pad2">HEART</div></div>
+ </div>
+</div></div>
+
+<!-- ROUND BUILDER / LIBRARY / QUESTION TOOLS -->
+<h2>ROUND BUILDER · ROUND LIBRARY</h2>
+<div class="grid2">
+<div class="frame"><div class="top"><span class="bc">Round Builder · Music · 8 questions</span><span class="sp"></span><span class="pill">Danger Zone ON</span></div>
+<div class="body"><div class="pad">
+ <table class="tbl"><tr><th></th><th>QUESTION</th><th>TYPE</th><th>PTS</th></tr>
+ <tr><td>1</td><td><b>Which year did this song top the charts…</b></td><td>Audio</td><td class="num">20</td></tr>
+ <tr><td>2</td><td><b>Name the artist from this intro</b></td><td>Audio</td><td class="num">20</td></tr>
+ <tr><td>3</td><td><b>Identify the album cover</b></td><td>Picture</td><td class="num">20</td></tr></table>
+ <div class="rowf" style="margin-top:12px"><button class="btn">+ From library</button><button class="btn">+ Write new</button><button class="btn">+ AI generate</button>
+ <span class="sp" style="flex:1"></span><button class="btn pri">SAVE ROUND</button></div>
+</div></div></div>
+<div class="frame"><div class="top"><span class="bc">Round Library</span><span class="sp"></span>
+ <span class="pill">⌕ Search</span></div>
+<div class="body"><div class="pad">
+ <div><span class="chip on">All</span><span class="chip">General</span><span class="chip">Music</span><span class="chip">Picture</span><span class="chip">Set-pieces</span></div>
+ <div class="grid3" style="margin-top:10px">
+  <div class="panel"><h4>General Knowledge Vol. 12</h4><div class="s">8 Qs · never played here</div></div>
+  <div class="panel"><h4>Music: 2000s</h4><div class="s">8 Qs · last played 14 months ago</div></div>
+  <div class="panel"><h4>Around The World</h4><div class="s">8 Qs · picture-heavy</div></div>
+ </div></div></div></div>
+</div>
+
+<h2>QUESTION BUILDER / EDITOR · IMPORT · AI GENERATION</h2>
+<div class="why"><b>The editor always shows what the room will see</b> (live display preview) and enforces content rules at write-time.
+Import maps columns once, then remembers. AI generation is a briefing, not a slot machine — and everything lands in review, never straight into a round.</div>
+<div class="grid3">
+<div class="frame"><div class="top"><span class="bc">Question Editor</span></div><div class="body"><div class="pad">
+ <div class="lbl">Question (max 3 display lines)</div><input class="inp" value="Which planet has the shortest day?">
+ <div class="lbl">Correct answer</div><input class="inp" value="Jupiter" style="border-color:rgba(46,224,110,.5)">
+ <div class="lbl">Decoys</div><input class="inp" value="Mercury · Neptune · Venus">
+ <div class="lbl">Type · timer</div><div class="rowf"><span class="chip on">Multiple choice</span><span class="chip">30s</span></div>
+ <div class="rowf" style="justify-content:flex-end;margin-top:10px"><button class="btn pri">SAVE</button></div>
+</div></div></div>
+<div class="frame"><div class="top"><span class="bc">Import questions</span></div><div class="body"><div class="pad center">
+ <div style="border:1px dashed var(--pud);border-radius:16px;padding:34px 30px;text-align:center">
+ <div style="font:800 14px Inter;margin-bottom:6px">Drop a CSV or spreadsheet</div>
+ <div style="font:400 11.5px Inter;color:var(--tx2)">We'll map your columns and check every row against the content rules before anything enters the library.</div>
+ <div style="height:14px"></div><button class="btn">CHOOSE FILE</button></div>
+</div></div></div>
+<div class="frame"><div class="top"><span class="bc">AI Question Generation</span></div><div class="body"><div class="pad">
+ <div class="lbl">Brief</div><input class="inp" value="8 general knowledge, international, medium">
+ <div class="lbl">Guards</div>
+ <div><span class="chip on">UAE content rules</span><span class="chip on">No repeats (12 mo)</span><span class="chip on">Fact-check</span></div>
+ <div class="panel" style="margin-top:12px"><h4>Generating 3 of 8…</h4><div class="s">Each question lands in review — nothing enters a round unseen.</div></div>
+ <button class="btn pri" style="width:100%">REVIEW GENERATED QUESTIONS</button>
+</div></div></div>
+</div>
+
+<!-- TEAMS / VENUES -->
+<h2>TEAM MANAGEMENT · VENUE MANAGEMENT</h2>
+<div class="grid2">
+<div class="frame"><div class="top"><span class="bc">Teams — live</span><span class="sp"></span><span class="pill live">14 connected</span></div>
+<div class="body"><div class="pad">
+ <table class="tbl"><tr><th>TEAM</th><th>SCORE</th><th>STATUS</th><th></th></tr>
+ <tr><td><span class="crest" style="width:22px;height:22px;font-size:8px">SO</span> <b>Sharp Objects</b></td><td class="num"><b>3,420</b></td><td><span class="dot d-on"></span>Connected</td><td><button class="btn" style="height:32px">Adjust</button></td></tr>
+ <tr><td><span class="crest" style="width:22px;height:22px;font-size:8px">QB</span> <b>Quizzly Bears</b></td><td class="num"><b>3,250</b></td><td><span class="dot d-on"></span>Connected</td><td><button class="btn" style="height:32px">Adjust</button></td></tr>
+ <tr><td><span class="crest" style="width:22px;height:22px;font-size:8px">LE</span> <b>Late Entry</b></td><td class="num"><b>140</b></td><td><span class="dot d-off"></span>Reconnecting</td><td><button class="btn" style="height:32px">Adjust</button></td></tr></table>
+ <div class="why" style="margin-top:10px">Tap a row → team drawer: tonight's story, score stepper with reason chip (logged), cards held, rename/remove (hold).</div>
+</div></div></div>
+<div class="frame"><div class="top"><span class="bc">Venues</span></div><div class="body"><div class="pad">
+ <div class="panel"><h4>The Observatory, Dubai</h4><div class="s">Thursdays 8 PM · FIELD tier typical · PA wired · photo ritual ON · house line: "Kitchen closes at 10"</div></div>
+ <div class="panel"><h4>Marina Social Club</h4><div class="s">Tuesdays 7:30 PM · DIVISION tier typical · repeater screen in the snug</div></div>
+ <button class="btn">+ ADD VENUE</button>
+</div></div></div>
+</div>
+
+<!-- SETTINGS GROUP -->
+<h2>QUIZ SETTINGS · AUDIO SETTINGS · DISPLAY CONTROLS · EMERGENCY CONTROLS</h2>
+<div class="why"><b>Settings are per-venue defaults, changed before doors — not live toggles.</b> Emergency controls are big, few, and honest about consequences.</div>
+<div class="grid2">
+<div class="frame"><div class="top"><span class="bc">Quiz Settings</span></div><div class="body"><div class="pad">
+ <div class="rowf" style="justify-content:space-between;margin-bottom:12px"><b style="font-size:13px">Power Cards</b><span class="sw on"><i></i></span></div>
+ <div class="rowf" style="justify-content:space-between;margin-bottom:12px"><b style="font-size:13px">Danger Zone default</b><span class="sw"><i></i></span></div>
+ <div class="rowf" style="justify-content:space-between;margin-bottom:12px"><b style="font-size:13px">Relaxed pace profile</b><span class="sw"><i></i></span></div>
+ <div class="rowf" style="justify-content:space-between;margin-bottom:12px"><b style="font-size:13px">Photo ritual</b><span class="sw on"><i></i></span></div>
+ <div class="rowf" style="justify-content:space-between"><b style="font-size:13px">12-month question exclusion</b><span class="sw on"><i></i></span></div>
+</div></div></div>
+<div class="frame"><div class="top"><span class="bc">Audio Settings</span></div><div class="body"><div class="pad">
+ <div class="lbl">Master</div><div style="height:8px;border-radius:99px;background:var(--raised);border:1px solid var(--line);position:relative"><i style="position:absolute;left:0;top:0;bottom:0;width:72%;background:linear-gradient(90deg,var(--pud),var(--pub));border-radius:99px"></i></div>
+ <div class="lbl">Auto-duck under mic</div><span class="sw on"><i></i></span>
+ <div class="lbl">Victory song default</div><input class="inp" value="House pick — 'We Are The Champions of Trivia'">
+ <div class="lbl">Test</div><div class="rowf"><button class="btn">Play countdown cue</button><button class="btn">Play sonic logo</button></div>
+</div></div></div>
+<div class="frame"><div class="top"><span class="bc">Display Controls</span></div><div class="body"><div class="pad">
+ <div class="rowf" style="justify-content:space-between;margin-bottom:12px"><b style="font-size:13px">Idle loop — venue line</b><span class="s">"Kitchen closes at 10"</span></div>
+ <div class="rowf" style="justify-content:space-between;margin-bottom:12px"><b style="font-size:13px">Sponsor card</b><span class="sw"><i></i></span></div>
+ <div class="rowf" style="justify-content:space-between;margin-bottom:12px"><b style="font-size:13px">Reduced-motion profile</b><span class="sw"><i></i></span></div>
+ <div class="rowf"><button class="btn">Preview display</button><button class="btn">Identify screen</button></div>
+</div></div></div>
+<div class="frame"><div class="top"><span class="bc">Emergency Controls</span></div><div class="body"><div class="pad">
+ <button class="btn big" style="width:100%;margin-bottom:10px">PAUSE SHOW — "Your host will be right back"</button>
+ <button class="btn big" style="width:100%;margin-bottom:10px">KILL AUDIO (hold K)</button>
+ <button class="btn hold big" style="width:100%"><i></i><span>HOLD — END SHOW & LOCK STANDINGS</span></button>
+ <div class="why" style="margin-top:10px">No red. No sirens. Each states its consequence; the destructive one holds. Show state survives everything.</div>
+</div></div></div>
+</div>
+
+<!-- STATS / HISTORY / SUMMARY -->
+<h2>STATISTICS · QUIZ HISTORY · END OF QUIZ SUMMARY</h2>
+<div class="grid3">
+<div class="frame"><div class="top"><span class="bc">Statistics</span></div><div class="body"><div class="pad">
+ <div class="rowf"><div class="stat"><b>13.2</b><span>AVG TEAMS / NIGHT</span></div>
+ <div class="stat"><b>78%</b><span>TEAMS RETURNING</span></div></div>
+ <div class="rowf" style="margin-top:12px"><div class="stat"><b>2:04</b><span>AVG SHOW LENGTH</span></div>
+ <div class="stat"><b>Q7</b><span>HARDEST QUESTION</span></div></div>
+</div></div></div>
+<div class="frame"><div class="top"><span class="bc">Quiz History</span></div><div class="body"><div class="pad">
+ <table class="tbl"><tr><th>DATE</th><th>TEAMS</th><th>WINNER</th></tr>
+ <tr><td><b>12 Jul</b></td><td class="num">14</td><td>Quizzly Bears</td></tr>
+ <tr><td><b>5 Jul</b></td><td class="num">12</td><td>Sharp Objects</td></tr>
+ <tr><td><b>28 Jun</b></td><td class="num">15</td><td>Night Owls</td></tr></table>
+</div></div></div>
+<div class="frame"><div class="top"><span class="bc">End of Quiz Summary</span></div><div class="body"><div class="pad">
+ <div class="panel"><h4>Thursday Quiz Night — complete</h4>
+ <div class="s">14 teams · 47 questions · won by <b style="color:var(--go)">Quizzly Bears</b> · 3 finished The Pursuit</div></div>
+ <div class="rowf"><button class="btn">Post champion photo</button><button class="btn">Export results</button><button class="btn pri">SCHEDULE NEXT WEEK</button></div>
+</div></div></div>
+</div>
+
+<!-- ACCOUNT GROUP -->
+<h2>SUBSCRIPTION · LICENSING · USER PROFILE · ADMIN</h2>
+<div class="grid2">
+<div class="frame"><div class="top"><span class="bc">Subscription & Licensing</span></div><div class="body"><div class="pad">
+ <div class="panel" style="border-color:var(--pud)"><h4>Quiz-It Pro — active</h4>
+ <div class="s">Unlimited shows · 2 venues · premium rounds (Hard Deck, Pursuit, Spin to Win) · renews 1 Aug</div></div>
+ <div class="panel"><h4>Venue licence · The Observatory</h4><div class="s">Display + 40 handsets · licence key ●●●●-4821</div></div>
+ <div class="rowf"><button class="btn">Manage billing</button><button class="btn">+ Add venue licence</button></div>
+</div></div></div>
+<div class="frame"><div class="top"><span class="bc">User Profile · Admin</span></div><div class="body"><div class="pad">
+ <div class="rowf"><span class="crest" style="width:44px;height:44px;font-size:14px">SM</span>
+ <div><b style="font-size:14px">Sonya Mac</b><div class="s">Owner · host</div></div></div>
+ <div class="lbl">Hosts (multi-host)</div>
+ <table class="tbl"><tr><td><b>Sonya Mac</b></td><td>Owner</td><td><span class="dot d-on"></span>Active</td></tr>
+ <tr><td><b>Guest Host</b></td><td>Host — no library edit</td><td><span class="dot d-off"></span>Invited</td></tr></table>
+ <div class="rowf" style="margin-top:10px"><button class="btn">+ Invite host</button><button class="btn">Content rules (locked)</button><button class="btn">Audit log</button></div>
+</div></div></div>
+</div>
+
+<!-- STATES -->
+<h2>LOADING · EMPTY · TROUBLE STATES</h2>
+<div class="grid3">
+<div class="frame"><div class="body"><div class="pad center"><div class="bloom"></div>
+ <div style="font:800 14px Inter">Setting the stage…</div>
+ <div style="font:400 12px Inter;color:var(--tx2);margin-top:4px">No spinners exist. The bloom is the wait.</div></div></div></div>
+<div class="frame"><div class="body"><div class="pad center">
+ <div style="font:800 14px Inter">No shows yet</div>
+ <div style="font:400 12px Inter;color:var(--tx2);margin:6px 0 14px">Your first quiz night is three decisions away.</div>
+ <button class="btn pri">CREATE A SESSION</button></div></div></div>
+<div class="frame"><div class="body"><div class="pad center">
+ <span class="dot" style="width:12px;height:12px;background:var(--pud);animation:bl 1.6s infinite"></span>
+ <div style="font:800 14px Inter;margin-top:10px">Display offline — check HDMI</div>
+ <div style="font:400 12px Inter;color:var(--tx2);margin-top:4px">Show state is safe. Teams stay connected.</div></div></div></div>
+</div>
+
+<div class="why" style="margin-top:36px;color:var(--tx3)">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac · Host Screens v1.0 — 27 screens/states.</div>
+</div></body></html>

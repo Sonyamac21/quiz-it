@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QUIZ-IT · Design Tokens v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Bruno+Ace+SC&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+/* == COLOUR — the complete legal palette. Anything not here is a defect. == */
+--stage-deep:#0A0118;--stage-raised:#150A2E;--stage-overlay:#1D1140;--line:#2E1A52;
+--text:#FFFFFF;--text2:#B9A8D9;--text3:#6B5A8E;
+--purple:#BE26C1;--purple-b:#D94FDC;--purple-d:#8A1B8D;
+--green:#2EE06E;--red:#FF3B4E;--boost:#FFC533;--timeout:#38A8FF;
+--gold:#E8C36A;--gold-d:#B8923F;--silver:#C9CDD6;--bronze:#C08A5A;
+--shadow:#05000D;
+/* == OPACITY SYSTEM == */
+--op-bloom-max:.24;--op-fill-strong:.20;--op-fill-soft:.12;--op-dim:.60;--op-reveal-dim:.25;
+--op-eliminated:.45;--op-ghost:.28;--op-disabled:.35;
+/* == RADIUS == */
+--r-s:8px;--r-m:16px;--r-l:24px;--r-pill:999px;
+/* == SPACING (4px base) == */
+--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s6:24px;--s8:32px;--s12:48px;--s16:64px;--s24:96px;--s32:128px;
+/* == MOTION == */
+--m-instant:80ms;--m-fast:160ms;--m-standard:240ms;--m-moment:400ms;--m-showpiece:700ms;--m-max:1200ms;
+--ease-settle:cubic-bezier(.22,1.2,.36,1);--ease-exit:cubic-bezier(.4,0,1,1);
+--ease-land:cubic-bezier(.16,1,.3,1);--ease-charge:linear;
+/* == ELEVATION == */
+--sh-lift:0 8px 24px rgba(5,0,13,.5);--sh-float:0 16px 48px rgba(5,0,13,.6);--sh-veil:0 24px 80px rgba(5,0,13,.7);
+/* == GLOW == */
+--gl-edge:0 0 8px;--gl-focus:0 0 16px;--gl-moment:0 0 34px;--gl-room:0 0 60px;
+/* == ICON SIZES == */
+--ic-s:16px;--ic-m:24px;--ic-l:40px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#070013;color:var(--text);font-family:'Inter',sans-serif;padding:32px 24px 120px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-family:'Bruno Ace SC',cursive;font-size:22px;margin-bottom:4px}.q{color:var(--purple)}
+.lead{color:var(--text2);font-size:13px;margin-bottom:40px;max-width:820px;line-height:1.6}
+h2{font-size:14px;letter-spacing:.2em;color:var(--purple-b);margin:44px 0 6px}
+.rule{font-size:12.5px;color:var(--text2);line-height:1.65;margin-bottom:14px;max-width:900px}
+.rule b{color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.tok{background:var(--stage-raised);border:1px solid var(--line);border-radius:var(--r-m);padding:14px;font-size:12px}
+.sw{height:56px;border-radius:var(--r-s);margin-bottom:10px;border:1px solid rgba(255,255,255,.08)}
+.tn{font-weight:700;font-size:12.5px}.tv{color:var(--text2);font-variant-numeric:tabular-nums}
+.tu{color:var(--text3);margin-top:4px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:8px 0 4px;font-size:12.5px}
+td,th{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{color:var(--text);background:var(--stage-raised)}td{color:var(--text2)}
+td b{color:var(--text)}
+.type-demo{background:var(--stage-deep);border:1px solid var(--line);border-radius:var(--r-m);padding:20px 24px;margin:8px 0}
+.easebox{display:flex;gap:12px;flex-wrap:wrap}
+.easecell{background:var(--stage-raised);border:1px solid var(--line);border-radius:var(--r-m);padding:14px;width:220px}
+.easetrack{height:8px;background:var(--stage-overlay);border-radius:99px;margin:12px 0 6px;position:relative}
+.dot{position:absolute;top:-4px;left:0;width:16px;height:16px;border-radius:50%;background:var(--purple-b);
+  box-shadow:0 0 10px rgba(217,79,220,.6)}
+.easecell:hover .dot{animation:go 1.2s infinite}
+.e1 .dot{animation-timing-function:cubic-bezier(.22,1.2,.36,1)}
+.e2 .dot{animation-timing-function:cubic-bezier(.4,0,1,1)}
+.e3 .dot{animation-timing-function:cubic-bezier(.16,1,.3,1)}
+.e4 .dot{animation-timing-function:linear}
+@keyframes go{0%{left:0}70%,100%{left:calc(100% - 16px)}}
+.sp{display:flex;align-items:flex-end;gap:8px;margin:8px 0}
+.spb{background:var(--purple-d);border-radius:4px 4px 0 0;width:34px;position:relative}
+.spb span{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--text2)}
+</style></head><body><div class="wrap">
+<h1><span class="q">QUIZ-</span>IT · DESIGN TOKENS</h1>
+<div class="lead">The single source of truth. Every colour, size, duration and curve in the product is one of these
+tokens. Engineers implement tokens, never raw values; if a value you need isn't here, use the nearest token —
+never invent. This file also carries the system overview: grid, responsive rules, accessibility and interaction laws.</div>
+
+<h2>COLOUR — STAGE & TEXT</h2>
+<div class="rule"><b>Law:</b> no pure black, no pure greys, no white backgrounds, anywhere. Every neutral carries the violet undertone.</div>
+<div class="grid">
+<div class="tok"><div class="sw" style="background:#0A0118"></div><div class="tn">--stage-deep</div><div class="tv">#0A0118</div><div class="tu">Base of every screen and state.</div></div>
+<div class="tok"><div class="sw" style="background:#150A2E"></div><div class="tn">--stage-raised</div><div class="tv">#150A2E</div><div class="tu">Cards, panels, options.</div></div>
+<div class="tok"><div class="sw" style="background:#1D1140"></div><div class="tn">--stage-overlay</div><div class="tv">#1D1140</div><div class="tu">Second-level raise. Max stack depth.</div></div>
+<div class="tok"><div class="sw" style="background:#2E1A52"></div><div class="tn">--line</div><div class="tv">#2E1A52</div><div class="tu">All borders/dividers. 1px only.</div></div>
+<div class="tok"><div class="sw" style="background:#FFFFFF"></div><div class="tn">--text</div><div class="tv">#FFFFFF</div><div class="tu">Headlines, questions, scores.</div></div>
+<div class="tok"><div class="sw" style="background:#B9A8D9"></div><div class="tn">--text2</div><div class="tv">#B9A8D9</div><div class="tu">Support & whisper text.</div></div>
+<div class="tok"><div class="sw" style="background:#6B5A8E"></div><div class="tn">--text3</div><div class="tv">#6B5A8E</div><div class="tu">Disabled/faint metadata only.</div></div>
+</div>
+
+<h2>COLOUR — BRAND & SEMANTIC (LOCKED)</h2>
+<div class="rule"><b>Law:</b> a colour with a job does no other jobs. Green = correct only. Red = incorrect/eliminated/Reverse only.
+Yellow = Boost only. Blue = Time-Out only. Gold = 100-point Pursuit finish + Champions + winners' artefacts only.
+There is <b>no warning colour and no error colour</b> — system trouble speaks in purple, dimness and calm words.</div>
+<div class="grid">
+<div class="tok"><div class="sw" style="background:#BE26C1"></div><div class="tn">--purple</div><div class="tv">#BE26C1</div><div class="tu">Brand, primary actions, bloom source.</div></div>
+<div class="tok"><div class="sw" style="background:#D94FDC"></div><div class="tn">--purple-b</div><div class="tv">#D94FDC</div><div class="tu">Hover lift, edge light, glow cores.</div></div>
+<div class="tok"><div class="sw" style="background:#8A1B8D"></div><div class="tn">--purple-d</div><div class="tv">#8A1B8D</div><div class="tu">Pressed fills, gradient dark stop.</div></div>
+<div class="tok"><div class="sw" style="background:#2EE06E"></div><div class="tn">--green</div><div class="tv">#2EE06E</div><div class="tu">CORRECT. Nothing else. Ever.</div></div>
+<div class="tok"><div class="sw" style="background:#FF3B4E"></div><div class="tn">--red</div><div class="tv">#FF3B4E</div><div class="tu">Incorrect · eliminated · Reverse card.</div></div>
+<div class="tok"><div class="sw" style="background:#FFC533"></div><div class="tn">--boost</div><div class="tv">#FFC533</div><div class="tu">Boost Power Card only.</div></div>
+<div class="tok"><div class="sw" style="background:#38A8FF"></div><div class="tn">--timeout</div><div class="tv">#38A8FF</div><div class="tu">Time-Out Power Card only.</div></div>
+<div class="tok"><div class="sw" style="background:#E8C36A"></div><div class="tn">--gold</div><div class="tv">#E8C36A</div><div class="tu">Pursuit 100 · Champions · share cards.</div></div>
+<div class="tok"><div class="sw" style="background:#B8923F"></div><div class="tn">--gold-d</div><div class="tv">#B8923F</div><div class="tu">Gold gradient dark stop.</div></div>
+<div class="tok"><div class="sw" style="background:#C9CDD6"></div><div class="tn">--silver</div><div class="tv">#C9CDD6</div><div class="tu">Podium 2nd only.</div></div>
+<div class="tok"><div class="sw" style="background:#C08A5A"></div><div class="tn">--bronze</div><div class="tv">#C08A5A</div><div class="tu">Podium 3rd only.</div></div>
+</div>
+
+<h2>OPACITY SYSTEM</h2>
+<table>
+<tr><th>Token</th><th>Value</th><th>Use</th></tr>
+<tr><td><b>--op-bloom-max</b></td><td>24%</td><td>Ceiling for any bloom/atmosphere purple.</td></tr>
+<tr><td><b>--op-fill-strong</b></td><td>20%</td><td>Semantic fills (completed block, correct option wash).</td></tr>
+<tr><td><b>--op-fill-soft</b></td><td>12%</td><td>Soft semantic wash (failed block fill, light-shock colour flare).</td></tr>
+<tr><td><b>--op-dim</b></td><td>60%</td><td>De-focused elements while something else holds focus.</td></tr>
+<tr><td><b>--op-reveal-dim</b></td><td>25%</td><td>Wrong options at the reveal.</td></tr>
+<tr><td><b>--op-eliminated</b></td><td>45% sat/bright</td><td>Eliminated Pursuit lanes (banked tally exempt — stays full).</td></tr>
+<tr><td><b>--op-ghost</b></td><td>28%</td><td>Ghost/empty lanes in lobbies and home states.</td></tr>
+<tr><td><b>--op-disabled</b></td><td>35%</td><td>Disabled controls (host console only).</td></tr>
+</table>
+
+<h2>TYPOGRAPHY</h2>
+<div class="rule"><b>Bruno Ace SC 🔒</b>: wordmark + named set-piece titles (SPIN TO WIN · THE HARD DECK · THE PURSUIT · future premium rounds).
+<b>Inter</b> for everything else, weights 400/600/700/800 only. Three sizes of intent per surface — a fourth size is a review failure.
+Changing numbers always tabular. No italics. ALL-CAPS ≤ 3 words. No ellipsis truncation on the Display.</div>
+<div class="type-demo">
+  <div style="font:800 44px/1.1 Inter">Statement — one per screen</div>
+  <div style="font:600 22px/1.25 Inter;color:var(--text2);margin-top:10px">Support — options, names, captions</div>
+  <div style="font:400 13px/1.35 Inter;color:var(--text3);margin-top:8px">WHISPER — METADATA, BADGE, HELPER LINES</div>
+</div>
+<table>
+<tr><th>Surface</th><th>Statement</th><th>Support</th><th>Whisper</th><th>Special</th></tr>
+<tr><td><b>Display</b> (1920×1080 ref)</td><td>84/1.1 · 800 (XL 120)</td><td>44/1.2 · 600</td><td>26/1.3 · 400</td><td>Countdown numerals ≤400px · titles Bruno Ace SC</td></tr>
+<tr><td><b>Handset</b> (390×844 ref)</td><td>40/1.1 · 800</td><td>22/1.25 · 600</td><td>14/1.35 · 400</td><td>Nothing under 14px exists</td></tr>
+<tr><td><b>Host</b> (1280×800 min)</td><td>34/1.15 · 800 (focus)</td><td>20/1.3 · 600 (data)</td><td>14/1.35 · 400</td><td>Tables 13–14px data rows permitted</td></tr>
+</table>
+
+<h2>SPACING (4px base)</h2>
+<div class="sp">
+<div class="spb" style="height:8px"><span>4</span></div><div class="spb" style="height:12px"><span>8</span></div>
+<div class="spb" style="height:16px"><span>12</span></div><div class="spb" style="height:20px"><span>16</span></div>
+<div class="spb" style="height:28px"><span>24</span></div><div class="spb" style="height:36px"><span>32</span></div>
+<div class="spb" style="height:48px"><span>48</span></div><div class="spb" style="height:60px"><span>64</span></div>
+<div class="spb" style="height:76px"><span>96</span></div><div class="spb" style="height:90px"><span>128</span></div>
+</div>
+<div class="rule">No off-scale values. Handset screen margin 24 · option gap 12 · action-zone buttons ≥64 high.
+Display content margin 96 inside a 5% TV safe area · leaderboard rows 96 + 12 gap. Host margin 24 · panel gap 16 ·
+all targets ≥44 (touch hosting) · primary action ≥96 high, anchored bottom-right.</div>
+
+<h2>RADIUS · ELEVATION · GLOW</h2>
+<table>
+<tr><th>Token</th><th>Value</th><th>Use</th></tr>
+<tr><td><b>--r-s / --r-m / --r-l / --r-pill</b></td><td>8 / 16 / 24 / 999</td><td>Chips · buttons+options · panels+dialogs · pills. No other radii; circles only for ring, crest badge & keypad accents.</td></tr>
+<tr><td><b>--sh-lift / float / veil</b></td><td>see :root</td><td>Cards · focused monoliths · glass overlays. Shadows are violet-black, never grey.</td></tr>
+<tr><td><b>--gl-edge</b></td><td>0 0 8px @25%</td><td>Resting edge-light on active elements (with 1px border @60%).</td></tr>
+<tr><td><b>--gl-focus</b></td><td>0 0 16px @40%</td><td>Selection, hover-lift, focus rings.</td></tr>
+<tr><td><b>--gl-moment</b></td><td>0 0 34px @50%</td><td>Stamps, pots, reveals.</td></tr>
+<tr><td><b>--gl-room</b></td><td>0 0 60px @55%</td><td>Wordmark ignition, coronation, finish beacon peaks.</td></tr>
+</table>
+<div class="rule"><b>Glass:</b> veil layer only (Host dialogs/drawers, Handset non-play overlays): stage-overlay @70% + 20px backdrop blur +
+1px inner white @12% + --sh-veil. Never in the show layer. <b>One bloom per screen</b>, behind the focal element, ≤24% opacity.</div>
+
+<h2>MOTION</h2>
+<div class="easebox">
+<div class="easecell e1"><b>--ease-settle</b><div class="easetrack"><div class="dot"></div></div><div class="tv">cubic-bezier(.22,1.2,.36,1)</div><div class="tu">All entrances. Hover me.</div></div>
+<div class="easecell e2"><b>--ease-exit</b><div class="easetrack"><div class="dot"></div></div><div class="tv">cubic-bezier(.4,0,1,1)</div><div class="tu">All exits — faster than entry.</div></div>
+<div class="easecell e3"><b>--ease-land</b><div class="easetrack"><div class="dot"></div></div><div class="tv">cubic-bezier(.16,1,.3,1)</div><div class="tu">Count-ups, travels ending.</div></div>
+<div class="easecell e4"><b>--ease-charge</b><div class="easetrack"><div class="dot"></div></div><div class="tv">linear</div><div class="tu">Hold-to-commit fills only.</div></div>
+</div>
+<table>
+<tr><th>Token</th><th>ms</th><th>Feel / use</th></tr>
+<tr><td><b>--m-instant</b></td><td>80</td><td>Felt not seen — pressed states, ticks.</td></tr>
+<tr><td><b>--m-fast</b></td><td>160</td><td>Seen not watched — selection, dims, exits.</td></tr>
+<tr><td><b>--m-standard</b></td><td>240</td><td>Watched — entrances, flips, layout shifts.</td></tr>
+<tr><td><b>--m-moment</b></td><td>400</td><td>An event — stamps, seals, reveals.</td></tr>
+<tr><td><b>--m-showpiece</b></td><td>700–1200</td><td>A moment — travels, pillar rises, sprints. Hard ceiling 1200.</td></tr>
+</table>
+<div class="rule"><b>Laws:</b> motion marks state change only (exceptions: 4s bloom breath, draining ring) · max two simultaneous
+animations per surface · one ≤4% overshoot, settle ≤100ms · nothing linear except charge fills · every animation ends in a
+composed, still frame · no screen-shake, parallax, camera moves, or multi-spin flips.</div>
+
+<h2>GRID & RESPONSIVE RULES</h2>
+<table>
+<tr><th>Surface</th><th>Grid</th><th>Behaviour</th></tr>
+<tr><td><b>Display</b></td><td>12-col/24 gutter (alignment only)</td><td>Designed 1920×1080; scale all tokens with viewport height. Never reflow — one layout per state, scaled. Ultra-wide: content in central 16:9, bloom full-bleed. 5% safe area for all text/crests.</td></tr>
+<tr><td><b>Handset</b></td><td>Single column</td><td>Fluid 320–480; >480 centres at 480 max. Bottom 40% = only tappable zone in play. No scrolling in timed play at any width 🔒. OS text-size respected to 130% (compress spacing before shrinking targets).</td></tr>
+<tr><td><b>Host</b></td><td>12-col/16 gutter, 3 regions</td><td>ON AIR · desk · trigger rail — regions never move. <1100w: insights collapse to tabs. <900w: "Mission Control needs a larger screen." Targets ≥44.</td></tr>
+</table>
+
+<h2>ICONOGRAPHY & COMPONENT SIZING</h2>
+<div class="rule">Geometric line icons, 24×24 grid, 2px stroke (1.5 @16 / 3 @40+), round caps, no fills, no two-tone, no emoji in product UI.
+Host icons always labelled. Display uses ▲▼ + card sigils only. Sizes: --ic-s 16 · --ic-m 24 · --ic-l 40.
+Core component sizes: handset option 64h · lock bar 56h · monolith 96h · host row 44h · display leaderboard row 96h ·
+crest 18–52px by context · Power Card aspect 2:3 · playing card aspect 2:3.</div>
+
+<h2>ACCESSIBILITY (BINDING)</h2>
+<div class="rule">Contrast: Display ≥7:1, Handset/Host ≥4.5:1 (whisper ≥3:1). Meaning never by colour alone — monochrome test every state.
+Fully playable muted. ≤3 flashes/sec; light-shocks single, ≥250ms apart. Reduce-motion: entrances→fades, travels→dissolves,
+particles→static light, count-ups→instant+pulse. Haptics always paired with visuals; reduce-haptics keeps Lock + reveal Hit.
+Hold-to-commit offers double-tap alternative. Timers: clock never starts before content lands; host +15s always available;
+nothing but answering has a timeout.</div>
+
+<h2>INTERACTION LAWS (BINDING)</h2>
+<div class="rule">One primary action per screen. Two-stage answering (tap select → lock commit). Hold-to-commit for anything
+irreversible; charging is mirrored where the room should see hesitation. Destructive host actions: hold, no keyboard shortcut,
+safe option is primary. Buttons never swap positions between states. Feedback ≤80ms for every touch. The host's pace is the
+master clock — nothing auto-advances a show beat. Full interaction flows: see the Interaction Guide.</div>
+
+<div class="rule" style="margin-top:40px;color:var(--text3)">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac · Tokens v1.0</div>
+</div></body></html>

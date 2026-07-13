@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QUIZ-IT · Interaction Guide v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Bruno+Ace+SC&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--deep:#0A0118;--raised:#150A2E;--line:#2E1A52;--tx:#fff;--tx2:#B9A8D9;--tx3:#6B5A8E;--pu:#BE26C1;--pub:#D94FDC;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#070013;color:var(--tx);font-family:Inter,sans-serif;padding:32px 24px 120px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:980px;margin:0 auto}
+h1{font-family:'Bruno Ace SC',cursive;font-size:22px}.q{color:var(--pu)}
+.lead{color:var(--tx2);font-size:13px;margin:6px 0 30px;line-height:1.6}
+h2{font-size:13px;letter-spacing:.22em;color:var(--pub);margin:38px 0 10px}
+h3{font-size:14px;margin:20px 0 6px}
+p,li{font-size:13px;color:var(--tx2);line-height:1.7}
+p b,li b{color:var(--tx)}
+ul{margin:6px 0 12px 20px}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:12.5px}
+td,th{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:var(--raised);color:var(--tx)}td{color:var(--tx2)}td b{color:var(--tx)}
+.flow{background:var(--raised);border:1px solid var(--line);border-radius:16px;padding:16px 20px;
+ font:600 12.5px/2 Inter;color:var(--tx2);margin:10px 0}
+.flow b{color:var(--pub)}
+code{background:#1D1140;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:12px;color:var(--tx)}
+</style></head><body><div class="wrap">
+<h1><span class="q">QUIZ-</span>IT · INTERACTION GUIDE</h1>
+<div class="lead">Every user interaction and behaviour across Host, Display and Handset. This is the behavioural
+contract: engineers implement these flows exactly; anything not specified here follows the Interaction Laws below,
+and anything not covered by those doesn't ship until it's added here.</div>
+
+<h2>GLOBAL INTERACTION LAWS</h2>
+<ul>
+<li><b>The host's pace is the master clock.</b> No show state auto-advances. Timers expire into a <i>held</i> state (sealed answers) — never into the next state.</li>
+<li><b>One primary action per screen,</b> always the most prominent element, always in the same place per surface (handset: bottom bar · host: bottom-right rail).</li>
+<li><b>Feedback ≤80ms</b> for every touch, key and click on every surface. Pressed = scale .97 + fill deepen (+Tick haptic on handset).</li>
+<li><b>Two-stage commitment for answers</b> (tap select → tap lock). <b>Hold-to-commit for anything irreversible</b> (play card, Stick/Gamble, dump question, end show, remove team, leave team). Holds fill linearly ~900ms; releasing early decays at 2× speed. Accessibility alternative: double-tap-to-commit (handset setting).</li>
+<li><b>Destructive host actions:</b> hold only, no keyboard shortcut, confirmation dialog's primary button is the SAFE option.</li>
+<li><b>Buttons never move.</b> A control keeps its position across all states of a screen; controls appear/disappear in place, never reflow siblings during play.</li>
+<li><b>No scrolling during timed play</b> on the handset. Scrolling exists only in host library/management surfaces and handset settings.</li>
+<li><b>Focus:</b> full keyboard traversal on Host (visible double-ring focus). Handset play surfaces are screen-reader traversable in a stable order: question → options (A–D) → lock.</li>
+</ul>
+
+<h2>THE QUESTION LIFECYCLE (the product's core loop)</h2>
+<div class="flow">
+HOST <b>DEAL</b> → Display: card back · Handset: deal-in Pulse, idle →
+HOST <b>FLIP</b> → Display: question + options + ring starts · Handset: live question →
+PLAYER <b>TAP</b> option (Tick, others dim, lock bar appears; re-tap another option freely — first change shows speed-bonus warning once) →
+PLAYER <b>LOCK</b> (vault seal, Lock haptic; answer immutable; handset shows sealed plate) →
+timer ends OR host <b>CLOSE EARLY</b> → all handsets: "Answers are in. Eyes up." →
+HOST <b>REVEAL</b> (the Crack on stage; handset verdicts land a half-beat later) →
+points count-ups → HOST advances: next deal / standings / set-piece.
+</div>
+<ul>
+<li><b>No answer submitted:</b> at reveal the handset shows the correct answer + "No answer this time." Zero-point row persists on the leaderboard.</li>
+<li><b>Late lock attempt</b> (tap in flight when timer hits zero): the lock is rejected silently; the sealed state shows "Answers are in." The phone never claims a lock it can't honour.</li>
+<li><b>Multi Tap variant:</b> taps toggle tiles (Tick per toggle) until LOCK ALL; per-question timer; Wipeout gates Q6–10 (host toggle) — wrong tap zeroes that question only.</li>
+<li><b>Text/number variant:</b> custom numeric pad for numbers; text uses OS keyboard with the show-styled entry; lock = same bar; editing after lock impossible.</li>
+</ul>
+
+<h2>HOST INTERACTIONS</h2>
+<h3>The big button</h3>
+<p>Space bar and click/tap both fire it. Label always names the show consequence. It arms (edge flare) when its
+moment is ready; when blocked it stays visible with a one-line reason beneath. It is never destructive.</p>
+<h3>Keyboard map (locked)</h3>
+<table>
+<tr><th>Key</th><th>Action</th><th>Notes</th></tr>
+<tr><td><b>Space</b></td><td>Big button — advance the show</td><td>Works from presenter remotes</td></tr>
+<tr><td><b>P</b></td><td>Pause / resume</td><td>"Your host will be right back"</td></tr>
+<tr><td><b>E</b></td><td>+15 seconds</td><td>Repeatable</td></tr>
+<tr><td><b>R</b></td><td>Reveal (when armed)</td><td>Equivalent to big button in reveal phase</td></tr>
+<tr><td><b>L</b></td><td>Show standings</td><td>When stage is idle</td></tr>
+<tr><td><b>1–6</b></td><td>Sound pads</td><td>Fixed order; press again stops</td></tr>
+<tr><td><b>D / K(hold)</b></td><td>Duck latch / Kill audio</td><td>K restores on release</td></tr>
+<tr><td><b>T / Esc</b></td><td>Team rail / close drawer</td><td>Drawer never covers ON AIR or big button</td></tr>
+</table>
+<h3>Team drawer</h3>
+<p>Tap team row → glass drawer. Score stepper applies instantly with a required reason chip (logged with timestamp).
+Rename applies live everywhere. Remove team = hold. Cancel a played Power Card = hold (dispute tool). Drawer closes on Esc,
+outside tap, or T — show keeps running beneath it throughout.</p>
+<h3>Insights & casting</h3>
+<p>Four cards refresh only at natural pauses (post-reveal, round end) — never mid-question. CAST sends the card to the
+Display as a caption when the stage is idle; a second CAST replaces the first (one caption max). Cards flare once when
+their subject changed.</p>
+<h3>Set-piece consoles</h3>
+<p>One trigger per act, in a vertical armed sequence; the next trigger lights only when the previous act settles.
+Fallback controls (SPIN FROM HERE, advance without team input) are holds, present on every set-piece for dead-phone
+recovery. The finale checklist (song, tie, photo) blocks BEGIN THE ASCENT until each item is confirmed or skipped.</p>
+
+<h2>DISPLAY BEHAVIOUR</h2>
+<p>The Display accepts <b>no direct interaction</b> — it is a pure state renderer driven by the host and game events.
+Behavioural rules: it may never show two focal elements; it may never render input affordances; every state change
+arrives through the Breath transition (or a scripted hard cut at Gear 3+); when it loses its feed it degrades through
+Reconnecting → Connection Lost exactly as specced, holding the last good frame dimmed beneath. On resume it snaps to
+current state — never replays missed moments.</p>
+
+<h2>HANDSET INTERACTIONS</h2>
+<h3>Haptic vocabulary (locked)</h3>
+<table>
+<tr><th>Gesture</th><th>Feel</th><th>Fires on</th></tr>
+<tr><td><b>Tick</b></td><td>single light</td><td>selection, keypad digits, toggles</td></tr>
+<tr><td><b>Lock</b></td><td>firm double-knock</td><td>answer lock, commitments</td></tr>
+<tr><td><b>Pulse</b></td><td>soft rising beat</td><td>deal-in, final five, holds charging, wheel ticks</td></tr>
+<tr><td><b>Hit</b></td><td>one heavy strike</td><td>reveals, your row landing, card flips (room-wide)</td></tr>
+<tr><td><b>Cascade</b></td><td>celebratory ripple</td><td>correct, rank climb, crest birth, victory (longest)</td></tr>
+<tr><td><b>Thud</b></td><td>single muted low</td><td>incorrect, bust, deduction — never punishing</td></tr>
+</table>
+<h3>Eyes Up protocol</h3>
+<p>Entered automatically at: answers-closed, leaderboard builds, podium, other teams' set-piece moments. The screen
+drops to near-black (crest + whisper line). <b>Exit is always signalled physically</b> (deal-in Pulse or role ignition
+Hit) so players can safely ignore the phone. Any tap during Eyes Up shows rank + score for 3s, then returns dark —
+the phone answers the itch without stealing the stage.</p>
+<h3>Joining & recovery</h3>
+<div class="flow">
+NFC tap / QR / URL → PIN keypad (auto-submit on 4th digit) → team name (uniqueness checked live) →
+crest birth → lobby. <b>Returning device:</b> "Welcome back — rejoin as [team]?" one tap → identity, score, locked
+answer restored. <b>New device, existing team:</b> same prompt via team name entry match, host-approvable if contested.
+</div>
+<h3>Connection behaviour</h3>
+<ul>
+<li>Loss: whisper strip + dim, content stays; ≥10s adds the "show carries on" line; <b>no modal, no red, no haptic on loss.</b></li>
+<li>Recovery ≤10s: silent (strip dissolves). Longer: one-line bridge ("Q6 is live, you're 4th") then live state. One Tick.</li>
+<li>Answers locked pre-drop are honoured; a question missed entirely resolves as no-answer, without comment.</li>
+</ul>
+<h3>Settings & profile</h3>
+<p>Reachable from the status strip only outside timed play. Haptics (Full / Reduced / Off), Reduce motion, Text size,
+Leave team (hold). Profile shows nights played, wins, best superlative, crest geometry picker. Nothing in settings
+affects fairness.</p>
+
+<h2>SET-PIECE INTERACTION SUMMARIES</h2>
+<table>
+<tr><th>Round</th><th>Chosen team's controller</th><th>Everyone else</th></tr>
+<tr><td><b>Spin to Win</b></td><td>Hold-to-charge circular SPIN → release fires the stage machine; result echoes a half-beat after the stage</td><td>Eyes Up + "[Team] is at the wheel"; phones strike with each reel</td></tr>
+<tr><td><b>The Hard Deck</b></td><td>HIGHER/LOWER monoliths (instant commit, flash on stage) · one-time swap · STICK/GAMBLE hold-to-commit mirrored live on stage</td><td>Eyes Up + pot mirror; room-wide Pulse with wheel ticks, Hit with flips</td></tr>
+<tr><td><b>The Pursuit</b></td><td>All teams play — normal question flow; between gates: own-lane mirror with banked tally</td><td>Eliminated: Eyes Up + "Your 30 banked — watch the wall"</td></tr>
+<tr><td><b>Future rounds</b></td><td>One controller transformation per round (template)</td><td>Eyes Up + one whisper caption, always</td></tr>
+</table>
+
+<h2>EDGE CASES & GUARANTEES</h2>
+<ul>
+<li><b>Tie at the podium:</b> flagged in the finale checklist with the resolution rule stated; never discovered live.</li>
+<li><b>Host device dies mid-show:</b> any signed-in device resumes via Session Recovery at the exact phase, timer included.</li>
+<li><b>Double-tap race on lock:</b> first lock wins; second tap is a no-op (never an error).</li>
+<li><b>Simultaneous Power Cards:</b> resolved in commit order; the Display announces sequentially, 1.5s apart.</li>
+<li><b>Team at 0% battery mid-Pursuit:</b> unanswered gates resolve as no-answer; banked points persist; rejoin restores the lane.</li>
+<li><b>The room never sees a stack trace, an error code, a spinner, or the word "error." Ever.</b></li>
+</ul>
+
+<p style="margin-top:36px;color:var(--tx3)">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac · Interaction Guide v1.0</p>
+</div></body></html>

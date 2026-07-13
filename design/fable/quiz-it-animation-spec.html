@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QUIZ-IT · Animation Specification v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Bruno+Ace+SC&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--deep:#0A0118;--raised:#150A2E;--over:#1D1140;--line:#2E1A52;--tx:#fff;--tx2:#B9A8D9;--tx3:#6B5A8E;
+--pu:#BE26C1;--pub:#D94FDC;--pud:#8A1B8D;--gr:#2EE06E;--rd:#FF3B4E;--go:#E8C36A;
+--settle:cubic-bezier(.22,1.2,.36,1);--exit:cubic-bezier(.4,0,1,1);--land:cubic-bezier(.16,1,.3,1);}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#070013;color:var(--tx);font-family:Inter,sans-serif;padding:32px 24px 120px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1220px;margin:0 auto}
+h1{font-family:'Bruno Ace SC',cursive;font-size:22px}.q{color:var(--pu)}
+.lead{color:var(--tx2);font-size:13px;margin:6px 0 30px;max-width:880px;line-height:1.6}
+h2{font-size:13px;letter-spacing:.22em;color:var(--pub);margin:38px 0 10px}
+.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.demo{background:var(--deep);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.stagelet{height:130px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;
+ border-bottom:1px solid var(--line);cursor:pointer}
+.meta{padding:12px 16px}
+.nm{font:800 12px Inter;letter-spacing:.1em}
+.spec{font:600 11px Inter;color:var(--pub);margin:4px 0;font-variant-numeric:tabular-nums}
+.ds{font:400 11.5px Inter;color:var(--tx2);line-height:1.55}
+/* replayable: animations run on .play class */
+.el{position:relative}
+/* 1 the breath (screen transition) */
+.d-breath .a{width:120px;height:64px;border-radius:12px;background:var(--raised);border:1px solid var(--line)}
+.d-breath.play .a{animation:breathT 1.4s var(--settle)}
+@keyframes breathT{0%{opacity:1;transform:none}18%{opacity:0;transform:scale(.96)}38%{opacity:0}60%{opacity:1;transform:translateY(0) scale(1.02)}75%{transform:scale(.998)}100%{transform:none}}
+.d-breath.play .stagelet{animation:dimT 1.4s linear}
+@keyframes dimT{0%{background:transparent}20%,45%{background:rgba(0,0,0,.5)}70%{background:transparent}}
+/* 2 rise & settle entrance */
+.d-rise .a{font:800 20px Inter}
+.d-rise.play .a{animation:rise .24s var(--settle)}
+@keyframes rise{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+/* 3 stamp */
+.d-stamp .a{font:800 26px Inter;letter-spacing:.14em}
+.d-stamp.play .a{animation:stamp .4s var(--settle)}
+.d-stamp.play .stagelet::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,.09);animation:shock .12s linear}
+@keyframes stamp{from{transform:scale(1.15);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes shock{from{opacity:1}to{opacity:0}}
+/* 4 exit */
+.d-exit .a{width:120px;height:64px;border-radius:12px;background:var(--raised);border:1px solid var(--line)}
+.d-exit.play .a{animation:exitA .16s var(--exit) forwards}
+@keyframes exitA{to{opacity:0;transform:scale(.94)}}
+/* 5 count-up */
+.d-count .a{font:800 34px Inter;font-variant-numeric:tabular-nums}
+/* 6 ring drain + final five */
+.d-ring .a{width:80px;height:80px;border-radius:50%;background:conic-gradient(var(--pub) 0 100%,var(--raised) 0)}
+.d-ring.play .a{animation:drain 4s linear forwards}
+@keyframes drain{to{background:conic-gradient(#fff 0 8%,var(--raised) 8% 100%)}}
+/* 7 lock seal */
+.d-lock .a{width:170px;height:48px;border-radius:12px;background:var(--raised);border:1px solid var(--pub);
+ display:flex;align-items:center;justify-content:center;font:800 13px Inter;letter-spacing:.2em}
+.d-lock.play .a{animation:seal .4s var(--land)}
+@keyframes seal{0%{box-shadow:0 0 0 rgba(217,79,220,0)}40%{box-shadow:0 0 26px rgba(217,79,220,.8)}100%{box-shadow:0 0 10px rgba(217,79,220,.35)}}
+/* 8 the crack */
+.d-crack .a,.d-crack .b{width:110px;height:40px;border-radius:10px;background:var(--raised);border:1px solid var(--line);margin:4px}
+.d-crack.play .a{animation:ignite .3s var(--land) forwards}
+.d-crack.play .b{animation:collapse .16s var(--exit) forwards}
+@keyframes ignite{to{background:rgba(46,224,110,.18);border-color:var(--gr);box-shadow:0 0 22px rgba(46,224,110,.5)}}
+@keyframes collapse{to{opacity:.22}}
+/* 9 incorrect (thud) */
+.d-thud .a{width:110px;height:40px;border-radius:10px;background:var(--raised);border:1px solid var(--line)}
+.d-thud.play .a{animation:thud .4s var(--land) forwards}
+@keyframes thud{20%{border-color:var(--rd);box-shadow:0 0 18px rgba(255,59,78,.6)}
+ 60%{transform:translateY(3px)}100%{border-color:var(--rd);box-shadow:none;opacity:.5;transform:translateY(3px)}}
+/* 10 leaderboard travel */
+.d-travel{--h:34px}
+.d-travel .stagelet{flex-direction:column;gap:6px;align-items:stretch;padding:14px 40px}
+.d-travel .rw{height:var(--h);border-radius:9px;background:var(--raised);border:1px solid var(--line);flex:none}
+.d-travel .rw.m{background:var(--over);border-color:var(--pub);position:relative;z-index:2}
+.d-travel.play .rw.m{animation:up .7s var(--settle) forwards}
+.d-travel.play .rw.s1{animation:down .7s var(--settle) forwards;animation-delay:.1s}
+@keyframes up{to{transform:translateY(-40px)}}
+@keyframes down{to{transform:translateY(40px)}}
+/* 11 power card launch */
+.d-launch .a{width:56px;height:84px;border-radius:10px;background:linear-gradient(160deg,#4a0a12,#1a0306);border:1px solid rgba(255,255,255,.3)}
+.d-launch.play .a{animation:launch .4s var(--exit) forwards}
+@keyframes launch{to{transform:translateY(-120px);opacity:0}}
+/* 12 card flip */
+.d-flip .a{width:56px;height:84px;border-radius:10px;background:var(--over);border:1px solid var(--pud);perspective:400px}
+.d-flip.play .a{animation:flip .3s var(--land) forwards}
+@keyframes flip{50%{transform:rotateX(90deg)}100%{transform:rotateX(0);background:#f2eee6}}
+/* 13 runner run */
+.d-run svg{width:44px;height:44px;position:absolute;left:12%;bottom:26%;filter:drop-shadow(0 0 6px rgba(217,79,220,.7))}
+.d-run.play svg{animation:runx .6s var(--settle) forwards}
+.d-run.play .trail{position:absolute;left:12%;bottom:38%;height:12px;width:70px;border-radius:99px;
+ background:linear-gradient(to left,rgba(217,79,220,.7),transparent);animation:runx .6s var(--settle) forwards,fadeT .6s linear forwards}
+@keyframes runx{to{transform:translateX(150px)}}
+@keyframes fadeT{0%{opacity:0}30%{opacity:1}100%{opacity:0}}
+/* 14 runner fall */
+.d-fall svg{width:44px;height:44px}
+.d-fall.play svg{animation:fallA .55s var(--land) forwards}
+@keyframes fallA{40%{transform:translateX(16px) rotate(4deg)}100%{transform:translateX(22px) translateY(8px) rotate(0)}}
+/* 15 spin charge */
+.d-charge .a{width:150px;height:44px;border-radius:12px;border:1px solid var(--pub);background:var(--raised);position:relative;overflow:hidden}
+.d-charge .a i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,var(--pud),var(--pu))}
+.d-charge.play .a i{animation:chg 1.6s linear forwards}
+.d-charge.play .a{animation:tremble 1.6s linear}
+@keyframes chg{to{width:100%}}
+@keyframes tremble{0%,100%{transform:none}25%{transform:translateX(-.6px)}50%{transform:translateX(.6px)}75%{transform:translateX(-.4px)}}
+/* 16 gold flood */
+.d-gold.play .stagelet{animation:goldf 2s var(--land) forwards}
+.d-gold .a{font-family:'Bruno Ace SC',cursive;font-size:16px;letter-spacing:.3em;color:var(--go)}
+@keyframes goldf{0%{background:transparent}30%{background:radial-gradient(ellipse at 50% 100%,rgba(232,195,106,.4),transparent 70%)}
+ 100%{background:radial-gradient(ellipse at 50% 100%,rgba(232,195,106,.28),transparent 75%)}}
+/* 17 confetti */
+.d-conf .c{position:absolute;top:-10%;width:6px;height:10px;border-radius:2px}
+.d-conf.play .c{animation:cf linear forwards}
+@keyframes cf{to{transform:translateY(150px) rotate(480deg);opacity:.9}}
+/* 18 light rays */
+.d-rays .a{position:absolute;inset:-40%;background:conic-gradient(from 180deg at 50% 80%,
+ transparent 0 10%,rgba(232,195,106,.09) 10% 13%,transparent 13% 30%,rgba(232,195,106,.09) 30% 33%,
+ transparent 33% 62%,rgba(232,195,106,.09) 62% 65%,transparent 65% 88%,rgba(232,195,106,.09) 88% 91%,transparent 91%)}
+.d-rays.play .a{animation:ray 6s linear infinite}
+@keyframes ray{to{transform:rotate(10deg)}}
+/* 19 reconnect pulse */
+.d-rec .a{display:flex;align-items:center;gap:9px;font:600 12px Inter;color:var(--tx2)}
+.d-rec .a i{width:10px;height:10px;border-radius:50%;background:var(--pud);animation:recp 1.6s infinite}
+@keyframes recp{0%,100%{opacity:.35}50%{opacity:1;box-shadow:0 0 10px rgba(190,38,193,.6)}}
+/* 20 hover/press micro */
+.d-micro .a{width:130px;height:44px;border-radius:12px;background:var(--pu);border:1px solid var(--pub);
+ display:flex;align-items:center;justify-content:center;font:700 12px Inter;transition:all .16s;cursor:pointer}
+.d-micro .a:hover{background:var(--pub);box-shadow:0 0 16px rgba(217,79,220,.4)}
+.d-micro .a:active{transform:scale(.97);background:var(--pud)}
+/* 21 crest birth */
+.d-crest .a{width:52px;height:52px;background:linear-gradient(135deg,var(--pud),var(--over));border:1px solid var(--pu);
+ clip-path:polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%);display:flex;align-items:center;justify-content:center;font:800 15px Inter}
+.d-crest.play .a{animation:cb .5s var(--settle)}
+@keyframes cb{0%{transform:scale(1.4) rotate(8deg);opacity:0}70%{transform:scale(.98)}100%{transform:scale(1);opacity:1}}
+/* 22 bloom breath */
+.d-bloom .a{width:70px;height:70px;border-radius:50%;background:radial-gradient(circle,rgba(190,38,193,.5),transparent 70%);
+ animation:blb 4s ease-in-out infinite}
+@keyframes blb{0%,100%{transform:scale(.85);opacity:.6}50%{transform:scale(1.05);opacity:1}}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:12.5px}
+td,th{border:1px solid var(--line);padding:8px 10px;text-align:left}
+th{background:var(--raised)}td{color:var(--tx2)}td b{color:var(--tx)}
+.hint{font:600 10px Inter;color:var(--tx3);letter-spacing:.14em;text-align:center;margin-top:6px}
+</style></head><body><div class="wrap">
+<h1><span class="q">QUIZ-</span>IT · ANIMATION SPECIFICATION</h1>
+<div class="lead">Every animation, transition, timing and curve — live. <b>Click any tile to replay it.</b>
+All values are Motion Language tokens; nothing here is decorative. Laws: motion marks state change only ·
+max two simultaneous animations per surface · every animation ends still · reduce-motion substitutions at the foot.</div>
+
+<h2>TRANSITIONS & ENTRANCES</h2>
+<div class="g">
+<div class="demo d-breath play"><div class="stagelet"><div class="a el"></div></div><div class="meta">
+ <div class="nm">THE BREATH — screen/page transition</div><div class="spec">dim 160ms → hold ≥120ms dark → enter 240ms settle</div>
+ <div class="ds">All state-to-state changes on all three surfaces. Darken → place → light. Never a crossfade of content.</div></div></div>
+<div class="demo d-rise play"><div class="stagelet"><div class="a el">Answers are in.</div></div><div class="meta">
+ <div class="nm">RISE & SETTLE — standard entrance</div><div class="spec">240ms · ease-settle · translateY 16→0</div>
+ <div class="ds">Default for content. Lists stagger 40ms/item, max 6 staggered.</div></div></div>
+<div class="demo d-stamp play"><div class="stagelet"><div class="a el">TIME'S UP</div></div><div class="meta">
+ <div class="nm">THE STAMP — ceremonial entrance</div><div class="spec">400ms · ease-settle · scale 1.15→1 + 120ms light-shock</div>
+ <div class="ds">Countdown digits, END OF ROUND, CHAMPIONS, captions. Stamps only — never regular content.</div></div></div>
+<div class="demo d-exit play"><div class="stagelet"><div class="a el"></div></div><div class="meta">
+ <div class="nm">EXIT</div><div class="spec">160ms · ease-exit · fade + scale .94</div>
+ <div class="ds">Exits never block entrances and are always faster than arrivals.</div></div></div>
+</div>
+
+<h2>PLAY — COUNTDOWN, LOCK, REVEAL</h2>
+<div class="g">
+<div class="demo d-ring play"><div class="stagelet"><div class="a el"></div></div><div class="meta">
+ <div class="nm">TIMER RING — drain & final five</div><div class="spec">linear drain · final-5: stroke 4→10px, 12px contraction step/sec, white</div>
+ <div class="ds">The only sustained animation in play. Never red, never yellow. Phones Pulse in sync.</div></div></div>
+<div class="demo d-count play"><div class="stagelet"><div class="a el" data-c="0">+150</div></div><div class="meta">
+ <div class="nm">SCORE COUNT-UP</div><div class="spec">400–900ms by delta · ease-land · glow-pulse on landing</div>
+ <div class="ds">Rolling tabular digits. Deductions: 240ms drop, no count-down, brief red edge.</div></div></div>
+<div class="demo d-lock play"><div class="stagelet"><div class="a el">LOCKED</div></div><div class="meta">
+ <div class="nm">ANSWER LOCK — the seal</div><div class="spec">400ms · ease-land · edge-light trace + Lock haptic (firm double-knock)</div>
+ <div class="ds">Purple, never green — locked ≠ correct. The product's signature physical moment.</div></div></div>
+<div class="demo d-crack play"><div class="stagelet" style="flex-direction:column"><div class="a el"></div><div class="b el"></div></div><div class="meta">
+ <div class="nm">THE CRACK — correct reveal</div><div class="spec">ignite 300ms ease-land + collapse 160ms ease-exit, simultaneous</div>
+ <div class="ds">A switch, not a sequence. One survivor in green light; wrong options to 25%. Handset verdict lands a half-beat later.</div></div></div>
+<div class="demo d-thud play"><div class="stagelet"><div class="a el"></div></div><div class="meta">
+ <div class="nm">INCORRECT — the thud</div><div class="spec">400ms · ease-land · red edge <1s, 3px settle-down, then 50%</div>
+ <div class="ds">Weight down, quickly done. No shake, no flash-train, no sad effects.</div></div></div>
+</div>
+
+<h2>SHOW MOMENTS</h2>
+<div class="g">
+<div class="demo d-travel play"><div class="stagelet"><div class="rw s1"></div><div class="rw m"></div><div class="rw"></div></div><div class="meta">
+ <div class="nm">LEADERBOARD TRAVEL — the overtake</div><div class="spec">700ms (+100ms/3 ranks, cap 1200) · ease-settle · trail decays 400ms</div>
+ <div class="ds">Mover lifts (scale 1.02 + float shadow), travels above resting rows; displaced rows shuffle at 60% speed. Max two movers, sequenced. Falls are never animated downward.</div></div></div>
+<div class="demo d-launch play"><div class="stagelet"><div class="a el"></div></div><div class="meta">
+ <div class="nm">POWER CARD LAUNCH</div><div class="spec">400ms · ease-exit · upward + light trail; fan-in 240ms stagger</div>
+ <div class="ds">Hold-to-play charge precedes (linear fill + rising Pulse). Display announces the play simultaneously.</div></div></div>
+<div class="demo d-flip play"><div class="stagelet"><div class="a el"></div></div><div class="meta">
+ <div class="nm">HARD DECK CARD FLIP</div><div class="spec">300ms · single rotateX pass · heavy strike on landing (room-wide haptic)</div>
+ <div class="ds">One flip, no multi-spin. Pot counts up after; ladder rung ignites.</div></div></div>
+<div class="demo d-run play"><div class="stagelet"><div class="trail"></div>
+ <svg viewBox="0 0 100 100"><path fill="#fff" d="M42 30 L62 22 L67 44 L48 50 Z"/><path fill="#D94FDC" d="M60 26 L76 34 L72 40 L58 33 Z"/><path fill="#fff" d="M50 48 L60 50 L76 70 L69 76 Z"/><path fill="#fff" d="M46 50 L54 54 L34 74 L27 68 Z"/></svg></div><div class="meta">
+ <div class="nm">PURSUIT RUNNER — advance</div><div class="spec">600ms travel + 100ms settle · ease-settle · trail + 3 sparks · sprint 900ms doubled-trail</div>
+ <div class="ds">All survivors animate simultaneously — one synchronized surge. Compaction reflow (700ms) only after the pass settles.</div></div></div>
+<div class="demo d-fall play"><div class="stagelet">
+ <svg viewBox="0 0 100 100"><path fill="#fff" d="M44 40 L66 28 L72 46 L52 56 Z"/><path fill="#D94FDC" d="M64 34 L80 46 L75 52 L62 42 Z"/><path fill="#fff" d="M52 54 L62 56 L58 84 L50 82 Z"/></svg></div><div class="meta">
+ <div class="nm">PURSUIT RUNNER — stumble & fall</div><div class="spec">stumble 150ms → slide 400ms ease-land → seated · lane desat 500ms</div>
+ <div class="ds">Ends seated facing the race, banked tally bright. Deliberately slower than success: weight, not comedy.</div></div></div>
+<div class="demo d-charge play"><div class="stagelet"><div class="a el"><i></i></div></div><div class="meta">
+ <div class="nm">HOLD-TO-COMMIT CHARGE</div><div class="spec">linear fill (honesty) · tremble ±0.6px · mirrored on Display for Stick/Gamble & Spin</div>
+ <div class="ds">The room watches hesitation as light. Release before full = decay back at 2× speed.</div></div></div>
+</div>
+
+<h2>FINALE & SYSTEM</h2>
+<div class="g">
+<div class="demo d-gold play"><div class="stagelet"><div class="a el">CHAMPIONS</div></div><div class="meta">
+ <div class="nm">GOLD FLOOD — coronation</div><div class="spec">2s ease-land to sustained state · once per night</div>
+ <div class="ds">The venue changes colour. Held perfectly still during photos — nothing pulses while cameras are out.</div></div></div>
+<div class="demo d-conf play"><div class="stagelet">
+ <i class="c" style="left:15%;background:var(--go);animation-duration:1.6s"></i>
+ <i class="c" style="left:35%;background:#fff;animation-duration:2.1s;animation-delay:.2s"></i>
+ <i class="c" style="left:55%;background:var(--go);animation-duration:1.8s;animation-delay:.1s"></i>
+ <i class="c" style="left:75%;background:var(--go);animation-duration:2.3s;animation-delay:.3s"></i></div><div class="meta">
+ <div class="nm">CONFETTI — storm → drift → gone</div><div class="spec">burst ≤2s · gravity decay ~6s · full clear ≤10s · gold+white only</div>
+ <div class="ds">Coronation only. Varied tumble per piece. Never over text. No infinite loops.</div></div></div>
+<div class="demo d-rays play"><div class="stagelet"><div class="a el"></div></div><div class="meta">
+ <div class="nm">LIGHT RAYS</div><div class="spec">conic gold rays · 6–14s slow rotate · ≤9% opacity</div>
+ <div class="ds">Coronation backdrop only. Slow enough to read as light, never as motion.</div></div></div>
+<div class="demo d-crest play"><div class="stagelet"><div class="a el">QB</div></div><div class="meta">
+ <div class="nm">CREST BIRTH — joining</div><div class="spec">500ms · ease-settle · facets snap + edge trace · Cascade haptic</div>
+ <div class="ds">Once per team per night (lobby). Lobby wall arrival reuses it at 400ms.</div></div></div>
+<div class="demo d-bloom"><div class="stagelet"><div class="a el"></div></div><div class="meta">
+ <div class="nm">BLOOM BREATH — loading/waiting</div><div class="spec">4s cycle · opacity/scale only · the ONLY ambient loop</div>
+ <div class="ds">Replaces all spinners. One bloom per screen, behind the focal element.</div></div></div>
+<div class="demo d-rec"><div class="stagelet"><div class="a el"><i></i>Reconnecting to the show…</div></div><div class="meta">
+ <div class="nm">RECONNECT PULSE</div><div class="spec">1.6s cycle · purple, never red · content stays visible, dimmed one step</div>
+ <div class="ds">Connection loss: no modal, no spinner, no blame. Recovery ≤10s is silent.</div></div></div>
+<div class="demo d-micro"><div class="stagelet"><div class="a el">HOVER / PRESS ME</div></div><div class="meta">
+ <div class="nm">MICRO — hover · focus · press</div><div class="spec">hover: edge +20%, no movement · press: scale .97 @80ms · focus: 2px double ring</div>
+ <div class="ds">Every interactive element, all surfaces. Feedback ≤80ms always.</div></div></div>
+</div>
+
+<h2>REDUCE-MOTION SUBSTITUTIONS (BINDING)</h2>
+<table>
+<tr><th>Full motion</th><th>Reduced</th></tr>
+<tr><td><b>Travels / runner movement</b></td><td>Dissolve in place / per-block dissolve</td></tr>
+<tr><td><b>Stamps & light-shocks</b></td><td>Fast fade, no flare</td></tr>
+<tr><td><b>Count-ups</b></td><td>Instant value + single pulse</td></tr>
+<tr><td><b>Particles / confetti / rays</b></td><td>Static light states</td></tr>
+<tr><td><b>Falls</b></td><td>Fade to seated pose</td></tr>
+<tr><td><b>Photo-finish sweep</b></td><td>Fade-up of the finish column</td></tr>
+</table>
+<div class="ds" style="margin-top:24px;color:var(--tx3)">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac · Animation Spec v1.0</div>
+</div>
+<script>
+document.querySelectorAll('.demo').forEach(function(d){
+  d.querySelector('.stagelet').addEventListener('click',function(){
+    d.classList.remove('play');void d.offsetWidth;d.classList.add('play');
+    if(d.classList.contains('d-count')){var el=d.querySelector('.a');var t0=performance.now();
+      (function step(n){var k=Math.min(1,(n-t0)/700);k=1-Math.pow(1-k,3);
+      el.textContent='+'+Math.round(150*k);if(k<1)requestAnimationFrame(step);})(t0);}
+  });
+  if(d.classList.contains('d-count')){var el=d.querySelector('.a');var t0=performance.now();
+    (function step(n){var k=Math.min(1,(n-t0)/700);k=1-Math.pow(1-k,3);
+    el.textContent='+'+Math.round(150*k);if(k<1)requestAnimationFrame(step);})(t0);}
+});
+var h=document.createElement('div');h.className='hint';h.textContent='CLICK ANY TILE TO REPLAY';
+document.querySelector('.lead').appendChild(h);
+</script>
+</body></html>

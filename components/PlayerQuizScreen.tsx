@@ -952,27 +952,24 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
 
         {isMultiChoice && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+          <div className="fbl" style={{ marginBottom: 10 }}>
             {options.map(opt => {
               const isSelected = selectedAnswer === opt.key;
+              const dim = !!selectedAnswer && !isSelected;
               return (
-                <button key={opt.key} type="button"
-                  onClick={() => { if (!submitted) setSelectedAnswer(opt.key); }}
-                style={{ padding: "16px 16px", borderRadius: 12, border: "1.5px solid", borderColor: isSelected ? purple : "rgba(255,255,255,0.15)", background: isSelected ? "rgba(190,38,193,0.25)" : "rgba(255,255,255,0.06)", color: "#fff", fontSize: 16, fontFamily: font, textAlign: "left" as const, cursor: submitted ? "default" : "pointer", display: "flex", alignItems: "center", gap: 10, opacity: submitted && !isSelected ? 0.35 : 1 }}>
-                  <span style={{ color: isSelected ? "#fff" : purple, fontWeight: 700, minWidth: 16 }}>{opt.key.toUpperCase()}.</span>
-                  {opt.text}
-                  {isSelected && !submitted && <span style={{ marginLeft: "auto", fontSize: 13, color: purple }}>●</span>}
-                  {isSelected && submitted && <span style={{ marginLeft: "auto", fontSize: 13, color: "#22c55e" }}>✓</span>}
-                </button>
+                <div key={opt.key} className={"opt" + (isSelected ? " sel" : "") + (dim ? " dim" : "")}
+                  onClick={() => { if (!submitted) setSelectedAnswer(opt.key); }}>
+                  <div className="chip">{opt.key.toUpperCase()}</div>{opt.text}
+                </div>
               );
             })}
             {!submitted && selectedAnswer && (
-              <button type="button" onClick={() => { const opt = options.find(o => o.key === selectedAnswer); setMySubmittedDisplay(opt?.text || selectedAnswer); submitAnswer(selectedAnswer); }}
-                style={{ padding: "10px", borderRadius: 10, background: purple, color: "#fff", border: "none", fontSize: 13, fontFamily: font, letterSpacing: 2, cursor: "pointer", marginTop: 2 }}>
-                LOCK IN ANSWER
-              </button>
+              <>
+                <div className="lockbar" onClick={() => { const opt = options.find(o => o.key === selectedAnswer); setMySubmittedDisplay(opt?.text || selectedAnswer); submitAnswer(selectedAnswer); }}>LOCK IT IN</div>
+                <div className="lk-note">Speed bonus draining — lock to bank it</div>
+              </>
             )}
-            {submitted && <div style={{ fontSize: 11, color: "#22c55e", textAlign: "center" as const, marginTop: 2, letterSpacing: 2 }}>ANSWER LOCKED IN ✓</div>}
+            {submitted && <div className="lk-note" style={{ color: "var(--green)", letterSpacing: "0.2em" }}>ANSWER LOCKED IN ✓</div>}
           </div>
         )}
 

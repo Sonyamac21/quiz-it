@@ -6,8 +6,9 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { SlotReels } from "@/components/SlotReels";
-import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitCorrectAnswerText } from "@/lib/quiz/pursuit";
+import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitCorrectAnswerText, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { PursuitBoard } from "@/components/PursuitBoard";
+import { teamInitials } from "@/components/TeamBadge";
 
 type Question = {
   question_text: string;
@@ -276,7 +277,40 @@ function DisplayScreenInner() {
   const [pursuitStatus, setPursuitStatus] = useState<PursuitPhase>("idle");
   const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
   const [pursuitQIndex, setPursuitQIndex] = useState(-1);
+  const prevPursuitStatusRef = useRef<string>("idle");
+  const prevPursuitRaceRef = useRef<PursuitRace>({});
+  const pursuitUrgentPlayedRef = useRef<number>(-1);
+  const pursuitLockPlayedRef = useRef<number>(-1);
+  // Pursuit countdown urgency (last 5s) + lock click on expiry — once per gate.
+  useEffect(() => {
+    if (pursuitStatus !== "question" || timeLeft === null) return;
+    if (timeLeft === 5 && pursuitUrgentPlayedRef.current !== pursuitQIndex) {
+      pursuitUrgentPlayedRef.current = pursuitQIndex;
+      playSound("countdown-urgent.mp3", 0.35);
+    }
+    if (timeLeft === 0 && pursuitLockPlayedRef.current !== pursuitQIndex) {
+      pursuitLockPlayedRef.current = pursuitQIndex;
+      playSound("lock.mp3", 0.5);
+    }
+  }, [timeLeft, pursuitStatus, pursuitQIndex]);
   const [teams, setTeams] = useState<{ team_name: string; victory_song?: string; photo_url?: string }[]>([]);
+  // Lobby crest wall — flare newly-arrived teams once, then let them settle.
+  const [flaringTeams, setFlaringTeams] = useState<Set<string>>(new Set());
+  const seenTeamsRef = useRef<Set<string>>(new Set());
+  const lobbySeededRef = useRef(false);
+  useEffect(() => {
+    const names = teams.map(t => t.team_name);
+    if (!lobbySeededRef.current) {
+      if (names.length > 0) { names.forEach(n => seenTeamsRef.current.add(n)); lobbySeededRef.current = true; }
+      return;
+    }
+    const fresh = names.filter(n => !seenTeamsRef.current.has(n));
+    if (fresh.length === 0) return;
+    fresh.forEach(n => seenTeamsRef.current.add(n));
+    setFlaringTeams(prev => new Set([...prev, ...fresh]));
+    const id = setTimeout(() => setFlaringTeams(prev => { const s = new Set(prev); fresh.forEach(n => s.delete(n)); return s; }), 1600);
+    return () => clearTimeout(id);
+  }, [teams]);
   // teams is read inside realtime subscription callbacks set up once at
   // connect-time, whose closures freeze component state at that moment
   // (before the teams fetch has even resolved) - this ref always holds the
@@ -290,6 +324,22 @@ function DisplayScreenInner() {
   const [roundName, setRoundName] = useState("");
   const [roundNumber, setRoundNumber] = useState(1);
   const [scoreboardData, setScoreboardData] = useState<Score[]>([]);
+  // Leaderboard climber chips — movement since the previous board (climbers only).
+  const prevRanksRef = useRef<Map<string, number>>(new Map());
+  const [rankMoves, setRankMoves] = useState<Map<string, number>>(new Map());
+  useEffect(() => {
+    if (scoreboardData.length === 0) return;
+    const sorted = [...scoreboardData].sort((a, b) => b.total_points - a.total_points);
+    const moves = new Map<string, number>();
+    const next = new Map<string, number>();
+    sorted.forEach((s, i) => {
+      const prev = prevRanksRef.current.get(s.team_name);
+      if (prev !== undefined && prev > i) moves.set(s.team_name, prev - i);
+      next.set(s.team_name, i);
+    });
+    setRankMoves(moves);
+    prevRanksRef.current = next;
+  }, [scoreboardData]);
   const [revealedCount, setRevealedCount] = useState(0);
   const [quizEndScores, setQuizEndScores] = useState<Score[]>([]);
   const [trophyVisible, setTrophyVisible] = useState(false);
@@ -491,9 +541,42 @@ function DisplayScreenInner() {
     {
       // THE PURSUIT — hydrate the display mirror from pursuit_status + pursuit_data.
       const p = readPursuitState(data);
+      const newRace = readRace(p);
       setPursuitStatus(p.status);
-      setPursuitRace(readRace(p));
+      setPursuitRace(newRace);
       setPursuitQIndex(readQIndex(p));
+
+      // Pursuit audio via the existing playSound system, fired on status
+      // transitions + race outcome. Every filename below resolves to a real file
+      // in public/sounds/ (playSound also swallows any missing-file error).
+      const prevStatus = prevPursuitStatusRef.current;
+      if (p.status !== prevStatus) {
+        if (p.status === "question") { playSound("race-ambience.mp3", 0.15); }
+        else if (p.status === "reveal") { playSound("correct-chime.mp3", 0.5); }
+        else if (p.status === "advance") {
+          const prevRace = prevPursuitRaceRef.current;
+          const names = teams.map(t => t.team_name);
+          const gate7 = readQIndex(p) >= PURSUIT_TOTAL_QUESTIONS - 1;
+          const advanced = names.some(n => (newRace[n]?.stage ?? 0) > (prevRace[n]?.stage ?? 0) && newRace[n]?.status !== "eliminated");
+          const newlyFinished = names.some(n => newRace[n]?.status === "completed" && prevRace[n]?.status !== "completed");
+          // Runner advancing → footsteps; the final sprint (gate 7) is the same
+          // footsteps, louder. Eliminations stay silent.
+          if (advanced) playSound("footsteps.mp3", gate7 ? 0.65 : 0.4);
+          if (newlyFinished) setTimeout(() => playSound("crowd-cheer.mp3", 0.8), 600); // one shared cheer + finish sweep
+          // Lane compaction whoosh — fired once at COMPACTION_DELAY (1300ms), after
+          // the runners have finished moving, as the surviving lanes reflow. Well
+          // clear of the footsteps at t=0, so the two never overlap.
+          setTimeout(() => playSound("whoosh.mp3", 0.3), 1300);
+        }
+        else if (p.status === "complete") {
+          // Nobody finished → one sad trombone. Finishers already got the shared
+          // cheer when they crossed, so no extra audio here (no duplicate).
+          const finishers = Object.values(newRace).filter(e => e.status === "completed").length;
+          if (finishers === 0) playSound("sad-trombone.mp3", 0.9);
+        }
+        prevPursuitStatusRef.current = p.status;
+      }
+      prevPursuitRaceRef.current = newRace;
     }
     setIntermissionOffers((data.intermission_offers as string) || "");
     setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
@@ -765,64 +848,66 @@ function DisplayScreenInner() {
   if (phase === "hard_deck") {
     const rankLabels: Record<number,string> = { 1:"A", 11:"J", 12:"Q", 13:"K" };
     const rankLabel = (r: number) => rankLabels[r] || String(r);
+    const cur = hardDeckCards.length > 0 ? hardDeckCards[hardDeckCards.length - 1] : null;
+    const curRed = !!cur && (cur.suit === "♥" || cur.suit === "♦");
+    const LADDER = [5, 10, 20, 40];
+    const nextRung = LADDER.find(v => v > hardDeckPotential) ?? 40;
     return (
-      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, gap:32 }}>
-      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-        <style>{`@keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.15} }`}</style>
-        <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: hardDeckTeam ? 32 : 60, fontWeight: hardDeckTeam ? 600 : 800, color: hardDeckTeam ? "rgba(190,38,193,0.5)" : purple, letterSpacing: hardDeckTeam ? 4 : 6, textShadow: hardDeckTeam ? "none" : "0 0 12px rgba(190,38,193,0.35)" }}>THE HARD DECK</div>
-        {hardDeckStatus === "wheel" && teams.length > 0 && hardDeckWheelTarget !== null && (
-          <SpinWheel
-            segments={buildTeamSegments(teams.map(t => t.team_name))}
-            onResult={() => {}}
-            size={760}
-            forceResultIndex={hardDeckWheelTarget}
-            autoSpin={hardDeckWheelSpinning}
-            allowManualSpin={false}
-          />
-        )}
-        {hardDeckTeam && (
-          <div style={{ fontSize:48, color:"#fff", fontWeight:800, letterSpacing:2 }}>{hardDeckTeam}</div>
-        )}
-        {hardDeckCards.length > 0 && (
-          <div style={{ padding: "clamp(12px,2vw,32px)", borderRadius: 32, maxWidth: "96vw", boxSizing: "border-box" as const, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 2px 2px rgba(255,255,255,0.05), inset 0 -2px 40px rgba(0,0,0,0.4), 0 0 60px rgba(190,38,193,0.15)" }}>
-            {/* Cards sized relative to the viewport so the full row (up to 5 cards)
-                plus the title/team/points area always fits inside a 16:9 display
-                with no clipping or horizontal scroll. Layout only - mechanics
-                unchanged. */}
-            <div style={{ display:"flex", gap:"clamp(8px,1.5vw,24px)", justifyContent:"center", flexWrap:"nowrap" as const }}>
-              {hardDeckCards.map((c, i) => (
-                <div key={i} style={{ width:"min(200px,15vw)", height:"min(286px,40vh)", flexShrink:0, borderRadius:"clamp(10px,1.4vw,28px)", background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "2px solid rgba(0,0,0,0.08)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontSize:"min(56px,7vw)", fontWeight:900, color:(c.suit==="♥"||c.suit==="♦")?"#dc2626":"#111", boxShadow:"inset 0 2px 0 rgba(255,255,255,0.9), inset 0 -14px 24px rgba(0,0,0,0.05), 0 16px 60px rgba(0,0,0,0.55), 0 0 0 2px rgba(212,175,90,0.3)" }}>
-                  <div>{rankLabel(c.rank)}</div>
-                  <div style={{ fontSize:"min(72px,9vw)" }}>{c.suit}</div>
-                </div>
-              ))}
+      <div className="fbl fbl-stage">
+        <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
+        <div className="hd">
+          <div className="hd-title">THE HARD DECK</div>
+          {hardDeckStatus === "wheel" && teams.length > 0 && hardDeckWheelTarget !== null ? (
+            <div style={{ position: "relative", zIndex: 2 }}>
+              <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={() => {}} size={620} forceResultIndex={hardDeckWheelTarget} autoSpin={hardDeckWheelSpinning} allowManualSpin={false} />
             </div>
-          </div>
-        )}
-        {hardDeckPotential > 0 && hardDeckStatus === "decision" && (
-          <div style={{ fontSize:32, color:"#facc15", fontWeight:800 }}>{hardDeckPotential} POINTS</div>
-        )}
-        {hardDeckPotential > 0 && hardDeckStatus === "won" && hardDeckPotential >= 40 && (
-          <div style={{ fontSize:72, color:"#facc15", fontWeight:900, animation:"flash 0.6s ease-in-out infinite", textShadow:"0 1px 3px rgba(0,0,0,0.35)" }}>{hardDeckPotential} POINTS</div>
-        )}
-        {hardDeckPotential > 0 && hardDeckStatus === "won" && hardDeckPotential < 40 && (
-          <div style={{ fontSize:32, color:"#facc15", fontWeight:800 }}>{hardDeckPotential} POINTS</div>
-        )}
-        {hardDeckStatus === "decision" && (
-          <div style={{ fontSize:40, color:"rgba(255,255,255,0.85)", fontWeight:800 }}>Stick or Gamble?</div>
-        )}
-        {hardDeckStatus === "awaiting_guess" && hardDeckCards.length > 0 && (
-          <div style={{ fontSize:48, color:"#fff", fontWeight:800 }}>Higher or Lower?</div>
-        )}
-        {hardDeckStatus === "won" && hardDeckPotential >= 40 && (
-          <div style={{ fontSize:80, color:"#22c55e", fontWeight:900, letterSpacing:4, animation:"flash 0.6s ease-in-out infinite", textShadow:"0 1px 3px rgba(0,0,0,0.35)" }}>WINNER! 🎉</div>
-        )}
-        {hardDeckStatus === "won" && hardDeckPotential < 40 && (
-          <div style={{ fontSize:44, color:"#22c55e", fontWeight:800 }}>WINNER! 🎉</div>
-        )}
-        {hardDeckStatus === "lost" && (
-          <div style={{ fontSize:44, color:"#ef4444", fontWeight:800 }}>BUST!</div>
-        )}
+          ) : (
+            <>
+              <div className="hd-ladder">
+                {LADDER.map(v => (
+                  <div key={v} className={"hd-rung" + (v < hardDeckPotential ? " won" : v === hardDeckPotential ? " now" : "")}>{v}</div>
+                ))}
+              </div>
+              {cur ? (
+                <div className={"bigcard" + (curRed ? " red" : "")}>
+                  <div className="cv">{rankLabel(cur.rank)}</div>
+                  <div className="cs">{cur.suit}</div>
+                  <div className="cvb">{rankLabel(cur.rank)}{cur.suit}</div>
+                </div>
+              ) : (
+                <div className="bigcard back"><div className="q">?</div></div>
+              )}
+              <div className="hd-mid">
+                <div className="hd-pot"><small>THE POT</small><div className="tnum">{hardDeckPotential}</div></div>
+                {hardDeckStatus === "decision" && (
+                  <div className="hd-choices">
+                    <div className="hd-choice hd-stick"><span>STICK</span><small>BANK {hardDeckPotential}</small></div>
+                    <div className="hd-choice hd-gamble"><div className="charge" /><span>GAMBLE</span><small>NEXT CARD · {nextRung}</small></div>
+                  </div>
+                )}
+                {hardDeckStatus === "awaiting_guess" && (
+                  <div className="hd-choices">
+                    <div className="hd-choice hd-stick"><span>HIGHER</span></div>
+                    <div className="hd-choice hd-gamble"><span>LOWER</span></div>
+                  </div>
+                )}
+                {hardDeckStatus === "won" && <div style={{ font: "800 clamp(16px,2.4vw,30px) Inter", color: "var(--green)", letterSpacing: "0.06em" }}>WON {hardDeckPotential} POINTS</div>}
+                {hardDeckStatus === "lost" && <div style={{ font: "800 clamp(16px,2.4vw,30px) Inter", color: "var(--red)", letterSpacing: "0.14em" }}>BUST</div>}
+              </div>
+              <div className="bigcard back"><div className="q">?</div></div>
+              {hardDeckTeam && (
+                <div className="hd-crowd">
+                  {hardDeckStatus === "decision" ? hardDeckTeam.toUpperCase() + " ARE DECIDING…"
+                    : hardDeckStatus === "awaiting_guess" ? hardDeckTeam.toUpperCase() + " · HIGHER OR LOWER?"
+                    : hardDeckStatus === "won" ? hardDeckTeam.toUpperCase() + " BANKED IT"
+                    : hardDeckStatus === "lost" ? hardDeckTeam.toUpperCase() + " WENT BUST"
+                    : hardDeckTeam.toUpperCase()}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
       </div>
     );
   }
@@ -836,6 +921,7 @@ function DisplayScreenInner() {
         race={pursuitRace}
         teamNames={teams.map(t => t.team_name)}
         qIndex={pursuitQIndex}
+        timeLeft={timeLeft}
         questionText={question?.question_text ?? null}
         questionCategory={question?.question_type ?? null}
         correctAnswer={question ? pursuitCorrectAnswerText(question) : null}
@@ -860,44 +946,39 @@ function DisplayScreenInner() {
         </div>
       );
     }
-    const card = POWER_CARDS[introCardIdx];
     return (
-      <div style={{ minHeight:"100vh", background:bg, display:"flex", fontFamily:font }}>
+      <div className="fbl fbl-stage">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-        {/* Left: compact join info */}
-        <div style={{ flex:"0 0 38%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:32, borderRight:"2px solid rgba(190,38,193,0.2)" }}>
-          <img src="/me-logo.jpg" alt="ME" style={{ width:52, height:52, borderRadius:"50%", marginBottom:14, border:"2px solid "+purple }} />
-          <div style={{ fontSize:34, fontWeight:800, color:purple, letterSpacing:3, marginBottom:4, textShadow:"0 0 24px rgba(190,38,193,0.6)" }}>Quiz-It</div>
-          <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", letterSpacing:2, marginBottom:28 }}>Powered by Mac Entertainment</div>
-          <div style={{ padding:"20px 28px", borderRadius:16, background:"rgba(255,255,255,0.05)", border:"2px solid rgba(190,38,193,0.4)", textAlign:"center" }}>
-            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", letterSpacing:2, marginBottom:6 }}>JOIN AT</div>
-            <div style={{ fontSize:18, color:"#fff", fontWeight:700, letterSpacing:1, marginBottom:16 }}>quiz-it.macentertainmentuae.com/join</div>
-            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", letterSpacing:2, marginBottom:6 }}>ENTER PIN</div>
-            <div style={{ fontSize:64, fontWeight:900, color:"#fff", letterSpacing:10, fontFamily:"monospace", lineHeight:1, textShadow:"0 0 30px rgba(190,38,193,0.8)" }}>{sessionPin}</div>
+        <div className="lb">
+          <div className="lb-join">
+            <div className="lb-kicker">JOIN TONIGHT&rsquo;S SHOW</div>
+            <div className="lb-pin"><small>ENTER PIN</small>{sessionPin}</div>
+            <div className="lb-how">
+              <div className="lb-qr" />
+              <div className="lb-steps">
+                <b>1.</b> Go to quiz-it.app or scan<br />
+                <b>2.</b> Enter the PIN<br />
+                <b>3.</b> Name your team
+              </div>
+            </div>
           </div>
-        </div>
-        {/* Right: rotating power card explainer */}
-        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40 }}>
-          <div key={introCardIdx} style={{
-            display:"flex", flexDirection:"column", alignItems:"center", textAlign:"center", maxWidth:560,
-            animation:"introCardFade 0.6s ease",
-          }}>
-            <div style={{
-              width:140, height:140, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
-              fontSize:64, marginBottom:24, background:card.color+"22", border:"4px solid "+card.color,
-              boxShadow:"0 4px 16px rgba(0,0,0,0.4)",
-            }}>{card.emoji}</div>
-            <div style={{ fontSize:15, color:"rgba(255,255,255,0.4)", letterSpacing:4, marginBottom:8 }}>POWER CARD</div>
-            <div style={{ fontSize:44, fontWeight:900, color:card.color, letterSpacing:2, marginBottom:18, textShadow:"0 1px 3px rgba(0,0,0,0.35)" }}>{card.title}</div>
-            <div style={{ fontSize:22, color:"rgba(255,255,255,0.8)", lineHeight:1.5 }}>{card.desc}</div>
-            <div style={{ display:"flex", gap:8, justifyContent:"center", marginTop:32 }}>
-              {POWER_CARDS.map((c, i) => (
-                <div key={i} style={{ width:10, height:10, borderRadius:"50%", background: i===introCardIdx ? c.color : "rgba(255,255,255,0.2)" }} />
+          <div className="lb-wall">
+            <div className="lb-count"><b>{teams.length} TEAM{teams.length === 1 ? "" : "S"}</b> IN THE ROOM</div>
+            <div className="lb-crests">
+              {teams.map((t) => (
+                <div key={t.team_name} className={"lb-team" + (flaringTeams.has(t.team_name) ? " new" : "")}>
+                  <div className="crest">{teamInitials(t.team_name)}</div>
+                  <span>{t.team_name}</span>
+                </div>
               ))}
             </div>
           </div>
+          <div className="lb-foot">
+            <div className="lb-start">SHOW STARTS SOON</div>
+            <div className="lb-tease">TONIGHT: SPIN TO WIN · THE HARD DECK · THE PURSUIT</div>
+          </div>
         </div>
-        <style>{`@keyframes introCardFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
       </div>
     );
   }
@@ -953,28 +1034,31 @@ function DisplayScreenInner() {
   // SCOREBOARD
   if (phase === "scoreboard") {
     const sorted = [...scoreboardData].sort((a,b) => b.total_points - a.total_points);
+    const leader = sorted[0]?.total_points || 1;
+    const topGap = sorted.length >= 3 ? sorted[0].total_points - sorted[2].total_points : sorted.length === 2 ? sorted[0].total_points - sorted[1].total_points : 0;
     return (
-      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", padding:"48px 80px", fontFamily:font, color:"#fff" }}>
-      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-        <div style={{ fontSize:45, fontWeight:800, color:purple, letterSpacing:4, marginBottom:40, textAlign:"center", textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>SCOREBOARD</div>
-        {sorted.map((s,i) => {
-          const teamRoundCards = roundCardPlays.filter(c => c.team_name === s.team_name && c.round_number === roundNumber);
-          return (
-          <div key={s.team_name} style={{ display:"flex", alignItems:"center", gap:20, padding:"16px 24px", borderRadius:16, background:i===0?"rgba(255,215,0,0.1)":i===1?"rgba(192,192,192,0.08)":i===2?"rgba(205,127,50,0.08)":"rgba(255,255,255,0.04)", border:"2px solid "+(i===0?"rgba(255,215,0,0.4)":i===1?"rgba(192,192,192,0.3)":i===2?"rgba(205,127,50,0.3)":"rgba(255,255,255,0.08)"), marginBottom:12, boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>
-            <span style={{ fontSize:40, fontWeight:900, color:i===0?"gold":i===1?"silver":i===2?"#cd7f32":"rgba(255,255,255,0.3)", minWidth:48 }}>{i+1}</span>
-            <span style={{ fontSize:35, fontWeight:700, flex:1 }}>{s.team_name}</span>
-            {teamRoundCards.length > 0 && (
-              <div style={{ display:"flex", gap:6 }}>
-                {teamRoundCards.map((c, idx) => (
-                  <span key={idx} title={POWER_CARDS.find(p => p.type === c.card_type)?.title} style={{ width:16, height:16, borderRadius:4, background: POWER_CARDS.find(p => p.type === c.card_type)?.color || "#888" }} />
-                ))}
+      <div className="fbl fbl-stage">
+        <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
+        <div className="ld">
+          <div className="ld-title">STANDINGS</div>
+          {sorted.map((s, i) => {
+            const move = rankMoves.get(s.team_name);
+            return (
+              <div key={s.team_name} className={"ld-row" + (i < 3 ? " top" : "")}>
+                <div className="rank">{i + 1}</div>
+                <div className="crest">{teamInitials(s.team_name)}</div>
+                <div className="name">{s.team_name}</div>
+                {move ? <div className="move">&#9650;{move}</div> : null}
+                <div className="gapbar"><i style={{ width: Math.max(4, Math.round((s.total_points / leader) * 100)) + "%" }} /></div>
+                <div className="pts tnum">{s.total_points.toLocaleString()}</div>
               </div>
-            )}
-            <span style={{ fontSize:45, fontWeight:900, color:purple }}>{s.total_points}</span>
-          </div>
-          );
-        })}
-        <div style={{ marginTop:32, textAlign:"center", fontSize:18, color:"rgba(255,255,255,0.2)", letterSpacing:3 }}>Quiz-It · Powered by Mac Entertainment</div>
+            );
+          })}
+          {sorted.length >= 2 && (
+            <div className="ld-foot">TOP {Math.min(3, sorted.length)} SEPARATED BY {topGap.toLocaleString()} POINTS</div>
+          )}
+        </div>
+        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
       </div>
     );
   }
@@ -986,67 +1070,34 @@ function DisplayScreenInner() {
     const top3 = [...quizEndScores].sort((a,b) => b.total_points - a.total_points).slice(0,3);
 
     if (trophyVisible) {
+      const winner = top3[0];
+      const confetti = [
+        { left: "8%", bg: "var(--gold)", dur: "5s", delay: "0s" },
+        { left: "18%", bg: "#fff", dur: "6.4s", delay: ".8s" },
+        { left: "29%", bg: "var(--gold)", dur: "5.6s", delay: "1.6s" },
+        { left: "41%", bg: "#fff", dur: "7s", delay: ".4s" },
+        { left: "55%", bg: "var(--gold)", dur: "5.2s", delay: "1.1s" },
+        { left: "67%", bg: "var(--gold)", dur: "6.8s", delay: ".2s" },
+        { left: "78%", bg: "#fff", dur: "5.8s", delay: "1.9s" },
+        { left: "90%", bg: "var(--gold)", dur: "6.2s", delay: ".6s" },
+      ];
       return (
-        <div style={{ minHeight:"100vh", background:"linear-gradient(1deg, #0a0020 0%, #1a003a 50%, #0a0020 100%)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, overflow:"hidden", position:"relative" }}>
-      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-          {/* Stars background */}
-          <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse at center, rgba(190,38,193,0.15) 0%, transparent 70%)" }} />
-
-          <div style={{ fontSize:22, color:"rgba(255,255,255,0.4)", letterSpacing:6, marginBottom:48, zIndex:1 }}>FINAL RESULTS</div>
-
-          {/* Trophy podium */}
-          <div style={{ display:"flex", alignItems:"flex-end", gap:24, marginBottom:48, zIndex:1 }}>
-            {/* 2nd place */}
-            {top3[1] && (
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", animation:"slideUp 0.8s ease-out 0.3s both" }}>
-                <div style={{ fontSize:60, marginBottom:8 }}>🥈</div>
-                <div style={{ padding:"16px 24px", borderRadius:16, background:"linear-gradient(180deg, rgba(1,192,192,0.2) 0%, rgba(192,192,192,0.05) 100%)", border:"2px solid rgba(192,192,192,0.5)", textAlign:"center", minWidth:180 }}>
-                  <div style={{ fontSize:18, color:"silver", letterSpacing:3, marginBottom:8 }}>2ND PLACE</div>
-                  <div style={{ fontSize:28, fontWeight:800, color:"#fff", marginBottom:4 }}>{top3[1].team_name}</div>
-                  <div style={{ fontSize:35, fontWeight:900, color:"silver" }}>{top3[1].total_points}</div>
-                </div>
-                <div style={{ width:"100%", height:80, background:"linear-gradient(180deg, rgba(192,192,192,0.3) 0%, rgba(192,192,192,0.1) 100%)", borderRadius:"8px 8px 0 0", border:"1px solid rgba(192,192,192,0.3)", borderBottom:"none" }} />
-              </div>
-            )}
-            {/* 1st place */}
-            {top3[0] && (
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", animation:"slideUp 0.8s ease-out 0s both" }}>
-                <div style={{ fontSize:80, marginBottom:8, filter:"drop-shadow(0 0 20px gold)" }}>🥇</div>
-                <div style={{ padding:"20px 28px", borderRadius:16, background:"linear-gradient(180deg, rgba(255,215,0,0.25) 0%, rgba(255,215,0,0.05) 100%)", border:"2px solid rgba(255,215,0,0.7)", textAlign:"center", minWidth:220, boxShadow:"0 0 40px rgba(255,215,0,0.3)" }}>
-                  <div style={{ fontSize:18, color:"gold", letterSpacing:3, marginBottom:8 }}>1ST PLACE</div>
-                  <div style={{ fontSize:32, fontWeight:800, color:"#fff", marginBottom:4 }}>{top3[0].team_name}</div>
-                  <div style={{ fontSize:45, fontWeight:900, color:"gold" }}>{top3[0].total_points}</div>
-                </div>
-                <div style={{ width:"100%", height:120, background:"linear-gradient(180deg, rgba(255,215,0,0.4) 0%, rgba(255,215,0,0.1) 100%)", borderRadius:"8px 8px 0 0", border:"1px solid rgba(255,215,0,0.4)", borderBottom:"none" }} />
-              </div>
-            )}
-            {/* 3rd place */}
-            {top3[2] && (
-            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", animation:"slideUp 0.8s ease-out 0.5s both" }}>
-                <div style={{ fontSize:60, marginBottom:8 }}>🥉</div>
-                <div style={{ padding:"16px 24px", borderRadius:16, background:"linear-gradient(180deg, rgba(205,127,50,0.2) 0%, rgba(205,127,50,0.05) 100%)", border:"2px solid rgba(205,127,50,0.5)", textAlign:"center", minWidth:180 }}>
-                  <div style={{ fontSize:18, color:"#cd7f32", letterSpacing:3, marginBottom:8 }}>3RD PLACE</div>
-                  <div style={{ fontSize:28, fontWeight:800, color:"#fff", marginBottom:4 }}>{top3[2].team_name}</div>
-                  <div style={{ fontSize:35, fontWeight:900, color:"#cd7f32" }}>{top3[2].total_points}</div>
-                </div>
-                <div style={{ width:"100%", height:50, background:"linear-gradient(180deg, rgba(205,127,50,0.3) 0%, rgba(205,127,50,0.1) 100%)", borderRadius:"8px 8px 0 0", border:"1px solid rgba(205,127,50,0.3)", borderBottom:"none" }} />
-              </div>
-            )}
+        <div className="fbl fbl-stage">
+          <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
+          <div className="wc">
+            <div className="wc-bg" />
+            <div className="wc-rays" />
+            {confetti.map((c, i) => (
+              <div key={i} className="confetti" style={{ left: c.left, background: c.bg, animationDuration: c.dur, animationDelay: c.delay }} />
+            ))}
+            <div className="wc-kicker">TONIGHT&rsquo;S WINNERS</div>
+            <div className="wc-crest crest">{winner ? teamInitials(winner.team_name) : "?"}<div className="wc-crown">👑</div></div>
+            <div className="wc-name">{(winner?.team_name || "").toUpperCase()}</div>
+            <div className="wc-champ">CHAMPIONS</div>
+            <div className="wc-meta tnum">{(winner?.total_points ?? 0).toLocaleString()} POINTS</div>
+            <div className="wc-photo">📸 GET UP HERE — YOUR PHOTO&rsquo;S WAITING</div>
           </div>
-
-          {/* Quiz-It logo */}
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", zIndex:1 }}>
-            <img src="/me-logo.jpg" alt="ME" style={{ width:48, height:48, borderRadius:"50%", border:"2px solid "+purple, marginBottom:8 }} />
-            <div style={{ fontSize:35, fontWeight:800, color:purple, letterSpacing:4, textShadow:"0 0 20px rgba(190,38,193,0.6)" }}>Quiz-It</div>
-            <div style={{ fontSize:15, color:"rgba(255,255,255,0.3)", letterSpacing:3, marginTop:4 }}>Powered by Mac Entertainment · by Sonya Mac</div>
-          </div>
-
-          <style>{`
-            @keyframes slideUp {
-              from { opacity: 0; transform: translateY(60px); }
-              to { opacity: 1; transform: translateY(0); }
-            }
-          `}</style>
+          <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
         </div>
       );
     }
@@ -1268,103 +1319,44 @@ function DisplayScreenInner() {
       );
     }
 
-    // STANDARD QUESTION
+    // STANDARD QUESTION — Fable "live answer meter" layout.
     const tLeft = timeLeft ?? 0;
-    const tTotal = timerTotalRef.current || 30;
-    const tColor = tLeft <= 3 ? "#EF4444" : tLeft <= 6 ? "#F59E0B" : "#BE26C1";
-    const CIRC = 226;
-    const tDash = CIRC * (tLeft / tTotal);
     const allOpts = isMulti ? options : isMultiTap ? multiTapOptions : [];
+    const lockedCount = answeredTeams.length;
+    const totalTeams = teams.length;
     return (
-      <div style={{ height:"100vh", display:"flex", flexDirection:"column", fontFamily:"'Inter',sans-serif", color:"#fff",
-        position:"relative", overflow:"hidden",
-        background:"linear-gradient(160deg,#08001a 0%,#12002a 45%,#0a0018 100%)",
-        animation: tLeft <= 3 && tLeft > 0 ? "screenPulse 0.8s ease-in-out infinite" : "none" }}>
+      <div className="fbl fbl-stage">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-        <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 70% 50% at 50% 20%, rgba(190,38,193,0.12) 0%, transparent 65%)", pointerEvents:"none", zIndex:0 }} />
-        <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 40% 30% at 80% 80%, rgba(190,38,193,0.05) 0%, transparent 60%)", pointerEvents:"none", zIndex:0 }} />
-        <svg style={{ position:"absolute", bottom:0, left:0, width:"100%", height:180, pointerEvents:"none", zIndex:0 }} viewBox="0 0 1920 180" preserveAspectRatio="none">
-          <path d="M0,120 C320,60 640,160 960,100 C1280,40 1600,120 1920,80 L1920,180 L0,180 Z" fill="rgba(190,38,193,0.18)" />
-          <path d="M0,150 C240,100 480,160 720,130 C960,100 1200,155 1440,125 C1680,95 1800,140 1920,120 L1920,180 L0,180 Z" fill="rgba(190,38,193,0.1)" />
-        </svg>
-        <div style={{ flexShrink:0, padding:"16px 44px", display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", position:"relative", zIndex:2 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:12, fontWeight:700, letterSpacing:3, color:"rgba(255,255,255,0.45)", textTransform:"uppercase" }}>{roundName || "General Knowledge"}</span>
-            <span style={{ padding:"4px 14px", background:"rgba(190,38,193,0.15)", border:"1px solid rgba(190,38,193,0.5)", borderRadius:999, fontSize:11, fontWeight:700, color:purple, letterSpacing:2 }}>Q {questionIndex + 1}</span>
+        <div className="qd-ring" />
+        <div className="qd">
+          <div className="qd-top">
+            <span>{(roundName || "GENERAL KNOWLEDGE").toUpperCase()} · QUESTION {questionIndex + 1}</span>
+            <span>{tLeft > 0 ? tLeft + "S · SPEED BONUS" : "SPEED BONUS"}</span>
           </div>
-          <div style={{ textAlign:"center" }}>
-            <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:30, letterSpacing:6, lineHeight:1, filter:"drop-shadow(0 0 14px rgba(190,38,193,0.55))" }}>
-              <span style={{ color:purple }}>QUIZ-</span><span style={{ color:"#fff" }}>IT</span>
-            </div>
-            <div style={{ fontSize:10, fontWeight:600, letterSpacing:4, color:"rgba(255,255,255,0.38)", marginTop:5, textTransform:"uppercase" }}>Powered by Mac Entertainment</div>
-          </div>
-          <div style={{ display:"flex", justifyContent:"flex-end" }}>
-            {tLeft > 0 && (
-              <div style={{ width:88, height:88, position:"relative", animation: tLeft <= 3 ? "timerUrgent 0.5s ease-in-out infinite" : "none" }}>
-                <svg width="88" height="88" viewBox="0 0 88 88" style={{ transform:"rotate(-90deg)", position:"absolute", inset:0 }}>
-                  <circle cx="44" cy="44" r="39" fill="none" stroke="rgba(190,38,193,0.18)" strokeWidth="6"/>
-                  <circle cx="44" cy="44" r="39" fill="none" stroke={tColor} strokeWidth="6" strokeLinecap="round"
-                    strokeDasharray={CIRC} strokeDashoffset={CIRC - tDash}
-                    style={{ transition:"stroke-dashoffset 0.9s linear, stroke 0.3s", filter:`drop-shadow(0 0 8px ${tColor})` }}/>
-                </svg>
-                <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, fontWeight:900, color:tColor, filter:`drop-shadow(0 0 6px ${tColor})` }}>{tLeft}</div>
-              </div>
-            )}
-          </div>
-        </div>
-        <div style={{ height:1, flexShrink:0, background:"linear-gradient(90deg,transparent,rgba(190,38,193,0.8) 30%,rgba(212,175,55,0.4) 50%,rgba(190,38,193,0.8) 70%,transparent)", position:"relative", zIndex:2 }} />
-        <div style={{ flex:1, minHeight:0, padding:"24px 56px 12px", display:"flex", flexDirection:"column", gap:18, position:"relative", zIndex:2 }}>
-          <div style={{ fontSize:"clamp(28px,3.2vw,52px)", fontWeight:800, color:"#fff", lineHeight:1.3, textAlign:"center", animation:"qSlideUp 0.5s cubic-bezier(0.16,1,0.3,1) both", textShadow:"0 2px 24px rgba(190,38,193,0.15)" }}>
-            {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
-          </div>
+          <div className="qd-q">{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
           {allOpts.length > 0 && (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, flex:1, minHeight:0 }}>
-              {allOpts.map((opt, idx) => (
-                <div key={opt.key} style={{
-                  display:"flex", alignItems:"stretch", borderRadius:22, overflow:"hidden",
-                  background:"linear-gradient(135deg,rgba(18,8,32,0.95) 0%,rgba(12,4,24,0.9) 100%)",
-                  border:"1px solid rgba(190,38,193,0.4)",
-                  boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 32px rgba(0,0,0,0.5), 0 0 20px rgba(190,38,193,0.07)",
-                  position:"relative",
-                  animation:`optSlide 0.4s ${idx * 0.07}s cubic-bezier(0.16,1,0.3,1) both`, opacity:0
-                }}>
-                  <div style={{ position:"absolute", bottom:0, left:"15%", right:"15%", height:1, background:"linear-gradient(90deg,transparent,rgba(212,175,55,0.45),transparent)" }} />
-                  <div style={{ position:"absolute", top:0, left:"20%", right:"20%", height:1, background:"linear-gradient(90deg,transparent,rgba(190,38,193,0.35),transparent)" }} />
-                  <div style={{ width:86, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:40, fontWeight:900, color:purple, filter:"drop-shadow(0 0 8px rgba(190,38,193,0.7))" }}>
-                    {opt.key}
-                  </div>
-                  <div style={{ width:1, background:"linear-gradient(180deg,transparent 10%,rgba(190,38,193,0.35) 50%,transparent 90%)", flexShrink:0, margin:"18px 0" }} />
-                  <div style={{ flex:1, display:"flex", alignItems:"center", padding:"20px 28px", fontSize:22, fontWeight:700, color:"rgba(255,255,255,0.95)", lineHeight:1.3 }}>
-                    {opt.text}
-                  </div>
-                </div>
+            <div className="qd-opts">
+              {allOpts.map((opt) => (
+                <div key={opt.key} className="qd-opt"><div className="chip">{opt.key}</div>{opt.text}</div>
               ))}
             </div>
           )}
-          {!isMulti && !isMultiTap && question.question_type !== "audio" && (
-            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <div style={{ fontSize:"clamp(80px,10vw,160px)", opacity:0.04, fontWeight:900, color:"#fff" }}>?</div>
-            </div>
-          )}
           {question.question_type === "audio" && (
-            <div style={{ marginTop:8 }}><LiveAudioPlayer question={question} /></div>
+            <div style={{ margin: "2% 6%" }}><LiveAudioPlayer question={question} /></div>
           )}
-        </div>
-        <div style={{ flexShrink:0, padding:"10px 44px", borderTop:"1px solid rgba(190,38,193,0.25)", display:"flex", alignItems:"center", justifyContent:"space-between", position:"relative", zIndex:2 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:8, height:8, borderRadius:"50%", background:purple, boxShadow:"0 0 8px rgba(190,38,193,0.9)" }} />
-            <span style={{ fontSize:11, fontWeight:600, letterSpacing:2, color:"rgba(255,255,255,0.3)", textTransform:"uppercase" }}>
-              {answeredTeams.length > 0 ? `${answeredTeams.length} team${answeredTeams.length !== 1 ? "s" : ""} answered` : "Waiting for answers..."}
-            </span>
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ width:34, height:34, borderRadius:"50%", background:"rgba(190,38,193,0.15)", border:"1.5px solid rgba(190,38,193,0.5)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:purple }}>ME</div>
-            <div style={{ textAlign:"right" }}>
-              <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:12, letterSpacing:2 }}><span style={{ color:purple }}>QUIZ-</span><span style={{ color:"#fff" }}>IT</span></div>
-              <div style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:1, marginTop:2 }}>Powered by Mac Entertainment · by Sonya Mac</div>
+          {!isMulti && !isMultiTap && question.question_type !== "audio" && (
+            <div style={{ textAlign: "center", margin: "2% 6%", color: "var(--text2)", fontSize: "clamp(12px,1.6vw,20px)", fontWeight: 600, letterSpacing: "0.1em" }}>ANSWER ON YOUR PHONE</div>
+          )}
+          <div className="qd-meter">
+            <div className="qd-mlabel"><span>ANSWERS LOCKED</span><b className="tnum">{lockedCount} OF {totalTeams}</b></div>
+            <div className="qd-ticks">
+              {Array.from({ length: Math.max(totalTeams, 1) }).map((_, i) => (
+                <div key={i} className={"qd-tick" + (i < lockedCount ? " in" : "") + (i === lockedCount - 1 ? " last" : "")} />
+              ))}
             </div>
           </div>
         </div>
+        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
       </div>
     );
   }

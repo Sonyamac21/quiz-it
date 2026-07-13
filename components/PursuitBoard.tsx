@@ -22,6 +22,7 @@ type Props = {
   race: PursuitRace;
   teamNames: string[];
   qIndex: number; // 0-based current gate (-1 before first)
+  timeLeft?: number | null;
   questionText?: string | null;
   questionCategory?: string | null;
   correctAnswer?: string | null;
@@ -35,7 +36,7 @@ function cssVars(vars: Record<string, string>): CSSProperties {
   return vars as CSSProperties;
 }
 
-export function PursuitBoard({ status, race, teamNames, qIndex, questionText, questionCategory, correctAnswer }: Props) {
+export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questionText, questionCategory, correctAnswer }: Props) {
   const boardRef = useRef<HTMLDivElement | null>(null);
   const [boardWidth, setBoardWidth] = useState(1300);
 
@@ -167,9 +168,14 @@ export function PursuitBoard({ status, race, teamNames, qIndex, questionText, qu
       {showQPanel && (
         <div className="pu-qpanel on">
           <span className="pu-qcat">GATE {Math.max(1, gate)}{questionCategory ? " · " + questionCategory.toUpperCase() : ""}</span>
+          {status === "question" && typeof timeLeft === "number" && (
+            <span style={{ float: "right", fontFamily: "'Inter', sans-serif", fontWeight: 800, fontSize: "clamp(20px,3vh,34px)", fontVariantNumeric: "tabular-nums", color: timeLeft <= 5 ? "var(--feature-incorrect)" : "var(--brand-purple-bright)" }}>
+              {timeLeft > 0 ? timeLeft + "s" : "LOCKED"}
+            </span>
+          )}
           <div className="pu-qtext">{questionText || "Question is live on the handsets."}</div>
           <div className={"pu-qstate" + (status === "reveal" || status === "advance" ? " correct" : "")}>
-            {status === "question" ? "TEAMS ANSWERING…" : "CORRECT: " + (correctAnswer || "—")}
+            {status === "question" ? (timeLeft === 0 ? "ANSWERS LOCKED" : "TEAMS ANSWERING…") : "CORRECT: " + (correctAnswer || "—")}
           </div>
         </div>
       )}

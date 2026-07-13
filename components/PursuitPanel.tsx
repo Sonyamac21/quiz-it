@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { applyScoreDelta } from "@/lib/quiz/scoreService";
@@ -52,10 +52,12 @@ type Props = {
   sessionPin: string;
   teams: { team_name: string }[];
   rounds: PursuitRoundOption[];
+  timerDuration: number;
   onScoreChange?: () => void;
+  onActiveChange?: (active: boolean) => void;
 };
 
-export function PursuitPanel({ sessionId, sessionPin, teams, rounds, onScoreChange }: Props) {
+export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDuration, onScoreChange, onActiveChange }: Props) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<PursuitPhase>("idle");
@@ -63,6 +65,12 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, onScoreChan
   const [qIndex, setQIndex] = useState(-1);
   const [startedAt, setStartedAt] = useState<string | null>(null);
   const [roundId, setRoundId] = useState("");
+  // Question timer — reuses the platform's timer_started_at/timer_duration so the
+  // Display and handsets count down and lock exactly like a normal round.
+  const [timerStartedAt, setTimerStartedAt] = useState<string | null>(null);
+  const [timerDur, setTimerDur] = useState<number>(timerDuration);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const spaceLockRef = useRef(false);
 
   const teamNames = teams.map((t) => t.team_name);
   // The Pursuit runs a dedicated saved Pursuit round (round_type "pursuit"),
@@ -76,7 +84,54 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, onScoreChan
     setRace(readRace(p));
     setQIndex(readQIndex(p));
     setStartedAt(readStartedAt(p));
+    setTimerStartedAt((row.timer_started_at as string) || null);
+    if (typeof row.timer_duration === "number") setTimerDur(row.timer_duration as number);
   }, []);
+
+  // Local countdown mirror of the platform timer (host-side display + spacebar
+  // gate). Answers are "locked" once this reaches 0 — the same rule the handset
+  // already enforces on timer expiry.
+  useEffect(() => {
+    if (!timerStartedAt) { setTimeLeft(null); return; }
+    const tick = () => {
+      const elapsed = (Date.now() - new Date(timerStartedAt).getTime()) / 1000;
+      setTimeLeft(Math.max(0, Math.ceil(timerDur - elapsed)));
+    };
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [timerStartedAt, timerDur]);
+
+  const answersLocked = status === "question" && qIndex >= 0 && (timeLeft === null || timeLeft <= 0);
+
+  // Tell the host page when the overlay is up so its global spacebar handler
+  // stands down (the panel drives Space itself while The Pursuit is running).
+  useEffect(() => { onActiveChange?.(open); }, [open, onActiveChange]);
+
+  // Space always performs the next logical action, so the host can run the whole
+  // round hands-free. Ignored while typing; one action per press (600ms debounce)
+  // so a held or double-tapped key can never skip a state.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.code !== "Space" && e.key !== " ") return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      e.preventDefault();
+      if (spaceLockRef.current) return;
+      spaceLockRef.current = true;
+      window.setTimeout(() => { spaceLockRef.current = false; }, 600);
+      const canAskMore = qIndex + 1 < pursuitQuestions.length && hasActiveTeams(race, teamNames);
+      if (status === "intro") { if (pursuitQuestions.length > 0) nextQuestion(); }
+      else if (status === "question") { if (!answersLocked) lockAnswers(); else revealAnswer(); }
+      else if (status === "reveal") { advanceRace(); }
+      else if (status === "advance") { if (canAskMore) nextQuestion(); else finishRound(); }
+      else if (status === "complete") { showResults(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, status, answersLocked, qIndex, race, timeLeft, pursuitQuestions.length]);
 
   // Refresh recovery: reopen and restore from the row if a Pursuit is in progress.
   useEffect(() => {
@@ -141,14 +196,30 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, onScoreChan
     const newIndex = qIndex + 1;
     if (newIndex >= pursuitQuestions.length) return;
     const q = pursuitQuestions[newIndex];
+    const now = new Date().toISOString();
     setQIndex(newIndex);
     setStatus("question");
+    // Start the shared platform timer: Display + handsets count down and the
+    // handset locks answers automatically on expiry (existing behaviour).
+    setTimerStartedAt(now);
+    setTimerDur(timerDuration);
     await pushState({
       pursuit_status: "question",
       current_question: q,
       current_question_index: newIndex,
       pursuit_data: buildPursuitData(race, newIndex, startedAt),
+      timer_started_at: now,
+      timer_duration: timerDuration,
     });
+  }
+
+  // Lock Answers: expire the timer now, which is exactly how a normal round locks
+  // (handset rejects once the countdown passes zero). No new lock mechanism.
+  async function lockAnswers() {
+    const backdated = new Date(Date.now() - (timerDur + 3) * 1000).toISOString();
+    setTimerStartedAt(backdated);
+    setTimeLeft(0);
+    await pushState({ timer_started_at: backdated, timer_duration: timerDur });
   }
 
   async function revealAnswer() {
@@ -251,7 +322,14 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, onScoreChan
 
       {currentQuestion && status !== "complete" && status !== "results" && (
         <div style={{ width: "100%", maxWidth: 680, padding: "14px 18px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(56,189,248,0.25)" }}>
-          <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>CURRENT QUESTION</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)" }}>CURRENT QUESTION</div>
+            {status === "question" && (
+              answersLocked
+                ? <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#ef4444" }}>ANSWERS LOCKED</span>
+                : <span style={{ fontSize: 20, fontWeight: 800, color: (timeLeft ?? 0) <= 5 ? "#ef4444" : "#38bdf8" }}>{timeLeft ?? "—"}s</span>
+            )}
+          </div>
           <div style={{ fontSize: 16, fontWeight: 600, color: "#fff" }}>{currentQuestion.question_text}</div>
           {status === "reveal" && <div style={{ fontSize: 14, color: "#22c55e", fontWeight: 700, marginTop: 6 }}>Answer: {currentQuestion.correct_answer}</div>}
         </div>
@@ -263,7 +341,8 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, onScoreChan
         {status === "intro" && (
           <PrimaryButton disabled={pursuitQuestions.length === 0} onClick={nextQuestion} label={`Start Question 1`} />
         )}
-        {status === "question" && <PrimaryButton onClick={revealAnswer} label="Reveal Answer" />}
+        {status === "question" && !answersLocked && <PrimaryButton onClick={lockAnswers} label="Lock Answers" />}
+        {status === "question" && answersLocked && <PrimaryButton onClick={revealAnswer} label="Reveal Answer" />}
         {status === "reveal" && <PrimaryButton onClick={advanceRace} label="Advance Race" />}
         {status === "advance" && (
           <>
@@ -272,6 +351,14 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, onScoreChan
           </>
         )}
         {status === "complete" && <PrimaryButton onClick={showResults} label="Show Results" />}
+      </div>
+
+      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", letterSpacing: 1 }}>
+        {status === "intro" ? "SPACE: Start Question 1"
+          : status === "question" ? (answersLocked ? "SPACE: Reveal Answer" : "SPACE: Lock Answers")
+          : status === "reveal" ? "SPACE: Advance Race"
+          : status === "advance" ? (canAskMore ? "SPACE: Next Question" : "SPACE: Finish Round")
+          : status === "complete" ? "SPACE: Show Results" : ""}
       </div>
 
       <button onClick={closePanel} style={{ marginTop: 6, padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>

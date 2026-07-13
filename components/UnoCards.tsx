@@ -102,37 +102,60 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
   };
 
   if (compact) {
+    // Fable power-card rail: each card echoes the fanned "boost / timeout /
+    // reverse" faces from the approved design (gradient face + foil sheen +
+    // spent dimming), scaled down to persist under the live question. All the
+    // play/lock logic below is unchanged — only presentation is Fable-styled.
+    const FABLE: Record<string, { face: string; ink: string; sig: string; cname: string }> = {
+      x2:      { face: "linear-gradient(160deg,#4a3505,#171003 70%)", ink: "#FFC533", sig: "⚡", cname: "BOOST" },
+      block:   { face: "linear-gradient(160deg,#062b4a,#04101d 70%)", ink: "#38A8FF", sig: "⏸", cname: "TIME-OUT" },
+      reverse: { face: "linear-gradient(160deg,#4a0a12,#1a0306 70%)", ink: "#FF3B4E", sig: "↻", cname: "REVERSE" },
+    };
+    const remaining = CARDS.filter(c => !used.includes(c.type)).length;
     return (
-      <div style={{ display: "flex", gap: 8, justifyContent: "center", paddingTop: 6 }}>
-        {CARDS.map(card => {
-          const isUsed = used.includes(card.type);
-          const isLocked = isUsed || roundLocked;
-          const isPlaying = playing === card.type;
-          return (
-            <button
-              key={card.type}
-              onClick={() => playCard(card.type)}
-              disabled={isLocked || !!playing}
-              title={card.desc}
-              style={{
-                width: 56, height: 56, borderRadius: 12,
-                border: "2px solid " + (isLocked ? "rgba(255,255,255,0.1)" : card.color),
-                background: isLocked ? "rgba(255,255,255,0.04)" : card.bg,
-                color: isLocked ? "rgba(255,255,255,0.2)" : card.color,
-                cursor: isLocked ? "not-allowed" : "pointer",
-                display: "flex", flexDirection: "column" as const,
-                alignItems: "center", justifyContent: "center", gap: 1,
-                opacity: isLocked ? 0.4 : 1,
-                boxShadow: isLocked ? "none" : "0 0 12px " + card.color + "44",
-                transform: isPlaying ? "scale(0.93)" : "scale(1)",
-                transition: "all 0.15s", padding: 0,
-              }}
-            >
-              <span style={{ fontSize: 15, fontWeight: 900, lineHeight: 1 }}>{card.emoji}</span>
-              <span style={{ fontSize: 7, letterSpacing: 0.5, fontWeight: 700, opacity: 0.8 }}>{card.label.toUpperCase()}</span>
-            </button>
-          );
-        })}
+      <div className="fbl" style={{ paddingTop: 4 }}>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          {CARDS.map(card => {
+            const isUsed = used.includes(card.type);
+            const isLocked = isUsed || roundLocked;
+            const isPlaying = playing === card.type;
+            const fb = FABLE[card.type] || { face: card.bg, ink: card.color, sig: card.emoji, cname: card.label.toUpperCase() };
+            return (
+              <button
+                key={card.type}
+                onClick={() => playCard(card.type)}
+                disabled={isLocked || !!playing}
+                title={card.desc}
+                style={{
+                  position: "relative", overflow: "hidden",
+                  width: 78, aspectRatio: "2 / 3", borderRadius: 12,
+                  border: "1px solid rgba(255,255,255,0.28)",
+                  background: fb.face, color: fb.ink,
+                  cursor: isLocked ? "not-allowed" : "pointer",
+                  display: "flex", flexDirection: "column" as const,
+                  alignItems: "flex-start", justifyContent: "space-between",
+                  padding: "9px 8px",
+                  filter: isUsed ? "saturate(0.3) brightness(0.5)" : "none",
+                  opacity: (roundLocked && !isUsed) ? 0.5 : 1,
+                  boxShadow: isLocked ? "0 6px 18px rgba(5,0,13,0.6)" : "0 10px 26px rgba(5,0,13,0.7), inset 0 0 0 1px rgba(255,255,255,0.08)",
+                  transform: isPlaying ? "scale(0.95)" : "scale(1)",
+                  transition: "all 0.15s",
+                }}
+              >
+                {!isLocked && (
+                  <span style={{ position: "absolute", inset: 0, borderRadius: 12, pointerEvents: "none",
+                    background: "linear-gradient(115deg,transparent 30%,rgba(255,255,255,0.14) 45%,transparent 60%)",
+                    animation: "fblFoil 5s ease-in-out infinite" }} />
+                )}
+                <span style={{ position: "relative", font: "800 8px 'Inter'", letterSpacing: "0.2em" }}>{fb.cname}</span>
+                <span style={{ position: "relative", fontSize: 22, lineHeight: 1 }}>{isUsed ? "✓" : fb.sig}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 8, textAlign: "center", font: "600 10px 'Inter'", color: "#6B5A8E", letterSpacing: "0.14em" }}>
+          {roundLocked && remaining > 0 ? "ONE CARD PER ROUND — LOCKED" : `${remaining} OF ${CARDS.length} CARD${CARDS.length === 1 ? "" : "S"} REMAINING TONIGHT`}
+        </div>
       </div>
     );
   }

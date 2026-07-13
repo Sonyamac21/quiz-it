@@ -126,8 +126,8 @@ export function JoinForm() {
 
   const filtered = SONGS.filter(s => !takenSongs.includes(s) && cleanName(s).toLowerCase().includes(search.toLowerCase()));
 
-  async function handlePinNext() {
-    if (!pin.trim() || pin.length !== 4) { setPinError("Please enter a 4-digit PIN"); return; }
+  async function handlePinNext(value: string = pin) {
+    if (!value.trim() || value.length !== 4) { setPinError("Please enter a 4-digit PIN"); return; }
     setPinLoading(true);
     setPinError("");
     try {
@@ -135,14 +135,24 @@ export function JoinForm() {
       const { data, error } = await supabase
         .from("sessions")
         .select("id, status")
-        .eq("pin", pin.trim())
+        .eq("pin", value.trim())
         .single();
-      if (error || !data) { setPinError("PIN not found. Check with your host!"); return; }
-      if (data.status === "finished") { setPinError("This quiz has already ended."); return; }
+      // Dignified wrong-PIN per the design: empty the slots, one soft line, no red/shake.
+      if (error || !data) { setPin(""); setPinError("That PIN isn't live — check the big screen."); return; }
+      if (data.status === "finished") { setPin(""); setPinError("This quiz has already ended."); return; }
       setStep("name");
-    } catch { setPinError("Something went wrong. Try again."); }
+    } catch { setPin(""); setPinError("Something went wrong. Try again."); }
     finally { setPinLoading(false); }
   }
+
+  function pinPress(d: string) {
+    if (pinLoading || pin.length >= 4) return;
+    if (pinError) setPinError("");
+    const next = pin + d;
+    setPin(next);
+    if (next.length === 4) setTimeout(() => handlePinNext(next), 140); // auto-submit on 4th digit
+  }
+  function pinBack() { if (pinError) setPinError(""); setPin(prev => prev.slice(0, -1)); }
 
   async function handleReconnect() {
     if (!reconnectName.trim()) { setReconnectError("Enter your team name"); return; }
@@ -277,29 +287,25 @@ export function JoinForm() {
 
   if (step === "pin") {
     return (
-      <div style={{ display:"flex", flexDirection:"column", gap:16, width:"100%", maxWidth:400 }}>
-        <div style={{ textAlign:"center", marginBottom:8 }}>
-          <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:22, fontWeight:700, color:"#BE26C1", letterSpacing:4, marginBottom:4 }}>Quiz-It</div>
-          <div style={{ fontFamily:"'Inter',sans-serif", fontSize:9, letterSpacing:3, color:"rgba(255,255,255,0.3)" }}>Enter your quiz PIN to join</div>
+      <div className="fbl" style={{ width: "100%", maxWidth: 360, display: "flex", flexDirection: "column" }}>
+        <div className="pj-wm wm"><span className="q">QUIZ-</span>IT</div>
+        <div className="pj-title">Enter tonight&rsquo;s PIN</div>
+        <div className="pj-slots">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className={"pj-slot" + (i < pin.length ? " filled" : i === pin.length && !pinLoading ? " next" : "")}>{pin[i] ?? ""}</div>
+          ))}
         </div>
-        <input
-          value={pin}
-          onChange={e => setPin(e.target.value.replace(/\D/g,"").slice(0,4))}
-          onKeyDown={e => e.key === "Enter" && handlePinNext()}
-          placeholder="4-digit PIN"
-          autoFocus
-          maxLength={4}
-          style={{ padding:"20px", borderRadius:12, background:"rgba(255,255,255,0.12)", color:"#fff", border:"2px solid rgba(190,38,193,0.7)", fontSize:36, fontFamily:"monospace", outline:"none", letterSpacing:12, textAlign:"center" }}
-        />
-        {pinError && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Inter',sans-serif", letterSpacing:1, textAlign:"center" }}>{pinError}</p>}
-        <button
-          type="button"
-          onClick={handlePinNext}
-          disabled={pinLoading || pin.length !== 4}
-          style={{ padding:"14px", borderRadius:12, background: pin.length === 4 ? "#BE26C1" : "rgba(255,255,255,0.08)", color: pin.length === 4 ? "#fff" : "rgba(255,255,255,0.4)", border:"none", fontSize:16, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor: pin.length === 4 ? "pointer" : "default", boxShadow: pin.length === 4 ? "0 2px 12px rgba(0,0,0,0.3)" : "none" }}
-        >
-          {pinLoading ? "Checking..." : "Join Quiz"}
-        </button>
+        {pinError
+          ? <div className="pj-err">{pinError}</div>
+          : <div className="pj-hint">{pinLoading ? "Checking…" : "It's the big number on the screen."}</div>}
+        <div className="pj-pad">
+          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map(k => (
+            <div key={k} className="pj-key" onClick={() => pinPress(k)}>{k}</div>
+          ))}
+          <div className="pj-key ghost" onClick={pinBack}>⌫</div>
+          <div className="pj-key" onClick={() => pinPress("0")}>0</div>
+          <div className="pj-key ghost" />
+        </div>
       </div>
     );
   }

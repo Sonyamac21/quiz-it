@@ -123,6 +123,9 @@ function QuizControllerInner() {
   const [pointsPerQ, setPointsPerQ] = useState(10);
   const [timeBonus, setTimeBonus] = useState(5);
   const [timerDuration, setTimerDuration] = useState(30);
+  // True while The Pursuit overlay is running — the global spacebar handler stands
+  // down so the Pursuit panel drives Space itself (no double-handling).
+  const [pursuitActive, setPursuitActive] = useState(false);
   const [dangerZone, setDangerZone] = useState(false);
   const [dangerPenalty, setDangerPenalty] = useState(5);
   const [wipeoutMode, setWipeoutMode] = useState(false);
@@ -213,9 +216,10 @@ function QuizControllerInner() {
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [hostPhase, selectedRound, qIdx, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, timerDuration, dangerZone, dangerPenalty, wipeoutMode, timeLeft, isLastQ]);
+  }, [hostPhase, selectedRound, qIdx, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, timerDuration, dangerZone, dangerPenalty, wipeoutMode, timeLeft, isLastQ, pursuitActive]);
 
   function handleSpacebar() {
+    if (pursuitActive) return; // The Pursuit panel owns Space while it's running.
     if (!connected || !selectedRound) return;
     if (advancingRef.current) return;
     advancingRef.current = true;
@@ -1145,7 +1149,7 @@ function QuizControllerInner() {
           </div>
         )}
         {sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
-        {sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} onScoreChange={() => loadScores(sessionPin)} />}
+        {sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={setPursuitActive} />}
         <a href="/host/display" target="_blank" style={{ padding:"6px 14px", borderRadius:10, background:"#BE26C1", color:"#fff", textDecoration:"none", fontSize:11, fontWeight:700, letterSpacing:0.5, boxShadow:"0 0 12px rgba(190,38,193,0.4)" }}>Display</a>
       </div>
 

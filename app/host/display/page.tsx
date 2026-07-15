@@ -109,6 +109,15 @@ function LiveAudioPlayer({ question }: { question: Question }) {
 // repeatedly in quick succession.
 const audioPreloadCache = new Map<string, HTMLAudioElement>();
 const PRELOAD_SOUNDS = ["crowd-cheer.mp3", "airhorn.mp3", "sad-trombone.mp3", "round-start.mp3", "clapping-scores.mp3"];
+
+// Lobby Power-Card rules rotation. Rules mirror the real cards in
+// components/UnoCards.tsx; colours are the locked feature tokens
+// (Time-Out = blue, Boost = yellow, Reverse = red). One card per round.
+const POWER_CARD_INFO = [
+  { name: "TIME-OUT", sigil: "⏸", color: "#38A8FF", glow: "rgba(56,168,255,.45)", rule: "Freezes every other team for 10 seconds.", when: "Play before the host starts the timer.", limit: "One Power Card per round." },
+  { name: "BOOST", sigil: "⚡", color: "#FFC533", glow: "rgba(255,197,51,.45)", rule: "Doubles your points for every correct answer this round.", when: "Play before you answer.", limit: "One Power Card per round." },
+  { name: "REVERSE", sigil: "↻", color: "#FF3B4E", glow: "rgba(255,59,78,.45)", rule: "Reverses the digits of your score — 19 becomes 91.", when: "Play whenever it works in your favour.", limit: "One Power Card per round." },
+];
 function preloadSounds() {
   for (const file of PRELOAD_SOUNDS) {
     if (audioPreloadCache.has(file)) continue;
@@ -205,6 +214,19 @@ function DisplayScreenInner() {
   const [phase, setPhase] = useState<Phase>("waiting");
   const [question, setQuestion] = useState<Question | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
+  // Live "locked in" count: distinct teams that have submitted an answer for the
+  // CURRENT question, driven by realtime answers INSERTs (not the post-reveal
+  // answered_teams snapshot). qIndexRef lets the once-subscribed answers callback
+  // filter to the current question without re-subscribing.
+  const [lockedTeams, setLockedTeams] = useState<string[]>([]);
+  const qIndexRef = useRef(0);
+  // Lobby Power-Card rules rotation (Time-Out · Boost · Reverse), one at a time.
+  const [powerCardIdx, setPowerCardIdx] = useState(0);
+  useEffect(() => {
+    if (phase !== "waiting") return;
+    const id = setInterval(() => setPowerCardIdx(i => (i + 1) % 3), 8000);
+    return () => clearInterval(id);
+  }, [phase]);
   const [introCardIdx, setIntroCardIdx] = useState(0);
   useEffect(() => { preloadSounds(); }, []);
 
@@ -406,8 +428,6 @@ function DisplayScreenInner() {
   // Track picture sub-phase: "image_only" -> "question_visible"
   const [pictureSubPhase, setPictureSubPhase] = useState<"image_only"|"question_visible">("image_only");
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
-  const [answeredTeams, setAnsweredTeams] = useState<string[]>([]);
-  const [showAnsweredTeams, setShowAnsweredTeams] = useState(false);
 
   const prevQuizEndRevealedRef = useRef<number>(0);
   const prevPhaseForQuizEndRef = useRef<string>("");
@@ -494,6 +514,7 @@ function DisplayScreenInner() {
     }
     setQuestion((data.current_question as Question) || null);
     setQuestionIndex((data.current_question_index as number) ?? 0);
+    qIndexRef.current = (data.current_question_index as number) ?? 0;
     if (data.picture_sub_phase === "question_visible" || data.picture_sub_phase === "image_only") {
       setPictureSubPhase(data.picture_sub_phase);
     }
@@ -596,15 +617,7 @@ function DisplayScreenInner() {
         setPictureSubPhase("image_only");
         setImageLoadFailed(false);
       }
-      setShowAnsweredTeams(false);
-      setAnsweredTeams([]);
-    }
-
-    // Show answered teams after timer ends
-    if (newPhase === "answer") {
-      const teams = (data.answered_teams as string[]) || [];
-      setAnsweredTeams(teams);
-      setShowAnsweredTeams(true);
+      setLockedTeams([]); // reset the live locked-in meter at the start of every question
     }
 
     // Picture sub-phase: advance from image_only to question_visible
@@ -771,6 +784,12 @@ function DisplayScreenInner() {
         const dedupKey = c.id != null ? String(c.id) : c.team_name + "|" + c.card_type + "|" + c.played_at;
         triggerCardFlash(c.team_name, c.card_type, c.round_number ?? null, dedupKey);
       })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "answers", filter: "session_pin=eq." + pinInput }, (payload) => {
+        const a = payload.new as { team_name?: string; question_index?: number };
+        if (a && a.team_name && typeof a.question_index === "number" && a.question_index === qIndexRef.current) {
+          setLockedTeams(prev => prev.includes(a.team_name!) ? prev : [...prev, a.team_name!]);
+        }
+      })
       .subscribe();
   }
 
@@ -817,6 +836,12 @@ function DisplayScreenInner() {
             const c = payload.new as { id?: string|number; team_name: string; card_type: string; played_at?: string; round_number?: number|null };
             const dedupKey = c.id != null ? String(c.id) : c.team_name + "|" + c.card_type + "|" + c.played_at;
             triggerCardFlash(c.team_name, c.card_type, c.round_number ?? null, dedupKey);
+          })
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "answers", filter: "session_pin=eq." + pinFromUrl }, (payload) => {
+            const a = payload.new as { team_name?: string; question_index?: number };
+            if (a && a.team_name && typeof a.question_index === "number" && a.question_index === qIndexRef.current) {
+              setLockedTeams(prev => prev.includes(a.team_name!) ? prev : [...prev, a.team_name!]);
+            }
           })
           .subscribe();
         });
@@ -948,7 +973,7 @@ function DisplayScreenInner() {
     return (
       <div className="fbl fbl-stage">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-        <div className="lb">
+        <div className="lb lb-split">
           <div className="lb-join">
             <div className="lb-kicker">JOIN TONIGHT&rsquo;S SHOW</div>
             <div className="lb-pin"><small>ENTER PIN</small>{sessionPin}</div>
@@ -960,8 +985,6 @@ function DisplayScreenInner() {
                 <b>3.</b> Name your team
               </div>
             </div>
-          </div>
-          <div className="lb-wall">
             <div className="lb-count"><b>{teams.length} TEAM{teams.length === 1 ? "" : "S"}</b> IN THE ROOM</div>
             <div className="lb-crests">
               {teams.map((t) => (
@@ -970,6 +993,24 @@ function DisplayScreenInner() {
                   <span>{t.team_name}</span>
                 </div>
               ))}
+            </div>
+          </div>
+          <div className="lb-cardstage">
+            <div className="lb-cardkicker">POWER CARDS</div>
+            {(() => {
+              const c = POWER_CARD_INFO[powerCardIdx];
+              return (
+                <div key={powerCardIdx} className="lb-pcard" style={{ borderColor: c.color, boxShadow: `0 0 60px ${c.glow}` }}>
+                  <div className="lb-pcard-sigil" style={{ color: c.color, textShadow: `0 0 34px ${c.glow}` }}>{c.sigil}</div>
+                  <div className="lb-pcard-name" style={{ color: c.color }}>{c.name}</div>
+                  <div className="lb-pcard-rule">{c.rule}</div>
+                  <div className="lb-pcard-meta"><b>WHEN</b>{c.when}</div>
+                  <div className="lb-pcard-meta"><b>LIMIT</b>{c.limit}</div>
+                </div>
+              );
+            })()}
+            <div className="lb-dots">
+              {POWER_CARD_INFO.map((_, i) => <span key={i} className={"lb-dot" + (i === powerCardIdx ? " on" : "")} />)}
             </div>
           </div>
           <div className="lb-foot">
@@ -1342,16 +1383,26 @@ function DisplayScreenInner() {
     // STANDARD QUESTION — Fable "live answer meter" layout.
     const tLeft = timeLeft ?? 0;
     const allOpts = isMulti ? options : isMultiTap ? multiTapOptions : [];
-    const lockedCount = answeredTeams.length;
+    // Real, live locked-in count: distinct still-connected teams that have
+    // actually submitted an answer for this question. Intersecting with the
+    // current `teams` list means a team leaving mid-question doesn't corrupt the
+    // count, and it never exceeds the number of teams in the room.
     const totalTeams = teams.length;
+    const lockedCount = lockedTeams.filter(t => teams.some(tm => tm.team_name === t)).length;
     return (
       <div className="fbl fbl-stage">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         <div className="qd-ring" />
+        {/* Final-5s urgent glow: intensity ramps steadily as time approaches 0.
+            No rapid flashing (single steady glow), reduced-motion disables the transition. */}
+        <div className="qd-urgent" style={{ boxShadow: tLeft > 0 && tLeft <= 5
+          ? `inset 0 0 ${110 + (6 - tLeft) * 34}px ${18 + (6 - tLeft) * 14}px rgba(255,59,78,${(0.12 + (6 - tLeft) * 0.11).toFixed(3)})`
+          : "none" }} />
+        {tLeft > 0 && <div className={"qd-bigtimer" + (tLeft <= 5 ? " urgent" : "")}>{tLeft}</div>}
         <div className="qd">
           <div className="qd-top">
             <span><span className="qd-kick">QUESTION {questionIndex + 1}</span> · {(roundName || "GENERAL KNOWLEDGE").toUpperCase()}</span>
-            <span>{tLeft > 0 ? tLeft + "S · SPEED BONUS" : "SPEED BONUS"}</span>
+            <span>{tLeft > 0 ? "SPEED BONUS" : "ANSWERS LOCKED"}</span>
           </div>
           <div className="qd-q">{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
           {allOpts.length > 0 && (

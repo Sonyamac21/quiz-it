@@ -954,8 +954,24 @@ function QuizControllerInner() {
     // 1st place is a reward: guarantee first, but never REDUCE the team's score
     // (e.g. when other teams still have 0, this must not drop a leader to 1).
     else if (label === "1st Place") newTotal = Math.max(myTotal, scoreForRank(1));
-    else if (label === "2nd Place") newTotal = scoreForRank(2);
-    else if (label === "3rd Place") newTotal = scoreForRank(3);
+    // 2nd place: land exactly 1 point above the team that will sit 3rd (others'
+    // 2nd-highest). If there is no 3rd-place team, sit 1 point behind current
+    // 1st. Never demote a team already above the target (max with myTotal).
+    else if (label === "2nd Place") {
+      const target = othersDesc.length >= 2 ? othersDesc[1] + 1
+                   : othersDesc.length === 1 ? Math.max(0, othersDesc[0] - 1)
+                   : myTotal;
+      newTotal = Math.max(myTotal, target);
+    }
+    // 3rd place: land exactly 1 point above the team that will sit 4th (others'
+    // 3rd-highest). If there is no 4th-place team, sit 1 point behind current
+    // 2nd. Never demote a team already above the target.
+    else if (label === "3rd Place") {
+      const target = othersDesc.length >= 3 ? othersDesc[2] + 1
+                   : othersDesc.length >= 2 ? Math.max(0, othersDesc[1] - 1)
+                   : myTotal;
+      newTotal = Math.max(myTotal, target);
+    }
     // Last place: sit one below the current lowest other team, floored at 0. Only
     // becomes 0 when 0 is genuinely last (lowest other is 0 or 1). With no other
     // teams there is no "last" to move to, so keep the team's score.

@@ -123,6 +123,27 @@
 .fbl .qd-tick.in.last{animation:fblTickIn .4s var(--settle);}
 @keyframes fblTickIn{from{transform:scaleY(1.8)}to{transform:scaleY(1)}}
 .fbl .qd-ring{position:absolute;inset:1.2%;border-radius:18px;border:3px solid transparent;border-top-color:rgba(255,255,255,.7);border-right-color:rgba(217,79,220,.7);transform:rotate(30deg);pointer-events:none;opacity:.5;}
+/* Lobby 50/50 split: teams left, rotating Power-Card rules right */
+.fbl .lb-split{grid-template-columns:50% 50%;}
+.fbl .lb-cardstage{border-left:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3%;padding:0 5%;}
+.fbl .lb-cardkicker{font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:clamp(13px,1.7vw,24px);letter-spacing:.24em;color:var(--purple-b);}
+.fbl .lb-pcard{width:min(78%,480px);border:2px solid var(--purple);border-radius:24px;background:linear-gradient(160deg,var(--stage-raised),var(--stage-deep));display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:3.5%;padding:7% 6%;animation:lbCardIn .5s var(--settle);}
+.fbl .lb-pcard-sigil{font-size:clamp(48px,7vw,110px);line-height:1;}
+.fbl .lb-pcard-name{font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:clamp(20px,2.8vw,42px);letter-spacing:.1em;}
+.fbl .lb-pcard-rule{font:700 clamp(15px,1.9vw,27px) 'Inter';color:var(--text);line-height:1.4;}
+.fbl .lb-pcard-meta{font:600 clamp(11px,1.25vw,17px) 'Inter';color:var(--text2);}
+.fbl .lb-pcard-meta b{color:var(--purple-b);letter-spacing:.14em;margin-right:10px;}
+.fbl .lb-dots{display:flex;gap:12px;}
+.fbl .lb-dot{width:12px;height:12px;border-radius:50%;background:var(--line);transition:background .3s;}
+.fbl .lb-dot.on{background:var(--purple-b);box-shadow:0 0 12px rgba(217,79,220,.6);}
+@keyframes lbCardIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.fbl .lb-pcard{animation:none;}.fbl .lb-dot{transition:none;}}
+/* Large, room-readable countdown + final-5s urgent glow (steady intensity ramp,
+   no rapid flashing; reduced-motion disables the smoothing transition). */
+.fbl .qd-bigtimer{position:absolute;top:2.6%;right:4%;font:800 clamp(56px,7.5vw,150px)/1 'Inter';font-variant-numeric:tabular-nums;color:var(--text);text-shadow:0 0 34px rgba(190,38,193,.5);z-index:5;letter-spacing:.02em;}
+.fbl .qd-bigtimer.urgent{color:var(--red);text-shadow:0 0 46px rgba(255,59,78,.75);}
+.fbl .qd-urgent{position:absolute;inset:0;pointer-events:none;z-index:6;transition:box-shadow .85s ease;}
+@media (prefers-reduced-motion: reduce){.fbl .qd-urgent{transition:none;}}
 
 /* 5 · LEADERBOARD */
 .fbl .ld{position:relative;z-index:2;min-height:100vh;display:flex;flex-direction:column;padding:4% 9%;}

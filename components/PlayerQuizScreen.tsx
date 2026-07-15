@@ -469,10 +469,37 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       setTimeout(() => setError(""), 2500);
       return;
     }
+    const supabase = createSupabaseBrowserClient();
+    // AUTHORITATIVE late-answer rejection. The local `timeLeft` is derived from an
+    // interval that can lag when the tab is backgrounded or wifi drops, so on the
+    // first attempt we re-read the session's timer/phase straight from the DB and
+    // reject if the answering window has actually closed. This does not rely on the
+    // phone UI being disabled. (A DB-level RLS/trigger would be even stronger but
+    // requires a Supabase policy change, which is out of scope for this pass.)
+    if (retryCount === 0) {
+      const { data: live } = await supabase.from("sessions")
+        .select("phase, current_question_index, timer_started_at, timer_duration")
+        .eq("pin", sessionPin).maybeSingle();
+      if (live) {
+        const phase = live.phase as string;
+        const answering = phase === "question" || phase === "timer" || phase === "pursuit";
+        const movedOn = (phase === "question" || phase === "timer")
+          && typeof live.current_question_index === "number"
+          && live.current_question_index !== questionIndex;
+        const started = live.timer_started_at ? new Date(live.timer_started_at as string).getTime() : null;
+        const dur = typeof live.timer_duration === "number" ? live.timer_duration : null;
+        // 1.5s network grace, matching the existing client-side allowance.
+        const expired = started !== null && dur !== null && Date.now() > started + dur * 1000 + 1500;
+        if (!answering || movedOn || expired) {
+          setError("Time's up! No more answers accepted for this question.");
+          setTimeout(() => setError(""), 2500);
+          return;
+        }
+      }
+    }
     // Optimistically show locked-in, but verify the write actually succeeded -
     // on flaky venue wifi the insert can silently fail while the UI still says "locked in".
     setSubmitted(true);
-    const supabase = createSupabaseBrowserClient();
     const { error } = await supabase.from("answers").insert({
       session_pin: sessionPin,
       team_name: teamName,
@@ -641,34 +668,34 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
 
         {isSelected && hardDeckStatus === "awaiting_guess" && (
-          <div style={{ display: "flex", gap: 16, width: "100%", maxWidth: 360 }}>
+          <div style={{ display: "flex", gap: 16, width: "100%", maxWidth: 380 }}>
             <button
               onClick={() => submitHardDeckGuess("higher")}
               disabled={!!hardDeckGuess}
               style={{
-                flex: 1, minHeight: 84, borderRadius: 16,
-                background: hardDeckGuess === "higher" ? "rgba(232,195,106,0.25)" : "#150A2E",
-                border: hardDeckGuess === "higher" ? "2px solid #E8C36A" : "1px solid rgba(232,195,106,0.55)",
-                color: "#fff", font: "800 22px 'Inter'", letterSpacing: ".08em", cursor: hardDeckGuess ? "default" : "pointer",
+                flex: 1, minHeight: 132, borderRadius: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+                background: hardDeckGuess === "higher" ? "rgba(232,195,106,0.28)" : "#1D1140",
+                border: hardDeckGuess === "higher" ? "3px solid #E8C36A" : "2px solid rgba(232,195,106,0.7)",
+                color: "#fff", cursor: hardDeckGuess ? "default" : "pointer",
                 transform: hardDeckGuess === "higher" ? "scale(1.04)" : "scale(1)",
-                opacity: hardDeckGuess && hardDeckGuess !== "higher" ? 0.4 : 1,
+                opacity: hardDeckGuess && hardDeckGuess !== "higher" ? 0.35 : 1,
                 transition: "all 0.15s ease",
               }}
-            >HIGHER</button>
+            ><span aria-hidden style={{ fontSize: 40, lineHeight: 1, color: "#E8C36A" }}>▲</span><span style={{ font: "800 26px 'Inter'", letterSpacing: ".06em" }}>HIGHER</span></button>
             <button
               onClick={() => submitHardDeckGuess("lower")}
               disabled={!!hardDeckGuess}
               style={{
-                flex: 1, minHeight: 84, borderRadius: 16,
-                background: hardDeckGuess === "lower" ? "rgba(190,38,193,0.3)" : "#150A2E",
-                border: hardDeckGuess === "lower" ? "2px solid #D94FDC" : "1px solid #8A1B8D",
-                color: "#fff", font: "800 22px 'Inter'", letterSpacing: ".08em", cursor: hardDeckGuess ? "default" : "pointer",
-                boxShadow: hardDeckGuess === "lower" ? "0 0 18px rgba(190,38,193,0.35)" : "none",
+                flex: 1, minHeight: 132, borderRadius: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+                background: hardDeckGuess === "lower" ? "rgba(190,38,193,0.32)" : "#1D1140",
+                border: hardDeckGuess === "lower" ? "3px solid #D94FDC" : "2px solid #8A1B8D",
+                color: "#fff", cursor: hardDeckGuess ? "default" : "pointer",
+                boxShadow: hardDeckGuess === "lower" ? "0 0 18px rgba(190,38,193,0.4)" : "none",
                 transform: hardDeckGuess === "lower" ? "scale(1.04)" : "scale(1)",
-                opacity: hardDeckGuess && hardDeckGuess !== "lower" ? 0.4 : 1,
+                opacity: hardDeckGuess && hardDeckGuess !== "lower" ? 0.35 : 1,
                 transition: "all 0.15s ease",
               }}
-            >LOWER</button>
+            ><span aria-hidden style={{ fontSize: 40, lineHeight: 1, color: "#D94FDC" }}>▼</span><span style={{ font: "800 26px 'Inter'", letterSpacing: ".06em" }}>LOWER</span></button>
           </div>
         )}
         {isSelected && hardDeckStatus === "decision" && (
@@ -824,10 +851,19 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             <Crest initials={teamInitials(fastestTeamName || teamName)} size={88} gold />
             <div style={{ fontSize: 42, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 40px rgba(190,38,193,0.8)", margin: "8px 0" }}>{fastestTeamName}</div>
             <div style={{ font: "800 18px 'Inter'", color: "#E8C36A", letterSpacing: 2, marginBottom: 24 }}>{"That's you!"}</div>
-            <div style={{ padding: "20px 40px", borderRadius: 20, background: "rgba(34,197,94,0.15)", border: "2px solid rgba(34,197,94,0.5)", marginBottom: 32, textAlign: "center" }}>
-              <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(34,197,94,0.7)", marginBottom: 4 }}>POINTS AWARDED</div>
-              <div style={{ fontSize: 56, fontWeight: 900, color: "#22c55e", textShadow: "0 0 20px rgba(34,197,94,0.6)", lineHeight: 1 }}>{fastestPoints >= 0 ? "+" : ""}{fastestPoints}</div>
-            </div>
+            {/* Only show a points award when points were genuinely awarded. A
+                "+0" is never a success state — show a neutral line instead.
+                fastest_points comes from the session row the host writes AFTER
+                the score is committed, so this reflects the stored award, not a
+                pre-calculated estimate. */}
+            {fastestPoints > 0 ? (
+              <div style={{ padding: "20px 40px", borderRadius: 20, background: "rgba(46,224,110,0.15)", border: "2px solid rgba(46,224,110,0.5)", marginBottom: 32, textAlign: "center" }}>
+                <div style={{ font: "700 12px 'Inter'", letterSpacing: 3, color: "#2EE06E", marginBottom: 4 }}>POINTS AWARDED</div>
+                <div style={{ font: "900 56px 'Inter'", color: "#2EE06E", textShadow: "0 0 20px rgba(46,224,110,0.6)", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>+{fastestPoints}</div>
+              </div>
+            ) : (
+              <div style={{ font: "700 18px 'Inter'", color: "#B9A8D9", marginBottom: 32, textAlign: "center" }}>No points this time</div>
+            )}
           </>
         ) : (() => {
           const correctText = question ? getCorrectAnswerText(question) : "";

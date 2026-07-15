@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { applyScoreDelta } from "@/lib/quiz/scoreService";
+import { teamInitials } from "@/components/TeamBadge";
 import {
   PursuitPhase,
   PursuitRace,
@@ -103,6 +104,30 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
   }, [timerStartedAt, timerDur]);
 
   const answersLocked = status === "question" && qIndex >= 0 && (timeLeft === null || timeLeft <= 0);
+
+  // Host console data: every team's submitted answer for the current gate, plus
+  // the overall standings — so the host is never blind to answers or scores
+  // during the Pursuit. Polled (1.5s) off the same authoritative answers/scores
+  // tables the race advance already reads. Presentation only; no scoring here.
+  const [liveAnswers, setLiveAnswers] = useState<AnswerRow[]>([]);
+  const [standings, setStandings] = useState<{ team_name: string; total_points: number }[]>([]);
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    const load = async () => {
+      if (qIndex >= 0) {
+        let q = supabase.from("answers").select("team_name, answer_text, submitted_at").eq("session_pin", sessionPin).eq("question_index", qIndex);
+        if (startedAt) q = q.gte("submitted_at", startedAt);
+        const { data } = await q.order("submitted_at", { ascending: true });
+        if (active && data) setLiveAnswers(data as AnswerRow[]);
+      }
+      const { data: sc } = await supabase.from("scores").select("team_name, total_points").eq("session_pin", sessionPin);
+      if (active && sc) setStandings((sc as { team_name: string; total_points: number }[]).slice().sort((a, b) => b.total_points - a.total_points));
+    };
+    load();
+    const id = window.setInterval(load, 1500);
+    return () => { active = false; clearInterval(id); };
+  }, [open, qIndex, startedAt, sessionPin, supabase]);
 
   // Tell the host page when the overlay is up so its global spacebar handler
   // stands down (the panel drives Space itself while The Pursuit is running).
@@ -331,7 +356,63 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
             )}
           </div>
           <div style={{ fontSize: 16, fontWeight: 600, color: "#fff" }}>{currentQuestion.question_text}</div>
-          {status === "reveal" && <div style={{ fontSize: 14, color: "#22c55e", fontWeight: 700, marginTop: 6 }}>Answer: {currentQuestion.correct_answer}</div>}
+          {status === "reveal" && <div style={{ fontSize: 14, color: "#2EE06E", fontWeight: 700, marginTop: 6 }}>Answer: {currentQuestion.correct_answer}</div>}
+        </div>
+      )}
+
+      {/* HOST ANSWER CONSOLE — real submitted answers per team (order · badge ·
+          name · answer · waiting · correct/incorrect after reveal · eliminated ·
+          gate). Never anonymous dots. */}
+      {currentQuestion && (status === "question" || status === "reveal") && (() => {
+        const latestByTeam = new Map<string, AnswerRow>();
+        for (const a of liveAnswers) {
+          const prev = latestByTeam.get(a.team_name);
+          if (!prev || new Date(a.submitted_at).getTime() > new Date(prev.submitted_at).getTime()) latestByTeam.set(a.team_name, a);
+        }
+        const ordered = [...latestByTeam.values()].sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
+        const orderIndex = new Map(ordered.map((a, i) => [a.team_name, i + 1]));
+        return (
+          <div style={{ width: "100%", maxWidth: 680, display: "flex", flexDirection: "column", gap: 5 }}>
+            <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)" }}>ANSWERS IN — SUBMISSION ORDER</div>
+            {teamNames.map((name) => {
+              const ans = latestByTeam.get(name);
+              const rstatus = race[name]?.status ?? "active";
+              const eliminated = rstatus === "eliminated";
+              const correct = (status === "reveal" && ans && currentQuestion) ? checkPursuitAnswer(ans.answer_text, currentQuestion) : null;
+              const ansColor = correct === true ? "#2EE06E" : correct === false ? "#FF3B4E" : "rgba(255,255,255,0.72)";
+              return (
+                <div key={name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: 10, background: "rgba(255,255,255,0.03)", border: "1px solid #2E1A52", opacity: eliminated ? 0.5 : 1 }}>
+                  <span style={{ width: 18, textAlign: "center", font: "700 11px 'Inter'", color: "#6B5A8E", fontVariantNumeric: "tabular-nums" }}>{ans ? orderIndex.get(name) : "·"}</span>
+                  <span className="fbh-crest" style={{ width: 20, height: 20, fontSize: 7, flexShrink: 0 }}>{teamInitials(name)}</span>
+                  <span style={{ font: "700 12.5px 'Inter'", color: "#fff", maxWidth: "30%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                  <span style={{ marginLeft: "auto", font: "600 12.5px 'Inter'", color: eliminated ? "#6B5A8E" : ansColor, maxWidth: "42%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {eliminated ? "OUT" : ans ? ans.answer_text : "waiting…"}
+                  </span>
+                  <span style={{ font: "700 10px 'Inter'", color: "#6B5A8E", letterSpacing: 1, flexShrink: 0 }}>G{race[name]?.stage ?? 0}</span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* OVERALL LEADERBOARD — stays visible through the Pursuit. Overall quiz
+          score (total_points) shown alongside Pursuit status/gate, never hidden. */}
+      {standings.length > 0 && status !== "intro" && (
+        <div style={{ width: "100%", maxWidth: 680 }}>
+          <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)", marginBottom: 6 }}>OVERALL LEADERBOARD</div>
+          {standings.map((s, i) => {
+            const rs = race[s.team_name]?.status;
+            const stage = race[s.team_name]?.stage ?? 0;
+            return (
+              <div key={s.team_name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 8, background: rs === "completed" ? "rgba(232,195,106,0.12)" : "rgba(255,255,255,0.03)", border: "1px solid #2E1A52", marginBottom: 4 }}>
+                <span style={{ width: 18, font: "800 13px 'Inter'", color: i === 0 ? "#E8C36A" : i === 1 ? "#C9CDD6" : i === 2 ? "#C08A5A" : "rgba(255,255,255,0.4)", fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
+                <span style={{ font: "700 13px 'Inter'", color: "#fff", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.team_name}</span>
+                <span style={{ font: "700 10px 'Inter'", color: "#38A8FF", letterSpacing: 1, flexShrink: 0 }}>{rs === "completed" ? "FINISHED" : rs === "eliminated" ? "OUT · G" + stage : "GATE " + stage}</span>
+                <span style={{ font: "800 15px 'Inter'", color: "#D94FDC", fontVariantNumeric: "tabular-nums", minWidth: 44, textAlign: "right" }}>{s.total_points}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 

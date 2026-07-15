@@ -55,7 +55,30 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
     setPlaying(cardType);
     const supabase = createSupabaseBrowserClient();
     const playedAt = new Date().toISOString();
-    const insertPromise = supabase.from("uno_cards").insert({
+    // REVERSE: apply the score change BEFORE consuming the card, and only consume
+    // it when the change can actually be applied. Previously the consume insert
+    // ran in parallel with the reverse, so a reverse against a missing score row
+    // spent the card without any effect. Routed through the shared score service
+    // (scores table is authoritative); the eventKey ties this to the card-play
+    // timestamp so the same reverse can never be applied twice (setScoreAbsolute
+    // also self-dedupes on that key), and the `used`/`roundLocked` guards above
+    // prevent accidental replay.
+    if (cardType === "reverse" && sessionPin) {
+      const { data: existing } = await supabase.from("scores").select("total_points").eq("session_pin", sessionPin).eq("team_name", teamName).maybeSingle();
+      if (!existing) {
+        // No score row to reverse yet — do not consume the card, let the team keep it.
+        setPlaying(null);
+        return;
+      }
+      const current = existing.total_points || 0;
+      const sign = current < 0 ? -1 : 1;
+      const reversed = sign * parseInt(Math.abs(current).toString().split("").reverse().join("") || "0", 10);
+      const result = await setScoreAbsolute(supabase, sessionPin, teamName, reversed, {
+        eventKey: `reverse:${sessionPin}:${teamName}:${playedAt}`,
+      });
+      if (result.scoreboardSyncError) console.error("Reverse card: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
+    }
+    await supabase.from("uno_cards").insert({
       team_name: teamName,
       card_type: cardType,
       used: true,
@@ -63,28 +86,6 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       session_pin: sessionPin || "",
       round_number: roundNumber ?? null,
     });
-    // Reverse has no dependency on the uno_cards insert above - kick it off
-    // immediately, in parallel, instead of waiting for the insert to finish
-    // first. This is what was causing the noticeable delay: the score change
-    // was serialized behind an unrelated write.
-    // Routed through the shared score service (scores table is authoritative).
-    // eventKey ties this score event to the card-play timestamp so the same
-    // reverse can't be applied twice.
-    const reversePromise = (cardType === "reverse" && sessionPin)
-      ? (async () => {
-          const { data: existing } = await supabase.from("scores").select("total_points").eq("session_pin", sessionPin).eq("team_name", teamName).maybeSingle();
-          if (existing) {
-            const current = existing.total_points || 0;
-            const sign = current < 0 ? -1 : 1;
-            const reversed = sign * parseInt(Math.abs(current).toString().split("").reverse().join("") || "0", 10);
-            const result = await setScoreAbsolute(supabase, sessionPin, teamName, reversed, {
-              eventKey: `reverse:${sessionPin}:${teamName}:${playedAt}`,
-            });
-            if (result.scoreboardSyncError) console.error("Reverse card: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
-          }
-        })()
-      : Promise.resolve();
-    await insertPromise;
     if (cardType === "block" && sessionPin) {
       // Store as pending — the 10-second lockout activates when the HOST presses
       // the timer button, not immediately. This means on a 15-second question,
@@ -95,7 +96,6 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
         block_until: null,
       }).eq("pin", sessionPin);
     }
-    await reversePromise;
     setUsed(prev => [...prev, cardType]);
     if (roundNumber != null) setUsedThisRound(prev => [...prev, roundNumber]);
     setPlaying(null);

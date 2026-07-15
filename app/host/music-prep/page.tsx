@@ -3,8 +3,10 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { encodeWavFromBuffer, sliceAudioBuffer } from "@/lib/audio/wavEncoder";
 import { getMediaUrl } from "@/lib/getMediaUrl";
+import { HostShell, HostButton, HostLoading, HostEmpty, TopSpacer } from "@/components/fable/HostConsole";
 
 const purple = "#BE26C1";
+const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const WAVEFORM_BUCKETS = 300;
 
 type Question = {
@@ -134,49 +136,46 @@ function WaveformEditor({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
+      <div style={{ font: "400 12px 'Inter'", color: "#B9A8D9" }}>
         Drag handles to select your clip — <strong style={{ color: "#fff" }}>{fmtTime(clipDuration)}</strong> selected
       </div>
 
-      <div ref={waveformRef} style={{ position: "relative", height: 80, borderRadius: 10, background: "rgba(0,0,0,0.4)", overflow: "hidden", userSelect: "none", cursor: "crosshair" }}>
+      <div ref={waveformRef} style={{ position: "relative", height: 80, borderRadius: 12, background: "#0A0118", border: "1px solid #2E1A52", overflow: "hidden", userSelect: "none", cursor: "crosshair" }}>
         <svg width="100%" height="80" viewBox={`0 0 ${WAVEFORM_BUCKETS} 80`} preserveAspectRatio="none" style={{ position: "absolute", inset: 0 }}>
           {peaks.map((p, i) => (
             <rect key={i} x={i} y={40 - p * 38} width={0.8} height={Math.max(1, p * 76)}
               fill={i / WAVEFORM_BUCKETS >= startPct / 100 && i / WAVEFORM_BUCKETS <= endPct / 100
-                ? "rgba(190,38,193,0.9)" : "rgba(255,255,255,0.15)"} />
+                ? "rgba(190,38,193,0.9)" : "rgba(185,168,217,0.22)"} />
           ))}
         </svg>
         {/* Dim regions outside selection */}
-        <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: startPct + "%", background: "rgba(0,0,0,0.55)", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", top: 0, right: 0, height: "100%", width: (100 - endPct) + "%", background: "rgba(0,0,0,0.55)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: startPct + "%", background: "rgba(10,1,24,0.6)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: 0, right: 0, height: "100%", width: (100 - endPct) + "%", background: "rgba(10,1,24,0.6)", pointerEvents: "none" }} />
         {/* Start handle */}
         <div onPointerDown={() => setDragging("start")} style={{ position: "absolute", top: 0, left: startPct + "%", transform: "translateX(-50%)", height: "100%", width: 16, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ width: 4, height: "100%", background: "#fff", borderRadius: 2, boxShadow: "0 0 8px rgba(255,255,255,0.8)" }} />
+          <div style={{ width: 4, height: "100%", background: "#D94FDC", borderRadius: 2, boxShadow: "0 0 8px rgba(217,79,220,0.8)" }} />
         </div>
         {/* End handle */}
         <div onPointerDown={() => setDragging("end")} style={{ position: "absolute", top: 0, left: endPct + "%", transform: "translateX(-50%)", height: "100%", width: 16, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ width: 4, height: "100%", background: "#fff", borderRadius: 2, boxShadow: "0 0 8px rgba(255,255,255,0.8)" }} />
+          <div style={{ width: 4, height: "100%", background: "#D94FDC", borderRadius: 2, boxShadow: "0 0 8px rgba(217,79,220,0.8)" }} />
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", font: "400 11px 'Inter'", color: "#6B5A8E" }}>
         <span>{fmtTime(clipStart)}</span>
         <span>{fmtTime(audioBuffer.duration)}</span>
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button type="button" onClick={previewing ? stopPreview : playPreview}
-          style={{ padding: "8px 16px", borderRadius: 8, background: "rgba(56,189,248,0.2)", border: "1px solid #38bdf8", color: "#38bdf8", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-          {previewing ? "⏹ Stop" : "▶ Preview"}
-        </button>
-        <button type="button" onClick={onSave} disabled={saving}
-          style={{ padding: "8px 20px", borderRadius: 8, background: "rgba(34,197,94,0.25)", border: "1px solid #22c55e", color: "#fff", fontSize: 13, fontWeight: 700, cursor: saving ? "default" : "pointer" }}>
-          {saving ? "Saving..." : "Save Clip →"}
-        </button>
-        <button type="button" onClick={onDiscard}
-          style={{ padding: "8px 14px", borderRadius: 8, background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.4)", fontSize: 13, cursor: "pointer" }}>
+        <HostButton type="button" onClick={previewing ? stopPreview : playPreview}>
+          {previewing ? "◼ Stop" : "▶ Preview"}
+        </HostButton>
+        <HostButton type="button" variant="pri" onClick={onSave} disabled={saving}>
+          {saving ? "SAVING…" : "SAVE CLIP →"}
+        </HostButton>
+        <HostButton type="button" onClick={onDiscard}>
           Try different version
-        </button>
+        </HostButton>
       </div>
     </div>
   );
@@ -190,7 +189,16 @@ export default function MusicPrepPage() {
   const [status, setStatus] = useState("");
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  useEffect(() => { loadRounds(); }, []);
+  useEffect(() => {
+    (async () => {
+      const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase.from("rounds").select("*").order("created_at", { ascending: false });
+      if (!error && data) {
+        setRounds(data.filter((r: Round) => r.questions?.some((q: Question) => q.question_type === "audio")));
+      }
+      setLoading(false);
+    })();
+  }, []);
 
   function getAudioCtx(): AudioContext {
     if (!audioCtxRef.current) {
@@ -198,15 +206,6 @@ export default function MusicPrepPage() {
       audioCtxRef.current = new AC();
     }
     return audioCtxRef.current;
-  }
-
-  async function loadRounds() {
-    const supabase = createSupabaseBrowserClient();
-    const { data, error } = await supabase.from("rounds").select("*").order("created_at", { ascending: false });
-    if (!error && data) {
-      setRounds(data.filter((r: Round) => r.questions?.some((q: Question) => q.question_type === "audio")));
-    }
-    setLoading(false);
   }
 
   function openForPrep(round: Round) {
@@ -323,154 +322,151 @@ export default function MusicPrepPage() {
   const audioQuestions = openRound?.questions.map((q, i) => ({ q, i })).filter(({ q }) => q.question_type === "audio") || [];
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color: "#fff", padding: "24px", maxWidth: "960px", margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#1a0530", border: `2px solid ${purple}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: purple, fontWeight: 700 }}>ME</div>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: purple, letterSpacing: 4 }}>Music Prep</div>
-          <div style={{ fontSize: 11, color: "rgba(190,38,193,0.6)", letterSpacing: 2 }}>Deezer · Auto-search · Waveform trim</div>
+    <HostShell>
+      <div style={{ minHeight: "100vh", background: STAGE_BG, color: "#fff", padding: "24px", maxWidth: 980, margin: "0 auto" }}>
+        {/* TOP BAR */}
+        <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 20 }}>
+          <span className="fbh-wm" style={{ fontSize: 16 }}><span className="q">QUIZ-</span>IT</span>
+          <span className="fbh-bc">Music Prep</span>
+          <span style={{ font: "400 11px 'Inter'", color: "#6B5A8E" }}>Deezer · Auto-search · Waveform trim</span>
+          <TopSpacer />
+          {openRound
+            ? <HostButton onClick={() => setOpenRound(null)}>← All Rounds</HostButton>
+            : <a className="fbh-btn" href="/host/rounds">Round Library</a>}
         </div>
-        <div style={{ flex: 1 }} />
-        {openRound && <button onClick={() => setOpenRound(null)} style={{ padding: "8px 16px", borderRadius: 10, border: "1px solid #333", background: "rgba(255,255,255,0.04)", color: "#aaa", cursor: "pointer", fontSize: 12 }}>← All Rounds</button>}
-        {!openRound && <a href="/host/rounds" style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid rgba(190,38,193,0.4)`, background: "rgba(190,38,193,0.06)", color: purple, textDecoration: "none", fontSize: 12, fontWeight: 600, boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>Round Library</a>}
-      </div>
 
-      {status && <div style={{ textAlign: "center", color: "#22c55e", fontSize: 13, marginBottom: 16 }}>{status}</div>}
+        {status && <div style={{ textAlign: "center", color: "#D94FDC", font: "600 13px 'Inter'", marginBottom: 16 }}>{status}</div>}
 
-      {/* Round list */}
-      {!openRound && (
-        <>
-          {loading && <p style={{ textAlign: "center", color: "#666" }}>Loading music rounds...</p>}
-          {!loading && rounds.length === 0 && (
-            <div style={{ textAlign: "center", color: "#666", marginTop: 60 }}>
-              <p>No music rounds found.</p>
-              <a href="/host/questions" style={{ display: "inline-block", marginTop: 16, padding: "10px 24px", borderRadius: 8, background: purple, color: "#fff", textDecoration: "none", fontSize: 13 }}>Generate Music Round</a>
-            </div>
-          )}
-          {rounds.map(r => {
-            const total = r.questions.filter(q => q.question_type === "audio").length;
-            const prepped = r.questions.filter(q => q.question_type === "audio" && q.option_b && q.option_b.includes("blob.vercel-storage.com")).length;
-            return (
-              <div key={r.id} onClick={() => openForPrep(r)} style={{ background: "linear-gradient(160deg, rgba(60,15,110,0.35), rgba(30,8,60,0.35))", border: `1px solid rgba(190,38,193,0.25)`, borderRadius: 14, padding: 16, marginBottom: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{r.name}</div>
-                  <div style={{ fontSize: 12, color: "#666" }}>{total} music questions · {prepped}/{total} prepped · {new Date(r.created_at).toLocaleDateString()}</div>
-                </div>
-                <div style={{ padding: "8px 20px", borderRadius: 8, background: purple, color: "#fff", fontSize: 13, fontWeight: 700 }}>
-                  {prepped === total ? "✓ Ready" : "Prep →"}
-                </div>
-              </div>
-            );
-          })}
-        </>
-      )}
-
-      {/* Question prep */}
-      {openRound && audioQuestions.map(({ q, i }, n) => {
-        const qs = questionStates[i] || { phase: "idle", candidates: [], error: "" };
-        return (
-          <div key={i} style={{ background: "linear-gradient(160deg, rgba(60,15,110,0.35), rgba(30,8,60,0.35))", border: `1px solid ${qs.phase === "done" ? "rgba(34,197,94,0.4)" : "rgba(190,38,193,0.2)"}`, borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)" }}>
-            {/* Question header */}
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <span style={{ background: "rgba(190,38,193,0.15)", color: purple, padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600 }}>Name That Tune {n + 1}</span>
-                  {qs.phase === "done" && <span style={{ color: "#22c55e", fontSize: 12, fontWeight: 700 }}>✓ Ready</span>}
-                </div>
-                <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 4px", lineHeight: 1.5 }}>{q.question_text}</p>
-                <p style={{ fontSize: 13, color: "#22c55e", margin: 0 }}>Answer: {q.correct_answer}</p>
-              </div>
-            </div>
-
-            {/* Phase: searching */}
-            {(qs.phase === "idle" || qs.phase === "searching") && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255,255,255,0.4)", fontSize: 13 }}>
-                <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid rgba(190,38,193,0.4)", borderTopColor: purple, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                Searching Deezer for "{q.option_a || q.correct_answer}"...
-              </div>
+        {/* ROUND LIST */}
+        {!openRound && (
+          <>
+            {loading && <HostLoading title="Music Prep" note="Loading music rounds…" />}
+            {!loading && rounds.length === 0 && (
+              <HostEmpty title="No Music Rounds" note="Generate a music round, then prep its clips here." actionLabel="GENERATE MUSIC ROUND" onAction={() => { window.location.href = "/host/questions"; }} />
             )}
-
-            {/* Phase: loading audio */}
-            {qs.phase === "loading_audio" && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255,255,255,0.4)", fontSize: 13 }}>
-                <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid rgba(190,38,193,0.4)", borderTopColor: purple, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                Loading audio...
-              </div>
-            )}
-
-            {/* Phase: candidates */}
-            {qs.phase === "candidates" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {qs.error && <p style={{ color: "#ef4444", fontSize: 12, margin: 0 }}>{qs.error}</p>}
-                {qs.candidates.length === 0 && !qs.error && (
-                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>No Deezer results found.</p>
-                )}
-                {qs.candidates.map((c, ci) => (
-                  <button key={c.id} type="button" onClick={() => selectCandidate(openRound, i, c)}
-                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer", textAlign: "left", width: "100%", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }}>
-                    {c.cover && <img src={c.cover} alt="" style={{ width: 44, height: 44, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title}</div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{c.artist} · {c.album} · {c.duration_formatted}</div>
-                    </div>
-                    <div style={{ flexShrink: 0, fontSize: 12, color: purple, fontWeight: 700 }}>Select →</div>
-                  </button>
-                ))}
-                <button type="button" onClick={() => searchForQuestion(openRound, i, q.option_a || q.correct_answer)}
-                  style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 11, textDecoration: "underline", cursor: "pointer", alignSelf: "flex-start", padding: 0 }}>
-                  Search again
-                </button>
-              </div>
-            )}
-
-            {/* Phase: trim */}
-            {qs.phase === "trim" && qs.audioBuffer && (
-              <div>
-                {qs.selectedCandidate && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, padding: "8px 12px", borderRadius: 8, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                    {qs.selectedCandidate.cover && <img src={qs.selectedCandidate.cover} alt="" style={{ width: 36, height: 36, borderRadius: 4, objectFit: "cover" }} />}
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{qs.selectedCandidate.title}</div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{qs.selectedCandidate.artist}</div>
-                    </div>
+            {rounds.map(r => {
+              const total = r.questions.filter(q => q.question_type === "audio").length;
+              const prepped = r.questions.filter(q => q.question_type === "audio" && q.option_b && q.option_b.includes("blob.vercel-storage.com")).length;
+              const ready = prepped === total;
+              return (
+                <div key={r.id} onClick={() => openForPrep(r)} className="fbh-panel" style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ font: "700 15px 'Inter'", marginBottom: 4 }}>{r.name}</div>
+                    <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>{total} music questions · {prepped}/{total} prepped · {new Date(r.created_at).toLocaleDateString()}</div>
                   </div>
-                )}
-                {qs.error && <p style={{ color: "#ef4444", fontSize: 12, marginBottom: 8 }}>{qs.error}</p>}
-                <WaveformEditor
-                  audioBuffer={qs.audioBuffer}
-                  peaks={qs.peaks}
-                  clipStart={qs.clipStart}
-                  clipEnd={qs.clipEnd}
-                  onStartChange={v => setState(i, { clipStart: v })}
-                  onEndChange={v => setState(i, { clipEnd: v })}
-                  onSave={() => saveClip(openRound, i)}
-                  onDiscard={() => setState(i, { phase: "candidates", audioBuffer: null, peaks: [] })}
-                  saving={false}
-                />
+                  <span className={ready ? "fbh-pill live" : "fbh-pill"}>{ready ? "✓ Ready" : "Prep →"}</span>
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {/* QUESTION PREP */}
+        {openRound && audioQuestions.map(({ q, i }, n) => {
+          const qs = questionStates[i] || { phase: "idle", candidates: [], error: "" };
+          return (
+            <div key={i} className="fbh-panel" style={{ border: `1px solid ${qs.phase === "done" ? "rgba(46,224,110,0.4)" : "#2E1A52"}` }}>
+              {/* Question header */}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <span className="fbh-chip on">Name That Tune {n + 1}</span>
+                    {qs.phase === "done" && <span style={{ color: "#2EE06E", font: "700 12px 'Inter'" }}>✓ Ready</span>}
+                  </div>
+                  <p style={{ font: "600 15px 'Inter'", margin: "0 0 4px", lineHeight: 1.5 }}>{q.question_text}</p>
+                  <p style={{ font: "600 13px 'Inter'", color: "#2EE06E", margin: 0 }}>Answer: {q.correct_answer}</p>
+                </div>
               </div>
-            )}
 
-            {/* Phase: saving */}
-            {qs.phase === "saving" && (
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Uploading clip...</div>
-            )}
+              {/* Phase: searching */}
+              {(qs.phase === "idle" || qs.phase === "searching") && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#B9A8D9", font: "400 13px 'Inter'" }}>
+                  <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid rgba(190,38,193,0.4)", borderTopColor: purple, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                  Searching Deezer for &ldquo;{q.option_a || q.correct_answer}&rdquo;…
+                </div>
+              )}
 
-            {/* Phase: done */}
-            {qs.phase === "done" && qs.savedUrl && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <audio controls src={getMediaUrl(qs.savedUrl) || undefined} style={{ width: "100%", height: 32 }} />
-                <button type="button" onClick={() => setState(i, { phase: "candidates", candidates: [], audioBuffer: null, peaks: [] })}
-                  style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 11, textDecoration: "underline", cursor: "pointer", alignSelf: "flex-start", padding: 0 }}>
-                  Replace clip
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })}
+              {/* Phase: loading audio */}
+              {qs.phase === "loading_audio" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#B9A8D9", font: "400 13px 'Inter'" }}>
+                  <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid rgba(190,38,193,0.4)", borderTopColor: purple, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                  Loading audio…
+                </div>
+              )}
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
+              {/* Phase: candidates */}
+              {qs.phase === "candidates" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {qs.error && <p style={{ color: "#FF3B4E", font: "400 12px 'Inter'", margin: 0 }}>{qs.error}</p>}
+                  {qs.candidates.length === 0 && !qs.error && (
+                    <p style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>No Deezer results found.</p>
+                  )}
+                  {qs.candidates.map((c) => (
+                    <button key={c.id} type="button" onClick={() => selectCandidate(openRound, i, c)}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 14, background: "#150A2E", border: "1px solid #2E1A52", cursor: "pointer", textAlign: "left", width: "100%" }}>
+                      {c.cover && <img src={c.cover} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ font: "600 13px 'Inter'", color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title}</div>
+                        <div style={{ font: "400 11px 'Inter'", color: "#6B5A8E" }}>{c.artist} · {c.album} · {c.duration_formatted}</div>
+                      </div>
+                      <div style={{ flexShrink: 0, font: "700 12px 'Inter'", color: purple }}>Select →</div>
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => searchForQuestion(openRound, i, q.option_a || q.correct_answer)}
+                    style={{ background: "none", border: "none", color: "#6B5A8E", font: "400 11px 'Inter'", textDecoration: "underline", cursor: "pointer", alignSelf: "flex-start", padding: 0 }}>
+                    Search again
+                  </button>
+                </div>
+              )}
+
+              {/* Phase: trim */}
+              {qs.phase === "trim" && qs.audioBuffer && (
+                <div>
+                  {qs.selectedCandidate && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, padding: "8px 12px", borderRadius: 12, background: "#150A2E", border: "1px solid #2E1A52" }}>
+                      {qs.selectedCandidate.cover && <img src={qs.selectedCandidate.cover} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} />}
+                      <div>
+                        <div style={{ font: "600 13px 'Inter'", color: "#fff" }}>{qs.selectedCandidate.title}</div>
+                        <div style={{ font: "400 11px 'Inter'", color: "#6B5A8E" }}>{qs.selectedCandidate.artist}</div>
+                      </div>
+                    </div>
+                  )}
+                  {qs.error && <p style={{ color: "#FF3B4E", font: "400 12px 'Inter'", marginBottom: 8 }}>{qs.error}</p>}
+                  <WaveformEditor
+                    audioBuffer={qs.audioBuffer}
+                    peaks={qs.peaks}
+                    clipStart={qs.clipStart}
+                    clipEnd={qs.clipEnd}
+                    onStartChange={v => setState(i, { clipStart: v })}
+                    onEndChange={v => setState(i, { clipEnd: v })}
+                    onSave={() => saveClip(openRound, i)}
+                    onDiscard={() => setState(i, { phase: "candidates", audioBuffer: null, peaks: [] })}
+                    saving={false}
+                  />
+                </div>
+              )}
+
+              {/* Phase: saving */}
+              {qs.phase === "saving" && (
+                <div style={{ font: "400 13px 'Inter'", color: "#B9A8D9" }}>Uploading clip…</div>
+              )}
+
+              {/* Phase: done */}
+              {qs.phase === "done" && qs.savedUrl && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <audio controls src={getMediaUrl(qs.savedUrl) || undefined} style={{ width: "100%", height: 32 }} />
+                  <button type="button" onClick={() => setState(i, { phase: "candidates", candidates: [], audioBuffer: null, peaks: [] })}
+                    style={{ background: "none", border: "none", color: "#6B5A8E", font: "400 11px 'Inter'", textDecoration: "underline", cursor: "pointer", alignSelf: "flex-start", padding: 0 }}>
+                    Replace clip
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    </HostShell>
   );
 }

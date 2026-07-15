@@ -7,6 +7,7 @@ import { HardDeckPanel } from "@/components/HardDeckPanel";
 import { PursuitPanel } from "@/components/PursuitPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc } from "@/lib/quiz/scoreService";
+import { teamInitials } from "@/components/TeamBadge";
 
 type Question = {
   id?: number;
@@ -31,9 +32,9 @@ type Answer = { session_pin: string; id: string; team_name: string; question_ind
 type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
 type Score = { team_name: string; total_points: number; round_points: number; };
 
-const typeColor: Record<string,string> = { multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6", picture:"#38bdf8", audio:"#fb923c" };
+const typeColor: Record<string,string> = { multiple_choice:"#D94FDC", text_answer:"#D94FDC", number:"#D94FDC", sequence:"#D94FDC", picture:"#D94FDC", audio:"#D94FDC" };
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune" };
-const cardColor: Record<string,string> = { block:"#60a5fa", reverse:"#f87171", x2:"#facc15" };
+const cardColor: Record<string,string> = { block:"#38A8FF", reverse:"#FF3B4E", x2:"#FFC533" };
 const cardLabel: Record<string,string> = { block:"Time-Out", reverse:"Reverse", x2:"Boost" };
 
 const RULES = {
@@ -1014,6 +1015,14 @@ function QuizControllerInner() {
   const teamHasAnswered = (teamName: string) => answers.some(a => a.team_name === teamName);
   const teamAnswer = (teamName: string) => answers.find(a => a.team_name === teamName)?.answer_text || "";
   const teamCardsUsed = (teamName: string) => new Set(unoCards.filter(c => c.team_name === teamName).map(c => c.card_type));
+  // Mission Control control-console requirement: submission order + badge +
+  // real answer + correct/incorrect after reveal. Derived from the same
+  // `answers` array and `isAnswerCorrect` helper scoring already uses — no
+  // gameplay/scoring/state change.
+  const orderedAnswers = [...answers].sort((a, b) => (a.submitted_at || "").localeCompare(b.submitted_at || ""));
+  const submissionOrder = (teamName: string) => { const i = orderedAnswers.findIndex(a => a.team_name === teamName); return i >= 0 ? i + 1 : null; };
+  const teamAnswerObj = (teamName: string) => answers.find(a => a.team_name === teamName) || null;
+  const answersRevealed = hostPhase === "answer" || hostPhase === "celebration";
   const PowerCardDots = ({ teamName }: { teamName: string }) => {
     const used = teamCardsUsed(teamName);
     return (
@@ -1043,7 +1052,7 @@ function QuizControllerInner() {
 
   if (!connected) {
     return (
-      <div style={{ minHeight:"100vh", background:"linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"sans-serif" }}>
+      <div style={{ minHeight:"100vh", background:"radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"sans-serif" }}>
         <div style={{ background:"rgba(45,10,94,0.7)", border:"2px solid #BE26C1", borderRadius:20, padding:48, textAlign:"center", width:400 }}>
           <div style={{ fontSize:28, fontWeight:700, color:"#BE26C1", letterSpacing:4, marginBottom:8 }}>Quiz Controller</div>
           <div style={{ fontSize:15, color:"rgba(255,255,255,0.7)", marginBottom:32 }}>Enter the session PIN to connect</div>
@@ -1059,17 +1068,21 @@ function QuizControllerInner() {
     );
   }
 
-  const phaseColor = hostPhase==="question"||hostPhase==="timer"?"#22c55e":hostPhase==="answer"?"#fbbf24":hostPhase==="celebration"?"#BE26C1":hostPhase==="preview"?"#38bdf8":hostPhase==="round_start"?"#fb923c":hostPhase==="round_end"?"#f87171":"#aaa";
-  const phaseBg = hostPhase==="question"||hostPhase==="timer"?"rgba(34,197,94,0.2)":hostPhase==="answer"?"rgba(251,191,36,0.2)":hostPhase==="celebration"?"rgba(190,38,193,0.2)":hostPhase==="preview"?"rgba(56,189,248,0.2)":hostPhase==="round_start"?"rgba(251,146,60,0.2)":hostPhase==="round_end"?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.1)";
+  // Fable law: the console phase indicator speaks in purple (green reserved for
+  // "correct" only). Live phases glow purple; idle phases sit neutral.
+  const phaseLive = hostPhase!=="waiting" && hostPhase!=="quiz_end";
+  const phaseColor = phaseLive ? "#D94FDC" : "#B9A8D9";
+  const phaseBg = phaseLive ? "rgba(190,38,193,0.15)" : "rgba(255,255,255,0.05)";
 
   return (
-    <div style={{ minHeight:"100vh", background:"linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", fontFamily:"sans-serif", color:"#fff", display:"flex", flexDirection:"column" as const }}>
+    <div className="fbh" style={{ minHeight:"100vh", background:"radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118", color:"#fff", display:"flex", flexDirection:"column" as const }}>
       {/* HEADER */}
-      <div style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 24px", borderBottom:"1px solid rgba(190,38,193,0.25)", background:"linear-gradient(180deg, rgba(26,5,53,0.85) 0%, rgba(13,2,37,0.85) 100%)", backdropFilter:"blur(12px)", flexWrap:"wrap" as const }}>
+      <div style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 24px", borderBottom:"1px solid #2E1A52", background:"rgba(21,10,46,0.6)", backdropFilter:"blur(12px)", flexWrap:"wrap" as const }}>
         <div style={{ width:34, height:34, borderRadius:"50%", flexShrink:0, border:"1.5px solid #BE26C1", boxShadow:"0 0 12px rgba(190,38,193,0.5)", display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(190,38,193,0.08)", overflow:"hidden" as const }}>
           <img src="/me-logo.jpg" alt="ME" style={{ width:"100%", height:"100%", objectFit:"cover" as const }} />
         </div>
-        <div style={{ fontSize:16, fontWeight:700, color:"#BE26C1", letterSpacing:3 }}>Quiz Controller</div>
+        <span className="fbh-wm" style={{ fontSize:16 }}><span className="q">QUIZ-</span>IT</span>
+        <span className="fbh-bc">Mission Control</span>
         <div style={{ padding:"4px 12px", borderRadius:999, background:"rgba(190,38,193,0.12)", border:"1px solid rgba(190,38,193,0.4)", fontSize:11, fontWeight:700, letterSpacing:1, color:"#BE26C1" }}>PIN: {sessionPin}</div>
         <div style={{ padding:"4px 12px", borderRadius:999, fontSize:11, fontWeight:700, letterSpacing:1, background:phaseBg, color:phaseColor, border:"1px solid rgba(255,255,255,0.12)", boxShadow:"0 0 10px "+phaseBg }}>
           {hostPhase.toUpperCase().replace("_"," ")}{hostPhase==="timer" ? " "+timeLeft+"s" : ""}
@@ -1100,7 +1113,7 @@ function QuizControllerInner() {
               </div>
 
               <div style={{ marginBottom:20 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>HOUSE RULES</div>
+                <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>HOUSE RULES</div>
                 <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
                   {RULES.house.map((r,i) => <li key={i}>{r}</li>)}
                 </ul>
@@ -1111,7 +1124,7 @@ function QuizControllerInner() {
                 const key = (rt === "multi_tap" || rt === "music") ? rt : "regular";
                 return (
                   <div style={{ marginBottom:20 }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>{(ROUND_TYPE_LABEL[key]||"GENERAL KNOWLEDGE").toUpperCase()} \u2014 CURRENT ROUND</div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>{(ROUND_TYPE_LABEL[key]||"GENERAL KNOWLEDGE").toUpperCase()} \u2014 CURRENT ROUND</div>
                     <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
                       {RULES[key as keyof typeof RULES].map((r,i) => <li key={i}>{r}</li>)}
                     </ul>
@@ -1121,7 +1134,7 @@ function QuizControllerInner() {
 
               {selectedRound && (
                 <div style={{ marginBottom:20 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>THE HARD DECK</div>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>THE HARD DECK</div>
                   <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
                     {RULES.hard_deck.map((r,i) => <li key={i}>{r}</li>)}
                   </ul>
@@ -1130,7 +1143,7 @@ function QuizControllerInner() {
 
               {selectedRound && (
                 <div style={{ marginBottom:20 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:"#facc15", letterSpacing:2, marginBottom:8 }}>SPIN TO WIN</div>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>SPIN TO WIN</div>
                   <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
                     {RULES.spin_to_win.map((r,i) => <li key={i}>{r}</li>)}
                   </ul>
@@ -1139,7 +1152,7 @@ function QuizControllerInner() {
 
               {selectedRound && (
                 <div>
-                  <div style={{ fontSize:13, fontWeight:700, color:"#38bdf8", letterSpacing:2, marginBottom:8 }}>THE PURSUIT</div>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>THE PURSUIT</div>
                   <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
                     {RULES.pursuit.map((r,i) => <li key={i}>{r}</li>)}
                   </ul>
@@ -1154,11 +1167,11 @@ function QuizControllerInner() {
       </div>
 
       {/* SCOREBOARD BUTTONS BAR */}
-      <div style={{ display:"flex", gap:10, padding:"10px 20px", borderBottom:"1px solid rgba(190,38,193,0.15)", background:"rgba(20,5,50,0.4)", alignItems:"center", flexWrap:"wrap" as const }}>
-        <span style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.35)", letterSpacing:2, marginRight:4 }}>SCOREBOARD:</span>
-        <button onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets} style={{ padding:"7px 16px", borderRadius:10, background:showScoreboardOnHandsets?"rgba(34,197,94,0.3)":"rgba(56,189,248,0.2)", border:"1px solid "+(showScoreboardOnHandsets?"#22c55e":"rgba(56,189,248,0.5)"), color:showScoreboardOnHandsets?"#22c55e":"#38bdf8", fontSize:11, fontWeight:600, cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>{showScoreboardOnHandsets ? "Hide from Handsets" : "Send to Handsets"}</button>
-        <button onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen} style={{ padding:"7px 16px", borderRadius:10, background:showScoreboard?"rgba(34,197,94,0.3)":"rgba(190,38,193,0.3)", border:"1px solid "+(showScoreboard?"#22c55e":"#BE26C1"), color:showScoreboard?"#22c55e":"#fff", fontSize:11, fontWeight:600, cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>{showScoreboard ? "Hide from Screen" : "Show on Screen"}</button>
-        <button onClick={doEndOfQuiz} style={{ padding:"10px 20px", borderRadius:8, background:"rgba(251,191,36,0.25)", border:"2px solid #fbbf24", color:"#fbbf24", fontSize:14, fontWeight:700, letterSpacing:1, cursor:"pointer", marginLeft:"auto", boxShadow:"0 0 16px rgba(251,191,36,0.3)" }}>{"\u{1F3C1}"} End Quiz</button>
+      <div style={{ display:"flex", gap:10, padding:"10px 20px", borderBottom:"1px solid #2E1A52", background:"rgba(21,10,46,0.4)", alignItems:"center", flexWrap:"wrap" as const }}>
+        <span className="fbh-lbl" style={{ margin:0 }}>Scoreboard</span>
+        <button className={showScoreboardOnHandsets ? "fbh-btn pri" : "fbh-btn"} style={{ height:34 }} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{showScoreboardOnHandsets ? "Hide from Handsets" : "Send to Handsets"}</button>
+        <button className={showScoreboard ? "fbh-btn pri" : "fbh-btn"} style={{ height:34 }} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{showScoreboard ? "Hide from Screen" : "Show on Screen"}</button>
+        <button className="fbh-btn" style={{ height:38, marginLeft:"auto" }} onClick={doEndOfQuiz}>End Quiz</button>
       </div>
 
       {/* MAIN CONTENT */}
@@ -1168,23 +1181,20 @@ function QuizControllerInner() {
             <div style={{ textAlign:"center", marginTop:80, color:"rgba(255,255,255,0.4)", fontSize:18 }}>Select a round from the dropdown above to begin</div>
           ) : hostPhase === "round_start" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>
-              <div style={{ fontSize:48, marginBottom:16 }}>🎵</div>
-              <div style={{ fontSize:32, fontWeight:800, color:"#fb923c", letterSpacing:3, marginBottom:8 }}>{selectedRound.name}</div>
-              <div style={{ fontSize:18, color:"rgba(255,255,255,0.5)", marginBottom:32 }}>{selectedRound.questions.length} questions</div>
-              <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Announce the round — then SPACE to preview Q1</div>
+              <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#fff", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>{selectedRound.name}</div>
+              <div style={{ font:"600 18px 'Inter'", color:"#B9A8D9", marginBottom:32 }}>{selectedRound.questions.length} questions</div>
+              <div style={{ font:"400 13px 'Inter'", color:"#6B5A8E", letterSpacing:".16em" }}>Announce the round — then SPACE to preview Q1</div>
             </div>
           ) : hostPhase === "round_end" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>
-              <div style={{ fontSize:48, marginBottom:16 }}>🏁</div>
-              <div style={{ fontSize:32, fontWeight:800, color:"#f87171", letterSpacing:3, marginBottom:8 }}>Round Complete</div>
-              <div style={{ fontSize:16, color:"rgba(255,255,255,0.4)", marginBottom:32 }}>SPACE to start next round, or use End of Quiz Reveal</div>
+              <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#fff", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>Round Complete</div>
+              <div style={{ font:"600 16px 'Inter'", color:"#B9A8D9", marginBottom:32 }}>SPACE to start next round, or use End of Quiz Reveal</div>
             </div>
           ) : hostPhase === "quiz_end" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>
-              <div style={{ fontSize:48, marginBottom:16 }}>🏆</div>
-              <div style={{ fontSize:32, fontWeight:800, color:"#fbbf24", letterSpacing:3, marginBottom:8 }}>Quiz Complete!</div>
-              <div style={{ fontSize:16, color:"rgba(255,255,255,0.4)", marginBottom:24 }}>Leaderboard reveal is live on the display screen</div>
-              <button onClick={doRevealNextTeam} style={{ padding:"16px 40px", borderRadius:14, background:"#BE26C1", border:"none", color:"#fff", fontSize:18, fontWeight:700, letterSpacing:2, cursor:"pointer", marginBottom:12, boxShadow:"0 0 24px rgba(190,38,193,0.5)" }}>Reveal Next Team</button>
+              <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#E8C36A", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 34px rgba(232,195,106,0.5)" }}>Quiz Complete</div>
+              <div style={{ font:"600 16px 'Inter'", color:"#B9A8D9", marginBottom:24 }}>Leaderboard reveal is live on the display screen</div>
+              <button onClick={doRevealNextTeam} style={{ padding:"16px 40px", borderRadius:14, background:"#BE26C1", border:"none", color:"#fff", font:"700 18px 'Inter'", letterSpacing:".08em", cursor:"pointer", marginBottom:12, boxShadow:"0 0 24px rgba(190,38,193,0.5)" }}>Reveal Next Team</button>
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2, marginBottom:24 }}>or press SPACE</div>
               <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
                 <button onClick={() => downloadWinnerCard(scores, teams, venueName, "vertical")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Story)</button>
@@ -1193,7 +1203,6 @@ function QuizControllerInner() {
             </div>
           ) : hostPhase === "celebration" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>
-              <div style={{ fontSize:72, marginBottom:16 }}>🎉</div>
               {currentQ && (
                 <div style={{ padding:"16px 20px", borderRadius:12, background:"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.4)", marginBottom:24, maxWidth:480, marginLeft:"auto", marginRight:"auto", textAlign:"left" as const }}>
                   <div style={{ fontSize:12, color:"rgba(34,197,94,0.7)", marginBottom:4, letterSpacing:2 }}>ANSWER</div>
@@ -1213,7 +1222,7 @@ function QuizControllerInner() {
                     </div>
                   )}
                   {spinOffered && !spinChoice && (
-                    <div style={{ fontSize:18, color:"#facc15", fontWeight:700, marginBottom:24 }}>{fastestTeam}, Spin to Win?</div>
+                    <div style={{ fontSize:18, color:"#D94FDC", fontWeight:700, marginBottom:24 }}>{fastestTeam}, Spin to Win?</div>
                   )}
                   {spinChoice === "spin" && (
                     <div style={{ width:"100%", maxWidth:420, margin:"0 auto 16px" }}>
@@ -1238,7 +1247,7 @@ function QuizControllerInner() {
                 <span style={{ background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", padding:"5px 16px", borderRadius:999, fontSize:13, fontWeight:700 }}>Q{qIdx+1} of {selectedRound.questions.length}</span>
                 <span style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.15)", color:typeColor[currentQ.question_type]||"#aaa", padding:"5px 16px", borderRadius:999, fontSize:13, fontWeight:600 }}>{typeLabel[currentQ.question_type]||currentQ.question_type}</span>
                 <span style={{ fontSize:13, color:"rgba(255,255,255,0.5)" }}>{currentQ.difficulty}</span>
-                {hostPhase === "preview" && <span style={{ padding:"5px 16px", borderRadius:999, background:"rgba(56,189,248,0.2)", border:"1px solid rgba(56,189,248,0.5)", fontSize:12, color:"#38bdf8" }}>HOST PREVIEW — not sent yet</span>}
+                {hostPhase === "preview" && <span style={{ padding:"5px 16px", borderRadius:999, background:"rgba(190,38,193,0.18)", border:"1px solid #8A1B8D", fontSize:12, color:"#D94FDC" }}>HOST PREVIEW — not sent yet</span>}
                 {hostPhase === "timer" && (
                   <div style={{ marginLeft:"auto", width:52, height:52, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"3px solid "+(timeLeft<=3?"#ef4444":"#BE26C1"), display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:800, color:timeLeft<=3?"#ef4444":"#BE26C1" }}>{timeLeft}</div>
                 )}
@@ -1293,11 +1302,11 @@ function QuizControllerInner() {
                 <div style={{ marginBottom:20 }}>
                   {currentQ.option_b.includes("youtube.com") ? (
                     <a href={currentQ.option_b} target="_blank" rel="noopener noreferrer"
-                      style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 26px", borderRadius:12, background:"rgba(251,146,60,0.2)", border:"1px solid rgba(251,146,60,0.5)", color:"#fb923c", textDecoration:"none", fontSize:16, fontWeight:600 }}>
+                      style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 26px", borderRadius:14, background:"#150A2E", border:"1px solid #2E1A52", color:"#D94FDC", textDecoration:"none", fontSize:16, fontWeight:600 }}>
                       Play on YouTube
                     </a>
                   ) : (
-                    <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 26px", borderRadius:12, background:"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.4)", color:"#4ade80", fontSize:14, fontWeight:600 }}>
+                    <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 26px", borderRadius:14, background:"rgba(190,38,193,0.12)", border:"1px solid #8A1B8D", color:"#D94FDC", fontSize:14, fontWeight:600 }}>
                       \u266a Auto-playing on display screen ({currentQ.playback_mode === "manual" ? "manual play button" : "auto-play"})
                     </div>
                   )}
@@ -1312,47 +1321,20 @@ function QuizControllerInner() {
                 </div>
               )}
 
-              <div style={{ display:"flex", gap:10, flexWrap:"wrap" as const, marginTop:20, paddingTop:20, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
-                <button onClick={doStartRound}
-                  style={{ padding:"11px 22px", borderRadius:10, background:"rgba(251,146,60,0.3)", border:"1px solid rgba(251,146,60,0.6)", color:"#fb923c", cursor:"pointer", fontSize:13, fontWeight:700, boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>
-                  Start Round
-                </button>
-                <button onClick={() => doPreviewQuestion(qIdx)} disabled={hostPhase==="preview"}
-                  style={{ padding:"11px 22px", borderRadius:10, background:hostPhase==="preview"?"rgba(255,255,255,0.04)":"rgba(56,189,248,0.2)", border:"1px solid "+(hostPhase==="preview"?"rgba(255,255,255,0.1)":"rgba(56,189,248,0.5)"), color:hostPhase==="preview"?"rgba(255,255,255,0.3)":"#38bdf8", cursor:hostPhase==="preview"?"not-allowed":"pointer", fontSize:13, fontWeight:700, boxShadow:hostPhase==="preview"?"none":"0 2px 8px rgba(0,0,0,0.2)" }}>
-                  Preview Q
-                </button>
-                <button onClick={doSendQuestion} disabled={hostPhase!=="preview"}
-                  style={{ padding:"11px 22px", borderRadius:10, background:hostPhase==="preview"?"rgba(190,38,193,0.4)":"rgba(255,255,255,0.04)", border:"1px solid "+(hostPhase==="preview"?"#BE26C1":"rgba(255,255,255,0.1)"), color:hostPhase==="preview"?"#fff":"rgba(255,255,255,0.3)", cursor:hostPhase==="preview"?"pointer":"not-allowed", fontSize:13, fontWeight:700, boxShadow:hostPhase==="preview"?"0 2px 8px rgba(0,0,0,0.2)":"none" }}>
-                  Send Live
-                </button>
-                <button onClick={doStartTimer} disabled={hostPhase==="timer"}
-                  style={{ padding:"11px 22px", borderRadius:10, background:hostPhase==="timer"?"rgba(255,255,255,0.04)":"rgba(251,191,36,0.3)", border:"1px solid "+(hostPhase==="timer"?"rgba(255,255,255,0.1)":"rgba(251,191,36,0.6)"), color:hostPhase==="timer"?"rgba(255,255,255,0.3)":"#fbbf24", cursor:hostPhase==="timer"?"not-allowed":"pointer", fontSize:13, fontWeight:700, boxShadow:hostPhase==="timer"?"none":"0 2px 8px rgba(0,0,0,0.2)" }}>
-                  {hostPhase==="timer" ? timeLeft+"s" : "Timer"}
-                </button>
-                <button onClick={doRevealAnswer} disabled={hostPhase==="answer"}
-                  style={{ padding:"11px 22px", borderRadius:10, background:hostPhase==="answer"?"rgba(255,255,255,0.04)":"rgba(34,197,94,0.3)", border:"1px solid "+(hostPhase==="answer"?"rgba(255,255,255,0.1)":"rgba(34,197,94,0.6)"), color:hostPhase==="answer"?"rgba(255,255,255,0.3)":"#22c55e", cursor:hostPhase==="answer"?"not-allowed":"pointer", fontSize:13, fontWeight:700, boxShadow:hostPhase==="answer"?"none":"0 2px 8px rgba(0,0,0,0.2)" }}>
-                  Reveal
-                </button>
-                <button onClick={doCelebrate}
-                  style={{ padding:"11px 22px", borderRadius:10, background:"rgba(251,191,36,0.2)", border:"1px solid rgba(251,191,36,0.5)", color:"#fbbf24", cursor:"pointer", fontSize:13, fontWeight:700, boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>
-                  Celebrate
-                </button>
-                <div style={{ width:1, height:28, background:"rgba(255,255,255,0.15)", margin:"0 6px" }} />
-                <button onClick={doDumpQuestion} title="Skip this question without scoring it - stays in the round for next time"
-                  style={{ padding:"9px 16px", borderRadius:10, background:"transparent", border:"1px solid rgba(239,68,68,0.35)", color:"rgba(239,68,68,0.7)", cursor:"pointer", fontSize:11, fontWeight:600 }}>
-                  Dump Q
-                </button>
-                <div style={{ width:1, height:28, background:"rgba(255,255,255,0.15)", margin:"0 6px" }} />
+              <div style={{ display:"flex", gap:10, flexWrap:"wrap" as const, marginTop:20, paddingTop:20, borderTop:"1px solid #2E1A52" }}>
+                <button className="fbh-btn" onClick={doStartRound}>Start Round</button>
+                <button className="fbh-btn" onClick={() => doPreviewQuestion(qIdx)} disabled={hostPhase==="preview"}>Preview Q</button>
+                <button className={hostPhase==="preview" ? "fbh-btn pri" : "fbh-btn"} onClick={doSendQuestion} disabled={hostPhase!=="preview"}>Send Live</button>
+                <button className="fbh-btn" onClick={doStartTimer} disabled={hostPhase==="timer"}>{hostPhase==="timer" ? timeLeft+"s" : "Timer"}</button>
+                <button className="fbh-btn" onClick={doRevealAnswer} disabled={hostPhase==="answer"}>Reveal</button>
+                <button className="fbh-btn" onClick={doCelebrate}>Celebrate</button>
+                <div style={{ width:1, height:28, background:"#2E1A52", margin:"0 6px" }} />
+                <button className="fbh-btn" style={{ height:36, opacity:0.75 }} onClick={doDumpQuestion} title="Skip this question without scoring it - stays in the round for next time">Dump Q</button>
+                <div style={{ width:1, height:28, background:"#2E1A52", margin:"0 6px" }} />
                 {isLastQ ? (
-                  <button onClick={doEndRound}
-                    style={{ padding:"11px 22px", borderRadius:10, background:"rgba(248,113,113,0.3)", border:"1px solid #f87171", color:"#f87171", cursor:"pointer", fontSize:13, fontWeight:700, marginLeft:"auto", boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>
-                    End Round
-                  </button>
+                  <button className="fbh-btn" style={{ marginLeft:"auto" }} onClick={doEndRound}>End Round</button>
                 ) : (
-                  <button onClick={() => doPreviewQuestion(qIdx+1)}
-                    style={{ padding:"11px 22px", borderRadius:10, background:"#BE26C1", border:"none", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700, marginLeft:"auto", boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>
-                    Next Q
-                  </button>
+                  <button className="fbh-btn pri" style={{ marginLeft:"auto" }} onClick={() => doPreviewQuestion(qIdx+1)}>Next Q</button>
                 )}
               </div>
             </div>
@@ -1361,60 +1343,60 @@ function QuizControllerInner() {
 
         {/* RIGHT PANEL */}
         <div style={{ overflowY:"auto" as const, display:"flex", flexDirection:"column" as const }}>
-          <div style={{ padding:"14px 18px", borderBottom:"1px solid rgba(190,38,193,0.2)", background:"rgba(45,10,94,0.4)" }}>
+          <div style={{ padding:"14px 18px", borderBottom:"1px solid #2E1A52", background:"rgba(21,10,46,0.5)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-              <div style={{ fontSize:13, fontWeight:800, color:"#BE26C1", letterSpacing:2 }}>ROUND SETTINGS</div>
-              <button onClick={() => setRoundSettingsOpen((p: boolean) => !p)} style={{ fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:8, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", cursor:"pointer" }}>{roundSettingsOpen ? "Hide" : "Edit"}</button>
+              <div className="fbh-lbl" style={{ margin:0 }}>Round Settings</div>
+              <button className="fbh-btn" style={{ height:28, padding:"0 12px", fontSize:11 }} onClick={() => setRoundSettingsOpen((p: boolean) => !p)}>{roundSettingsOpen ? "Hide" : "Edit"}</button>
             </div>
             {roundSettingsOpen && (
               <div style={{ display:"flex", flexDirection:"column" as const, gap:10 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <label style={{ fontSize:12, color:"rgba(255,255,255,0.65)", minWidth:110 }}>Points/question</label>
-                  <input type="number" value={pointsPerQ} onChange={e => setPointsPerQ(Number(e.target.value))} style={{ width:60, padding:"5px 8px", borderRadius:8, background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:14, textAlign:"center" as const }} />
+                  <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Points/question</label>
+                  <input type="number" value={pointsPerQ} onChange={e => setPointsPerQ(Number(e.target.value))} style={{ width:60, padding:"6px 8px", borderRadius:10, background:"#0A0118", color:"#fff", border:"1px solid #2E1A52", font:"600 14px 'Inter'", textAlign:"center" as const }} />
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <label style={{ fontSize:12, color:"rgba(255,255,255,0.65)", minWidth:110 }}>Timer - Picture/Audio (s)</label>
-                  <input type="number" value={timerDuration} onChange={e => setTimerDuration(Number(e.target.value))} style={{ width:60, padding:"5px 8px", borderRadius:8, background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:14, textAlign:"center" as const }} />
+                  <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Timer - Picture/Audio (s)</label>
+                  <input type="number" value={timerDuration} onChange={e => setTimerDuration(Number(e.target.value))} style={{ width:60, padding:"6px 8px", borderRadius:10, background:"#0A0118", color:"#fff", border:"1px solid #2E1A52", font:"600 14px 'Inter'", textAlign:"center" as const }} />
                 </div>
-                <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>Multiple Choice/Sequence/Multi Tap/Number = 15s, written answers = 30s (fixed)</div>
+                <div style={{ font:"400 11px 'Inter'", color:"#6B5A8E" }}>Multiple Choice/Sequence/Multi Tap/Number = 15s, written answers = 30s (fixed)</div>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <label style={{ fontSize:12, color:"rgba(255,255,255,0.65)", minWidth:110 }}>Max time bonus</label>
-                  <input type="number" value={timeBonus} onChange={e => setTimeBonus(Number(e.target.value))} style={{ width:60, padding:"5px 8px", borderRadius:8, background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:14, textAlign:"center" as const }} />
+                  <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Max time bonus</label>
+                  <input type="number" value={timeBonus} onChange={e => setTimeBonus(Number(e.target.value))} style={{ width:60, padding:"6px 8px", borderRadius:10, background:"#0A0118", color:"#fff", border:"1px solid #2E1A52", font:"600 14px 'Inter'", textAlign:"center" as const }} />
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <label style={{ fontSize:12, color:"rgba(255,255,255,0.65)", minWidth:110 }}>Danger Zone</label>
-                  <button onClick={() => setDangerZone((p: boolean) => !p)} style={{ padding:"5px 14px", borderRadius:8, background:dangerZone?"rgba(239,68,68,0.3)":"rgba(255,255,255,0.08)", border:"1px solid "+(dangerZone?"#ef4444":"rgba(255,255,255,0.2)"), color:dangerZone?"#ef4444":"#aaa", fontSize:12, fontWeight:600, cursor:"pointer" }}>{dangerZone ? "ON" : "OFF"}</button>
+                  <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Danger Zone</label>
+                  <button onClick={() => setDangerZone((p: boolean) => !p)} style={{ padding:"6px 16px", borderRadius:10, background:dangerZone?"rgba(190,38,193,0.25)":"#150A2E", border:"1px solid "+(dangerZone?"#D94FDC":"#2E1A52"), color:dangerZone?"#fff":"#6B5A8E", font:"700 12px 'Inter'", letterSpacing:".08em", cursor:"pointer" }}>{dangerZone ? "ON" : "OFF"}</button>
                 </div>
                 {dangerZone && (
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <label style={{ fontSize:12, color:"rgba(255,255,255,0.65)", minWidth:110 }}>Penalty pts</label>
-                    <input type="number" value={dangerPenalty} onChange={e => setDangerPenalty(Number(e.target.value))} style={{ width:60, padding:"5px 8px", borderRadius:8, background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(239,68,68,0.4)", fontSize:14, textAlign:"center" as const }} />
+                    <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Penalty pts</label>
+                    <input type="number" value={dangerPenalty} onChange={e => setDangerPenalty(Number(e.target.value))} style={{ width:60, padding:"6px 8px", borderRadius:10, background:"#0A0118", color:"#fff", border:"1px solid #2E1A52", font:"600 14px 'Inter'", textAlign:"center" as const }} />
                   </div>
                 )}
                 {currentQ?.question_type === "multi_tap" && (
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <label style={{ fontSize:12, color:"rgba(255,255,255,0.65)", minWidth:110 }}>Wipeout Mode</label>
-                    <button onClick={() => setWipeoutMode((p: boolean) => !p)} style={{ padding:"5px 14px", borderRadius:8, background:wipeoutMode?"rgba(239,68,68,0.3)":"rgba(255,255,255,0.08)", border:"1px solid "+(wipeoutMode?"#ef4444":"rgba(255,255,255,0.2)"), color:wipeoutMode?"#ef4444":"#aaa", fontSize:12, fontWeight:600, cursor:"pointer" }}>{wipeoutMode ? "ON" : "OFF"}</button>
-                    <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>Q6-10 only: wrong tap zeroes that question</span>
+                    <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Wipeout Mode</label>
+                    <button onClick={() => setWipeoutMode((p: boolean) => !p)} style={{ padding:"6px 16px", borderRadius:10, background:wipeoutMode?"rgba(190,38,193,0.25)":"#150A2E", border:"1px solid "+(wipeoutMode?"#D94FDC":"#2E1A52"), color:wipeoutMode?"#fff":"#6B5A8E", font:"700 12px 'Inter'", letterSpacing:".08em", cursor:"pointer" }}>{wipeoutMode ? "ON" : "OFF"}</button>
+                    <span style={{ font:"400 11px 'Inter'", color:"#6B5A8E" }}>Q6-10 only: wrong tap zeroes that question</span>
                   </div>
                 )}
-                <button onClick={resetRoundPoints} style={{ padding:"7px 14px", borderRadius:8, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.55)", fontSize:12, fontWeight:600, cursor:"pointer", marginTop:4 }}>Reset Round Points</button>
+                <button className="fbh-btn" style={{ height:34, marginTop:4 }} onClick={resetRoundPoints}>Reset Round Points</button>
               </div>
             )}
             {!roundSettingsOpen && (
-              <div style={{ fontSize:12, color:"rgba(255,255,255,0.45)" }}>{pointsPerQ}pts/q · {getTimerForQuestion(currentQ, timerDuration)}s · +{timeBonus} bonus · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal"}</div>
+              <div style={{ font:"400 12px 'Inter'", color:"#6B5A8E" }}>{pointsPerQ}pts/q · {getTimerForQuestion(currentQ, timerDuration)}s · +{timeBonus} bonus · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal"}</div>
             )}
           </div>
 
           <div style={{ padding:"14px 18px", flex:1, overflowY:"auto" as const }}>
-            <div style={{ fontSize:13, fontWeight:800, color:"#BE26C1", letterSpacing:2, marginBottom:12 }}>LEADERBOARD</div>
+            <div style={{ font:"800 13px 'Inter'", color:"#D94FDC", letterSpacing:".14em", marginBottom:12 }}>LEADERBOARD</div>
             {scores.length === 0 && teams.length > 0 && (
               <>
                 <button onClick={() => ensureScores(sessionPin, teams)} style={{ width:"100%", padding:"9px", borderRadius:10, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:12 }}>Initialise Scores</button>
                 {teams.map(t => (
                   <div key={t.id} style={{ padding:"10px 12px", borderRadius:12, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", marginBottom:8 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                      <div style={{ width:7, height:7, borderRadius:"50%", background:"#22c55e", flexShrink:0 }} />
+                      <div style={{ width:7, height:7, borderRadius:"50%", background:"#D94FDC", flexShrink:0 }} />
                       <span style={{ fontWeight:700, fontSize:13, flex:1, color:"#fff" }}>{t.team_name}</span>
                       <PowerCardDots teamName={t.team_name} />
                     </div>
@@ -1434,12 +1416,29 @@ function QuizControllerInner() {
                 <div key={s.team_name} style={{ padding:"10px 12px", borderRadius:12, background:isFastest?"rgba(190,38,193,0.15)":"rgba(255,255,255,0.045)", border:"1px solid "+(isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)"), marginBottom:8, boxShadow:"0 1px 4px rgba(0,0,0,0.25)" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                     <span style={{ fontSize:16, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
+                    <span className="fbh-crest" style={{ width:20, height:20, fontSize:7, flexShrink:0 }}>{teamInitials(s.team_name)}</span>
                     <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff" }}>{s.team_name}{isFastest?" ⚡":""}</span>
-                    <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#22c55e":"rgba(255,255,255,0.15)", flexShrink:0 }} />
-                    <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const }}>{s.total_points}</span>
+                    <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#D94FDC":"rgba(185,168,217,0.2)", flexShrink:0 }} />
+                    <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const, fontVariantNumeric:"tabular-nums" }}>{s.total_points}</span>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", paddingLeft:36, marginTop:4, gap:6 }}>
-                    {answered && <span style={{ fontSize:13, color:"#22c55e", fontStyle:"italic", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>}
+                    {answered ? (() => {
+                      // Submission order + reveal-gated correctness. Green/red only
+                      // AFTER reveal (design law: green = correct only). Before
+                      // reveal the answer shows neutral, never green.
+                      const ord = submissionOrder(s.team_name);
+                      const ansObj = teamAnswerObj(s.team_name);
+                      const correct = answersRevealed && ansObj && currentQ ? isAnswerCorrect(ansObj, currentQ) : null;
+                      const ansColor = correct === true ? "#2EE06E" : correct === false ? "#FF3B4E" : "rgba(255,255,255,0.72)";
+                      return (
+                        <>
+                          {ord !== null && <span style={{ fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.4)", flexShrink:0, minWidth:22 }}>#{ord}</span>}
+                          <span style={{ fontSize:13, color:ansColor, fontWeight:600, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>
+                        </>
+                      );
+                    })() : (
+                      <span style={{ fontSize:12, color:"rgba(255,255,255,0.3)", fontStyle:"italic", flex:1 }}>waiting…</span>
+                    )}
                     <PowerCardDots teamName={s.team_name} />
                     {adjustTeam === s.team_name ? (
                       <div style={{ display:"flex", gap:4, marginLeft:"auto" }}>

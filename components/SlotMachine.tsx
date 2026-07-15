@@ -363,7 +363,7 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 24px 8px", borderBottom: "1px solid rgba(190,38,193,0.3)", background: "#0d0520", flexShrink: 0 }}>
         <div style={{ width: 52, height: 52, borderRadius: "50%", background: "radial-gradient(circle, #3a0a4a, #1a0530)", border: "2px solid #BE26C1", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 14px rgba(190,38,193,0.6)", fontSize: 14, color: "#BE26C1", flexShrink: 0, fontWeight: 700 }}>ME</div>
         <div style={{ textAlign: "center", flex: 1 }}>
-          <div style={{ fontSize: "clamp(18px,2.5vw,32px)", letterSpacing: 6, color: "#fff", textShadow: "0 0 16px rgba(190,38,193,0.6)" }}>Quiz-It</div>
+          <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: "clamp(18px,2.5vw,32px)", letterSpacing: ".08em", textShadow: "0 0 16px rgba(190,38,193,0.6)" }}><span style={{ color: "#BE26C1" }}>QUIZ-</span><span style={{ color: "#fff" }}>IT</span></div>
           <div style={{ fontSize: "clamp(8px,1vw,13px)", letterSpacing: 3, color: "rgba(190,38,193,0.8)", marginTop: 2 }}>powered by Mac Entertainment</div>
           <div style={{ fontSize: "clamp(7px,0.8vw,11px)", letterSpacing: 2, color: "rgba(255,255,255,0.3)" }}>by Sonya Mac</div>
         </div>
@@ -374,7 +374,7 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 24px 8px", background: "#0d0520", flexShrink: 0, borderBottom: "1px solid rgba(190,38,193,0.2)" }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, letterSpacing: 3, color: "rgba(190,38,193,0.6)", marginBottom: 4 }}>CURRENT TEAM</div>
-          <div style={{ fontSize: "clamp(14px,1.8vw,22px)", color: teamError ? "#f87171" : "#fff", fontWeight: 700, letterSpacing: 2, minHeight: 28 }}>
+          <div style={{ fontSize: "clamp(14px,1.8vw,22px)", color: teamError ? "#FF3B4E" : "#fff", fontWeight: 700, letterSpacing: 2, minHeight: 28 }}>
             {teamLoading ? "Loading..." : teamError ? "No team found" : teamName}
           </div>
           {victorySong ? <div style={{ fontSize: 10, color: "rgba(190,38,193,0.5)", marginTop: 2, letterSpacing: 1 }}>{victorySong.replace(/\.mp3$/i,"").replace(/SQS\s*$/i,"").trim()}</div> : null}
@@ -386,8 +386,8 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#0d0818", borderLeft: "2px solid #7a107e", borderRight: "2px solid #7a107e", overflow: "hidden" }}>
         <BulbRow />
-        <div style={{ textAlign: "center", padding: "10px 0 8px", fontSize: "clamp(24px,4vw,56px)", letterSpacing: 10, color: "#fff", textShadow: "0 0 24px rgba(190,38,193,0.7)", flexShrink: 0 }}>
-          Spin <span style={{ color: "#BE26C1" }}>to</span> Win
+        <div style={{ textAlign: "center", fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", padding: "10px 0 8px", fontSize: "clamp(22px,3.6vw,50px)", letterSpacing: ".14em", color: "#fff", textShadow: "0 0 24px rgba(190,38,193,0.7)", flexShrink: 0 }}>
+          <span style={{ color: "#BE26C1" }}>SPIN</span> TO WIN
         </div>
         <div style={{ height: 1, background: "linear-gradient(90deg, transparent, #BE26C1 50%, transparent)", margin: "0 20px", flexShrink: 0 }} />
 

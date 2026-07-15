@@ -9,6 +9,7 @@ import { SlotReels } from "@/components/SlotReels";
 import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitCorrectAnswerText, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { PursuitBoard } from "@/components/PursuitBoard";
 import { teamInitials } from "@/components/TeamBadge";
+import { RoundStart, RoundEnd, Intermission } from "@/components/fable/DisplayStates";
 
 type Question = {
   question_text: string;
@@ -931,19 +932,17 @@ function DisplayScreenInner() {
 
   if (phase === "waiting" || phase === "round_start" || phase === "round_end") {
     if (phase !== "waiting") {
+      // Fable Display "show structure" states, wired to the real phase +
+      // roundNumber/roundName the state machine already provides.
       return (
-        <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font }}>
-      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-          <img src="/me-logo.jpg" alt="ME" style={{ width:80, height:80, borderRadius:"50%", marginBottom:24, border:"3px solid "+purple }} />
-          <div style={{ fontSize:65, fontWeight:800, color:purple, letterSpacing:6, marginBottom:8, textShadow:"0 0 40px rgba(190,38,193,0.6)" }}>Quiz-It</div>
-          <div style={{ fontSize:20, color:"rgba(255,255,255,0.4)", letterSpacing:3, marginBottom:48 }}>Powered by Mac Entertainment</div>
-          <div style={{ padding:"32px 64px", borderRadius:20, background:"rgba(255,255,255,0.05)", border:"2px solid rgba(190,38,193,0.4)", textAlign:"center" }}>
-            <div style={{ fontSize:22, color:"rgba(255,255,255,0.5)", letterSpacing:4, marginBottom:12 }}>JOIN AT</div>
-            <div style={{ fontSize:35, color:"#fff", fontWeight:700, letterSpacing:2, marginBottom:24 }}>quiz-it.macentertainmentuae.com/join</div>
-            <div style={{ fontSize:20, color:"rgba(255,255,255,0.4)", letterSpacing:3, marginBottom:12 }}>ENTER PIN</div>
-            <div style={{ fontSize:150, fontWeight:900, color:"#fff", letterSpacing:24, fontFamily:"monospace", lineHeight:1, textShadow:"0 0 60px rgba(190,38,193,0.8)" }}>{sessionPin}</div>
-          </div>
-        </div>
+        <>
+          <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
+          {phase === "round_start" ? (
+            <RoundStart roundNumber={roundNumber} roundName={roundName || "GENERAL KNOWLEDGE"} />
+          ) : (
+            <RoundEnd roundNumber={roundNumber} captions={fastestTeam ? [`FASTEST: ${fastestTeam}`] : []} />
+          )}
+        </>
       );
     }
     return (
@@ -986,14 +985,22 @@ function DisplayScreenInner() {
   // INTERMISSION
   if (phase === "intermission") {
     const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes;
+    // No venue content → the approved Fable holding shot. With content →
+    // preserve the working offers/WhatsApp/other-quizzes advertising layout.
+    if (!hasContent) {
+      return (
+        <>
+          <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
+          <Intermission nextLabel={`ROUND ${roundNumber + 1} COMING UP`} />
+        </>
+      );
+    }
     return (
       <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, padding:48 }}>
       <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         <div style={{ fontSize:42, fontWeight:800, color:purple, letterSpacing:5, marginBottom:8 }}>INTERMISSION</div>
         <div style={{ fontSize:18, color:"rgba(255,255,255,0.4)", letterSpacing:2, marginBottom:40 }}>Next round starting soon...</div>
-        {!hasContent ? (
-          <img src="/me-logo.jpg" alt="ME" style={{ width:100, height:100, borderRadius:"50%", border:"3px solid "+purple }} />
-        ) : (
+        {(
           <div style={{ display:"flex", gap:48, alignItems:"flex-start", maxWidth:"90vw" }}>
             <div style={{ display:"flex", flexDirection:"column", gap:24, maxWidth:500 }}>
               {intermissionOffers && (
@@ -1020,14 +1027,27 @@ function DisplayScreenInner() {
       </div>
     );
   }
-  // SPIN TO WIN
+  // SPIN TO WIN — approved Fable "summons frame": Bruno title + purple flood,
+  // the earning honoured. The machine itself (SlotReels) is unchanged — same
+  // props, nonce, scoring, audio and sync. Presentation-only wrapper.
   if (phase === "spin_to_win") {
     return (
-      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, padding:40 }}>
-      <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-        <div style={{ width:"100%", maxWidth:900 }}>
+      <div className="fbl fbl-stage" style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40 }}>
+        <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
+        <div style={{ position:"relative", zIndex:2, textAlign:"center", marginBottom:24 }}>
+          <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:"clamp(28px,5vw,72px)", letterSpacing:".12em", textShadow:"0 0 34px rgba(190,38,193,.6)" }}>
+            <span style={{ color:"#BE26C1" }}>SPIN</span> TO WIN
+          </div>
+          {fastestTeam && (
+            <div style={{ font:"600 clamp(14px,2vw,26px) 'Inter'", color:"#B9A8D9", letterSpacing:".18em", marginTop:8 }}>
+              FASTEST CORRECT ANSWER: {fastestTeam.toUpperCase()}
+            </div>
+          )}
+        </div>
+        <div style={{ position:"relative", zIndex:2, width:"100%", maxWidth:900 }}>
           <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeam || "Team"} victorySong={fastestSong || undefined} size="full" audioEnabled={true} />
         </div>
+        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
       </div>
     );
   }
@@ -1330,7 +1350,7 @@ function DisplayScreenInner() {
         <div className="qd-ring" />
         <div className="qd">
           <div className="qd-top">
-            <span>{(roundName || "GENERAL KNOWLEDGE").toUpperCase()} · QUESTION {questionIndex + 1}</span>
+            <span><span className="qd-kick">QUESTION {questionIndex + 1}</span> · {(roundName || "GENERAL KNOWLEDGE").toUpperCase()}</span>
             <span>{tLeft > 0 ? tLeft + "S · SPEED BONUS" : "SPEED BONUS"}</span>
           </div>
           <div className="qd-q">{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>

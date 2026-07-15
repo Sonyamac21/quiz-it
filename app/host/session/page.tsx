@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { HostShell, HostButton, HostInput, HostLabel, HostFrame, HostBody, HostPad, HostCrest, HostLoading, TopSpacer, Pill } from "@/components/fable/HostConsole";
+
+const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
 type Team = {
   id: string;
@@ -209,164 +212,174 @@ export default function SessionPage() {
     setStatus("finished");
   }
 
+  async function launchDisplay() {
+    if (!pin) return;
+    try {
+      if ("getScreenDetails" in window) {
+        const details = await (window as unknown as { getScreenDetails: () => Promise<{ screens: { isPrimary: boolean; left: number; top: number; width: number; height: number }[] }> }).getScreenDetails();
+        const screens = details.screens;
+        const target = screens.find((s) => !s.isPrimary) || screens[screens.length - 1];
+        if (target && screens.length > 1) {
+          window.open("/host/display?pin=" + pin, "display", "left=" + target.left + ",top=" + target.top + ",width=" + target.width + ",height=" + target.height);
+          return;
+        }
+      }
+    } catch {}
+    window.open("/host/display?pin=" + pin, "display", "width=1920,height=1080");
+  }
+
+  const textareaStyle: React.CSSProperties = { width: "100%", padding: "11px 14px", borderRadius: 14, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", fontSize: 13, fontFamily: "'Inter',sans-serif", marginBottom: 10, outline: "none", resize: "vertical" };
+  const host = typeof window !== "undefined" ? window.location.host : "quiz-it.macentertainmentuae.com";
+
   if (restoringHost) {
     return (
-      <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.5)", fontFamily: "sans-serif" }}>
-        Reconnecting...
-      </div>
+      <HostShell>
+        <div style={{ minHeight: "100vh", background: STAGE_BG, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <HostLoading title="Session Recovery" note="Restoring your show — everything is safe." />
+        </div>
+      </HostShell>
     );
   }
+
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color: "#fff", padding: "32px 48px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
-        <img src="/me-logo.jpg" alt="ME" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover" }} />
-        <div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: "#BE26C1", letterSpacing: 4 }}>Quiz Session</div>
-          <div style={{ fontSize: 14, color: "rgba(190,38,193,0.8)", letterSpacing: 2 }}>Quiz-It · Powered by Mac Entertainment</div>
+    <HostShell>
+      <div style={{ minHeight: "100vh", background: STAGE_BG, color: "#fff", padding: "24px 32px" }}>
+        {/* TOP BAR — wordmark · breadcrumb · fixed nav */}
+        <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 24 }}>
+          <img src="/me-logo.jpg" alt="ME" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} />
+          <span className="fbh-wm" style={{ fontSize: 16 }}><span className="q">QUIZ-</span>IT</span>
+          <span className="fbh-bc">Session Creation</span>
+          <TopSpacer />
+          <a className="fbh-btn" href="/host/rounds">Rounds</a>
+          <a className="fbh-btn pri" href={"/host/quiz?pin=" + (pin || "")}>Quiz Controller</a>
+          <a className="fbh-btn" href="/host/questions">Questions</a>
+          <HostButton onClick={launchDisplay} disabled={!pin}>Launch Display</HostButton>
         </div>
-        <div style={{ flex: 1 }} />
-        <a href="/host/rounds" style={{ padding: "10px 20px", borderRadius: 10, border: "1px solid rgba(190,38,193,0.5)", background: "rgba(190,38,193,0.06)", color: "#BE26C1", textDecoration: "none", fontSize: 14, fontWeight: 600, letterSpacing: 2, boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>Rounds</a>
-        <a href={"/host/quiz?pin=" + (pin || "")} style={{ padding: "10px 20px", borderRadius: 10, background: "#BE26C1", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 600, letterSpacing: 2, boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>Quiz Controller</a>
-          <a href="/host/questions" style={{ padding: "10px 20px", borderRadius: 10, border: "1px solid rgba(190,38,193,0.5)", background: "rgba(190,38,193,0.06)", color: "#BE26C1", textDecoration: "none", fontSize: 14, fontWeight: 600, letterSpacing: 2, boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>Questions</a>
-          <button onClick={async () => {
-              if (!pin) return;
-              try {
-                if ("getScreenDetails" in window) {
-                  const details = await (window as any).getScreenDetails();
-                  const screens = details.screens;
-                  const target = screens.find((s: any) => !s.isPrimary) || screens[screens.length - 1];
-                  if (target && screens.length > 1) {
-                    window.open("/host/display?pin=" + pin, "display", "left=" + target.left + ",top=" + target.top + ",width=" + target.width + ",height=" + target.height);
-                    return;
-                  }
-                }
-              } catch {}
-              window.open("/host/display?pin=" + pin, "display", "width=1920,height=1080");
-            }} disabled={!pin}
-            style={{ padding: "10px 20px", borderRadius: 10, border: "1px solid rgba(190,38,193,0.5)", background: "transparent", color: pin ? "#BE26C1" : "rgba(190,38,193,0.3)", fontSize: 14, fontWeight: 600, letterSpacing: 2, cursor: pin ? "pointer" : "not-allowed", boxShadow: pin ? "0 2px 8px rgba(0,0,0,0.2)" : "none" }}>Launch Display Screen</button>
-      </div>
 
-      {!pin && (
-        <div style={{ textAlign: "center", marginTop: 80 }}>
-          <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 12, letterSpacing: 4, color: "#fff" }}>Ready to start?</div>
-          <div style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", marginBottom: 40, lineHeight: 1.6 }}>Create a session to get your PIN.<br/>Teams join at {typeof window !== "undefined" ? window.location.host : "quiz-it.macentertainmentuae.com"}/join</div>
-          <button onClick={createSession} disabled={creating} style={{ padding: "18px 56px", borderRadius: 12, background: "#BE26C1", color: "#fff", border: "none", fontSize: 20, letterSpacing: 4, cursor: "pointer", boxShadow: "0 0 30px rgba(190,38,193,0.5)" }}>
-            {creating ? "Creating..." : "Create Session"}
-          </button>
+        {/* EMPTY STATE — no session yet: create + recover */}
+        {!pin && (
+          <HostFrame>
+            <HostBody>
+              <HostPad>
+                <div className="fbh-center" style={{ minHeight: 220 }}>
+                  <div className="fbh-stage-title" style={{ fontSize: 17 }}>No Show Yet</div>
+                  <div style={{ font: "400 13px 'Inter'", color: "#B9A8D9", margin: "8px 0 18px", lineHeight: 1.6, maxWidth: 380 }}>
+                    Your first quiz night is one decision away. Teams join at {host}/join
+                  </div>
+                  <HostButton variant="pri" big onClick={createSession} disabled={creating}>
+                    {creating ? "CREATING…" : "CREATE A SESSION"}
+                  </HostButton>
+                </div>
 
-          <div style={{ marginTop: 48, paddingTop: 32, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
-            <div style={{ fontSize: 13, letterSpacing: 2, color: "rgba(255,255,255,0.4)", marginBottom: 12 }}>ALREADY HAVE A SESSION RUNNING?</div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-              <input
-                value={reconnectPin}
-                onChange={e => setReconnectPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                onKeyDown={e => e.key === "Enter" && reconnectToSession()}
-                placeholder="PIN"
-                maxLength={4}
-                style={{ width: 140, padding: "12px 16px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(190,38,193,0.4)", color: "#fff", fontSize: 22, fontFamily: "monospace", textAlign: "center", letterSpacing: 6 }}
-              />
-              <button
-                onClick={reconnectToSession}
-                disabled={reconnectPin.length !== 4 || reconnecting}
-                style={{ padding: "12px 24px", borderRadius: 10, background: reconnectPin.length === 4 ? "rgba(190,38,193,0.25)" : "rgba(255,255,255,0.05)", border: "1px solid rgba(190,38,193,0.4)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: reconnectPin.length === 4 ? "pointer" : "not-allowed" }}
-              >
-                {reconnecting ? "Reconnecting..." : "Reconnect"}
-              </button>
-            </div>
-            {reconnectError && <div style={{ marginTop: 10, fontSize: 13, color: "#ef4444" }}>{reconnectError}</div>}
+                <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid #2E1A52", maxWidth: 460, marginInline: "auto" }}>
+                  <HostLabel>Already have a session running?</HostLabel>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <HostInput
+                      value={reconnectPin}
+                      onChange={e => setReconnectPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      onKeyDown={e => e.key === "Enter" && reconnectToSession()}
+                      placeholder="PIN"
+                      maxLength={4}
+                      style={{ width: 140, textAlign: "center", letterSpacing: "0.4em", fontVariantNumeric: "tabular-nums", fontSize: 18 }}
+                    />
+                    <HostButton onClick={reconnectToSession} disabled={reconnectPin.length !== 4 || reconnecting}>
+                      {reconnecting ? "RECONNECTING…" : "RECONNECT"}
+                    </HostButton>
+                  </div>
+                  {reconnectError && <div style={{ marginTop: 10, font: "600 12px 'Inter'", color: "#D94FDC" }}>{reconnectError}</div>}
 
-            {!showRecent ? (
-              <button onClick={loadRecentSessions} style={{ marginTop: 14, background: "transparent", border: "none", color: "rgba(190,38,193,0.7)", fontSize: 13, textDecoration: "underline", cursor: "pointer" }}>
-                Don't know the PIN? Show recent sessions
-              </button>
-            ) : (
-              <div style={{ marginTop: 18, textAlign: "left" as const, maxWidth: 420, margin: "18px auto 0" }}>
-                {loadingRecent ? (
-                  <div style={{ textAlign: "center" as const, fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Loading...</div>
-                ) : recentSessions.length === 0 ? (
-                  <div style={{ textAlign: "center" as const, fontSize: 13, color: "rgba(255,255,255,0.5)" }}>No recent active sessions found.</div>
-                ) : (
-                  recentSessions.map(s => (
-                    <button
-                      key={s.pin}
-                      onClick={() => { setReconnectPin(s.pin); reconnectToSession(); }}
-                      style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", marginBottom: 6, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(190,38,193,0.25)", color: "#fff", cursor: "pointer", fontSize: 13 }}
-                    >
-                      <span style={{ fontFamily: "monospace", fontSize: 16, letterSpacing: 2 }}>{s.pin}</span>
-                      <span style={{ color: "rgba(255,255,255,0.5)" }}>{s.teamCount} team{s.teamCount === 1 ? "" : "s"} &middot; {s.status} &middot; {new Date(s.created_at).toLocaleString()}</span>
+                  {!showRecent ? (
+                    <button onClick={loadRecentSessions} style={{ marginTop: 14, background: "transparent", border: "none", color: "#D94FDC", font: "600 12px 'Inter'", textDecoration: "underline", cursor: "pointer" }}>
+                      Don&apos;t know the PIN? Show recent sessions
                     </button>
-                  ))
-                )}
+                  ) : (
+                    <div style={{ marginTop: 16 }}>
+                      {loadingRecent ? (
+                        <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E", textAlign: "center" }}>Loading…</div>
+                      ) : recentSessions.length === 0 ? (
+                        <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E", textAlign: "center" }}>No recent active sessions found.</div>
+                      ) : (
+                        recentSessions.map(s => (
+                          <button key={s.pin} onClick={() => { setReconnectPin(s.pin); reconnectToSession(); }}
+                            style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", marginBottom: 6, borderRadius: 12, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff", cursor: "pointer" }}>
+                            <span style={{ font: "700 15px 'Inter'", letterSpacing: "0.16em", fontVariantNumeric: "tabular-nums" }}>{s.pin}</span>
+                            <span style={{ font: "400 12px 'Inter'", color: "#B9A8D9" }}>{s.teamCount} team{s.teamCount === 1 ? "" : "s"} &middot; {s.status} &middot; {new Date(s.created_at).toLocaleString()}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </HostPad>
+            </HostBody>
+          </HostFrame>
+        )}
+
+        {/* ACTIVE SESSION */}
+        {pin && (
+          <div>
+            {/* PIN HERO */}
+            <div style={{ background: "#150A2E", border: "1px solid #8A1B8D", borderRadius: 24, padding: 28, marginBottom: 20, textAlign: "center", boxShadow: "0 0 40px rgba(190,38,193,0.25)" }}>
+              <div style={{ font: "600 13px 'Inter'", letterSpacing: "0.24em", color: "#B9A8D9", marginBottom: 10 }}>TEAMS JOIN AT {host}/join WITH PIN</div>
+              <div style={{ font: "800 clamp(56px,10vw,96px)/1 'Inter'", letterSpacing: "0.14em", color: "#fff", textShadow: "0 0 46px rgba(190,38,193,0.55)", fontVariantNumeric: "tabular-nums" }}>{pin}</div>
+              <div style={{ marginTop: 16, display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
+                <span style={{ font: "600 12px 'Inter'", color: "#6B5A8E", letterSpacing: "0.16em" }}>STATUS</span>
+                <Pill live={status === "active"}>{status.toUpperCase()}</Pill>
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {pin && (
-        <div>
-          <div style={{ background: "linear-gradient(160deg, rgba(60,15,110,0.6), rgba(30,8,60,0.6))", border: "2px solid #BE26C1", borderRadius: 20, padding: 28, marginBottom: 24, textAlign: "center", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.06), 0 0 40px rgba(190,38,193,0.3)" }}>
-            <div style={{ fontSize: 15, letterSpacing: 3, color: "rgba(255,255,255,0.8)", marginBottom: 10 }}>TEAMS JOIN AT {typeof window !== "undefined" ? window.location.host : "quiz-it.macentertainmentuae.com"}/join WITH PIN</div>
-            <div style={{ fontSize: 96, fontWeight: 700, letterSpacing: 20, color: "#fff", textShadow: "0 0 40px rgba(190,38,193,0.9)", fontFamily: "monospace", lineHeight: 1 }}>{pin}</div>
-            <div style={{ marginTop: 16, fontSize: 16, color: "rgba(255,255,255,0.7)" }}>
-              Status: <span style={{ color: status === "waiting" ? "#fbbf24" : status === "active" ? "#22c55e" : "#ef4444", fontWeight: 700, fontSize: 18 }}>{status.toUpperCase()}</span>
-            </div>
-          </div>
-
-          <div style={{ background: "linear-gradient(160deg, rgba(60,15,110,0.4), rgba(30,8,60,0.4))", border: "1px solid rgba(190,38,193,0.4)", borderRadius: 16, padding: 20, marginBottom: 20, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)" }}>
-            <div onClick={() => setIntermissionOpen(o => !o)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Intermission Screen</div>
-              <span style={{ fontSize: 14, color: "#BE26C1" }}>{intermissionOpen ? "Hide \u25B4" : "Edit \u25BE"}</span>
-            </div>
-            {intermissionOpen && (
-              <>
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 12, marginBottom: 12 }}>Shown automatically between rounds on the display and player phones.</div>
-                <textarea value={intermissionOffers} onChange={e => setIntermissionOffers(e.target.value)} placeholder="Venue offers..." rows={2} style={{ width:"100%", padding:"10px 12px", borderRadius:10, background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontSize:14, marginBottom:10 }} />
-                <input value={intermissionWhatsapp} onChange={e => setIntermissionWhatsapp(e.target.value)} placeholder="WhatsApp number or link" style={{ width:"100%", padding:"10px 12px", borderRadius:10, background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontSize:14, marginBottom:10 }} />
-                <textarea value={intermissionOtherQuizzes} onChange={e => setIntermissionOtherQuizzes(e.target.value)} placeholder="Other quiz nights..." rows={2} style={{ width:"100%", padding:"10px 12px", borderRadius:10, background:"rgba(255,255,255,0.08)", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontSize:14, marginBottom:10 }} />
-                <button onClick={saveIntermission} disabled={savingIntermission} style={{ padding:"8px 18px", borderRadius:10, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>{savingIntermission ? "Saving..." : "Save Intermission Content"}</button>
-              </>
-            )}
-          </div>
-
-          <div style={{ background: "linear-gradient(160deg, rgba(60,15,110,0.4), rgba(30,8,60,0.4))", border: "1px solid rgba(190,38,193,0.4)", borderRadius: 16, padding: 20, marginBottom: 20, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "#fff" }}>Teams Joined <span style={{ color: "#BE26C1" }}>{teams.length}</span></div>
-              <button onClick={() => loadTeams(pin)} style={{ padding: "8px 18px", borderRadius: 10, border: "1px solid rgba(190,38,193,0.6)", background: "rgba(190,38,193,0.06)", color: "#BE26C1", cursor: "pointer", fontSize: 14, fontWeight: 600, letterSpacing: 1 }}>Refresh</button>
             </div>
 
-            {teams.length === 0 && (
-              <div style={{ textAlign: "center", color: "rgba(255,255,255,0.4)", padding: "32px 0", fontSize: 16 }}>
-                Waiting for teams to join...
+            {/* INTERMISSION PANEL (collapsible) */}
+            <div className="fbh-panel">
+              <div onClick={() => setIntermissionOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+                <h4 style={{ font: "800 13.5px 'Inter'", margin: 0 }}>Intermission Screen</h4>
+                <span style={{ font: "600 12px 'Inter'", color: "#D94FDC" }}>{intermissionOpen ? "Hide ▴" : "Edit ▾"}</span>
               </div>
-            )}
+              {intermissionOpen && (
+                <>
+                  <div style={{ font: "400 12px 'Inter'", color: "#B9A8D9", margin: "12px 0" }}>Shown automatically between rounds on the display and player phones.</div>
+                  <textarea value={intermissionOffers} onChange={e => setIntermissionOffers(e.target.value)} placeholder="Venue offers…" rows={2} style={textareaStyle} />
+                  <input value={intermissionWhatsapp} onChange={e => setIntermissionWhatsapp(e.target.value)} placeholder="WhatsApp number or link" style={{ ...textareaStyle, resize: undefined }} />
+                  <textarea value={intermissionOtherQuizzes} onChange={e => setIntermissionOtherQuizzes(e.target.value)} placeholder="Other quiz nights…" rows={2} style={textareaStyle} />
+                  <HostButton variant="pri" onClick={saveIntermission} disabled={savingIntermission}>{savingIntermission ? "SAVING…" : "SAVE INTERMISSION CONTENT"}</HostButton>
+                </>
+              )}
+            </div>
 
-            {teams.map((team, i) => (
-              <div key={team.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 12, background: "rgba(255,255,255,0.08)", marginBottom: 8, border: "1px solid rgba(190,38,193,0.2)", boxShadow: "0 2px 6px rgba(0,0,0,0.15)" }}>
-                <span style={{ color: "#BE26C1", fontWeight: 700, minWidth: 28, fontSize: 18 }}>{i + 1}.</span>
-                <span style={{ fontWeight: 600, flex: 1, fontSize: 18, color: "#fff" }}>{team.team_name}</span>
-                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>{team.victory_song?.replace(/\s*SQS\s*$/i, "").replace(/[-_]+$/, "").replace(/[-_]/g, " ").trim()}</span>
+            {/* TEAMS PANEL */}
+            <div className="fbh-panel">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <h4 style={{ font: "800 15px 'Inter'", margin: 0 }}>Teams Joined <span style={{ color: "#D94FDC" }}>{teams.length}</span></h4>
+                <HostButton onClick={() => loadTeams(pin)} style={{ height: 36 }}>Refresh</HostButton>
               </div>
-            ))}
-          </div>
+              {teams.length === 0 ? (
+                <div style={{ textAlign: "center", color: "#6B5A8E", padding: "28px 0", font: "400 14px 'Inter'" }}>Waiting for teams to join…</div>
+              ) : (
+                teams.map((team, i) => (
+                  <div key={team.id} className="fbh-answer-row">
+                    <span className="ord">{i + 1}</span>
+                    <HostCrest initials={team.team_name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()} size={22} />
+                    <span className="nm">{team.team_name}</span>
+                    <span className="ans">{team.victory_song?.replace(/\s*SQS\s*$/i, "").replace(/[-_]+$/, "").replace(/[-_]/g, " ").trim()}</span>
+                  </div>
+                ))
+              )}
+            </div>
 
-          <div style={{ display: "flex", gap: 12 }}>
-            {status === "waiting" && (
-              <button onClick={startQuiz} disabled={teams.length === 0} style={{ flex: 1, padding: 16, borderRadius: 12, background: teams.length > 0 ? "#22c55e" : "#1a1a1a", color: teams.length > 0 ? "#fff" : "#555", border: "none", fontSize: 18, fontWeight: 700, letterSpacing: 4, cursor: teams.length > 0 ? "pointer" : "not-allowed", boxShadow: teams.length > 0 ? "0 2px 16px rgba(34,197,94,0.4)" : "none" }}>
-                Start Quiz ({teams.length} teams)
-              </button>
-            )}
-            {status === "active" && (
-              <button onClick={endQuiz} style={{ flex: 1, padding: 16, borderRadius: 12, background: "#ef4444", color: "#fff", border: "none", fontSize: 18, fontWeight: 700, letterSpacing: 4, cursor: "pointer", boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
-                End Quiz
-              </button>
-            )}
-            <button onClick={createSession} style={{ padding: "16px 24px", borderRadius: 12, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.7)", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
-              New Session
-            </button>
+            {/* ACTIONS */}
+            <div style={{ display: "flex", gap: 12 }}>
+              {status === "waiting" && (
+                <HostButton variant="pri" big onClick={startQuiz} disabled={teams.length === 0} style={{ flex: 1 }}>
+                  START QUIZ ({teams.length} TEAMS)
+                </HostButton>
+              )}
+              {status === "active" && (
+                <HostButton big onClick={endQuiz} style={{ flex: 1 }}>END QUIZ</HostButton>
+              )}
+              <HostButton big onClick={createSession}>NEW SESSION</HostButton>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </HostShell>
   );
 }

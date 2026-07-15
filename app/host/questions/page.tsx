@@ -5,6 +5,11 @@ import { ImageUploader } from "@/components/ImageUploader";
 import { AudioUploader } from "@/components/AudioUploader";
 import { AudioRecorder } from "@/components/AudioRecorder";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
+import { HostShell, HostButton, HostInput, Chip, TopSpacer } from "@/components/fable/HostConsole";
+
+const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
+const fableSelect: React.CSSProperties = { width: "100%", padding: "9px 12px", borderRadius: 14, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", fontSize: 13, fontFamily: "'Inter',sans-serif", outline: "none" };
+const fableTextarea: React.CSSProperties = { padding: "10px 14px", borderRadius: 14, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", fontSize: 13, fontFamily: "'Inter',sans-serif", outline: "none", resize: "vertical" };
 
 type Question = {
   id?: number;
@@ -42,8 +47,6 @@ const VARIETY_ANGLES = [
   "that's slightly more obscure but still well-known", "involving a lesser-discussed fact about the topic",
   "from a different decade than you'd first think of", "that most people would NOT guess first",
 ];
-const typeBg: Record<string,string> = { multi_tap:"#002a1a", multiple_choice:"#1e1040", text_answer:"#0f2a1a", number:"#2a1a00", sequence:"#1a002a", picture:"#0a1a2a", audio:"#1a0a00" };
-const typeColor: Record<string,string> = { multi_tap:"#4ade80", multiple_choice:"#a78bfa", text_answer:"#34d399", number:"#fbbf24", sequence:"#f472b6", picture:"#38bdf8", audio:"#fb923c" };
 const typeLabel: Record<string,string> = { multi_tap:"Multi Tap", multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune" };
 
 // array.sort(() => Math.random() - 0.5) is a well-known broken shuffle - V8's sort
@@ -997,212 +1000,210 @@ Return ONLY a valid JSON array with 1 item, no markdown:
   const onDragEnd = () => { dragIdx.current = null; };
 
   return (
-    <div style={{ minHeight:"100vh", background:"linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color:"#fff", padding:"24px", maxWidth:"960px", margin:"0 auto" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
-        <div style={{ width:44, height:44, borderRadius:"50%", background:"#1a0530", border:"2px solid #BE26C1", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"#BE26C1", fontWeight:700 }}>ME</div>
-        <div>
-          <div style={{ fontSize:22, fontWeight:700, color:"#BE26C1", letterSpacing:4 }}>Question Generator</div>
-          <div style={{ fontSize:11, color:"rgba(190,38,193,0.6)", letterSpacing:2 }}>Quiz-It · Powered by Mac Entertainment</div>
+    <HostShell>
+      <div style={{ minHeight:"100vh", background:STAGE_BG, color:"#fff", padding:"24px", maxWidth:980, margin:"0 auto" }}>
+        {/* TOP BAR */}
+        <div className="fbh-top" style={{ border:"1px solid #2E1A52", borderRadius:16, marginBottom:20 }}>
+          <span className="fbh-wm" style={{ fontSize:16 }}><span className="q">QUIZ-</span>IT</span>
+          <span className="fbh-bc">AI Question Generation</span>
+          <TopSpacer />
+          <a className="fbh-btn" href="/host/rounds">Round Library</a>
         </div>
-        <div style={{ flex:1 }} />
-        <a href="/host/rounds" style={{ padding:"8px 16px", borderRadius:10, border:"1px solid rgba(190,38,193,0.4)", background:"rgba(190,38,193,0.06)", color:"#BE26C1", textDecoration:"none", fontSize:12, fontWeight:600, letterSpacing:2, boxShadow:"0 2px 6px rgba(0,0,0,0.2)" }}>Round Library</a>
-      </div>
 
-      <div style={{ background:"linear-gradient(160deg, rgba(60,15,110,0.4), rgba(30,8,60,0.4))", border:"1px solid rgba(190,38,193,0.3)", borderRadius:16, padding:20, marginBottom:20, boxShadow:"inset 0 1px 1px rgba(255,255,255,0.05)" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16, marginBottom:16 }}>
-          <div>
-            <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>ROUND TYPE</label>
-            <select value={roundType} onChange={e => setRoundType(e.target.value)} style={{ width:"100%", padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
-              <option value="regular">Regular round</option>
-              <option value="bonus">Bonus / themed</option>
-              <option value="music">Music round</option>
-              <option value="multi_tap">Multi Tap round</option>
-              <option value="pursuit">The Pursuit</option>
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>QUESTIONS</label>
-            {roundType === "pursuit" ? (
-              <div style={{ width:"100%", padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"rgba(255,255,255,0.55)", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box" }}>7 questions (fixed)</div>
-            ) : (
-              <select value={count} onChange={e => setQuestionCount(parseInt(e.target.value))} style={{ width:"100%", padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
-                {[5,10,15].map(c => <option key={c} value={c}>{c} questions</option>)}
+        {/* GENERATOR PANEL */}
+        <div className="fbh-panel">
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16, marginBottom:16 }}>
+            <div>
+              <div className="fbh-lbl">Round Type</div>
+              <select value={roundType} onChange={e => setRoundType(e.target.value)} style={fableSelect}>
+                <option value="regular">Regular round</option>
+                <option value="bonus">Bonus / themed</option>
+                <option value="music">Music round</option>
+                <option value="multi_tap">Multi Tap round</option>
+                <option value="pursuit">The Pursuit</option>
               </select>
-            )}
-          </div>
-          <div>
-            <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>DIFFICULTY</label>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-              {["easy","medium","hard","mixed"].map(d => (
-                <button key={d} onClick={() => setDifficulty(d)} style={{ padding:"6px 12px", borderRadius:999, border:"1px solid rgba(190,38,193,0.4)", background:difficulty===d?"#BE26C1":"transparent", color:"#fff", cursor:"pointer", fontSize:12, boxShadow:difficulty===d?"0 2px 6px rgba(0,0,0,0.25)":"none" }}>{d}</button>
-              ))}
+            </div>
+            <div>
+              <div className="fbh-lbl">Questions</div>
+              {roundType === "pursuit" ? (
+                <div style={{ ...fableSelect, color:"#6B5A8E" }}>7 questions (fixed)</div>
+              ) : (
+                <select value={count} onChange={e => setQuestionCount(parseInt(e.target.value))} style={fableSelect}>
+                  {[5,10,15].map(c => <option key={c} value={c}>{c} questions</option>)}
+                </select>
+              )}
+            </div>
+            <div>
+              <div className="fbh-lbl">Difficulty</div>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                {["easy","medium","hard","mixed"].map(d => (
+                  <Chip key={d} on={difficulty===d} onClick={() => setDifficulty(d)}>{d}</Chip>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-        {roundType === "pursuit" && (
-          <div style={{ marginBottom:16, padding:"12px 16px", borderRadius:12, background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.35)" }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#38bdf8", letterSpacing:2, marginBottom:8 }}>THE PURSUIT</div>
-            <ul style={{ margin:0, paddingLeft:18, fontSize:13, lineHeight:1.6, color:"rgba(255,255,255,0.8)" }}>
-              <li>Every team races through all seven questions at once — each correct answer moves your runner one gate forward.</li>
-              <li>One wrong answer and you&rsquo;re out of the pursuit (you stay on the board, frozen). Multiple teams can finish.</li>
-              <li>Scoring climbs 10, 20, 30&hellip; up to a 100-point payout for clearing all seven.</li>
-            </ul>
+          {roundType === "pursuit" && (
+            <div style={{ marginBottom:16, padding:"12px 16px", borderRadius:14, background:"rgba(190,38,193,0.08)", border:"1px solid #8A1B8D" }}>
+              <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:14, color:"#D94FDC", letterSpacing:".14em", marginBottom:8 }}>THE PURSUIT</div>
+              <ul style={{ margin:0, paddingLeft:18, font:"400 13px 'Inter'", lineHeight:1.6, color:"#B9A8D9" }}>
+                <li>Every team races through all seven questions at once — each correct answer moves your runner one gate forward.</li>
+                <li>One wrong answer and you&rsquo;re out of the pursuit (you stay on the board, frozen). Multiple teams can finish.</li>
+                <li>Scoring climbs 10, 20, 30&hellip; up to a 100-point payout for clearing all seven.</li>
+              </ul>
+            </div>
+          )}
+          <div style={{ marginBottom:16 }}>
+            <div className="fbh-lbl">Theme / Topic (optional)</div>
+            <HostInput value={theme} onChange={e => setTheme(e.target.value)} placeholder="e.g. 90s movies, space… leave blank for random variety" />
           </div>
-        )}
-        <div style={{ marginBottom:16 }}>
-          <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:6 }}>THEME / TOPIC (optional)</label>
-          <input value={theme} onChange={e => setTheme(e.target.value)} placeholder="e.g. 90s movies, space... leave blank for random variety" style={{ width:"100%", padding:"10px 16px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box" }} />
-        </div>
-        <button onClick={() => setManualOpen(!manualOpen)} style={{ width:"100%", padding:10, borderRadius:10, background:"rgba(190,38,193,0.06)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:13, fontWeight:600, letterSpacing:2, cursor:"pointer", marginBottom:12 }}>
-          {manualOpen ? "Hide Manual Question Entry" : "+ Add a Question Manually"}
-        </button>
+          <HostButton onClick={() => setManualOpen(!manualOpen)} style={{ width:"100%", marginBottom:12 }}>
+            {manualOpen ? "Hide Manual Question Entry" : "+ Add a Question Manually"}
+          </HostButton>
 
-        {manualOpen && (
-          <div style={{ background:"linear-gradient(160deg, rgba(45,10,90,0.5), rgba(20,5,45,0.5))", border:"1px solid rgba(190,38,193,0.3)", borderRadius:12, padding:16, marginBottom:16, display:"flex", flexDirection:"column" as const, gap:10, boxShadow:"inset 0 1px 1px rgba(255,255,255,0.04)" }}>
-            <select value={manualType} onChange={e => setManualType(e.target.value)} style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }}>
-              <option value="multiple_choice">Multiple Choice</option>
-              <option value="text_answer">Text Answer</option>
-              <option value="number">Number</option>
-              <option value="sequence">Sequence</option>
-              <option value="multi_tap">Multi Tap</option>
-            </select>
-            <textarea value={manualText} onChange={e => setManualText(e.target.value)} placeholder="Question text..." rows={2} style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", fontFamily:"inherit" }} />
-            {(manualType === "multiple_choice" || manualType === "sequence" || manualType === "multi_tap") && (
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                <input value={manualA} onChange={e => setManualA(e.target.value)} placeholder="Option A" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-                <input value={manualB} onChange={e => setManualB(e.target.value)} placeholder="Option B" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-                <input value={manualC} onChange={e => setManualC(e.target.value)} placeholder="Option C" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-                <input value={manualD} onChange={e => setManualD(e.target.value)} placeholder="Option D" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-                {manualType === "multi_tap" && (
-                  <>
-                    <input value={manualE} onChange={e => setManualE(e.target.value)} placeholder="Option E" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-                    <input value={manualF} onChange={e => setManualF(e.target.value)} placeholder="Option F" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-                  </>
+          {manualOpen && (
+            <div className="fbh-panel" style={{ display:"flex", flexDirection:"column" as const, gap:10 }}>
+              <select value={manualType} onChange={e => setManualType(e.target.value)} style={fableSelect}>
+                <option value="multiple_choice">Multiple Choice</option>
+                <option value="text_answer">Text Answer</option>
+                <option value="number">Number</option>
+                <option value="sequence">Sequence</option>
+                <option value="multi_tap">Multi Tap</option>
+              </select>
+              <textarea value={manualText} onChange={e => setManualText(e.target.value)} placeholder="Question text…" rows={2} style={fableTextarea} />
+              {(manualType === "multiple_choice" || manualType === "sequence" || manualType === "multi_tap") && (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                  <HostInput value={manualA} onChange={e => setManualA(e.target.value)} placeholder="Option A" />
+                  <HostInput value={manualB} onChange={e => setManualB(e.target.value)} placeholder="Option B" />
+                  <HostInput value={manualC} onChange={e => setManualC(e.target.value)} placeholder="Option C" />
+                  <HostInput value={manualD} onChange={e => setManualD(e.target.value)} placeholder="Option D" />
+                  {manualType === "multi_tap" && (
+                    <>
+                      <HostInput value={manualE} onChange={e => setManualE(e.target.value)} placeholder="Option E" />
+                      <HostInput value={manualF} onChange={e => setManualF(e.target.value)} placeholder="Option F" />
+                    </>
+                  )}
+                </div>
+              )}
+              <HostInput value={manualCorrect} onChange={e => setManualCorrect(e.target.value)}
+                placeholder={manualType === "multiple_choice" ? "Correct answer letter, e.g. b" : manualType === "sequence" ? "Correct order, e.g. a,b,c,d" : manualType === "multi_tap" ? "Correct letters, e.g. b,d,f" : "Correct answer"} />
+              <HostInput value={manualExplanation} onChange={e => setManualExplanation(e.target.value)} placeholder="Explanation (optional)" />
+              {manualError && <p style={{ color:"#FF3B4E", font:"400 13px 'Inter'" }}>{manualError}</p>}
+              <HostButton variant="pri" onClick={addManualQuestion}>Add to List</HostButton>
+            </div>
+          )}
+
+          <HostButton variant="pri" big onClick={generate} disabled={loading} style={{ width:"100%" }}>
+            {loading ? "GENERATING…" : "GENERATE ROUND"}
+          </HostButton>
+        </div>
+
+        {status && <p style={{ textAlign:"center", color:"#D94FDC", font:"600 13px 'Inter'", letterSpacing:".08em", marginBottom:16 }}>{status}</p>}
+
+        {questions.length > 0 && (
+          <>
+            <div style={{ font:"400 12px 'Inter'", color:"#6B5A8E", textAlign:"center", marginBottom:12 }}>Drag to reorder · {questions.length} questions</div>
+            {questions.map((q, i) => (
+              <div key={q._uid ?? i} draggable onDragStart={() => onDragStart(i)} onDragOver={e => onDragOver(e, i)} onDragEnd={onDragEnd}
+                className="fbh-panel" style={{ cursor:"grab", userSelect:"none" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+                  <span style={{ color:"#6B5A8E", font:"700 13px 'Inter'", minWidth:24 }}>{i+1}.</span>
+                  <span className="fbh-chip">{typeLabel[q.question_type]||q.question_type}</span>
+                  <span style={{ font:"400 11px 'Inter'", color:"#6B5A8E" }}>{q.difficulty}</span>
+                  <div style={{ flex:1 }} />
+                  <HostButton onClick={(e) => { e.stopPropagation(); removeAndReplace(i); }} onMouseDown={(e) => e.stopPropagation()} style={{ height:30, padding:"0 12px" }}>Remove</HostButton>
+                </div>
+                <p style={{ font:"700 18px 'Inter'", marginBottom:12, lineHeight:1.5, color:"#fff" }}>{q.question_text}</p>
+                {q.question_type==="multiple_choice" && (
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
+                    {(["a","b","c","d"] as const).map(l => (
+                      <div key={l} style={{ font:"600 15px 'Inter'", padding:"8px 12px", borderRadius:8, background:l===q.correct_answer?"rgba(46,224,110,0.15)":"#150A2E", color:l===q.correct_answer?"#2EE06E":"#B9A8D9", border:"1px solid "+(l===q.correct_answer?"rgba(46,224,110,0.4)":"#2E1A52") }}>
+                        <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{q[("option_"+l) as keyof Question] as string}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {q.question_type==="multi_tap" && (
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginTop:6 }}>
+                    {["a","b","c","d","e","f"].map(l => {
+                      const optKey = "option_"+l as keyof Question;
+                      const optText = q[optKey] as string | null;
+                      if (!optText) return null;
+                      const isCorrect = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).includes(l);
+                      return (
+                        <div key={l} style={{ font:"600 14px 'Inter'", padding:"8px 12px", borderRadius:8, background:isCorrect?"rgba(46,224,110,0.15)":"#150A2E", color:isCorrect?"#2EE06E":"#B9A8D9", border:"1px solid "+(isCorrect?"rgba(46,224,110,0.4)":"#2E1A52") }}>
+                          <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{optText}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {q.question_type==="sequence" && (
+                  <div style={{ marginBottom:8 }}>
+                    {[q.option_a,q.option_b,q.option_c,q.option_d].filter(Boolean).map((item,idx) => (
+                      <div key={idx} style={{ font:"600 15px 'Inter'", padding:"8px 12px", marginBottom:4, borderRadius:8, background:"#150A2E", color:"#B9A8D9", display:"flex", alignItems:"center", gap:8, border:"1px solid #2E1A52" }}>
+                        <span style={{ color:"#BE26C1", fontWeight:700, minWidth:20 }}>{idx+1}.</span>{item}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(q.question_type==="text_answer"||q.question_type==="number") && (
+                  <div style={{ marginBottom:8 }}>
+                    {q.option_a && <p style={{ font:"400 13px 'Inter'", color:"#6B5A8E", margin:"0 0 4px", fontStyle:"italic" }}>{q.option_a}</p>}
+                    <p style={{ font:"700 16px 'Inter'", color:"#2EE06E", margin:0 }}>Answer: {q.correct_answer}</p>
+                  </div>
+                )}
+                {q.question_type==="picture" && (
+                  <div style={{ marginBottom:8 }}>
+                    <ImageUploader
+                      currentUrl={q.option_b || null}
+                      onUploaded={(url) => setQuestions(prev => prev.map(qq => qq._uid === q._uid ? { ...qq, option_b: url } : qq))}
+                    />
+                    <a href={"https://www.google.com/search?tbm=isch&q="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
+                      style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:14, background:"#150A2E", border:"1px solid #2E1A52", color:"#D94FDC", textDecoration:"none", font:"600 13px 'Inter'", marginTop:10 }}>
+                      Search &ldquo;{q.option_a||q.correct_answer}&rdquo; on Google Images (internal reference — players never see this)
+                    </a>
+                    <p style={{ font:"700 16px 'Inter'", color:"#2EE06E", margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>
+                  </div>
+                )}
+                {q.question_type==="audio" && (
+                  <div style={{ marginBottom:8 }}>
+                    <AudioRecorder
+                      songReference={q.option_a || null}
+                      currentUrl={(q.option_b && q.option_b.includes("blob.vercel-storage.com")) ? q.option_b : null}
+                      onUploaded={(url, fileMeta, clipMeta) => {
+                        setQuestions(prev => prev.map(qq => qq._uid === q._uid ? { ...qq, option_b: url || null } : qq));
+                      }}
+                    />
+                    <a href={"https://www.youtube.com/results?search_query="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
+                      style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:14, background:"#150A2E", border:"1px solid #2E1A52", color:"#D94FDC", textDecoration:"none", font:"600 13px 'Inter'", marginTop:10 }}>
+                      Search &ldquo;{q.option_a||q.correct_answer}&rdquo; on YouTube (internal reference — players never see this)
+                    </a>
+                    <p style={{ font:"700 16px 'Inter'", color:"#2EE06E", margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>
+                  </div>
+                )}
+                {q.explanation && (
+                  <div style={{ marginTop:10, padding:"10px 14px", borderRadius:8, background:"rgba(190,38,193,0.12)", borderLeft:"3px solid rgba(190,38,193,0.5)" }}>
+                    <p style={{ font:"400 14px 'Inter'", color:"#D94FDC", margin:0, lineHeight:1.5 }}>{q.explanation}</p>
+                  </div>
                 )}
               </div>
-            )}
-            <input value={manualCorrect} onChange={e => setManualCorrect(e.target.value)}
-              placeholder={manualType === "multiple_choice" ? "Correct answer letter, e.g. b" : manualType === "sequence" ? "Correct order, e.g. a,b,c,d" : manualType === "multi_tap" ? "Correct letters, e.g. b,d,f" : "Correct answer"}
-              style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-            <input value={manualExplanation} onChange={e => setManualExplanation(e.target.value)} placeholder="Explanation (optional)" style={{ padding:"8px 12px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)" }} />
-            {manualError && <p style={{ color:"#FF5555", fontSize:13 }}>{manualError}</p>}
-            <button onClick={addManualQuestion} style={{ padding:10, borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>Add to List</button>
-          </div>
-        )}
+            ))}
 
-        <button onClick={generate} disabled={loading} style={{ width:"100%", padding:14, borderRadius:10, background:loading?"#4a1060":"#BE26C1", color:"#fff", border:"none", fontSize:16, fontWeight:700, letterSpacing:4, cursor:loading?"not-allowed":"pointer", opacity:loading?0.7:1, boxShadow:loading?"none":"0 2px 12px rgba(190,38,193,0.35)" }}>
-          {loading ? "Generating..." : "Generate Round"}
-        </button>
-      </div>
-
-      {status && <p style={{ textAlign:"center", color:"rgba(190,38,193,0.8)", fontSize:13, letterSpacing:2, marginBottom:16 }}>{status}</p>}
-
-      {questions.length > 0 && (
-        <>
-          <div style={{ fontSize:12, color:"#666", textAlign:"center", marginBottom:12 }}>Drag to reorder · {questions.length} questions</div>
-          {questions.map((q, i) => (
-            <div key={q._uid ?? i} draggable onDragStart={() => onDragStart(i)} onDragOver={e => onDragOver(e, i)} onDragEnd={onDragEnd}
-              style={{ background:"linear-gradient(160deg, rgba(60,15,110,0.35), rgba(30,8,60,0.35))", border:"1px solid rgba(190,38,193,0.3)", borderRadius:14, padding:18, marginBottom:12, cursor:"grab", userSelect:"none", boxShadow:"inset 0 1px 1px rgba(255,255,255,0.05)" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
-                <span style={{ color:"#555", fontSize:13, fontWeight:700, minWidth:24 }}>{i+1}.</span>
-                <span style={{ background:typeBg[q.question_type]||"#1a1a1a", color:typeColor[q.question_type]||"#aaa", padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:600 }}>
-                  {typeLabel[q.question_type]||q.question_type}
-                </span>
-                <span style={{ fontSize:11, color:"#555" }}>{q.difficulty}</span>
-                <div style={{ flex:1 }} />
-                <button onClick={(e) => { e.stopPropagation(); removeAndReplace(i); }} onMouseDown={(e) => e.stopPropagation()} style={{ padding:"3px 10px", borderRadius:8, border:"1px solid #ef4444", background:"transparent", color:"#ef4444", cursor:"pointer", fontSize:11 }}>Remove</button>
-              </div>
-              <p style={{ fontSize:18, fontWeight:700, marginBottom:12, lineHeight:1.5, color:"#fff" }}>{q.question_text}</p>
-              {q.question_type==="multiple_choice" && (
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
-                  {(["a","b","c","d"] as const).map(l => (
-                    <div key={l} style={{ fontSize:15, padding:"8px 12px", borderRadius:8, background:l===q.correct_answer?"rgba(34,197,94,0.18)":"#221a35", color:l===q.correct_answer?"#4ade80":"#ddd", border:"1px solid "+(l===q.correct_answer?"rgba(34,197,94,0.4)":"transparent"), boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
-                      <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{q[("option_"+l) as keyof Question] as string}
-                    </div>
-                  ))}
-                </div>
+            <div className="fbh-panel">
+              {questions.length < count && (
+                <HostButton onClick={topUp} style={{ width:"100%", marginBottom:12 }}>
+                  Top Up to {count} Questions ({count - questions.length} needed)
+                </HostButton>
               )}
-              {q.question_type==="multi_tap" && (
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginTop:6 }}>
-                  {["a","b","c","d","e","f"].map(l => {
-                    const optKey = "option_"+l as keyof Question;
-                    const optText = q[optKey] as string | null;
-                    if (!optText) return null;
-                    const isCorrect = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).includes(l);
-                    return (
-                      <div key={l} style={{ fontSize:14, padding:"8px 12px", borderRadius:8, background:isCorrect?"rgba(34,197,94,0.18)":"#221a35", color:isCorrect?"#4ade80":"#ddd", border:"1px solid "+(isCorrect?"rgba(34,197,94,0.4)":"transparent"), boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
-                        <span style={{ color:"#BE26C1", fontWeight:700, marginRight:6 }}>{l.toUpperCase()}.</span>{optText}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {q.question_type==="sequence" && (
-                <div style={{ marginBottom:8 }}>
-                  {[q.option_a,q.option_b,q.option_c,q.option_d].filter(Boolean).map((item,idx) => (
-                    <div key={idx} style={{ fontSize:15, padding:"8px 12px", marginBottom:4, borderRadius:8, background:"#221a35", color:"#eee", display:"flex", alignItems:"center", gap:8, boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
-                      <span style={{ color:"#BE26C1", fontWeight:700, minWidth:20 }}>{idx+1}.</span>{item}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {(q.question_type==="text_answer"||q.question_type==="number") && (
-                <div style={{ marginBottom:8 }}>
-                  {q.option_a && <p style={{ fontSize:13, color:"#999", margin:"0 0 4px", fontStyle:"italic" }}>{q.option_a}</p>}
-                  <p style={{ fontSize:16, color:"#4ade80", fontWeight:700, margin:0 }}>Answer: {q.correct_answer}</p>
-                </div>
-              )}
-              {q.question_type==="picture" && (
-                <div style={{ marginBottom:8 }}>
-                  <ImageUploader
-                    currentUrl={q.option_b || null}
-                    onUploaded={(url) => setQuestions(prev => prev.map(qq => qq._uid === q._uid ? { ...qq, option_b: url } : qq))}
-                  />
-                  <a href={"https://www.google.com/search?tbm=isch&q="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
-                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(56,189,248,0.15)", border:"1px solid rgba(56,189,248,0.4)", color:"#38bdf8", textDecoration:"none", fontSize:13, fontWeight:600, marginTop:10, boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
-                    Search "{q.option_a||q.correct_answer}" on Google Images (internal reference - players never see this)
-                  </a>
-                  <p style={{ fontSize:16, color:"#4ade80", fontWeight:700, margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>
-                </div>
-              )}
-              {q.question_type==="audio" && (
-                <div style={{ marginBottom:8 }}>
-                  <AudioRecorder
-                    songReference={q.option_a || null}
-                    currentUrl={(q.option_b && q.option_b.includes("blob.vercel-storage.com")) ? q.option_b : null}
-                    onUploaded={(url, fileMeta, clipMeta) => {
-                      setQuestions(prev => prev.map(qq => qq._uid === q._uid ? { ...qq, option_b: url || null } : qq));
-                    }}
-                  />
-                  <a href={"https://www.youtube.com/results?search_query="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
-                    style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:8, background:"rgba(251,146,60,0.15)", border:"1px solid rgba(251,146,60,0.4)", color:"#fb923c", textDecoration:"none", fontSize:13, fontWeight:600, marginTop:10, boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
-                    Search "{q.option_a||q.correct_answer}" on YouTube (internal reference - players never see this)
-                  </a>
-                  <p style={{ fontSize:16, color:"#4ade80", fontWeight:700, margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>
-                </div>
-              )}
-              {q.explanation && (
-                <div style={{ marginTop:10, padding:"10px 14px", borderRadius:8, background:"rgba(190,38,193,0.12)", borderLeft:"3px solid rgba(190,38,193,0.5)", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}>
-                  <p style={{ fontSize:14, color:"#e0b8e8", margin:0, lineHeight:1.5 }}>{q.explanation}</p>
-                </div>
-              )}
+              <div className="fbh-lbl">Round Name</div>
+              <HostInput value={roundName} onChange={e => setRoundName(e.target.value)} placeholder="e.g. Round 1 - General Knowledge - 14 June" style={{ marginBottom:12 }} />
+              <HostButton variant="pri" big onClick={saveRound} disabled={saving||!roundName.trim()} style={{ width:"100%" }}>
+                {saving ? "SAVING…" : "SAVE ROUND TO LIBRARY"}
+              </HostButton>
             </div>
-          ))}
-
-          <div style={{ background:"linear-gradient(160deg, rgba(60,15,110,0.4), rgba(30,8,60,0.4))", border:"1px solid rgba(190,38,193,0.3)", borderRadius:16, padding:20, marginTop:16, boxShadow:"inset 0 1px 1px rgba(255,255,255,0.05)" }}>
-            {questions.length < count && (
-              <button onClick={topUp} style={{ width:"100%", padding:10, borderRadius:10, background:"rgba(190,38,193,0.06)", border:"1px solid #BE26C1", color:"#BE26C1", fontSize:13, fontWeight:600, letterSpacing:2, cursor:"pointer", marginBottom:12, boxShadow:"0 2px 6px rgba(0,0,0,0.2)" }}>
-                Top Up to {count} Questions ({count - questions.length} needed)
-              </button>
-            )}
-            <label style={{ fontSize:11, letterSpacing:3, color:"rgba(190,38,193,0.6)", display:"block", marginBottom:8 }}>ROUND NAME</label>
-            <input value={roundName} onChange={e => setRoundName(e.target.value)} placeholder="e.g. Round 1 - General Knowledge - 14 June" style={{ width:"100%", padding:"10px 16px", borderRadius:10, background:"#0f0f1a", color:"#fff", border:"1px solid rgba(190,38,193,0.3)", boxSizing:"border-box", marginBottom:12 }} />
-            <button onClick={saveRound} disabled={saving||!roundName.trim()} style={{ width:"100%", padding:14, borderRadius:10, background:roundName.trim()?"#16a34a":"#1a1a1a", color:roundName.trim()?"#fff":"#444", border:"none", fontSize:16, fontWeight:700, letterSpacing:4, cursor:roundName.trim()?"pointer":"not-allowed", boxShadow:roundName.trim()?"0 2px 12px rgba(0,0,0,0.3)":"none" }}>
-              {saving ? "Saving..." : "Save Round to Library"}
-            </button>
-          </div>
-        </>
-      )}
-    </div>
+          </>
+        )}
+      </div>
+    </HostShell>
   );
 }

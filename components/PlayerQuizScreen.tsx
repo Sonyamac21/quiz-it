@@ -7,6 +7,8 @@ import { AnswerKeypad } from "@/components/AnswerKeypad";
 import { SlotReels } from "@/components/SlotReels";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { PursuitPhase, readPursuitState, readQIndex, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
+import { Crest } from "@/components/fable/HandsetStates";
+import { teamInitials } from "@/components/TeamBadge";
 
 type Question = {
   question_text: string;
@@ -234,7 +236,10 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const spinNonceHandledRef = useRef<number | null>(null);
 
 
-  const bg = "#080810";
+  // Fable handset stage: violet-black (--stage-deep) with a single low bloom.
+  // Applied via every branch's `background:bg`, so all handset stages share the
+  // approved show language without touching layout or logic.
+  const bg = "radial-gradient(ellipse 70% 40% at 50% 38%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
   const purple = "#BE26C1";
   const font = "'Inter', sans-serif";
 
@@ -547,11 +552,11 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const sorted = [...phoneScoreboardData].sort((a,b) => b.total_points - a.total_points);
     return (
       <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", padding: 24, fontFamily: font, color: "#fff" }}>
-        <div style={{ fontSize: 18, fontWeight: 900, color: purple, letterSpacing: 3, textAlign: "center" as const, marginBottom: 20 }}>LEADERBOARD</div>
+        <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 18, color: purple, letterSpacing: ".24em", textAlign: "center" as const, marginBottom: 20, textShadow: "0 0 24px rgba(190,38,193,.5)" }}>LEADERBOARD</div>
         <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
           {sorted.map((s, i) => (
-            <div key={s.team_name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 10, background: s.team_name === teamName ? "rgba(190,38,193,0.2)" : "rgba(255,255,255,0.05)", border: s.team_name === teamName ? "1.5px solid " + purple : "1px solid rgba(255,255,255,0.1)", boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>
-              <span style={{ fontWeight: 800, color: i === 0 ? "#facc15" : i === 1 ? "#c7cbd1" : i === 2 ? "#c97d3e" : "rgba(255,255,255,0.4)", minWidth: 24 }}>{i+1}.</span>
+            <div key={s.team_name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 16, background: s.team_name === teamName ? "rgba(190,38,193,0.2)" : "rgba(255,255,255,0.05)", border: s.team_name === teamName ? "1.5px solid " + purple : "1px solid rgba(46,26,82,0.9)", boxShadow: "0 2px 6px rgba(5,0,13,0.4)" }}>
+              <span style={{ fontWeight: 800, color: i === 0 ? "#E8C36A" : i === 1 ? "#C9CDD6" : i === 2 ? "#C08A5A" : "rgba(255,255,255,0.4)", minWidth: 24, fontVariantNumeric: "tabular-nums" }}>{i+1}.</span>
               <span style={{ flex: 1, fontWeight: 700 }}>{s.team_name}</span>
               <span style={{ fontWeight: 900, color: purple, fontSize: 18 }}>{s.total_points}</span>
             </div>
@@ -579,9 +584,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
   if (sessionStatus === "finished") {
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font, color: "#fff" }}>
-        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: 2 }}>QUIZ HAS ENDED</div>
-        <div style={{ fontSize: 15, color: "rgba(255,255,255,0.6)" }}>Thanks for playing!</div>
+      <div className="fbl fbl-phone" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" }}>
+        <div style={{ position: "relative", zIndex: 2, fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: "clamp(22px,7vw,30px)", letterSpacing: ".08em", textShadow: "0 0 24px rgba(190,38,193,.5)" }}>THAT&apos;S A WRAP</div>
+        <div style={{ position: "relative", zIndex: 2, font: "600 clamp(14px,4vw,16px) 'Inter'", color: "#B9A8D9" }}>Thanks for playing — same tables next week.</div>
       </div>
     );
   }
@@ -609,8 +614,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
 
         {hardDeckTeam && hardDeckStatus !== "wheel" && (
-          <div style={{ fontSize: isSelected ? 28 : 20, color: isSelected ? "#facc15" : "#fff", fontWeight: 800, letterSpacing: 1 }}>
-            {isSelected ? "🎯 IT'S YOU!" : hardDeckTeam}
+          <div style={{ fontSize: isSelected ? 28 : 20, color: isSelected ? "#D94FDC" : "#fff", fontWeight: 800, letterSpacing: 1 }}>
+            {isSelected ? "IT'S YOU" : hardDeckTeam}
           </div>
         )}
 
@@ -636,17 +641,16 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
 
         {isSelected && hardDeckStatus === "awaiting_guess" && (
-          <div style={{ display: "flex", gap: 16 }}>
+          <div style={{ display: "flex", gap: 16, width: "100%", maxWidth: 360 }}>
             <button
               onClick={() => submitHardDeckGuess("higher")}
               disabled={!!hardDeckGuess}
               style={{
-                padding: "26px 40px", borderRadius: 14,
-                background: hardDeckGuess === "higher" ? "#22c55e" : "rgba(34,197,94,0.25)",
-                border: hardDeckGuess === "higher" ? "3px solid #fff" : "2px solid #22c55e",
-                color: "#fff", fontSize: 24, fontWeight: 800, cursor: hardDeckGuess ? "default" : "pointer",
-                boxShadow: hardDeckGuess === "higher" ? "0 4px 12px rgba(34,197,94,0.3)" : "none",
-                transform: hardDeckGuess === "higher" ? "scale(1.05)" : "scale(1)",
+                flex: 1, minHeight: 84, borderRadius: 16,
+                background: hardDeckGuess === "higher" ? "rgba(232,195,106,0.25)" : "#150A2E",
+                border: hardDeckGuess === "higher" ? "2px solid #E8C36A" : "1px solid rgba(232,195,106,0.55)",
+                color: "#fff", font: "800 22px 'Inter'", letterSpacing: ".08em", cursor: hardDeckGuess ? "default" : "pointer",
+                transform: hardDeckGuess === "higher" ? "scale(1.04)" : "scale(1)",
                 opacity: hardDeckGuess && hardDeckGuess !== "higher" ? 0.4 : 1,
                 transition: "all 0.15s ease",
               }}
@@ -655,12 +659,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               onClick={() => submitHardDeckGuess("lower")}
               disabled={!!hardDeckGuess}
               style={{
-                padding: "26px 40px", borderRadius: 14,
-                background: hardDeckGuess === "lower" ? "#ef4444" : "rgba(239,68,68,0.25)",
-                border: hardDeckGuess === "lower" ? "3px solid #fff" : "2px solid #ef4444",
-                color: "#fff", fontSize: 24, fontWeight: 800, cursor: hardDeckGuess ? "default" : "pointer",
-                boxShadow: hardDeckGuess === "lower" ? "0 4px 12px rgba(239,68,68,0.3)" : "none",
-                transform: hardDeckGuess === "lower" ? "scale(1.05)" : "scale(1)",
+                flex: 1, minHeight: 84, borderRadius: 16,
+                background: hardDeckGuess === "lower" ? "rgba(190,38,193,0.3)" : "#150A2E",
+                border: hardDeckGuess === "lower" ? "2px solid #D94FDC" : "1px solid #8A1B8D",
+                color: "#fff", font: "800 22px 'Inter'", letterSpacing: ".08em", cursor: hardDeckGuess ? "default" : "pointer",
+                boxShadow: hardDeckGuess === "lower" ? "0 0 18px rgba(190,38,193,0.35)" : "none",
+                transform: hardDeckGuess === "lower" ? "scale(1.04)" : "scale(1)",
                 opacity: hardDeckGuess && hardDeckGuess !== "lower" ? 0.4 : 1,
                 transition: "all 0.15s ease",
               }}
@@ -669,44 +673,43 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
         {isSelected && hardDeckStatus === "decision" && (
           <>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#facc15" }}>You have {hardDeckPotential} points!</div>
-            <div style={{ display: "flex", gap: 16 }}>
+            <div style={{ font: "700 18px 'Inter'", color: "#E8C36A" }}>You have {hardDeckPotential} points!</div>
+            <div style={{ display: "flex", gap: 16, width: "100%", maxWidth: 360 }}>
               <button
                 onClick={() => { setStickGamblePressed("stick"); submitHardDeckStick(); }}
                 disabled={!!stickGamblePressed}
                 style={{
-                  padding: "18px 28px", borderRadius: 12,
-                  background: stickGamblePressed === "stick" ? "#22c55e" : "rgba(34,197,94,0.25)",
-                  border: stickGamblePressed === "stick" ? "3px solid #fff" : "2px solid #22c55e",
-                  color: "#fff", fontSize: 16, fontWeight: 700, cursor: stickGamblePressed ? "default" : "pointer",
-                  boxShadow: stickGamblePressed === "stick" ? "0 4px 12px rgba(34,197,94,0.3)" : "none",
-                  transform: stickGamblePressed === "stick" ? "scale(1.05)" : "scale(1)",
+                  flex: 1, minHeight: 80, borderRadius: 16, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
+                  background: stickGamblePressed === "stick" ? "rgba(232,195,106,0.25)" : "#150A2E",
+                  border: stickGamblePressed === "stick" ? "2px solid #E8C36A" : "1px solid rgba(232,195,106,0.55)",
+                  color: "#fff", cursor: stickGamblePressed ? "default" : "pointer",
+                  transform: stickGamblePressed === "stick" ? "scale(1.04)" : "scale(1)",
                   opacity: stickGamblePressed && stickGamblePressed !== "stick" ? 0.4 : 1,
                   transition: "all 0.15s ease",
                 }}
-              >STICK</button>
+              ><span style={{ font: "800 18px 'Inter'", letterSpacing: ".08em" }}>STICK</span><span style={{ font: "600 11px 'Inter'", color: "#B9A8D9", letterSpacing: ".1em" }}>BANK {hardDeckPotential}</span></button>
               <button
                 onClick={() => { setStickGamblePressed("gamble"); submitHardDeckGamble(); }}
                 disabled={!!stickGamblePressed}
                 style={{
-                  padding: "18px 28px", borderRadius: 12,
-                  background: stickGamblePressed === "gamble" ? purple : "rgba(190,38,193,0.25)",
-                  border: stickGamblePressed === "gamble" ? "3px solid #fff" : "2px solid " + purple,
-                  color: "#fff", fontSize: 16, fontWeight: 700, cursor: stickGamblePressed ? "default" : "pointer",
-                  boxShadow: stickGamblePressed === "gamble" ? "0 4px 12px rgba(190,38,193,0.3)" : "none",
-                  transform: stickGamblePressed === "gamble" ? "scale(1.05)" : "scale(1)",
+                  flex: 1, minHeight: 80, borderRadius: 16, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
+                  background: stickGamblePressed === "gamble" ? "rgba(190,38,193,0.3)" : "#150A2E",
+                  border: stickGamblePressed === "gamble" ? "2px solid #D94FDC" : "1px solid #8A1B8D",
+                  color: "#fff", cursor: stickGamblePressed ? "default" : "pointer",
+                  boxShadow: stickGamblePressed === "gamble" ? "0 0 18px rgba(190,38,193,0.35)" : "none",
+                  transform: stickGamblePressed === "gamble" ? "scale(1.04)" : "scale(1)",
                   opacity: stickGamblePressed && stickGamblePressed !== "gamble" ? 0.4 : 1,
                   transition: "all 0.15s ease",
                 }}
-              >GAMBLE</button>
+              ><span style={{ font: "800 18px 'Inter'", letterSpacing: ".08em" }}>GAMBLE</span><span style={{ font: "600 11px 'Inter'", color: "#B9A8D9", letterSpacing: ".1em" }}>NEXT CARD</span></button>
             </div>
           </>
         )}
         {hardDeckStatus === "won" && (
-          <div style={{ fontSize: 22, color: "#22c55e", fontWeight: 800, letterSpacing: 0.5 }}>{isSelected ? "You won" : hardDeckTeam + " won"} {hardDeckPotential} points! 🎉</div>
+          <div style={{ font: "800 22px 'Inter'", color: "#2EE06E", letterSpacing: 0.5 }}>{isSelected ? "You won" : hardDeckTeam + " won"} {hardDeckPotential} points!</div>
         )}
         {hardDeckStatus === "lost" && (
-          <div style={{ fontSize: 22, color: "#ef4444", fontWeight: 800, letterSpacing: 0.5 }}>{isSelected ? "Bust — better luck next time!" : hardDeckTeam + " busted!"}</div>
+          <div style={{ font: "800 22px 'Inter'", color: "#FF3B4E", letterSpacing: 0.5 }}>{isSelected ? "Bust — better luck next time!" : hardDeckTeam + " busted!"}</div>
         )}
       </div>
     );
@@ -767,13 +770,13 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const isWinnerForSpin = fastestTeamName === teamName;
     if (isWinnerForSpin && spinOffered && !spinChoice) {
       return (
-        <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24, textAlign: "center" as const, fontFamily: font }}>
-          <div style={{ fontSize: 22, color: "#facc15", fontWeight: 900, letterSpacing: 2, fontFamily: "'Bruno Ace SC', sans-serif" }}>SPIN TO WIN?</div>
+        <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24, textAlign: "center" as const }}>
+          <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 24, letterSpacing: ".12em", textShadow: "0 0 24px rgba(190,38,193,.6)" }}><span style={{ color: "#BE26C1" }}>SPIN</span> TO WIN</div>
           {error && (
-            <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, textAlign: "center" as const }}>{error}</div>
+            <div style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,59,78,0.12)", border: "1px solid rgba(255,59,78,0.5)", color: "#FF3B4E", font: "600 13px 'Inter'", textAlign: "center" as const }}>{error}</div>
           )}
-          <button onClick={chooseSpin} style={{ width: "100%", maxWidth: 320, padding: "32px 0", borderRadius: 20, background: "rgba(34,197,94,0.25)", border: "3px solid #22c55e", color: "#fff", fontSize: 32, fontWeight: 900, letterSpacing: 4, cursor: "pointer" }}>SPIN</button>
-          <button onClick={choosePass} style={{ width: "100%", maxWidth: 320, padding: "24px 0", borderRadius: 20, background: "rgba(255,255,255,0.08)", border: "2px solid rgba(255,255,255,0.3)", color: "#fff", fontSize: 22, fontWeight: 700, letterSpacing: 3, cursor: "pointer" }}>PASS</button>
+          <button onClick={chooseSpin} style={{ width: "min(64vw,260px)", aspectRatio: "1", borderRadius: "50%", background: "radial-gradient(circle at 50% 40%, rgba(217,79,220,0.35), #150A2E 72%)", border: "2px solid #D94FDC", color: "#fff", font: "800 34px 'Inter'", letterSpacing: ".2em", cursor: "pointer", boxShadow: "0 0 46px rgba(190,38,193,0.5)" }}>SPIN</button>
+          <button onClick={choosePass} style={{ width: "100%", maxWidth: 320, minHeight: 64, borderRadius: 16, background: "#150A2E", border: "1px solid #2E1A52", color: "#B9A8D9", font: "700 18px 'Inter'", letterSpacing: ".2em", cursor: "pointer" }}>PASS</button>
         </div>
       );
     }
@@ -800,15 +803,15 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           <>
             {isWinner && spinOffered && !spinChoice && (
               <div style={{ marginBottom: 20, textAlign: "center" as const }}>
-                <div style={{ fontSize: 16, color: "#facc15", fontWeight: 700, marginBottom: 12, fontFamily: "'Bruno Ace SC', sans-serif" }}>Spin to Win?</div>
+                <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 16, color: "#D94FDC", marginBottom: 12, letterSpacing: ".1em" }}>SPIN TO WIN?</div>
                 <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-                  <button onClick={chooseSpin} style={{ padding: "14px 28px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "2px solid #22c55e", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>SPIN</button>
-                  <button onClick={choosePass} style={{ padding: "14px 28px", borderRadius: 12, background: "rgba(255,255,255,0.08)", border: "2px solid rgba(255,255,255,0.3)", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>PASS</button>
+                  <button onClick={chooseSpin} style={{ padding: "14px 28px", borderRadius: 14, background: "#BE26C1", border: "1px solid #D94FDC", color: "#fff", font: "700 16px 'Inter'", letterSpacing: ".08em", cursor: "pointer", boxShadow: "0 0 18px rgba(190,38,193,0.35)" }}>SPIN</button>
+                  <button onClick={choosePass} style={{ padding: "14px 28px", borderRadius: 14, background: "#150A2E", border: "1px solid #2E1A52", color: "#B9A8D9", font: "700 16px 'Inter'", letterSpacing: ".08em", cursor: "pointer" }}>PASS</button>
                 </div>
               </div>
             )}
             {isWinner && spinChoice === "spin" && (
-              <div style={{ fontSize: 16, color: "#22c55e", fontWeight: 700, marginBottom: 20, textAlign: "center" as const }}>Spinning... watch the big screen!</div>
+              <div style={{ font: "700 16px 'Inter'", color: "#B9A8D9", marginBottom: 20, textAlign: "center" as const }}>Spinning… watch the big screen!</div>
             )}
             {isWinner && spinChoice === "pass" && (
               <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginBottom: 20, textAlign: "center" as const }}>You passed on the spin</div>
@@ -818,9 +821,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
         {isWinner ? (
           <>
-            <div style={{ fontSize: 80, marginBottom: 8 }}>{"🏆"}</div>
-            <div style={{ fontSize: 42, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 40px rgba(190,38,193,0.8)", marginBottom: 8 }}>{fastestTeamName}</div>
-            <div style={{ fontSize: 18, color: "#22c55e", fontWeight: 800, letterSpacing: 2, marginBottom: 24 }}>{"That's you!"}</div>
+            <Crest initials={teamInitials(fastestTeamName || teamName)} size={88} gold />
+            <div style={{ fontSize: 42, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 40px rgba(190,38,193,0.8)", margin: "8px 0" }}>{fastestTeamName}</div>
+            <div style={{ font: "800 18px 'Inter'", color: "#E8C36A", letterSpacing: 2, marginBottom: 24 }}>{"That's you!"}</div>
             <div style={{ padding: "20px 40px", borderRadius: 20, background: "rgba(34,197,94,0.15)", border: "2px solid rgba(34,197,94,0.5)", marginBottom: 32, textAlign: "center" }}>
               <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(34,197,94,0.7)", marginBottom: 4 }}>POINTS AWARDED</div>
               <div style={{ fontSize: 56, fontWeight: 900, color: "#22c55e", textShadow: "0 0 20px rgba(34,197,94,0.6)", lineHeight: 1 }}>{fastestPoints >= 0 ? "+" : ""}{fastestPoints}</div>
@@ -862,15 +865,15 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   if ((phase === "answer" || (phase === "pursuit" && pursuitStatus === "reveal")) && question) {
     const correctText = getCorrectAnswerText(question);
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", padding: 20, fontFamily: font, color: "#fff" }}>
-        <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)", marginBottom: 12 }}>ANSWER REVEALED</div>
-        <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.4, marginBottom: 16, color: "rgba(255,255,255,0.8)" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
-        <div style={{ padding: "14px 18px", borderRadius: 12, background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.5)", marginBottom: 16 }}>
-          <div style={{ fontSize: 11, color: "rgba(34,197,94,0.7)", letterSpacing: 3, marginBottom: 4 }}>CORRECT ANSWER</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#22c55e" }}>{correctText}</div>
+      <div className="fbl fbl-phone" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", padding: 20 }}>
+        <div style={{ position: "relative", zIndex: 2, fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 14, letterSpacing: ".14em", color: "#B9A8D9", marginBottom: 12 }}>ANSWER REVEALED</div>
+        <div style={{ position: "relative", zIndex: 2, font: "700 clamp(16px,4.6vw,18px) 'Inter'", lineHeight: 1.4, marginBottom: 16, color: "rgba(255,255,255,0.85)" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+        <div style={{ position: "relative", zIndex: 2, padding: "14px 18px", borderRadius: 16, background: "rgba(46,224,110,0.15)", border: "1px solid rgba(46,224,110,0.5)", marginBottom: 16 }}>
+          <div style={{ font: "600 14px 'Inter'", color: "#2EE06E", letterSpacing: ".18em", marginBottom: 4 }}>CORRECT ANSWER</div>
+          <div style={{ font: "800 clamp(20px,6vw,24px) 'Inter'", color: "#2EE06E" }}>{correctText}</div>
         </div>
         {submitted && (
-          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 12 }}>
+          <div style={{ position: "relative", zIndex: 2, font: "600 13px 'Inter'", color: "#B9A8D9", marginBottom: 12 }}>
             Your answer: {mySubmittedDisplay || "(no answer submitted)"}
           </div>
         )}
@@ -1062,15 +1065,21 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     );
   }
 
+  // WAITING (lobby) — approved Fable handset "WAITING" state: crest birth,
+  // team name, waiting line + room count. Power-card selector preserved below.
   return (
-    <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font }}>
-      <div style={{ fontSize: 38, fontWeight: 800, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 30px rgba(190,38,193,0.5)", marginBottom: 8 }}>You are In!</div>
-      <div style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", marginBottom: 32 }}>{teamName} — good luck!</div>
-      <div style={{ padding: "14px 20px", borderRadius: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", textAlign: "center", marginBottom: 32, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)" }}>
-        <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)", marginBottom: 6 }}>STATUS</div>
-      <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Waiting for the quiz to start...</div>
-        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 10 }}>
-          {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: purple, opacity: 0.6 }} />)}
+    <div className="fbl fbl-phone" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: 24, textAlign: "center", position: "relative", zIndex: 2 }}>
+        <Crest initials={teamInitials(teamName)} size={120} />
+        <div style={{ font: "800 clamp(22px,6.6vw,30px) 'Inter'", color: "#fff" }}>{teamName}</div>
+        <div style={{ font: "600 clamp(15px,4.6vw,18px) 'Inter'", color: "#B9A8D9", lineHeight: 1.45 }}>
+          Waiting for your host…
+          {allTeamNames.length > 0 && (
+            <>
+              <br />
+              {allTeamNames.length} team{allTeamNames.length === 1 ? "" : "s"} in the room tonight
+            </>
+          )}
         </div>
       </div>
       <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} />

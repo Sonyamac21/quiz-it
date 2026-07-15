@@ -320,7 +320,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
   return (
     <div style={{
       position: "relative", width: "100%", borderRadius: 26,
-      background: "linear-gradient(145deg, #d8dade 0%, #8a8d94 6%, #3a3c42 14%, #1c1d21 26%, #0a0a0c 45%)",
+      background: "linear-gradient(145deg, #2E1A52 0%, #231543 8%, #1D1140 20%, #150A2E 34%, #0A0118 55%)",
       padding: size === "compact" ? 6 : 10,
       boxShadow: "0 24px 70px rgba(0,0,0,0.75), 0 0 0 1px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.35), inset 0 -2px 6px rgba(0,0,0,0.5)",
     }}>
@@ -333,8 +333,8 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
       {/* Cabinet header plate - Quiz-It branding only */}
       <div style={{ textAlign: "center", marginBottom: size === "compact" ? 6 : 10 }}>
         <div style={{ display: "inline-block", padding: size === "compact" ? "4px 16px" : "6px 24px", borderRadius: 999, background: "linear-gradient(180deg, #180429, #0a0116)", border: "1px solid rgba(212,175,90,0.55)", boxShadow: "0 3px 10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
-          <span style={{ fontSize: size === "compact" ? 12 : 16, fontWeight: 800, letterSpacing: 1.5 }}>
-            <span style={{ color: "#BE26C1" }}>Quiz</span><span style={{ color: "#ffffff" }}>-It</span>
+          <span style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: size === "compact" ? 12 : 16, letterSpacing: ".05em" }}>
+            <span style={{ color: "#BE26C1" }}>QUIZ-</span><span style={{ color: "#ffffff" }}>IT</span>
           </span>
         </div>
       </div>
@@ -343,12 +343,12 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
       <div style={{ background: "#07030f", borderRadius: 18, border: "1px solid rgba(0,0,0,0.6)", overflow: "hidden", position: "relative", width: "100%", boxShadow: "inset 0 3px 16px rgba(0,0,0,0.85), inset 0 0 1px rgba(255,255,255,0.05)" }}>
       <canvas ref={fwCanvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 60 }} />
       <BulbRow />
-      <div style={{ textAlign: "center", padding: size === "compact" ? "6px 0 4px" : "10px 0 8px", fontSize: size === "compact" ? "clamp(14px,3vw,22px)" : "clamp(24px,4vw,56px)", letterSpacing: size === "compact" ? 4 : 10, color: "#fff", textShadow: "0 0 24px rgba(190,38,193,0.7)" }}>
-        Spin <span style={{ color: "#BE26C1" }}>to</span> Win
+      <div style={{ textAlign: "center", fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", padding: size === "compact" ? "6px 0 4px" : "10px 0 8px", fontSize: size === "compact" ? "clamp(14px,3vw,22px)" : "clamp(22px,3.6vw,50px)", letterSpacing: size === "compact" ? ".12em" : ".14em", color: "#fff", textShadow: "0 0 24px rgba(190,38,193,0.7)" }}>
+        <span style={{ color: "#BE26C1" }}>SPIN</span> TO WIN
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: size === "compact" ? "8px 12px" : "16px 24px", gap: size === "compact" ? 8 : 16, background: "#08050f", boxShadow: "inset 0 4px 14px rgba(0,0,0,0.6), inset 0 -4px 14px rgba(0,0,0,0.5)" }}>
         {[0, 1, 2].map((i) => (
-          <div key={i} style={{ flex: 1, height: REEL_H, overflow: "hidden", position: "relative", border: "1px solid rgba(10,10,14,0.9)", borderRadius: 12, background: "#06040f", boxShadow: "inset 0 3px 10px rgba(0,0,0,0.85), inset 0 -3px 10px rgba(0,0,0,0.7), inset 0 0 0 2px rgba(140,150,165,0.3), 0 3px 10px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,175,90,0.25)" }}>
+          <div key={i} style={{ flex: 1, height: REEL_H, overflow: "hidden", position: "relative", border: "1px solid rgba(10,4,20,0.9)", borderRadius: 12, background: "#06040f", boxShadow: "inset 0 3px 10px rgba(5,0,13,0.85), inset 0 -3px 10px rgba(5,0,13,0.7), inset 0 0 0 2px rgba(140,120,185,0.3), 0 3px 10px rgba(5,0,13,0.6), 0 0 0 1px rgba(212,175,90,0.25)" }}>
             <div style={{ position: "absolute", left: 0, right: 0, top: "50%", transform: "translateY(-50%)", height: SEG_H, background: "rgba(100,10,120,0.3)", borderTop: "2px solid #BE26C1", borderBottom: "2px solid #BE26C1", pointerEvents: "none", zIndex: 3 }} />
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 60, background: "linear-gradient(to bottom, #06040f, transparent)", zIndex: 4, pointerEvents: "none" }} />
             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 60, background: "linear-gradient(to top, #06040f, transparent)", zIndex: 4, pointerEvents: "none" }} />

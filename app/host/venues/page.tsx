@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { HostShell, HostButton, HostInput, HostLoading, TopSpacer } from "@/components/fable/HostConsole";
 
+const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 type Venue = {
@@ -66,56 +68,64 @@ export default function VenuesPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.5)" }}>
-        Loading...
-      </div>
+      <HostShell>
+        <div style={{ minHeight: "100vh", background: STAGE_BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <HostLoading title="Venue Management" note="Loading your weekly schedule…" />
+        </div>
+      </HostShell>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a0535 0%, #0d0225 100%)", color: "#fff", padding: "32px 48px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
-        <div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: "#BE26C1", letterSpacing: 4 }}>Venue Schedule</div>
-          <div style={{ fontSize: 14, color: "rgba(190,38,193,0.8)" }}>Set your recurring weekly venues — the right one is picked automatically each day</div>
+    <HostShell>
+      <div style={{ minHeight: "100vh", background: STAGE_BG, color: "#fff", padding: "24px 32px" }}>
+        {/* TOP BAR */}
+        <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 24 }}>
+          <span className="fbh-wm" style={{ fontSize: 16 }}><span className="q">QUIZ-</span>IT</span>
+          <span className="fbh-bc">Venue Management</span>
+          <TopSpacer />
+          <a className="fbh-btn" href="/host/session">Back to Session</a>
         </div>
-        <div style={{ flex: 1 }} />
-        <a href="/host/session" style={{ padding: "10px 20px", borderRadius: 10, border: "1px solid rgba(190,38,193,0.4)", background: "rgba(190,38,193,0.06)", color: "#BE26C1", textDecoration: "none", fontSize: 14, fontWeight: 600, boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>Back to Session</a>
+
+        <div style={{ font: "400 12.5px 'Inter'", color: "#B9A8D9", marginBottom: 16, maxWidth: 640 }}>
+          Set your recurring weekly venues — the right one is picked automatically each day.
+        </div>
+
+        {/* DAY ROWS */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 720 }}>
+          {DAYS.map((dayName, i) => {
+            const v = venues[i] || { day_of_week: i, venue_name: "", venue_logo_url: null };
+            return (
+              <div key={i} className="fbh-panel" style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 0 }}>
+                <div style={{ width: 90, font: "600 12.5px 'Inter'", color: "#B9A8D9", letterSpacing: "0.04em" }}>{dayName}</div>
+
+                {v.venue_logo_url ? (
+                  <img src={v.venue_logo_url} alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", border: "1.5px solid #BE26C1" }} />
+                ) : (
+                  <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#150A2E", border: "1.5px dashed #8A1B8D", flexShrink: 0 }} />
+                )}
+
+                <label className="fbh-btn" style={{ height: 36, cursor: "pointer", flexShrink: 0 }}>
+                  {uploadingDay === i ? "…" : "Logo"}
+                  <input type="file" accept="image/*" style={{ display: "none" }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(i, f); }} />
+                </label>
+
+                <HostInput
+                  value={v.venue_name}
+                  onChange={e => updateName(i, e.target.value)}
+                  placeholder="Venue name…"
+                  style={{ flex: 1 }}
+                />
+
+                <HostButton variant="pri" onClick={() => saveDay(i)} disabled={savingDay === i} style={{ height: 36, flexShrink: 0 }}>
+                  {savingDay === i ? "SAVING…" : "SAVE"}
+                </HostButton>
+              </div>
+            );
+          })}
+        </div>
       </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 700 }}>
-        {DAYS.map((dayName, i) => {
-          const v = venues[i] || { day_of_week: i, venue_name: "", venue_logo_url: null };
-          return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", borderRadius: 14, background: "linear-gradient(160deg, rgba(60,15,110,0.4), rgba(30,8,60,0.4))", border: "1px solid rgba(190,38,193,0.3)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)" }}>
-              <div style={{ width: 90, fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.7)" }}>{dayName}</div>
-
-              {v.venue_logo_url ? (
-                <img src={v.venue_logo_url} alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", border: "1.5px solid #BE26C1" }} />
-              ) : (
-                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(255,255,255,0.06)", border: "1.5px dashed rgba(190,38,193,0.4)" }} />
-              )}
-
-              <label style={{ padding: "6px 12px", borderRadius: 10, background: "rgba(190,38,193,0.15)", border: "1px solid rgba(190,38,193,0.4)", color: "#BE26C1", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
-                {uploadingDay === i ? "..." : "Logo"}
-                <input type="file" accept="image/*" style={{ display: "none" }}
-                  onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(i, f); }} />
-              </label>
-
-              <input
-                value={v.venue_name}
-                onChange={e => updateName(i, e.target.value)}
-                placeholder="Venue name..."
-                style={{ flex: 1, padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(190,38,193,0.3)", fontSize: 14 }}
-              />
-
-              <button onClick={() => saveDay(i)} disabled={savingDay === i} style={{ padding: "8px 16px", borderRadius: 10, background: "rgba(190,38,193,0.3)", border: "1px solid #BE26C1", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0, boxShadow: savingDay === i ? "none" : "0 2px 6px rgba(0,0,0,0.2)" }}>
-                {savingDay === i ? "Saving..." : "Save"}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    </HostShell>
   );
 }

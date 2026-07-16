@@ -42,7 +42,7 @@ const RULES = {
     "Welcome to Quiz-It! Get your team ready on your phones \u2014 join with the PIN on screen.",
     "Answers lock in the moment you submit \u2014 no changing your mind after.",
     "You've got 15 seconds per question, so don't overthink it.",
-    "Power cards (Time-Out, Boost, Reverse) can be played once per game \u2014 use them wisely!",
+    "Each Power Card (Time-Out, Boost, Reverse) can be played once per quiz \u2014 use them wisely!",
     "Have fun, play fair, and good luck!",
   ],
   regular: [

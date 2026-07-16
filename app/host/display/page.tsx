@@ -112,11 +112,11 @@ const PRELOAD_SOUNDS = ["crowd-cheer.mp3", "airhorn.mp3", "sad-trombone.mp3", "r
 
 // Lobby Power-Card rules rotation. Rules mirror the real cards in
 // components/UnoCards.tsx; colours are the locked feature tokens
-// (Time-Out = blue, Boost = yellow, Reverse = red). One card per round.
+// (Time-Out = blue, Boost = yellow, Reverse = red).
 const POWER_CARD_INFO = [
-  { name: "TIME-OUT", sigil: "⏸", color: "#38A8FF", glow: "rgba(56,168,255,.45)", rule: "Freezes every other team for 10 seconds.", when: "Play before the host starts the timer.", limit: "One Power Card per round." },
-  { name: "BOOST", sigil: "⚡", color: "#FFC533", glow: "rgba(255,197,51,.45)", rule: "Doubles your points for every correct answer this round.", when: "Play before you answer.", limit: "One Power Card per round." },
-  { name: "REVERSE", sigil: "↻", color: "#FF3B4E", glow: "rgba(255,59,78,.45)", rule: "Reverses the digits of your score — 19 becomes 91.", when: "Play whenever it works in your favour.", limit: "One Power Card per round." },
+  { name: "TIME-OUT", sigil: "⏸", color: "#38A8FF", glow: "rgba(56,168,255,.45)", rule: "Freezes every other team for 10 seconds." },
+  { name: "BOOST", sigil: "⚡", color: "#FFC533", glow: "rgba(255,197,51,.45)", rule: "Doubles your points for every correct answer this round." },
+  { name: "REVERSE", sigil: "↻", color: "#FF3B4E", glow: "rgba(255,59,78,.45)", rule: "Reverses the digits of your score." },
 ];
 function preloadSounds() {
   for (const file of PRELOAD_SOUNDS) {
@@ -148,8 +148,8 @@ function playSound(file: string, volume = 1.0) {
 // Colors match the host dashboard's cardColor map exactly for consistency.
 const POWER_CARDS = [
   { type: "block", emoji: "\u23F8\uFE0F", title: "Time-Out", color: "#3b82f6", desc: "Freezes every OTHER team from answering for a short window, so you get a free run at the question with no competition." },
-  { type: "x2", emoji: "\u26A1", title: "Boost", color: "#eab308", desc: "Doubles your team's points for the question you play it on. Save it for a question you're confident about!" },
-  { type: "reverse", emoji: "\u21BB", title: "Reverse", color: "#ef4444", desc: "A surprise twist card - ask your host what it does in this game if you're not sure!" },
+  { type: "x2", emoji: "\u26A1", title: "Boost", color: "#eab308", desc: "Doubles your team's points for every correct answer in the current round." },
+  { type: "reverse", emoji: "\u21BB", title: "Reverse", color: "#ef4444", desc: "Reverses the digits of your team's score." },
 ];
 
 // Display-only Power Card overlays: a compact top-centre announcement (slides/
@@ -384,13 +384,9 @@ function DisplayScreenInner() {
   const spinNonceHandledRef = useRef<number | null>(null);
 
   const seenCardPlaysRef = useRef<Set<string>>(new Set());
-  // Full running list of card plays received this session, each tagged with the
-  // round_number it was played in (stamped by UnoCards.tsx at insert time). The
-  // "active this round" panel and leaderboard reminder both derive from this by
-  // filtering on round_number === roundNumber at render time - no explicit reset
-  // needed, since the filter naturally excludes prior rounds once roundNumber
-  // advances. uno_cards itself remains the permanent audit log; this is just a
-  // local mirror of the rows relevant to the currently connected session.
+  // Full running list of card plays in this session. It is hydrated on connect
+  // as well as updated through realtime, so display refreshes preserve the
+  // current-round effect reminders while uno_cards remains the permanent log.
   const [roundCardPlays, setRoundCardPlays] = useState<{ team_name: string; card_type: string; round_number: number | null }[]>([]);
 
   // Compact top-centre announcement, display-only. A queue ensures multiple
@@ -501,6 +497,13 @@ function DisplayScreenInner() {
     seenCardPlaysRef.current.add(dedupKey);
     setRoundCardPlays(prev => [...prev, { team_name: team, card_type: type, round_number: roundNum }]);
     setAnnounceQueue(q => [...q, { team, type }]);
+  }
+  async function hydrateCardPlays(pin: string) {
+    const supabase = createSupabaseBrowserClient();
+    const { data } = await supabase.from("uno_cards").select("id, team_name, card_type, round_number").eq("session_pin", pin).order("played_at", { ascending: true });
+    if (!data) return;
+    seenCardPlaysRef.current = new Set(data.map(c => String(c.id)));
+    setRoundCardPlays(data.map(c => ({ team_name: c.team_name, card_type: c.card_type, round_number: c.round_number ?? null })));
   }
   function applySession(data: Record<string, unknown>) {
     const newPhase = (data.phase as Phase) || "waiting";
@@ -770,6 +773,7 @@ function DisplayScreenInner() {
     setSessionPin(pinInput);
     setConnected(true);
     applySession(data);
+    hydrateCardPlays(pinInput);
     const { data: teamData } = await supabase.from("teams").select("*").eq("session_pin", pinInput).order("created_at", { ascending: true });
     if (teamData) setTeams(teamData);
     supabase.channel("display-" + pinInput)
@@ -822,6 +826,7 @@ function DisplayScreenInner() {
         setSessionPin(pinFromUrl);
         setConnected(true);
         applySession(data);
+        hydrateCardPlays(pinFromUrl);
         supabase.from("teams").select("*").eq("session_pin", pinFromUrl).order("created_at", { ascending: true }).then(({ data: teamData }) => {
           if (teamData) setTeams(teamData);
         });
@@ -1005,8 +1010,7 @@ function DisplayScreenInner() {
                   <div className="lb-pcard-sigil" style={{ color: c.color, textShadow: `0 0 34px ${c.glow}` }}>{c.sigil}</div>
                   <div className="lb-pcard-name" style={{ color: c.color }}>{c.name}</div>
                   <div className="lb-pcard-rule">{c.rule}</div>
-                  <div className="lb-pcard-meta"><b>WHEN</b>{c.when}</div>
-                  <div className="lb-pcard-meta"><b>LIMIT</b>{c.limit}</div>
+                  <div className="lb-pcard-meta">Once per quiz</div>
                 </div>
               );
             })()}

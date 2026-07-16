@@ -11,16 +11,14 @@ const CARDS = [
 
 export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = false }: { teamName: string; sessionPin?: string; roundNumber?: number; compact?: boolean }) {
   const [used, setUsed] = useState<string[]>([]);
-  const [usedThisRound, setUsedThisRound] = useState<number[]>([]);
 
   useEffect(() => {
     if (!sessionPin) return;
     const supabase = createSupabaseBrowserClient();
     const refetch = async () => {
-      const { data } = await supabase.from("uno_cards").select("card_type, round_number").eq("team_name", teamName).eq("session_pin", sessionPin);
+      const { data } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin);
       if (data) {
-        setUsed(data.map(d => d.card_type));
-        setUsedThisRound(data.map(d => d.round_number).filter((n): n is number => n != null));
+        setUsed([...new Set(data.map(d => d.card_type))]);
       }
     };
     refetch();
@@ -33,36 +31,23 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
     const channel = supabase
       .channel("uno-cards-" + sessionPin + "-" + teamName)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + sessionPin }, (payload) => {
-        const row = payload.new as { team_name?: string; card_type?: string; round_number?: number | null };
+        const row = payload.new as { team_name?: string; card_type?: string };
         if (row.team_name !== teamName) return;
         if (row.card_type) setUsed(prev => prev.includes(row.card_type!) ? prev : [...prev, row.card_type!]);
-        if (row.round_number != null) setUsedThisRound(prev => prev.includes(row.round_number!) ? prev : [...prev, row.round_number!]);
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [teamName, sessionPin]);
   const [playing, setPlaying] = useState<string | null>(null);
 
-  // A team may only activate one Power Card per round. Once any card has been
-  // played with the current round_number, every other (not-yet-used) card is
-  // locked until the next round begins - this resets automatically since it's
-  // derived from usedThisRound rather than a separate flag that would need
-  // explicit clearing.
-  const roundLocked = roundNumber != null && usedThisRound.includes(roundNumber);
-
   const playCard = async (cardType: string) => {
-    if (used.includes(cardType) || playing || roundLocked) return;
+    if (used.includes(cardType) || playing) return;
     setPlaying(cardType);
     const supabase = createSupabaseBrowserClient();
     const playedAt = new Date().toISOString();
-    // REVERSE: apply the score change BEFORE consuming the card, and only consume
-    // it when the change can actually be applied. Previously the consume insert
-    // ran in parallel with the reverse, so a reverse against a missing score row
-    // spent the card without any effect. Routed through the shared score service
-    // (scores table is authoritative); the eventKey ties this to the card-play
-    // timestamp so the same reverse can never be applied twice (setScoreAbsolute
-    // also self-dedupes on that key), and the `used`/`roundLocked` guards above
-    // prevent accidental replay.
+    // REVERSE needs an existing score to change. Check that before atomically
+    // consuming the card so a team never loses it without receiving its effect.
+    let reversedScore: number | null = null;
     if (cardType === "reverse" && sessionPin) {
       const { data: existing } = await supabase.from("scores").select("total_points").eq("session_pin", sessionPin).eq("team_name", teamName).maybeSingle();
       if (!existing) {
@@ -72,13 +57,9 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       }
       const current = existing.total_points || 0;
       const sign = current < 0 ? -1 : 1;
-      const reversed = sign * parseInt(Math.abs(current).toString().split("").reverse().join("") || "0", 10);
-      const result = await setScoreAbsolute(supabase, sessionPin, teamName, reversed, {
-        eventKey: `reverse:${sessionPin}:${teamName}:${playedAt}`,
-      });
-      if (result.scoreboardSyncError) console.error("Reverse card: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
+      reversedScore = sign * parseInt(Math.abs(current).toString().split("").reverse().join("") || "0", 10);
     }
-    await supabase.from("uno_cards").insert({
+    const { error: consumeError } = await supabase.from("uno_cards").insert({
       team_name: teamName,
       card_type: cardType,
       used: true,
@@ -86,6 +67,21 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       session_pin: sessionPin || "",
       round_number: roundNumber ?? null,
     });
+    if (consumeError) {
+      // The database unique constraint is the final authority across tabs,
+      // refreshes and reconnects. Refetch so this handset immediately reflects
+      // a card that another client has already spent.
+      const { data } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin || "");
+      if (data) setUsed([...new Set(data.map(d => d.card_type))]);
+      setPlaying(null);
+      return;
+    }
+    if (cardType === "reverse" && sessionPin && reversedScore != null) {
+      const result = await setScoreAbsolute(supabase, sessionPin, teamName, reversedScore, {
+        eventKey: `reverse:${sessionPin}:${teamName}:${playedAt}`,
+      });
+      if (result.scoreboardSyncError) console.error("Reverse card: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
+    }
     if (cardType === "block" && sessionPin) {
       // Store as pending — the 10-second lockout activates when the HOST presses
       // the timer button, not immediately. This means on a 15-second question,
@@ -97,7 +93,6 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       }).eq("pin", sessionPin);
     }
     setUsed(prev => [...prev, cardType]);
-    if (roundNumber != null) setUsedThisRound(prev => [...prev, roundNumber]);
     setPlaying(null);
   };
 
@@ -117,7 +112,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
         <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
           {CARDS.map(card => {
             const isUsed = used.includes(card.type);
-            const isLocked = isUsed || roundLocked;
+            const isLocked = isUsed;
             const isPlaying = playing === card.type;
             const fb = FABLE[card.type] || { face: card.bg, ink: card.color, sig: card.emoji, cname: card.label.toUpperCase() };
             return (
@@ -136,7 +131,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
                   alignItems: "flex-start", justifyContent: "space-between",
                   padding: "9px 8px",
                   filter: isUsed ? "saturate(0.3) brightness(0.5)" : "none",
-                  opacity: (roundLocked && !isUsed) ? 0.5 : 1,
+                  opacity: 1,
                   boxShadow: isLocked ? "0 6px 18px rgba(5,0,13,0.6)" : "0 10px 26px rgba(5,0,13,0.7), inset 0 0 0 1px rgba(255,255,255,0.08)",
                   transform: isPlaying ? "scale(0.95)" : "scale(1)",
                   transition: "all 0.15s",
@@ -154,7 +149,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
           })}
         </div>
         <div style={{ marginTop: 8, textAlign: "center", font: "600 10px 'Inter'", color: "#6B5A8E", letterSpacing: "0.14em" }}>
-          {roundLocked && remaining > 0 ? "ONE CARD PER ROUND — LOCKED" : `${remaining} OF ${CARDS.length} CARD${CARDS.length === 1 ? "" : "S"} REMAINING TONIGHT`}
+          {`${remaining} OF ${CARDS.length} CARD${remaining === 1 ? "" : "S"} REMAINING TONIGHT · EACH ONCE PER QUIZ`}
         </div>
       </div>
     );
@@ -168,7 +163,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
         {CARDS.map(card => {
           const isUsed = used.includes(card.type);
-          const isLocked = isUsed || roundLocked;
+          const isLocked = isUsed;
           const isPlaying = playing === card.type;
           return (
             <button

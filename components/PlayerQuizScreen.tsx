@@ -55,32 +55,34 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
         return (
           <button key={i} type="button" onClick={() => tapItem(i)} disabled={isPicked}
             style={{
-              display: "flex", alignItems: "center", gap: 10, padding: "16px 16px", borderRadius: 12,
-              background: isPicked ? "rgba(190,38,193,0.18)" : "rgba(255,255,255,0.07)",
-              border: "1.5px solid " + (isPicked ? purple : "rgba(190,38,193,0.25)"),
+              display: "flex", alignItems: "center", gap: 14, minHeight: 58, padding: "12px 16px", borderRadius: 14,
+              background: isPicked ? "rgba(190,38,193,0.22)" : "#1D1140",
+              border: "1px solid " + (isPicked ? "#D94FDC" : "#3A2668"),
+              boxShadow: isPicked ? "0 0 14px rgba(217,79,220,0.3)" : "none",
               textAlign: "left" as const, cursor: isPicked ? "default" : "pointer", width: "100%",
             }}>
             <span style={{
               display: "flex", alignItems: "center", justifyContent: "center",
-              width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
-              background: isPicked ? purple : "rgba(255,255,255,0.08)",
-              color: isPicked ? "#fff" : "rgba(255,255,255,0.3)",
-              fontWeight: 800, fontSize: 13,
+              width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
+              background: isPicked ? "#8A1B8D" : "#0A0118",
+              border: "1px solid " + (isPicked ? "#D94FDC" : "#8A1B8D"),
+              color: isPicked ? "#fff" : "#6B5A8E",
+              fontWeight: 800, fontSize: 16,
             }}>
               {isPicked ? pickedIndex + 1 : ""}
             </span>
-            <span style={{ flex: 1, color: "#fff", fontSize: 14, fontFamily: font }}>{item}</span>
+            <span style={{ flex: 1, color: "#fff", font: "700 17px 'Inter'" }}>{item}</span>
           </button>
         );
       })}
-      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
         <button type="button" onClick={resetPicks} disabled={picked.length === 0}
-          style={{ flex: 1, padding: "12px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: picked.length ? "#fff" : "rgba(255,255,255,0.3)", fontSize: 13, fontFamily: font, cursor: picked.length ? "pointer" : "default" }}>
+          style={{ flex: 1, minHeight: 56, borderRadius: 14, background: "#150A2E", border: "1px solid #2E1A52", color: picked.length ? "#fff" : "rgba(255,255,255,0.3)", font: "700 15px 'Inter'", cursor: picked.length ? "pointer" : "default" }}>
           RESET
         </button>
         <button type="button" onClick={submitOrder} disabled={!allPicked}
-          style={{ flex: 2, padding: "12px", borderRadius: 10, background: allPicked ? purple : "#1a1a2e", color: allPicked ? "#fff" : "rgba(255,255,255,0.3)", border: "none", fontSize: 15, fontFamily: font, letterSpacing: 2, cursor: allPicked ? "pointer" : "default" }}>
-          SUBMIT ORDER
+          style={{ flex: 2, minHeight: 56, borderRadius: 14, background: allPicked ? purple : "#150A2E", color: allPicked ? "#fff" : "rgba(255,255,255,0.3)", border: allPicked ? "1px solid #D94FDC" : "1px solid #2E1A52", boxShadow: allPicked ? "0 0 18px rgba(190,38,193,0.35)" : "none", font: "800 18px 'Inter'", letterSpacing: 1, cursor: allPicked ? "pointer" : "default" }}>
+          LOCK IN ORDER
         </button>
       </div>
     </div>
@@ -103,13 +105,12 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
         {!imageFailed ? (
           <img src={imageUrl} alt="Quiz" onError={() => setImageFailed(true)} style={{ maxWidth:"100%", maxHeight:"75vh", borderRadius:16, objectFit:"contain", boxShadow:"0 0 40px rgba(190,38,193,0.3)" }} />
         ) : (
-          <div style={{ width:"80%", maxWidth:340, padding:"40px 24px", borderRadius:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", textAlign:"center" as const }}>
-            <div style={{ fontSize:36, marginBottom:12 }}>🖼️</div>
-            <div style={{ fontSize:14, color:"rgba(255,255,255,0.6)", fontFamily:font }}>Image could not be loaded</div>
-            <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)", marginTop:6, fontFamily:font }}>Listen for the host to read the question</div>
+          <div style={{ width:"80%", maxWidth:340, padding:"40px 24px", borderRadius:16, background:"#150A2E", border:"1px solid #2E1A52", textAlign:"center" as const }}>
+            <div style={{ font:"800 17px 'Inter'", color:"#fff" }}>Image could not be loaded</div>
+            <div style={{ font:"600 14px 'Inter'", color:"#B9A8D9", marginTop:8 }}>Listen for the host to read the question</div>
           </div>
         )}
-        <div style={{ marginTop:20, fontSize:13, color:"rgba(255,255,255,0.4)", letterSpacing:2, fontFamily:font }}>TAP TO ANSWER</div>
+        <div style={{ marginTop:22, font:"800 16px 'Inter'", color:"#D94FDC", letterSpacing:2 }}>TAP TO ANSWER →</div>
         {timeLeft !== null && timeLeft > 0 && (
           <div style={{ position:"absolute", top:20, right:20, width:44, height:44, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"2px solid "+(timeLeft<=3?"#ef4444":purple), display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:800, color:timeLeft<=3?"#ef4444":purple, fontFamily:font }}>
             {timeLeft}
@@ -900,18 +901,35 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
   if ((phase === "answer" || (phase === "pursuit" && pursuitStatus === "reveal")) && question) {
     const correctText = getCorrectAnswerText(question);
+    // Authoritative verdict only for multiple choice, where the picked key vs the
+    // correct key is exactly what scoring compares — never a guessed/fuzzy verdict
+    // that could disagree with the score. Other types show the correct answer.
+    const isMC = question.question_type === "multiple_choice";
+    const mcVerdict = isMC && submitted && selectedAnswer
+      ? (selectedAnswer.toLowerCase() === (question.correct_answer || "").trim().toLowerCase())
+      : null;
     return (
-      <div className="fbl fbl-phone" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", padding: 20 }}>
-        <div style={{ position: "relative", zIndex: 2, fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 14, letterSpacing: ".14em", color: "#B9A8D9", marginBottom: 12 }}>ANSWER REVEALED</div>
-        <div style={{ position: "relative", zIndex: 2, font: "700 clamp(16px,4.6vw,18px) 'Inter'", lineHeight: 1.4, marginBottom: 16, color: "rgba(255,255,255,0.85)" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
-        <div style={{ position: "relative", zIndex: 2, padding: "14px 18px", borderRadius: 16, background: "rgba(46,224,110,0.15)", border: "1px solid rgba(46,224,110,0.5)", marginBottom: 16 }}>
-          <div style={{ font: "600 14px 'Inter'", color: "#2EE06E", letterSpacing: ".18em", marginBottom: 4 }}>CORRECT ANSWER</div>
-          <div style={{ font: "800 clamp(20px,6vw,24px) 'Inter'", color: "#2EE06E" }}>{correctText}</div>
-        </div>
-        {submitted && (
-          <div style={{ position: "relative", zIndex: 2, font: "600 13px 'Inter'", color: "#B9A8D9", marginBottom: 12 }}>
-            Your answer: {mySubmittedDisplay || "(no answer submitted)"}
+      <div className="fbl fbl-phone" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", padding: 20, background: mcVerdict === true ? "radial-gradient(ellipse 80% 55% at 50% 42%, rgba(46,224,110,0.18), #0A0118 72%)" : undefined }}>
+        {mcVerdict === true ? (
+          /* The player's whole moment: did I get it? — one dominant answer. */
+          <div style={{ position: "relative", zIndex: 2, margin: "auto 0", textAlign: "center" }}>
+            <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: "clamp(40px,13vw,60px)", color: "#2EE06E", letterSpacing: ".06em", textShadow: "0 0 30px rgba(46,224,110,0.5)" }}>CORRECT</div>
+            <div style={{ font: "700 clamp(17px,5vw,22px) 'Inter'", color: "#fff", marginTop: 12 }}>{correctText}</div>
           </div>
+        ) : (
+          <>
+            <div style={{ position: "relative", zIndex: 2, fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 14, letterSpacing: ".14em", color: "#B9A8D9", marginBottom: 12 }}>ANSWER REVEALED</div>
+            <div style={{ position: "relative", zIndex: 2, font: "700 clamp(15px,4.2vw,17px) 'Inter'", lineHeight: 1.4, marginBottom: 16, color: "rgba(255,255,255,0.6)" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+            <div style={{ position: "relative", zIndex: 2, padding: "18px 20px", borderRadius: 16, background: "rgba(46,224,110,0.15)", border: "1px solid rgba(46,224,110,0.5)", marginBottom: 14 }}>
+              <div style={{ font: "700 13px 'Inter'", color: "#2EE06E", letterSpacing: ".18em", marginBottom: 6 }}>CORRECT ANSWER</div>
+              <div style={{ font: "800 clamp(24px,7vw,32px) 'Inter'", color: "#2EE06E" }}>{correctText}</div>
+            </div>
+            {submitted && (
+              <div style={{ position: "relative", zIndex: 2, font: "600 14px 'Inter'", color: mcVerdict === false ? "#FF3B4E" : "#B9A8D9", marginBottom: 12 }}>
+                Your answer: {mySubmittedDisplay || "(no answer submitted)"}
+              </div>
+            )}
+          </>
         )}
         <PowerCards />
       </div>
@@ -985,7 +1003,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           )}
         </div>
 
-        <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3, marginBottom: 12, color: "#fff" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+        <div style={{ fontSize: "clamp(19px,5.4vw,24px)", fontWeight: 800, lineHeight: 1.3, marginBottom: 14, color: "#fff" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
         {error && (
           <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, marginBottom: 10, textAlign: "center" as const }}>{error}</div>
         )}
@@ -1002,40 +1020,42 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
                 </div>
               );
             })}
-            {!submitted && selectedAnswer && (
+            {!submitted && (
               <>
-                <div className="lockbar" onClick={() => { const opt = options.find(o => o.key === selectedAnswer); setMySubmittedDisplay(opt?.text || selectedAnswer); submitAnswer(selectedAnswer); }}>LOCK IT IN</div>
-                <div className="lk-note">Speed bonus draining — lock to bank it</div>
+                <div className={"lockbar" + (selectedAnswer ? "" : " disabled")}
+                  onClick={() => { if (!selectedAnswer) return; const opt = options.find(o => o.key === selectedAnswer); setMySubmittedDisplay(opt?.text || selectedAnswer); submitAnswer(selectedAnswer); }}>
+                  {selectedAnswer ? "LOCK IT IN" : "SELECT AN ANSWER"}
+                </div>
+                {selectedAnswer && <div className="lk-note">Speed bonus draining — lock to bank it</div>}
               </>
             )}
-            {submitted && <div className="lk-note" style={{ color: "var(--green)", letterSpacing: "0.2em" }}>ANSWER LOCKED IN ✓</div>}
+            {submitted && <div className="lk-note" style={{ color: "var(--green)", letterSpacing: "0.2em", fontSize: 13 }}>ANSWER LOCKED IN ✓</div>}
           </div>
         )}
 
         {isMultiTap && (
-          <div style={{ marginBottom: 16 }}>
+          <div className="fbl" style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
               {multiTapOptions.map(opt => {
                 const isTapped = tappedItems.includes(opt.key);
                 return (
                   <button key={opt.key} type="button"
                     onClick={() => { if (!submitted) setTappedItems(prev => isTapped ? prev.filter(k => k !== opt.key) : [...prev, opt.key]); }}
-                    style={{ padding: "16px 16px", borderRadius: 12, border: "1.5px solid", borderColor: isTapped ? purple : "rgba(255,255,255,0.15)", background: isTapped ? "rgba(190,38,193,0.25)" : "rgba(255,255,255,0.06)", color: "#fff", fontSize: 16, fontFamily: font, textAlign: "left" as const, cursor: submitted ? "default" : "pointer", display: "flex", alignItems: "center", gap: 10, opacity: submitted && !isTapped ? 0.35 : 1 }}>
-                    <span style={{ color: isTapped ? "#fff" : purple, fontWeight: 700, minWidth: 16 }}>{opt.key.toUpperCase()}.</span>
-                    {opt.text}
-                    {isTapped && !submitted && <span style={{ marginLeft: "auto", fontSize: 13, color: purple }}>●</span>}
-                    {isTapped && submitted && <span style={{ marginLeft: "auto", fontSize: 13, color: "#22c55e" }}>✓</span>}
+                    style={{ minHeight: 62, padding: "12px 16px", borderRadius: 14, border: "1px solid", borderColor: isTapped ? "#D94FDC" : "#3A2668", background: isTapped ? "rgba(190,38,193,0.28)" : "#1D1140", boxShadow: isTapped ? "0 0 16px rgba(217,79,220,0.35)" : "none", color: "#fff", font: "700 17px 'Inter'", textAlign: "left" as const, cursor: submitted ? "default" : "pointer", display: "flex", alignItems: "center", gap: 14, opacity: submitted && !isTapped ? 0.35 : 1 }}>
+                    <span style={{ width: 32, height: 32, borderRadius: 8, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", background: isTapped ? "#8A1B8D" : "#0A0118", border: "1px solid " + (isTapped ? "#D94FDC" : "#8A1B8D"), color: isTapped ? "#fff" : "#D94FDC", font: "800 15px 'Inter'" }}>{opt.key.toUpperCase()}</span>
+                    <span style={{ flex: 1 }}>{opt.text}</span>
+                    {isTapped && <span style={{ fontSize: 16, color: submitted ? "#2EE06E" : "#D94FDC" }}>{submitted ? "✓" : "●"}</span>}
                   </button>
                 );
               })}
             </div>
-            {!submitted && tappedItems.length > 0 && (
-              <button type="button" onClick={() => { const texts = tappedItems.map(k => multiTapOptions.find(o => o.key === k)?.text || k).join(", "); setMySubmittedDisplay(texts); submitAnswer(tappedItems.join(",")); }}
-                style={{ padding: "10px", borderRadius: 10, background: purple, color: "#fff", border: "none", fontSize: 13, fontFamily: font, letterSpacing: 2, cursor: "pointer", marginTop: 2, width: "100%" }}>
-                LOCK IN ANSWERS
-              </button>
+            {!submitted && (
+              <div className={"lockbar" + (tappedItems.length > 0 ? "" : " disabled")}
+                onClick={() => { if (tappedItems.length === 0) return; const texts = tappedItems.map(k => multiTapOptions.find(o => o.key === k)?.text || k).join(", "); setMySubmittedDisplay(texts); submitAnswer(tappedItems.join(",")); }}>
+                {tappedItems.length > 0 ? `LOCK IN ${tappedItems.length} ANSWER${tappedItems.length === 1 ? "" : "S"}` : "TAP YOUR ANSWERS"}
+              </div>
             )}
-            {submitted && <div style={{ fontSize: 11, color: "#22c55e", textAlign: "center" as const, marginTop: 2, letterSpacing: 2 }}>ANSWERS LOCKED IN ✓</div>}
+            {submitted && <div className="lk-note" style={{ color: "var(--green)", letterSpacing: "0.2em", fontSize: 13 }}>ANSWERS LOCKED IN ✓</div>}
           </div>
         )}
 
@@ -1050,9 +1070,10 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
 
         {submitted && (
-          <div style={{ padding: "14px 18px", borderRadius: 12, background: "rgba(190,38,193,0.15)", border: "1px solid rgba(190,38,193,0.4)", textAlign: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 15, color: purple, fontWeight: 700 }}>Answer Submitted!</div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Waiting for host...</div>
+          <div style={{ padding: "20px 18px", borderRadius: 16, background: "rgba(190,38,193,0.15)", border: "1.5px solid #D94FDC", textAlign: "center", marginBottom: 16 }}>
+            <div style={{ font: "800 22px 'Inter'", color: "#fff", letterSpacing: ".14em" }}>LOCKED IN ✓</div>
+            {mySubmittedDisplay && <div style={{ font: "700 16px 'Inter'", color: "#D94FDC", marginTop: 6 }}>{mySubmittedDisplay}</div>}
+            <div style={{ font: "400 13px 'Inter'", color: "#B9A8D9", marginTop: 6 }}>Sit tight — waiting for the host</div>
           </div>
         )}
         </div>
@@ -1075,26 +1096,27 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const myRankRevealed = myRank !== null && (quizEndTrophyVisible || (sortedFinal.length - quizEndRevealedCount) < myRank);
     const ordinal = (n: number) => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font, color: "#fff" }}>
-        <div style={{ fontSize: 13, letterSpacing: 4, color: "rgba(255,255,255,0.4)" }}>{revealComplete ? "FINAL RESULTS" : "FINAL STANDINGS"}</div>
+      <div className="fbl fbl-phone" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 14, textAlign: "center" as const }}>
+        <div style={{ position: "relative", zIndex: 2, font: "700 13px 'Inter'", letterSpacing: 4, color: "#B9A8D9" }}>{revealComplete ? "FINAL RESULTS" : "FINAL STANDINGS"}</div>
         {!myRankRevealed ? (
           <>
-            <div style={{ fontSize: 40 }}>{"\u{1F440}"}</div>
-            <div style={{ fontSize: 24, fontWeight: 900, color: purple, letterSpacing: 2 }}>EYES UP!</div>
-            <div style={{ fontSize: 15, color: "rgba(255,255,255,0.55)" }}>Watch the big screen for the results…</div>
+            <Crest initials={teamInitials(teamName)} size={72} dim />
+            <div style={{ position: "relative", zIndex: 2, font: "800 26px 'Inter'", color: purple, letterSpacing: 2 }}>EYES UP</div>
+            <div style={{ position: "relative", zIndex: 2, font: "600 15px 'Inter'", color: "#B9A8D9" }}>Watch the big screen for the results…</div>
           </>
         ) : (
           <>
-            <div style={{ fontSize: myRank === 1 ? 64 : 40, marginBottom: 4 }}>{myRank === 1 ? "\u{1F3C6}" : myRank === 2 ? "\u{1F948}" : myRank === 3 ? "\u{1F949}" : "\u{2B50}"}</div>
-            <div style={{ fontSize: 30, fontWeight: 900, color: "#fff", letterSpacing: 1 }}>{teamName}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: myRank && myRank <= 3 ? "#facc15" : purple, letterSpacing: 1 }}>{myRank ? ordinal(myRank) + " place" : "Thanks for playing!"}</div>
+            <Crest initials={teamInitials(teamName)} size={myRank === 1 ? 104 : 84} gold={!!myRank && myRank <= 3} />
+            {/* Rank is the single thing the player wants — make it the hero. */}
+            <div style={{ position: "relative", zIndex: 2, font: "900 clamp(46px,17vw,80px) 'Inter'", color: myRank && myRank <= 3 ? "#E8C36A" : "#fff", lineHeight: 1, textShadow: myRank && myRank <= 3 ? "0 0 30px rgba(232,195,106,.5)" : "none" }}>{myRank ? ordinal(myRank) : "—"}</div>
+            <div style={{ position: "relative", zIndex: 2, font: "800 24px 'Inter'", color: "#fff", letterSpacing: 1 }}>{teamName}</div>
             {myScore !== null && (
-              <div style={{ padding: "14px 28px", borderRadius: 16, background: "rgba(190,38,193,0.15)", border: "2px solid rgba(190,38,193,0.45)", marginTop: 4 }}>
-                <div style={{ fontSize: 10, letterSpacing: 3, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>FINAL SCORE</div>
-                <div style={{ fontSize: 40, fontWeight: 900, color: purple, lineHeight: 1 }}>{myScore}</div>
+              <div style={{ position: "relative", zIndex: 2, padding: "14px 34px", borderRadius: 16, background: "rgba(190,38,193,0.15)", border: "2px solid rgba(190,38,193,0.45)", marginTop: 4 }}>
+                <div style={{ font: "700 11px 'Inter'", letterSpacing: 3, color: "#B9A8D9", marginBottom: 4 }}>FINAL SCORE</div>
+                <div style={{ font: "900 46px 'Inter'", color: "#D94FDC", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{myScore}</div>
               </div>
             )}
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 8 }}>Full results on the big screen</div>
+            <div style={{ position: "relative", zIndex: 2, font: "400 13px 'Inter'", color: "#6B5A8E", marginTop: 8 }}>Full results on the big screen</div>
           </>
         )}
       </div>

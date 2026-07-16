@@ -1054,6 +1054,14 @@ function QuizControllerInner() {
     );
   };
 
+  // Single place to choose tonight's round (used by the header dropdown and the
+  // big desk picker). Behaviour identical to the original inline handler.
+  function chooseRound(r: (typeof rounds)[number] | null) {
+    setSelectedRound(r || null); setQIdx(0); setAnswers([]); setHostPhase("waiting");
+    roundQuestionsRef.current = r ? [...r.questions] : [];
+    if (sessionId) createSupabaseBrowserClient().from("sessions").update({ round_id: r?.id || null }).eq("id", sessionId);
+  }
+
   const spacebarHint =
     hostPhase === "waiting" ? "SPACE: Start Round" :
     hostPhase === "round_start" ? "SPACE: Preview First Question" :
@@ -1065,6 +1073,19 @@ function QuizControllerInner() {
     hostPhase === "celebration" ? (isLastQ ? "SPACE: End Round" : "SPACE: Preview Next Question") :
     hostPhase === "round_end" ? "SPACE: Start Next Round" :
     hostPhase === "quiz_end" ? "Leaderboard reveal active" : "";
+
+  // The single next beat, as a plain verb — surfaced as the dominant control so
+  // the host never hunts and can drive the whole show from peripheral vision.
+  const nextActionLabel =
+    hostPhase === "waiting" ? "Start Round" :
+    hostPhase === "round_start" ? "Preview First Question" :
+    hostPhase === "preview" ? "Send Question Live" :
+    hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "Reveal Question Text" :
+    hostPhase === "question" ? "Start Timer" :
+    hostPhase === "timer" ? "Reveal Answer" :
+    hostPhase === "answer" ? "Celebrate Fastest Team" :
+    hostPhase === "celebration" ? (isLastQ ? "End Round" : "Next Question") :
+    hostPhase === "round_end" ? "Start Next Round" : "";
 
   if (!connected) {
     return (
@@ -1108,12 +1129,9 @@ function QuizControllerInner() {
             Q {qIdx+1} <span style={{ color:"rgba(255,255,255,0.4)", fontWeight:400 }}>of {selectedRound.questions.length}</span>
           </div>
         )}
-        <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)", letterSpacing:1, flex:1, textAlign:"center" as const }}>{spacebarHint}</div>
+        <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)", letterSpacing:1, flex:1, textAlign:"center" as const }}>{nextActionLabel ? "" : spacebarHint}</div>
         <select value={selectedRound?.id||""} onChange={e => {
-          const r = rounds.find(x=>x.id===e.target.value);
-          setSelectedRound(r||null); setQIdx(0); setAnswers([]); setHostPhase("waiting");
-          roundQuestionsRef.current = r ? [...r.questions] : [];
-          if (sessionId) createSupabaseBrowserClient().from("sessions").update({ round_id: r?.id || null }).eq("id", sessionId);
+          chooseRound(rounds.find(x=>x.id===e.target.value) || null);
         }}
           style={{ padding:"6px 12px", borderRadius:10, background:"rgba(255,255,255,0.06)", color:"#fff", border:"1px solid rgba(190,38,193,0.35)", fontSize:12, cursor:"pointer" }}>
           <option value="">{rounds.length ? "Select round..." : "No rounds found — check host login"}</option>
@@ -1190,11 +1208,42 @@ function QuizControllerInner() {
         <button className="fbh-btn" style={{ height:38, marginLeft:"auto" }} onClick={doEndOfQuiz}>End Quiz</button>
       </div>
 
+      {/* DOMINANT NEXT-ACTION BAR — the one thing the host acts on next, huge and
+          clickable (same as pressing Space). Readable from across the room / at a
+          glance while talking. Timer phase shows the live countdown instead. */}
+      {selectedRound && nextActionLabel && (
+        <button onClick={handleSpacebar}
+          style={{ display:"flex", alignItems:"center", gap:20, width:"100%", padding:"16px 28px", border:"none", borderBottom:"1px solid #2E1A52", cursor:"pointer", textAlign:"left" as const,
+            background: hostPhase==="timer" ? "rgba(190,38,193,0.10)" : "linear-gradient(90deg, rgba(190,38,193,0.28), rgba(190,38,193,0.10))",
+            boxShadow: hostPhase==="timer" ? "none" : "inset 0 0 40px rgba(190,38,193,0.15)" }}>
+          <span style={{ font:"700 13px 'Inter'", letterSpacing:".22em", color:"#B9A8D9", flexShrink:0 }}>NEXT</span>
+          <span style={{ font:"800 clamp(22px,3vw,40px) 'Inter'", color:"#fff", letterSpacing:".01em", flex:1 }}>{nextActionLabel}</span>
+          {hostPhase==="timer" && <span style={{ font:"900 clamp(30px,4vw,54px) 'Inter'", color:(timeLeft ?? 0)<=5 ? "#FF3B4E" : "#D94FDC", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{timeLeft}s</span>}
+          <span style={{ font:"800 13px 'Inter'", letterSpacing:".16em", color:"#fff", background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.25)", borderRadius:10, padding:"7px 14px", flexShrink:0 }}>SPACE ▸</span>
+        </button>
+      )}
+
       {/* MAIN CONTENT */}
       <div style={{ flex:1, display:"grid", gridTemplateColumns:"1fr 380px", gap:0, overflow:"hidden" }}>
         <div style={{ padding:24, overflowY:"auto" as const, borderRight:"1px solid rgba(190,38,193,0.2)" }}>
           {!selectedRound ? (
-            <div style={{ textAlign:"center", marginTop:80, color:"rgba(255,255,255,0.4)", fontSize:18 }}>Select a round from the dropdown above to begin</div>
+            <div style={{ maxWidth:760, margin:"36px auto 0" }}>
+              <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:"clamp(20px,2.6vw,34px)", letterSpacing:".08em", textAlign:"center", marginBottom:6 }}>Choose Tonight&rsquo;s Round</div>
+              <div style={{ font:"400 14px 'Inter'", color:"#B9A8D9", textAlign:"center", marginBottom:24 }}>Tap a round to load it — then press Space to start.</div>
+              {rounds.filter(r => r.round_type !== "pursuit").length === 0 ? (
+                <div style={{ font:"600 15px 'Inter'", color:"#B9A8D9", textAlign:"center" }}>No rounds found — check host login, or build one in the Round Library.</div>
+              ) : (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))", gap:14 }}>
+                  {rounds.filter(r => r.round_type !== "pursuit").map(r => (
+                    <button key={r.id} onClick={() => chooseRound(r)}
+                      style={{ textAlign:"left", padding:"18px 20px", borderRadius:16, background:"#1D1140", border:"1px solid #3A2668", color:"#fff", cursor:"pointer", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+                      <div style={{ font:"800 18px 'Inter'", marginBottom:6 }}>{r.name}</div>
+                      <div style={{ font:"400 13px 'Inter'", color:"#B9A8D9" }}>{r.questions?.length || 0} questions{r.round_type && r.round_type !== "regular" ? " · " + r.round_type : ""}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : hostPhase === "round_start" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>
               <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#fff", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>{selectedRound.name}</div>
@@ -1269,7 +1318,7 @@ function QuizControllerInner() {
                 )}
               </div>
 
-              <div style={{ fontSize:28, fontWeight:800, lineHeight:1.4, marginBottom:24, color:"#fff", textShadow:"0 2px 12px rgba(0,0,0,0.3)" }}>{currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+              <div style={{ fontSize:"clamp(28px,3vw,44px)", fontWeight:800, lineHeight:1.3, marginBottom:24, color:"#fff", textShadow:"0 2px 12px rgba(0,0,0,0.3)" }}>{currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
 
               {currentQ.question_type==="multiple_choice" && (
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
@@ -1337,20 +1386,23 @@ function QuizControllerInner() {
                 </div>
               )}
 
-              <div style={{ display:"flex", gap:10, flexWrap:"wrap" as const, marginTop:20, paddingTop:20, borderTop:"1px solid #2E1A52" }}>
-                <button className="fbh-btn" onClick={doStartRound}>Start Round</button>
-                <button className="fbh-btn" onClick={() => doPreviewQuestion(qIdx)} disabled={hostPhase==="preview"}>Preview Q</button>
-                <button className={hostPhase==="preview" ? "fbh-btn pri" : "fbh-btn"} onClick={doSendQuestion} disabled={hostPhase!=="preview"}>Send Live</button>
-                <button className="fbh-btn" onClick={doStartTimer} disabled={hostPhase==="timer"}>{hostPhase==="timer" ? timeLeft+"s" : "Timer"}</button>
-                <button className="fbh-btn" onClick={doRevealAnswer} disabled={hostPhase==="answer"}>Reveal</button>
-                <button className="fbh-btn" onClick={doCelebrate}>Celebrate</button>
-                <div style={{ width:1, height:28, background:"#2E1A52", margin:"0 6px" }} />
-                <button className="fbh-btn" style={{ height:36, opacity:0.75 }} onClick={doDumpQuestion} title="Skip this question without scoring it - stays in the round for next time">Dump Q</button>
-                <div style={{ width:1, height:28, background:"#2E1A52", margin:"0 6px" }} />
+              {/* Manual overrides only — the NEXT bar above is the primary flow, so
+                  this row is deliberately small and secondary (jump out of sequence,
+                  dump a question, skip ahead). Reduces the screen to one dominant action. */}
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" as const, alignItems:"center", marginTop:20, paddingTop:16, borderTop:"1px solid #2E1A52" }}>
+                <span className="fbh-lbl" style={{ margin:0, marginRight:2 }}>Manual</span>
+                <button className="fbh-btn" style={{ height:34, opacity:0.85 }} onClick={doStartRound}>Start Round</button>
+                <button className="fbh-btn" style={{ height:34, opacity:0.85 }} onClick={() => doPreviewQuestion(qIdx)} disabled={hostPhase==="preview"}>Preview Q</button>
+                <button className="fbh-btn" style={{ height:34, opacity:0.85 }} onClick={doSendQuestion} disabled={hostPhase!=="preview"}>Send Live</button>
+                <button className="fbh-btn" style={{ height:34, opacity:0.85 }} onClick={doStartTimer} disabled={hostPhase==="timer"}>{hostPhase==="timer" ? timeLeft+"s" : "Timer"}</button>
+                <button className="fbh-btn" style={{ height:34, opacity:0.85 }} onClick={doRevealAnswer} disabled={hostPhase==="answer"}>Reveal</button>
+                <button className="fbh-btn" style={{ height:34, opacity:0.85 }} onClick={doCelebrate}>Celebrate</button>
+                <div style={{ width:1, height:24, background:"#2E1A52", margin:"0 4px" }} />
+                <button className="fbh-btn" style={{ height:34, opacity:0.6 }} onClick={doDumpQuestion} title="Skip this question without scoring it - stays in the round for next time">Dump Q</button>
                 {isLastQ ? (
-                  <button className="fbh-btn" style={{ marginLeft:"auto" }} onClick={doEndRound}>End Round</button>
+                  <button className="fbh-btn" style={{ height:34, opacity:0.85, marginLeft:"auto" }} onClick={doEndRound}>End Round</button>
                 ) : (
-                  <button className="fbh-btn pri" style={{ marginLeft:"auto" }} onClick={() => doPreviewQuestion(qIdx+1)}>Next Q</button>
+                  <button className="fbh-btn" style={{ height:34, opacity:0.85, marginLeft:"auto" }} onClick={() => doPreviewQuestion(qIdx+1)}>Next Q</button>
                 )}
               </div>
             </div>

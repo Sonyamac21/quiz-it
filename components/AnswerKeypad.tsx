@@ -47,11 +47,11 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
       <div style={{
         padding: isCompact ? "10px 14px" : "14px 16px", borderRadius: 12,
         background: "rgba(255,255,255,0.06)", border: "1.5px solid " + purple,
-        minHeight: isCompact ? 38 : 50, display: "flex", alignItems: "center",
-        fontSize: isCompact ? 17 : 20, fontFamily: font, color: "#fff", letterSpacing: 2,
+        minHeight: isCompact ? 44 : 58, display: "flex", alignItems: "center",
+        fontSize: isCompact ? 22 : 28, fontWeight: 800, fontFamily: font, color: "#fff", letterSpacing: 1,
         wordBreak: "break-word" as const,
       }}>
-        {value || <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>Tap letters to answer...</span>}
+        {value || <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 15, fontWeight: 400 }}>Tap letters to answer…</span>}
       </div>
 
       {mode === "number" ? (
@@ -98,8 +98,8 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
           {"\u232B"} DELETE
         </button>
         <button type="button" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}
-          style={{ flex: 2, padding: isCompact ? "clamp(10px, 1.8vh, 18px)" : "18px", borderRadius: 10, background: value.trim() ? purple : "#1a1a2e", color: value.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: "none", fontSize: 16, fontFamily: font, letterSpacing: 2, cursor: value.trim() ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
-          SUBMIT
+          style={{ flex: 2, padding: isCompact ? "clamp(12px, 2vh, 20px)" : "20px", borderRadius: 12, background: value.trim() ? purple : "#150A2E", color: value.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: value.trim() ? "1px solid #D94FDC" : "1px solid #2E1A52", fontSize: 18, fontWeight: 800, fontFamily: font, letterSpacing: 2, boxShadow: value.trim() ? "0 0 20px rgba(190,38,193,0.35)" : "none", cursor: value.trim() ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
+          LOCK IT IN
         </button>
       </div>
     </div>

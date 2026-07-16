@@ -913,8 +913,8 @@ function DisplayScreenInner() {
                 )}
                 {hardDeckStatus === "awaiting_guess" && (
                   <div className="hd-choices">
-                    <div className="hd-choice hd-stick"><span>HIGHER</span></div>
-                    <div className="hd-choice hd-gamble"><span>LOWER</span></div>
+                    <div className="hd-choice hd-stick"><span className="arrow">▲</span><span>HIGHER</span></div>
+                    <div className="hd-choice hd-gamble"><span className="arrow">▼</span><span>LOWER</span></div>
                   </div>
                 )}
                 {hardDeckStatus === "won" && <div style={{ font: "800 clamp(16px,2.4vw,30px) Inter", color: "var(--green)", letterSpacing: "0.06em" }}>WON {hardDeckPotential} POINTS</div>}
@@ -923,11 +923,12 @@ function DisplayScreenInner() {
               <div className="bigcard back"><div className="q">?</div></div>
               {hardDeckTeam && (
                 <div className="hd-crowd">
-                  {hardDeckStatus === "decision" ? hardDeckTeam.toUpperCase() + " ARE DECIDING…"
-                    : hardDeckStatus === "awaiting_guess" ? hardDeckTeam.toUpperCase() + " · HIGHER OR LOWER?"
-                    : hardDeckStatus === "won" ? hardDeckTeam.toUpperCase() + " BANKED IT"
-                    : hardDeckStatus === "lost" ? hardDeckTeam.toUpperCase() + " WENT BUST"
-                    : hardDeckTeam.toUpperCase()}
+                  <b>{hardDeckTeam.toUpperCase()}</b>{
+                    hardDeckStatus === "decision" ? " — STICK OR GAMBLE?"
+                    : hardDeckStatus === "awaiting_guess" ? " — HIGHER OR LOWER?"
+                    : hardDeckStatus === "won" ? " BANKED IT"
+                    : hardDeckStatus === "lost" ? " WENT BUST"
+                    : ""}
                 </div>
               )}
             </>
@@ -1105,7 +1106,7 @@ function DisplayScreenInner() {
           {sorted.map((s, i) => {
             const move = rankMoves.get(s.team_name);
             return (
-              <div key={s.team_name} className={"ld-row" + (i < 3 ? " top" : "")}>
+              <div key={s.team_name} className={"ld-row" + (i < 3 ? " top" : "") + (i === 0 ? " p1" : i === 1 ? " p2" : i === 2 ? " p3" : "")}>
                 <div className="rank">{i + 1}</div>
                 <div className="crest">{teamInitials(s.team_name)}</div>
                 <div className="name">{s.team_name}</div>
@@ -1282,9 +1283,9 @@ function DisplayScreenInner() {
                     background: isCorrect ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.07)",
                     border: `1px solid ${isCorrect ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.12)"}`,
                     animation: isCorrect ? "correctPop 0.5s 0.05s ease-out" : `wrongFade 0.5s ${0.08 + idx * 0.05}s forwards` }}>
-                    <span style={{ fontSize:26, fontWeight:900, color:isCorrect?"#22C55E":purple, minWidth:36, flexShrink:0 }}>{opt.key}.</span>
-                    <span style={{ fontSize:28, fontWeight:isCorrect?800:700, color:isCorrect?"#22C55E":"rgba(255,255,255,0.35)", lineHeight:1.2 }}>{opt.text}</span>
-                    {isCorrect && <span style={{ fontSize:24, color:"#22C55E", marginLeft:"auto" }}>✓</span>}
+                    <span style={{ fontSize:isCorrect?30:24, fontWeight:900, color:isCorrect?"#2EE06E":purple, minWidth:36, flexShrink:0 }}>{opt.key}.</span>
+                    <span style={{ fontSize:isCorrect?"clamp(28px,2.4vw,40px)":26, fontWeight:isCorrect?800:700, color:isCorrect?"#2EE06E":"rgba(255,255,255,0.35)", lineHeight:1.2 }}>{opt.text}</span>
+                    {isCorrect && <span style={{ fontSize:28, color:"#2EE06E", marginLeft:"auto" }}>✓</span>}
                   </div>
                 );
               })}

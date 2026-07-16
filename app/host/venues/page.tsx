@@ -84,6 +84,7 @@ export default function VenuesPage() {
           <span className="fbh-wm" style={{ fontSize: 16 }}><span className="q">QUIZ-</span>IT</span>
           <span className="fbh-bc">Venue Management</span>
           <TopSpacer />
+          <a className="fbh-btn" href="/host/events">Events</a>
           <a className="fbh-btn" href="/host/session">Back to Session</a>
         </div>
 

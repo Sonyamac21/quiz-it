@@ -1,0 +1,55 @@
+export type EventRecord = {
+  id: string;
+  event_name: string;
+  venue_id: number;
+  event_date: string;
+  start_time: string;
+  host_id: string;
+  quiz_id: string | null;
+  brand_kit: string | null;
+  music_pack: string | null;
+  sponsors: string[];
+  prizes: string | null;
+  power_cards: boolean;
+  notes: string | null;
+  venue: { venue_name: string } | null;
+  quiz: { name: string } | null;
+};
+
+export type EventVenue = {
+  day_of_week: number;
+  venue_name: string;
+};
+
+export type EventQuiz = {
+  id: string;
+  name: string;
+  round_type: string;
+};
+
+export function localDateKey(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function formatEventDate(value: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(`${value}T12:00:00`));
+}
+
+export function formatEventTime(value: string): string {
+  const [hours, minutes] = value.split(":").map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+

@@ -110,6 +110,7 @@ export default function RoundsPage() {
           <span className="fbh-wm" style={{ fontSize: 16 }}><span className="q">QUIZ-</span>IT</span>
           <span className="fbh-bc">Round Library</span>
           <TopSpacer />
+          <a className="fbh-btn" href="/host/events">Events</a>
           <a className="fbh-btn" href="/host/music-prep">Music Prep</a>
           <a className="fbh-btn" href="/host/question-bank">Question Bank</a>
           <a className="fbh-btn pri" href="/host/questions">+ New Round</a>

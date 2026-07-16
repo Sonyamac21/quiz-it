@@ -250,6 +250,7 @@ export default function SessionPage() {
           <span className="fbh-wm" style={{ fontSize: 16 }}><span className="q">QUIZ-</span>IT</span>
           <span className="fbh-bc">Session Creation</span>
           <TopSpacer />
+          <a className="fbh-btn" href="/host/events">Events</a>
           <a className="fbh-btn" href="/host/rounds">Rounds</a>
           <a className="fbh-btn pri" href={"/host/quiz?pin=" + (pin || "")}>Quiz Controller</a>
           <a className="fbh-btn" href="/host/questions">Questions</a>

@@ -83,6 +83,7 @@ export default function QuestionBankPage() {
           <span className="fbh-bc">Question Bank</span>
           <span style={{ font: "400 11px 'Inter'", color: "#6B5A8E" }}>{questions.length} saved</span>
           <TopSpacer />
+          <a className="fbh-btn" href="/host/events">Events</a>
           <a className="fbh-btn" href="/host/rounds">Round Library</a>
         </div>
 

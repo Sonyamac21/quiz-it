@@ -330,6 +330,7 @@ export default function MusicPrepPage() {
           <span className="fbh-bc">Music Prep</span>
           <span style={{ font: "400 11px 'Inter'", color: "#6B5A8E" }}>Deezer · Auto-search · Waveform trim</span>
           <TopSpacer />
+          <a className="fbh-btn" href="/host/events">Events</a>
           {openRound
             ? <HostButton onClick={() => setOpenRound(null)}>← All Rounds</HostButton>
             : <a className="fbh-btn" href="/host/rounds">Round Library</a>}

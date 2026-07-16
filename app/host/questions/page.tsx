@@ -1007,6 +1007,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           <span className="fbh-wm" style={{ fontSize:16 }}><span className="q">QUIZ-</span>IT</span>
           <span className="fbh-bc">AI Question Generation</span>
           <TopSpacer />
+          <a className="fbh-btn" href="/host/events">Events</a>
           <a className="fbh-btn" href="/host/rounds">Round Library</a>
         </div>
 

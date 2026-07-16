@@ -1130,6 +1130,7 @@ function QuizControllerInner() {
           </div>
         )}
         <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)", letterSpacing:1, flex:1, textAlign:"center" as const }}>{nextActionLabel ? "" : spacebarHint}</div>
+        <a className="fbh-btn" href="/host/events" style={{ height:34 }}>Events</a>
         <select value={selectedRound?.id||""} onChange={e => {
           chooseRound(rounds.find(x=>x.id===e.target.value) || null);
         }}

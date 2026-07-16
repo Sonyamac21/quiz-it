@@ -41,7 +41,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
   const [playing, setPlaying] = useState<string | null>(null);
 
   const playCard = async (cardType: string) => {
-    if (used.includes(cardType) || playing) return;
+    if (!sessionPin || used.includes(cardType) || playing) return;
     setPlaying(cardType);
     const supabase = createSupabaseBrowserClient();
     const playedAt = new Date().toISOString();
@@ -64,14 +64,14 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       card_type: cardType,
       used: true,
       played_at: playedAt,
-      session_pin: sessionPin || "",
+      session_pin: sessionPin,
       round_number: roundNumber ?? null,
     });
     if (consumeError) {
       // The database unique constraint is the final authority across tabs,
       // refreshes and reconnects. Refetch so this handset immediately reflects
       // a card that another client has already spent.
-      const { data } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin || "");
+      const { data } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin);
       if (data) setUsed([...new Set(data.map(d => d.card_type))]);
       setPlaying(null);
       return;

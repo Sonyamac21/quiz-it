@@ -1,4 +1,4 @@
--- Each individual Power Card is single-use per team for the lifetime of a quiz
+-- Each individual Power Card is single-use per team for the entire quiz
 -- session. Keep the earliest play if legacy data contains duplicates, then make
 -- the rule authoritative at the database boundary for all clients.
 delete from public.uno_cards newer

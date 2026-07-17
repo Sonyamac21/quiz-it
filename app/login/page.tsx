@@ -3,12 +3,15 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { safeRedirectPath } from "@/lib/auth/redirect";
 import { HostShell, HostButton, HostInput, HostLabel } from "@/components/fable/HostConsole";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") || "/host";
+  const redirectTo = safeRedirectPath(searchParams.get("redirectTo"));
+  const passwordUpdated = searchParams.get("passwordUpdated") === "1";
+  const recoveryError = searchParams.get("error");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,7 +51,11 @@ function LoginForm() {
     }
     setLoading(true);
     const supabase = createSupabaseBrowserClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const callbackUrl = new URL("/auth/callback", window.location.origin);
+    callbackUrl.searchParams.set("next", "/auth/update-password");
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: callbackUrl.toString(),
+    });
     setLoading(false);
     if (error) {
       setError(error.message);
@@ -157,7 +164,7 @@ function LoginForm() {
                 {error}
               </div>
             )}
-            {notice && (
+            {(notice || passwordUpdated || recoveryError) && (
               <div
                 style={{
                   font: "600 11.5px 'Inter'",
@@ -168,7 +175,10 @@ function LoginForm() {
                   marginTop: 12,
                 }}
               >
-                {notice}
+                {notice ||
+                  (passwordUpdated
+                    ? "Password updated. Sign in with your new password."
+                    : "That password link is invalid or has expired. Request a new one.")}
               </div>
             )}
 

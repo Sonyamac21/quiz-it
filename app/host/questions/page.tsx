@@ -36,6 +36,42 @@ type Question = {
   fade_out?: boolean;
 };
 
+type ValidationStatus = "passed" | "failed" | "not_run" | "not_applicable";
+type ValidationStage = "moderation" | "theme" | "duplicate" | "memory" | "quality" | "media";
+type ValidationResult = { status: ValidationStatus; note: string };
+type ValidationResults = Record<ValidationStage, ValidationResult>;
+type GenerationReportEntry = {
+  id: string;
+  outcome: "accepted" | "rejected";
+  questionText: string;
+  questionType: string;
+  category: string;
+  reason: string;
+  stages: ValidationResults;
+};
+
+function emptyValidationResults(hasTheme: boolean, isMedia: boolean): ValidationResults {
+  return {
+    moderation: { status: "not_run", note: "Not run" },
+    theme: hasTheme ? { status: "not_run", note: "Not run" } : { status: "not_applicable", note: "No theme selected" },
+    duplicate: { status: "not_run", note: "Not run" },
+    memory: { status: "not_run", note: "Not run" },
+    quality: { status: "not_run", note: "Not run" },
+    media: isMedia ? { status: "not_run", note: "Not run" } : { status: "not_applicable", note: "Not a media question" },
+  };
+}
+
+function stageLabel(stage: ValidationStage): string {
+  return ({
+    moderation: "Moderation",
+    theme: "Theme",
+    duplicate: "Duplicate",
+    memory: "Permanent memory",
+    quality: "Final quality",
+    media: "Media lookup",
+  } satisfies Record<ValidationStage, string>)[stage];
+}
+
 const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife"];
 
 // Random angle hints injected per question to push variety - without these, the AI
@@ -128,6 +164,7 @@ export default function QuestionsPage() {
     setManualText(""); setManualA(""); setManualB(""); setManualC(""); setManualD(""); setManualE(""); setManualF(""); setManualCorrect(""); setManualExplanation("");
   }
   const [status, setStatus] = useState("");
+  const [generationReport, setGenerationReport] = useState<GenerationReportEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [roundName, setRoundName] = useState("");
@@ -146,6 +183,7 @@ export default function QuestionsPage() {
   // Generate run starts.
   const rejectedRef = useRef<Set<string>>(new Set());
   const lastApiErrorRef = useRef<string>("");
+  const lastCandidateReportRef = useRef<Omit<GenerationReportEntry, "id" | "outcome" | "category" | "reason"> | null>(null);
   const dragIdx = useRef<number|null>(null);
 
   // Record a produced-but-rejected question so it is never regenerated/accepted
@@ -153,6 +191,26 @@ export default function QuestionsPage() {
   function blacklistRejected(q: Question) {
     const norm = normalizeQuestionText(q.question_text);
     if (norm) rejectedRef.current.add(norm);
+  }
+
+  function addReportEntry(entry: Omit<GenerationReportEntry, "id">) {
+    setGenerationReport(prev => [...prev, { ...entry, id: genUid() }]);
+  }
+
+  function reportGeneratedFailure(fallbackType: string) {
+    const candidate = lastCandidateReportRef.current;
+    if (!candidate) return;
+    const failedStage = (Object.entries(candidate.stages) as [ValidationStage, ValidationResult][]).find(([, result]) => result.status === "failed");
+    const category = failedStage ? stageLabel(failedStage[0]) : "Generation format";
+    const reason = failedStage?.[1].note || lastApiErrorRef.current || "The generator did not return a usable candidate";
+    addReportEntry({
+      outcome: "rejected",
+      questionText: candidate.questionText || "Candidate unavailable",
+      questionType: candidate.questionType || fallbackType,
+      category,
+      reason,
+      stages: candidate.stages,
+    });
   }
 
   useEffect(() => { loadUsedQuestions(); }, []);
@@ -306,6 +364,11 @@ export default function QuestionsPage() {
 
   async function generateOne(type: string, topic: string): Promise<Question|null> {
     // (lastApiError set inside try/catch below, surfaced by callers)
+    lastCandidateReportRef.current = {
+      questionText: "",
+      questionType: type,
+      stages: emptyValidationResults(Boolean(theme.trim()), type === "picture" || type === "audio"),
+    };
     const typeInstructions: Record<string,string> = {
       multi_tap: "multi_tap: exactly 6 options in option_a through option_f. Some are correct answers, some are decoys (wrong). Mix the count - between 2 and 4 of the 6 should be correct. correct_answer must be a comma-separated list of the correct option letters in order, e.g. \"b,d,f\" or \"a,c\". Make decoys plausible, not obviously wrong.",
       multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
@@ -375,6 +438,9 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         throw new Error("JSON parse failed. Raw text (first 500 chars): " + text.slice(0, 500));
       }
       if (q) { q.question_type = type; }
+      if (q && lastCandidateReportRef.current) {
+        lastCandidateReportRef.current.questionText = q.question_text || "Untitled candidate";
+      }
       // THEME RELEVANCE: if the host supplied a theme, every question (of ANY
       // type) must genuinely require knowledge of that theme. Checked here -
       // before any media fetch - so an off-theme candidate is rejected and
@@ -382,6 +448,9 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       // lookup. When no theme is supplied, behaviour is unchanged.
       if (q && theme && theme.trim()) {
         const themeCheck = await checkThemeRelevance(q, theme.trim());
+        if (lastCandidateReportRef.current) {
+          lastCandidateReportRef.current.stages.theme = { status: themeCheck.ok ? "passed" : "failed", note: themeCheck.note };
+        }
         if (!themeCheck.ok) {
           lastApiErrorRef.current = "Off-theme for '" + theme.trim() + "' (" + themeCheck.note + ") - retrying";
           return null;
@@ -396,8 +465,17 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           );
           const ytData = await ytRes.json();
           const videoId = ytData?.items?.[0]?.id?.videoId;
-          if (videoId) { q.option_b = "https://www.youtube.com/watch?v=" + videoId; } else { return null; }
-        } catch { return null; }
+          if (videoId) {
+            q.option_b = "https://www.youtube.com/watch?v=" + videoId;
+            if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "passed", note: "YouTube media found" };
+          } else {
+            if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "failed", note: "No YouTube result found" };
+            return null;
+          }
+        } catch {
+          if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "failed", note: "YouTube lookup failed" };
+          return null;
+        }
       }
       if (q && q.question_type === "picture" && q.option_a) {
         // Hard guard, not just a prompt instruction - the AI can still ignore the
@@ -407,6 +485,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         // than shipped with a guaranteed-wrong image.
         const brandCheck = (q.question_text + " " + q.option_a).toLowerCase();
         if (/\blogo\b|\bbrand\b|\btrademark\b/.test(brandCheck)) {
+          if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "failed", note: "Picture subject requested a logo, brand or trademark" };
           return null;
         }
         try {
@@ -418,8 +497,17 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           );
           const pixData = await pixRes.json();
           const hit = pixData?.hits?.[0];
-          if (hit) { q.option_b = hit.webformatURL || hit.largeImageURL; } else { return null; }
-        } catch { return null; }
+          if (hit) {
+            q.option_b = hit.webformatURL || hit.largeImageURL;
+            if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "passed", note: "Pixabay image found" };
+          } else {
+            if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "failed", note: "No Pixabay image found" };
+            return null;
+          }
+        } catch {
+          if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "failed", note: "Pixabay lookup failed" };
+          return null;
+        }
       }
       if (q && q.question_type === "multiple_choice") {
         // AI models have a well-known bias toward placing the correct multiple
@@ -631,10 +719,6 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     return null;
   }
 
-  function isAcceptable(q: Question, currentRound: Question[]): boolean {
-    return duplicateRejectionReason(q, currentRound) === null;
-  }
-
   // ── Permanent Question Memory (cross-session, DB-backed) ───────────────────
   // The authoritative store is the public.questions table; the check runs
   // server-side in Postgres (check_question_memory RPC) so it persists across
@@ -656,6 +740,37 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       console.error("Question Memory check error (allowing question):", e);
       return false;
     }
+  }
+
+  async function validateCandidate(q: Question, currentRound: Question[]): Promise<{
+    ok: boolean;
+    category: string;
+    reason: string;
+    stages: ValidationResults;
+  }> {
+    const stages = lastCandidateReportRef.current?.stages || emptyValidationResults(Boolean(theme.trim()), q.question_type === "picture" || q.question_type === "audio");
+
+    const moderation = await checkQuestion(q);
+    stages.moderation = { status: moderation.ok ? "passed" : "failed", note: moderation.note };
+    if (!moderation.ok) return { ok: false, category: "Moderation", reason: moderation.note, stages };
+
+    const duplicateReason = duplicateRejectionReason(q, currentRound);
+    stages.duplicate = duplicateReason
+      ? { status: "failed", note: duplicateReason }
+      : { status: "passed", note: "No session or round duplicate" };
+    if (duplicateReason) return { ok: false, category: "Duplicate", reason: duplicateReason, stages };
+
+    const memoryDuplicate = await isDuplicateInMemory(q);
+    stages.memory = memoryDuplicate
+      ? { status: "failed", note: "Matched permanent Question Memory" }
+      : { status: "passed", note: "No permanent-memory match" };
+    if (memoryDuplicate) return { ok: false, category: "Permanent memory", reason: stages.memory.note, stages };
+
+    const quality = await finalQualityCheck(q);
+    stages.quality = { status: quality.ok ? "passed" : "failed", note: quality.note };
+    if (!quality.ok) return { ok: false, category: "Final quality", reason: quality.note, stages };
+
+    return { ok: true, category: "Accepted", reason: "Passed every applicable validation stage", stages };
   }
 
   // Persist an ACCEPTED question into the permanent Question Memory and attach
@@ -728,6 +843,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
   async function generate() {
     setLoading(true);
     setQuestions([]);
+    setGenerationReport([]);
     setRoundName("");
     // Fresh generation session: start the rejected-question blacklist empty so it
     // only reflects questions rejected during this run (it then persists across
@@ -785,6 +901,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       lastApiErrorRef.current = "";
       const q = await generateOne(type, topic);
       if (!q) {
+        reportGeneratedFailure(type);
         consecutiveFailures++;
         // Bail for errors retrying genuinely can't fix (bad key, not logged in,
         // rate limited) - OR after 6 failures in a row regardless of the reason,
@@ -804,12 +921,12 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       }
       consecutiveFailures = 0;
       setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
-      const check = await checkQuestion(q);
+      const validation = await validateCandidate(q, good);
       // Gate order: moderation -> in-round duplicate detection -> permanent
       // Question Memory (cross-session) -> FINAL quiz quality check. Each stage is
       // short-circuited so the expensive AI checks only run once the cheaper ones
       // pass; the final quality judge is the very last gate before acceptance.
-      if (check.ok && isAcceptable(q, good) && !(await isDuplicateInMemory(q)) && (await finalQualityCheck(q)).ok) {
+      if (validation.ok) {
         await commitToMemory(q); // accepted -> becomes part of permanent memory
         good.push(q);
         registerAccepted(q);
@@ -819,13 +936,15 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         // still running, because `good` has no knowledge of that removal. Appending
         // by prev keeps concurrent removals intact.
         setQuestions(prev => prev.some(x => x._uid === q._uid) ? prev : [...prev, q]);
+        addReportEntry({ outcome: "accepted", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
         consecutiveCheckFailures = 0;
       } else {
         // Permanently blacklist this exact question for the rest of the session
         // so the retry can never reproduce it (and the AI is told to avoid it).
         blacklistRejected(q);
+        addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
         consecutiveCheckFailures++;
-        const failReason = !check.ok ? check.note.substring(0,40) : "duplicate/quality";
+        const failReason = validation.reason.substring(0,40);
         setStatus("Question " + (good.length + 1) + " failed check (" + failReason + ") - retrying...");
         // Same logic as generateOne failures above - if questions keep failing the
         // safety/duplicate check over and over, that's systemic (e.g. exclusion
@@ -833,7 +952,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         // one-off blip. Bailing with a clear message beats silently grinding
         // through dozens of slow retries that look identical to "frozen".
         if (consecutiveCheckFailures >= 10) {
-          setStatus("Generation stalled after " + consecutiveCheckFailures + " questions in a row failing the check (latest reason: " + check.note.substring(0,60) + "). Got " + good.length + " of " + count + " - click Top Up to keep trying, or Generate again.");
+          setStatus("Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + validation.reason.substring(0,60) + "). Got " + good.length + " of " + count + ". See Generation Report for details.");
           setLoading(false);
           return;
         }
@@ -879,16 +998,17 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       setStatus("Finding replacement... (attempt " + (attempt + 1) + " of " + MAX_REPLACE_ATTEMPTS + ")");
       const replaceTopic = theme || topicList[attempt % topicList.length];
       const candidate = await generateOne(removed.question_type, replaceTopic);
-      if (!candidate) continue; // AI produced nothing/invalid - try again
-      const check = await checkQuestion(candidate);
-      if (!check.ok) { blacklistRejected(candidate); continue; } // moderation reject
+      if (!candidate) { reportGeneratedFailure(removed.question_type); continue; } // AI produced nothing/invalid - try again
       // Compare against every OTHER question currently in the round (excluding the
       // one being replaced) so the replacement isn't rejected for matching the
       // very item it is swapping out.
       const currentRound = questions.filter(x => x._uid !== removedUid);
-      if (isAcceptable(candidate, currentRound) && !(await isDuplicateInMemory(candidate)) && (await finalQualityCheck(candidate)).ok) {
+      const validation = await validateCandidate(candidate, currentRound);
+      if (validation.ok) {
         newQ = candidate;
+        addReportEntry({ outcome: "accepted", questionText: candidate.question_text, questionType: candidate.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       } else {
+        addReportEntry({ outcome: "rejected", questionText: candidate.question_text, questionType: candidate.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
         blacklistRejected(candidate); // in-round/memory duplicate or final-quality reject - keep trying
       }
     }
@@ -954,15 +1074,17 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       const type = types[attempts % types.length];
       const topic = topicList[attempts % topicList.length];
       const q = await generateOne(type, topic);
-      if (!q) continue;
-      const check = await checkQuestion(q);
+      if (!q) { reportGeneratedFailure(type); continue; }
       const currentForTopup = [...questions, ...added];
-      if (check.ok && isAcceptable(q, currentForTopup) && !(await isDuplicateInMemory(q)) && (await finalQualityCheck(q)).ok) {
+      const validation = await validateCandidate(q, currentForTopup);
+      if (validation.ok) {
         await commitToMemory(q); // accepted -> becomes part of permanent memory
         registerAccepted(q);
         added.push(q);
         setQuestions(prev => [...prev, q]);
+        addReportEntry({ outcome: "accepted", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       } else {
+        addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
         blacklistRejected(q);
       }
     }
@@ -998,6 +1120,13 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     setQuestions(reordered);
   };
   const onDragEnd = () => { dragIdx.current = null; };
+
+  const acceptedReport = generationReport.filter(entry => entry.outcome === "accepted");
+  const rejectedReport = generationReport.filter(entry => entry.outcome === "rejected");
+  const rejectionCounts = rejectedReport.reduce<Record<string, number>>((counts, entry) => {
+    counts[entry.category] = (counts[entry.category] || 0) + 1;
+    return counts;
+  }, {});
 
   return (
     <HostShell>
@@ -1099,6 +1228,65 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         </div>
 
         {status && <p style={{ textAlign:"center", color:"#D94FDC", font:"600 13px 'Inter'", letterSpacing:".08em", marginBottom:16 }}>{status}</p>}
+
+        {generationReport.length > 0 && (
+          <section className="fbh-panel" aria-labelledby="generation-report-title">
+            <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:16, flexWrap:"wrap", marginBottom:16 }}>
+              <div>
+                <div className="fbh-lbl">Diagnostics</div>
+                <h2 id="generation-report-title" style={{ margin:0, font:"700 22px 'Inter'", color:"#fff" }}>Generation Report</h2>
+              </div>
+              <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                <span style={{ padding:"8px 12px", borderRadius:12, background:"rgba(46,224,110,0.12)", border:"1px solid rgba(46,224,110,0.35)", color:"#2EE06E", font:"700 15px 'Inter'" }}>{acceptedReport.length} accepted</span>
+                <span style={{ padding:"8px 12px", borderRadius:12, background:"rgba(255,59,78,0.10)", border:"1px solid rgba(255,59,78,0.35)", color:"#FF7280", font:"700 15px 'Inter'" }}>{rejectedReport.length} rejected</span>
+              </div>
+            </div>
+
+            {rejectedReport.length > 0 && (
+              <div style={{ marginBottom:18 }}>
+                <div className="fbh-lbl">Rejections by category</div>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {Object.entries(rejectionCounts).map(([category, total]) => (
+                    <span key={category} style={{ padding:"7px 11px", borderRadius:10, background:"#150A2E", border:"1px solid #2E1A52", color:"#D9CCF2", font:"600 14px 'Inter'" }}>{category}: {total}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <details open={rejectedReport.length > 0} style={{ marginBottom:12 }}>
+              <summary style={{ cursor:"pointer", color:"#fff", font:"700 17px 'Inter'", padding:"8px 0" }}>Rejected questions ({rejectedReport.length})</summary>
+              <div style={{ display:"grid", gap:10, marginTop:8 }}>
+                {rejectedReport.map((entry, index) => (
+                  <div key={entry.id} style={{ padding:"14px", borderRadius:12, background:"rgba(255,59,78,0.06)", border:"1px solid rgba(255,59,78,0.22)" }}>
+                    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginBottom:7 }}>
+                      <span style={{ color:"#6B5A8E", font:"700 13px 'Inter'" }}>#{index + 1}</span>
+                      <span style={{ color:"#FF7280", font:"700 14px 'Inter'" }}>{entry.category}</span>
+                      <span style={{ color:"#6B5A8E", font:"600 12px 'Inter'" }}>{typeLabel[entry.questionType] || entry.questionType}</span>
+                    </div>
+                    <p style={{ margin:"0 0 7px", color:"#fff", font:"600 16px 'Inter'", lineHeight:1.45 }}>{entry.questionText}</p>
+                    <p style={{ margin:"0 0 10px", color:"#FFB0B8", font:"500 14px 'Inter'", lineHeight:1.45 }}>{entry.reason}</p>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:6 }}>
+                      {(Object.entries(entry.stages) as [ValidationStage, ValidationResult][]).map(([stage, result]) => (
+                        <div key={stage} title={result.note} style={{ padding:"7px 9px", borderRadius:8, background:"#100622", border:"1px solid #2E1A52" }}>
+                          <div style={{ color:"#B9A8D9", font:"700 11px 'Inter'", textTransform:"uppercase", letterSpacing:".05em" }}>{stageLabel(stage)}</div>
+                          <div style={{ color:result.status === "failed" ? "#FF7280" : result.status === "passed" ? "#2EE06E" : "#6B5A8E", font:"600 12px 'Inter'", marginTop:3 }}>{result.status.replace("_", " ")}</div>
+                          <div style={{ color:"#8D7AAE", font:"400 11px 'Inter'", marginTop:3, lineHeight:1.35 }}>{result.note}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+
+            <details>
+              <summary style={{ cursor:"pointer", color:"#fff", font:"700 17px 'Inter'", padding:"8px 0" }}>Accepted questions ({acceptedReport.length})</summary>
+              <ol style={{ margin:"8px 0 0", paddingLeft:24, color:"#D9CCF2", font:"500 15px 'Inter'", lineHeight:1.6 }}>
+                {acceptedReport.map(entry => <li key={entry.id}>{entry.questionText}</li>)}
+              </ol>
+            </details>
+          </section>
+        )}
 
         {questions.length > 0 && (
           <>

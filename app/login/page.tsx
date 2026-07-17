@@ -12,6 +12,10 @@ function LoginForm() {
   const redirectTo = safeRedirectPath(searchParams.get("redirectTo"));
   const passwordUpdated = searchParams.get("passwordUpdated") === "1";
   const recoveryError = searchParams.get("error");
+  const recoveryErrorMessage =
+    recoveryError === "missing_pkce_state"
+      ? "This link was opened in a different browser from the one that requested it. Request a new password link and try again."
+      : "That password link is invalid or has expired. Request a new one.";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -52,7 +56,6 @@ function LoginForm() {
     setLoading(true);
     const supabase = createSupabaseBrowserClient();
     const callbackUrl = new URL("/auth/callback", window.location.origin);
-    callbackUrl.searchParams.set("next", "/auth/update-password");
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: callbackUrl.toString(),
     });
@@ -178,7 +181,7 @@ function LoginForm() {
                 {notice ||
                   (passwordUpdated
                     ? "Password updated. Sign in with your new password."
-                    : "That password link is invalid or has expired. Request a new one.")}
+                    : recoveryErrorMessage)}
               </div>
             )}
 

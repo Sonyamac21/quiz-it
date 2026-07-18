@@ -388,15 +388,20 @@ export default function QuestionsPage() {
     let exclusions = [...rejectedList, ...usedRef.current.slice(-40)].map((q,i) => (i+1)+". "+q).join("; ");
     if (exclusions.length > 3000) exclusions = exclusions.slice(0, 3000);
     const usedAnswersList = usedAnswersRef.current.slice(-30).filter(Boolean).join(", ");
-    const exclusionNote = (exclusions || usedAnswersList)
+    let exclusionNote = (exclusions || usedAnswersList)
       ? " Do NOT generate any of these already-used questions: " + exclusions + "."
         + (usedAnswersList ? " Also do NOT use any of these already-used answers (even with different question wording): " + usedAnswersList + "." : "")
       : "";
+    // Keep enough room for the longest type instructions (picture/audio) and the
+    // first-pass quality guidance under the API route's 8,000-character limit.
+    if (exclusionNote.length > 2200) exclusionNote = exclusionNote.slice(0, 2200);
     const angle = VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
     const varietyNote = " IMPORTANT - avoid defaulting to the single most famous, first-thought-of example for this topic (e.g. for 'Disney songs' don't always pick Let It Go or Circle of Life). Where possible, lean toward something " + angle + ". Vary your answer choices across different eras, genres, and sub-topics rather than the most obvious pick.";
     const prompt = `You are writing questions for a LIVE PUB QUIZ at a bar or restaurant. Your audience is adults aged 25-55 having a social night out. This is entertainment, not education.
 
 BEFORE writing any question, ask yourself: "Would 8 friends sitting in a pub enjoy answering this?" If no, do not write it.
+
+FIRST-PASS CHECK (do silently): consider several different facts and entities; reject any that paraphrase an excluded question or reuse its entity, answer or knowledge test; then choose the strongest stable fact with one clear natural answer. Check only player-visible content for venue suitability—unseen plots, lyrics and themes do not make a mainstream work unsuitable.
 
 TOPIC: ${topic}
 TYPE: ${typeInstructions[type]}
@@ -422,9 +427,14 @@ STRICT QUALITY RULES (every question must pass all of these):
 4. Wrong answer options must be plausible. Use well-known alternatives someone might genuinely confuse, not obviously wrong fillers.
 5. Every question must be answerable by a reasonably well-informed adult with no specialist training.
 6. UAE venue safe: no alcohol references, no pork, no sexual content, no religion, no LGBTQ+ content, no Iran or Israel political references.
+7. Use one stable, verifiable fact: nothing disputed, subjective, time-sensitive or invented.
+8. Wording must allow exactly one defensible, natural answer—not an abbreviation, fragment, trick or technicality.
+9. The question must stand alone without its explanation and test one satisfying piece of knowledge.
+10. Stay on TOPIC but use a genuinely different entity and narrow subtopic from the exclusions.
 ${varietyNote}${exclusionNote}
 
 Include a 1-2 sentence explanation of the answer in the explanation field.
+Verify strict JSON before responding: one array item, every schema key present, unused options null, exact requested type and answer format, with no markdown or extra text.
 Return ONLY a valid JSON array with 1 item, no markdown:
 [{"question_text":"...","question_type":"${type}","option_a":"...","option_b":"...","option_c":"...","option_d":"...","option_e":"...","option_f":"...","correct_answer":"...","explanation":"...","difficulty":"${difficulty}","round_type":"${roundType}"}]`;
     try {

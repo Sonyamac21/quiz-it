@@ -11,6 +11,10 @@ import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as r
 import { teamInitials } from "@/components/TeamBadge";
 import { BrandLockup, Button, Field, Input, StatusPill } from "@/components/ui/quiz-it-ui";
 import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
+import { HostDiagnostics } from "@/components/HostDiagnostics";
+import { diagnosticTimestamp } from "@/lib/diagnostics/time";
+
+type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
 
 type Question = {
   id?: number;
@@ -157,6 +161,16 @@ function QuizControllerInner() {
   const advancingRef = useRef(false);
   const spinTriggeredRef = useRef(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [connectedAt, setConnectedAt] = useState<number | null>(null);
+  const [sessionEventName, setSessionEventName] = useState<string | null>(null);
+  const [sessionQuizPlan, setSessionQuizPlan] = useState<string | null>(null);
+  const [hostIdentity, setHostIdentity] = useState<string | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState("CLOSED");
+  const [realtimeLastSync, setRealtimeLastSync] = useState<number | null>(null);
+  const [realtimeLastReconnect, setRealtimeLastReconnect] = useState<number | null>(null);
+  const [realtimeErrors, setRealtimeErrors] = useState(0);
+  const hostChannelRef = useRef<HostRealtimeChannel | null>(null);
   const roundStartedRef = useRef<number>(0);
   const quizEndRevealedRef = useRef<number>(0);
   const [venueName, setVenueName] = useState<string | null>(null);
@@ -168,6 +182,9 @@ function QuizControllerInner() {
   // current `answers` array and could be picked as "fastest correct".
   const qIdxRef = useRef(0);
   useEffect(() => { qIdxRef.current = qIdx; }, [qIdx]);
+  useEffect(() => {
+    createSupabaseBrowserClient().auth.getUser().then(({ data }) => setHostIdentity(data.user?.email || data.user?.id || null));
+  }, []);
 
   const currentQ = selectedRound?.questions[qIdx] || null;
   const isLastQ = selectedRound ? qIdx >= selectedRound.questions.length - 1 : false;
@@ -206,6 +223,11 @@ function QuizControllerInner() {
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        setDiagnosticsOpen(value => !value);
+        return;
+      }
       if (e.code !== "Space" && e.key !== " ") return;
       if (e.repeat) return;
       const tag = (e.target as HTMLElement)?.tagName;
@@ -301,6 +323,9 @@ function QuizControllerInner() {
     if (!data) return;
     setSessionPin(p.trim());
     setSessionId(data.id); sessionIdRef.current = data.id;
+    setConnectedAt(data.created_at ? new Date(data.created_at as string).getTime() : diagnosticTimestamp());
+    setSessionEventName((data.event_name as string) || null);
+    setSessionQuizPlan((data.quiz_plan_name as string) || null);
     await loadRounds(data.id);
     setVenueName(data.venue_name || null);
     setConnected(true);
@@ -319,6 +344,9 @@ function QuizControllerInner() {
     if (!data) { alert("Session not found!"); return; }
     setSessionPin(pinInput.trim());
     setSessionId(data.id); sessionIdRef.current = data.id;
+    setConnectedAt(data.created_at ? new Date(data.created_at as string).getTime() : diagnosticTimestamp());
+    setSessionEventName((data.event_name as string) || null);
+    setSessionQuizPlan((data.quiz_plan_name as string) || null);
     await loadRounds(data.id);
     setVenueName(data.venue_name || null);
     setConnected(true);
@@ -677,7 +705,9 @@ function QuizControllerInner() {
 
   function subscribeToUpdates(pin: string) {
     const supabase = createSupabaseBrowserClient();
-    supabase.channel("quiz-host-" + pin)
+    if (hostChannelRef.current) hostChannelRef.current.unsubscribe();
+    setRealtimeStatus("CONNECTING");
+    const channel = supabase.channel("quiz-host-" + pin)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "answers" }, (payload) => {
         const a = payload.new as Answer;
         // Scope strictly to this session AND the current question index. A stale
@@ -685,12 +715,14 @@ function QuizControllerInner() {
         // live `answers` array (it would otherwise be eligible as "fastest
         // correct" even though it belongs to a different question).
         if (a.session_pin === pin && a.question_index === qIdxRef.current) {
+          setRealtimeLastSync(diagnosticTimestamp());
           setAnswers(prev => prev.some(x => x.id === a.id) ? prev : [...prev, a]);
         }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams" }, (payload) => {
         const t = payload.new as Team;
         if (t.session_pin === pin) {
+          setRealtimeLastSync(diagnosticTimestamp());
           setTeams(prev => [...prev, t]);
           // Create the score row immediately on join, not on first correct answer -
           // otherwise a team that joined after "Initialise Scores" was clicked, or
@@ -708,11 +740,13 @@ function QuizControllerInner() {
         setUnoCards(prev => prev.some(x => x.id === c.id) ? prev : [c, ...prev]);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "scores", filter: "session_pin=eq." + pin }, () => {
+        setRealtimeLastSync(diagnosticTimestamp());
         loadScores(pin);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions" }, (payload) => {
         const s = payload.new as Record<string, unknown>;
         if (s.pin !== pin) return;
+        setRealtimeLastSync(diagnosticTimestamp());
         const choice = (s.spin_choice as string) || null;
         setSpinChoice(choice);
         setSpinTargetIdx((s.spin_target_idx as number) ?? null);
@@ -720,7 +754,34 @@ function QuizControllerInner() {
         setSpinOffered(!!s.spin_offered);
         triggerSpinIfChosen(choice, pin);
       })
-      .subscribe();
+      .subscribe(status => {
+        setRealtimeStatus(status);
+        if (status === "SUBSCRIBED") {
+          setRealtimeLastSync(diagnosticTimestamp());
+          setRealtimeLastReconnect(diagnosticTimestamp());
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          setRealtimeErrors(value => value + 1);
+        }
+      });
+    hostChannelRef.current = channel;
+  }
+
+  useEffect(() => () => { hostChannelRef.current?.unsubscribe(); }, []);
+
+  async function diagnosticsResyncSession() {
+    if (!sessionPin) return;
+    const supabase = createSupabaseBrowserClient();
+    const { data, error } = await supabase.from("sessions").select("*").eq("pin", sessionPin).single();
+    if (error || !data) throw error || new Error("Session unavailable");
+    await restoreSessionState(data as Record<string, unknown>);
+    await Promise.all([loadRounds(data.id), loadTeams(sessionPin), loadAnswers(sessionPin, qIdxRef.current), loadUnoCards(sessionPin), loadScores(sessionPin)]);
+    setRealtimeLastSync(diagnosticTimestamp());
+  }
+
+  async function diagnosticsRefreshPlayers() {
+    if (!sessionPin) return;
+    await Promise.all([loadTeams(sessionPin), loadAnswers(sessionPin, qIdxRef.current), loadUnoCards(sessionPin)]);
+    setRealtimeLastSync(diagnosticTimestamp());
   }
 
   function stopTickAudio() {
@@ -1172,6 +1233,7 @@ function QuizControllerInner() {
           <a className="qi-button qi-button--quiet" href="/host/events">Events</a>
           <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
           <Button variant="quiet" onClick={() => setRulesOpen(true)}>Rules</Button>
+          <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>
         {rulesOpen && (
           <div onClick={() => setRulesOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
             <div onClick={e => e.stopPropagation()} style={{ background:"#1a0535", border:"2px solid #BE26C1", borderRadius:16, padding:28, maxWidth:560, maxHeight:"80vh", overflowY:"auto" as const, color:"#fff" }}>
@@ -1572,6 +1634,19 @@ function QuizControllerInner() {
           </section>
         </aside>
       </div>
+      <HostDiagnostics
+        open={diagnosticsOpen}
+        onClose={() => setDiagnosticsOpen(false)}
+        session={{ id: sessionId, pin: sessionPin, eventName: sessionEventName, quizPlan: sessionQuizPlan, venue: venueName, host: hostIdentity, phase: hostPhase, roundName: selectedRound?.name, roundNumber, questionIndex: qIdx, questionCount: selectedRound?.questions.length || 0, status: connected ? "active" : "disconnected", connectedAt }}
+        teams={teams}
+        answers={answers}
+        timer={{ remaining: timeLeft, running: hostPhase === "timer" && timeLeft > 0, duration: timerDuration }}
+        realtime={{ status: realtimeStatus, lastSync: realtimeLastSync, lastReconnect: realtimeLastReconnect, errors: realtimeErrors }}
+        onResyncSession={diagnosticsResyncSession}
+        onRestartSubscriptions={() => { if (sessionPin) subscribeToUpdates(sessionPin); }}
+        onRefreshDisplay={() => { if (sessionPin) window.open(`/host/display?pin=${encodeURIComponent(sessionPin)}`, "quizit-display"); }}
+        onRefreshPlayers={diagnosticsRefreshPlayers}
+      />
     </div>
   );
 }

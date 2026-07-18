@@ -1312,6 +1312,49 @@ button, input, select, textarea { font: inherit; }
 .qi-player-keypad__space,.qi-player-keypad__delete,.qi-player-keypad__submit { min-height: 52px; border-radius: 15px !important; touch-action: manipulation; }
 .qi-player-keypad__submit { font-size: 16px !important; }
 
+/* Host Diagnostics & Live Health Centre */
+.qi-health-trigger { width: 32px; height: 32px; border: 1px solid rgba(217,79,220,.24); border-radius: 50%; background: transparent; color: rgba(217,79,220,.45); cursor: pointer; font-size: 10px; }
+.qi-health-trigger:hover,.qi-health-trigger:focus-visible { color: #65ee99; border-color: rgba(101,238,153,.6); background: rgba(46,224,110,.08); }
+.qi-health-overlay { position: fixed; inset: 0; z-index: 10000; background: rgba(4,0,12,.86); backdrop-filter: blur(10px); padding: clamp(12px,2vw,28px); overflow: auto; }
+.qi-health-centre { width: min(1500px,100%); min-height: calc(100dvh - clamp(24px,4vw,56px)); margin: 0 auto; border: 1px solid var(--qi-border-strong); border-radius: 24px; background: #0d031d; box-shadow: 0 30px 100px rgba(0,0,0,.62); overflow: hidden; }
+.qi-health-header { position: sticky; top: 0; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: clamp(20px,2.4vw,34px); border-bottom: 1px solid var(--qi-border); background: rgba(13,3,29,.96); backdrop-filter: blur(16px); }
+.qi-health-header h2 { margin: 3px 0 4px; font: 400 clamp(25px,2.4vw,40px)/1.1 var(--font-logo),sans-serif; letter-spacing: .04em; }
+.qi-health-header p { margin: 0; color: var(--qi-text-muted); }
+.qi-health-header__actions { display: flex; align-items: center; gap: 10px; }
+.qi-health-summary { display: flex; flex-wrap: wrap; gap: 10px; padding: 18px clamp(20px,2.4vw,34px); border-bottom: 1px solid rgba(255,255,255,.07); background: rgba(255,255,255,.015); }
+.qi-health-pill { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 12px; border: 1px solid var(--qi-border); border-radius: 999px; color: var(--qi-text-secondary); font-size: 12px; font-weight: 800; letter-spacing: .04em; }
+.qi-health-pill i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+.qi-health-pill--healthy { color: #65ee99; border-color: rgba(46,224,110,.4); background: rgba(46,224,110,.07); }
+.qi-health-pill--warning { color: #ffd263; border-color: rgba(255,197,51,.4); background: rgba(255,197,51,.07); }
+.qi-health-pill--problem { color: #ff8290; border-color: rgba(255,59,78,.45); background: rgba(255,59,78,.08); }
+.qi-health-pill--unknown { color: #a995c9; }
+.qi-health-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; padding: clamp(18px,2.4vw,34px); }
+.qi-health-card { min-width: 0; border: 1px solid rgba(217,79,220,.18); border-radius: 18px; background: linear-gradient(155deg,rgba(29,17,64,.82),rgba(18,8,39,.92)); overflow: hidden; }
+.qi-health-card>header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px; padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.qi-health-card h3 { margin: 0; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+.qi-health-card__body { padding: 10px 16px 16px; }
+.qi-health-metric { display: grid; grid-template-columns: minmax(110px,.8fr) minmax(0,1.2fr); align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.045); }
+.qi-health-metric:last-child { border-bottom: 0; }
+.qi-health-metric span { color: var(--qi-text-muted); font-size: 12px; }
+.qi-health-metric strong { min-width: 0; overflow-wrap: anywhere; color: #eee8f8; font-size: 13px; text-align: right; }
+.qi-health-metric strong.is-healthy { color: #65ee99; }.qi-health-metric strong.is-warning { color: #ffd263; }.qi-health-metric strong.is-problem { color: #ff8290; }
+.qi-health-team-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; max-height: 110px; overflow: auto; }
+.qi-health-sort { display: flex; align-items: center; gap: 6px; margin-top: 12px; color: var(--qi-text-muted); font-size: 11px; }
+.qi-health-sort button { padding: 4px 8px; border: 1px solid var(--qi-border); border-radius: 8px; background: transparent; color: var(--qi-text-secondary); cursor: pointer; font-size: 11px; }.qi-health-sort button.is-active { border-color: #d94fdc; background: rgba(190,38,193,.14); color: #fff; }
+.qi-health-team-list span { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 8px; background: rgba(255,255,255,.045); color: #d7cbea; font-size: 11px; }
+.qi-health-team-list i { width: 6px; height: 6px; border-radius: 50%; background: #6b5a8e; }.qi-health-team-list i.is-active { background: #65ee99; }
+.qi-health-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.qi-health-actions button { min-height: 44px; border: 1px solid rgba(217,79,220,.3); border-radius: 12px; background: rgba(190,38,193,.08); color: #fff; font-size: 12px; font-weight: 750; cursor: pointer; }
+.qi-health-actions button:hover { background: rgba(190,38,193,.2); border-color: #d94fdc; }
+.qi-health-busy { margin: 10px 0 0; color: #ffd263; font-size: 12px; }
+.qi-health-log { max-height: 260px; overflow: auto; font-variant-numeric: tabular-nums; }
+.qi-health-log>div { display: grid; grid-template-columns: 72px 1fr; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.05); color: #d7cbea; font-size: 12px; }
+.qi-health-log time { color: #8e7aaa; }.qi-health-log .is-warning span { color: #ffd263; }.qi-health-log .is-problem span { color: #ff8290; }
+.qi-health-log p { color: var(--qi-text-muted); font-size: 12px; }
+@media (max-width: 1100px) { .qi-health-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 720px) { .qi-health-header { align-items: flex-start; flex-direction: column; }.qi-health-header__actions { width: 100%; }.qi-health-header__actions .qi-button:first-child { flex: 1; }.qi-health-grid { grid-template-columns: 1fr; }.qi-health-metric { grid-template-columns: 1fr; gap: 2px; }.qi-health-metric strong { text-align: left; }.qi-health-actions { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .qi-health-overlay * { scroll-behavior: auto !important; transition-duration: .001ms !important; animation-duration: .001ms !important; } }
+
 .qi-player-live-root .fbl [style*="aspect-ratio: 2 / 3"] { border-radius: 14px !important; }
 .qi-player-live-root button:focus-visible,.qi-player-experience button:focus-visible,.qi-player-experience input:focus-visible,.qi-player-live-root input:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 .qi-player-live-root button { -webkit-tap-highlight-color: transparent; }

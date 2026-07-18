@@ -12,6 +12,18 @@ export const SHOW_AUDIO_VOLUME = {
 
 const active = new Map<ShowAudioChannel, HTMLAudioElement>();
 const preloaded = new Map<string, HTMLAudioElement>();
+const activeFiles = new Map<ShowAudioChannel, string>();
+const listeners = new Set<(state: ShowAudioState) => void>();
+
+export type ShowAudioState = { active: Array<{ channel: ShowAudioChannel; file: string }>; overlap: boolean };
+
+export function getShowAudioState(): ShowAudioState {
+  const entries = [...activeFiles].map(([channel, file]) => ({ channel, file }));
+  return { active: entries, overlap: entries.length > 2 };
+}
+
+function emitAudioState() { const state = getShowAudioState(); listeners.forEach(listener => listener(state)); }
+export function subscribeShowAudio(listener: (state: ShowAudioState) => void) { listeners.add(listener); listener(getShowAudioState()); return () => { listeners.delete(listener); }; }
 
 function soundUrl(file: string) {
   return file.startsWith("/") ? file : `/sounds/${file}`;
@@ -34,6 +46,8 @@ export function stopShowAudio(channel: ShowAudioChannel) {
   audio.pause();
   audio.currentTime = 0;
   active.delete(channel);
+  activeFiles.delete(channel);
+  emitAudioState();
 }
 
 export function stopAllShowAudio() {
@@ -52,7 +66,9 @@ export function playShowAudio(
   audio.volume = options.volume ?? SHOW_AUDIO_VOLUME[channel];
   audio.loop = options.loop ?? false;
   active.set(channel, audio);
-  const release = () => { if (active.get(channel) === audio) active.delete(channel); };
+  activeFiles.set(channel, file);
+  emitAudioState();
+  const release = () => { if (active.get(channel) === audio) { active.delete(channel); activeFiles.delete(channel); emitAudioState(); } };
   audio.addEventListener("ended", release, { once: true });
   audio.addEventListener("error", release, { once: true });
   audio.play().catch(release);

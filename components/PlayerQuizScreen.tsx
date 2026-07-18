@@ -9,6 +9,7 @@ import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { PursuitPhase, readPursuitState, readQIndex, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { Crest } from "@/components/fable/HandsetStates";
 import { teamInitials } from "@/components/TeamBadge";
+import { PlayerShell, PlayerStatusBar, PlayerResultBanner } from "@/components/player/PlayerUI";
 
 type Question = {
   question_text: string;
@@ -147,9 +148,9 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginTop:4 }}>Waiting for host...</div>
         </div>
       )}
-      {allowPowerCards && <div style={{ marginTop:"auto", paddingTop:12 }}>
+      {allowPowerCards ? <div style={{ marginTop:"auto", paddingTop:12 }}>
         <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} enabled={allowPowerCards} />
-      </div>}
+      </div> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
     </div>
   );
 }
@@ -204,6 +205,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
   const [roundNumber, setRoundNumber] = useState<number>(1);
+  const [roundName, setRoundName] = useState("");
   const [hardDeckGuess, setHardDeckGuess] = useState<string | null>(null);
   const [stickGamblePressed, setStickGamblePressed] = useState<string | null>(null);
   const [spinOffered, setSpinOffered] = useState(false);
@@ -323,7 +325,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data")
+        .select("phase, status, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -396,6 +398,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setFastestSongName((data.fastest_song as string) || null);
     setFastestPoints((data.fastest_points as number) || 0);
     setRoundNumber((data.round_number as number) || 1);
+    setRoundName((data.round_name as string) || "");
     const leaderboardHidden = !!data.hide_leaderboard;
     setHideLeaderboard(leaderboardHidden);
     setAllowPowerCards(data.allow_power_cards !== false);
@@ -578,13 +581,14 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const PowerCards = () => (
     allowPowerCards ? <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
       <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
-    </div> : null
+    </div> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>
   );
 
   if (showScoreboardOnPhone && !hideLeaderboard && phase !== "quiz_end") {
     const sorted = [...phoneScoreboardData].sort((a,b) => b.total_points - a.total_points);
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", padding: 24, fontFamily: font, color: "#fff" }}>
+      <PlayerShell className="qi-player-leaderboard">
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} />
         <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 18, color: purple, letterSpacing: ".24em", textAlign: "center" as const, marginBottom: 20, textShadow: "0 0 24px rgba(190,38,193,.5)" }}>LEADERBOARD</div>
         <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
           {sorted.map((s, i) => (
@@ -595,13 +599,13 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             </div>
           ))}
         </div>
-      </div>
+      </PlayerShell>
     );
   }
   if (phase === "spin_to_win") {
     const isWinner = fastestTeamName === teamName;
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16, gap: 12, textAlign: "center" as const }}>
+      <div className="qi-player-state qi-player-spin" style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16, gap: 12, textAlign: "center" as const }}>
         {!isWinner && (
           <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
             {fastestTeamName ? fastestTeamName + " is spinning..." : "Spinning..."}
@@ -617,7 +621,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
   if (sessionStatus === "finished") {
     return (
-      <div className="fbl fbl-phone" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" }}>
+      <div className="fbl fbl-phone qi-player-state qi-player-session-complete" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" }}>
         <div style={{ position: "relative", zIndex: 2, fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: "clamp(22px,7vw,30px)", letterSpacing: ".08em", textShadow: "0 0 24px rgba(190,38,193,.5)" }}>THAT&apos;S A WRAP</div>
         <div style={{ position: "relative", zIndex: 2, font: "600 clamp(14px,4vw,16px) 'Inter'", color: "#B9A8D9" }}>Thanks for playing — same tables next week.</div>
       </div>
@@ -628,7 +632,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const rankLabels: Record<number,string> = { 1:"A", 11:"J", 12:"Q", 13:"K" };
     const rankLabel = (r: number) => rankLabels[r] || String(r);
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const }}>
+      <div className="qi-player-state qi-player-hard-deck" style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const }}>
+        <PlayerStatusBar teamName={teamName} roundName="The Hard Deck" powerCardsEnabled={false} />
         <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: (hardDeckTeam && hardDeckStatus !== "wheel") ? 14 : 20, color: (hardDeckTeam && hardDeckStatus !== "wheel") ? "rgba(190,38,193,0.5)" : purple, letterSpacing: (hardDeckTeam && hardDeckStatus !== "wheel") ? 2 : 3, fontWeight: (hardDeckTeam && hardDeckStatus !== "wheel") ? 600 : 400 }}>THE HARD DECK</div>
 
         {/* Everyone sees the same team-select wheel and card faces, not just text -
@@ -759,7 +764,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       : pursuitStatus === "complete" || pursuitStatus === "results" ? "That's the finish. Final standings on the big screen."
       : "The Pursuit is starting soon…";
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
+      <div className="qi-player-state qi-player-pursuit" style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
+        <PlayerStatusBar teamName={teamName} roundName="The Pursuit" powerCardsEnabled={false} />
         <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 22, color: "#38bdf8", letterSpacing: 3 }}>THE PURSUIT</div>
         {pursuitQIndex >= 0 && pursuitStatus === "advance" && (
           <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>QUESTION {pursuitQIndex + 1} / {PURSUIT_TOTAL_QUESTIONS}</div>
@@ -772,7 +778,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   if (phase === "intermission") {
     const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes;
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
+      <div className="qi-player-state qi-player-intermission" style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
         <div style={{ fontSize: 22, color: purple, letterSpacing: 4, fontWeight: 700 }}>INTERMISSION</div>
         <div style={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }}>Next round starting soon...</div>
         {!hasContent && (
@@ -803,7 +809,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const isWinnerForSpin = fastestTeamName === teamName;
     if (isWinnerForSpin && spinOffered && !spinChoice) {
       return (
-        <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24, textAlign: "center" as const }}>
+        <div className="qi-player-state qi-player-spin-choice" style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24, textAlign: "center" as const }}>
           <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 24, letterSpacing: ".12em", textShadow: "0 0 24px rgba(190,38,193,.6)" }}><span style={{ color: "#BE26C1" }}>SPIN</span> TO WIN</div>
           {error && (
             <div style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,59,78,0.12)", border: "1px solid rgba(255,59,78,0.5)", color: "#FF3B4E", font: "600 13px 'Inter'", textAlign: "center" as const }}>{error}</div>
@@ -816,7 +822,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const isWinner = fastestTeamName === teamName;
     const confettiColors = ["#BE26C1","#fbbf24","#22c55e","#38bdf8","#f87171","#a78bfa"];
     return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, position: "relative", overflow: "hidden" }}>
+      <div className="qi-player-state qi-player-celebration" style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, position: "relative", overflow: "hidden" }}>
         <style>{`
           @keyframes fall { 0% { transform: translateY(-20px) rotate(0deg); opacity:1; } 100% { transform: translateY(110vh) rotate(720deg); opacity:0; } }
           @keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.15} }
@@ -899,7 +905,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             </>
           );
         })()}
-        {allowPowerCards && <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />}
+        {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
       </div>
     );
   }
@@ -914,12 +920,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       ? (selectedAnswer.toLowerCase() === (question.correct_answer || "").trim().toLowerCase())
       : null;
     return (
-      <div className="fbl fbl-phone" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", padding: 20, background: mcVerdict === true ? "radial-gradient(ellipse 80% 55% at 50% 42%, rgba(46,224,110,0.18), #0A0118 72%)" : undefined }}>
+      <div className={"fbl fbl-phone qi-player-state qi-player-answer" + (mcVerdict === true ? " is-correct" : mcVerdict === false ? " is-incorrect" : "")} style={{ minHeight: "100vh", display: "flex", flexDirection: "column", padding: 20 }}>
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} />
         {mcVerdict === true ? (
           /* The player's whole moment: did I get it? — one dominant answer. */
           <div style={{ position: "relative", zIndex: 2, margin: "auto 0", textAlign: "center" }}>
-            <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: "clamp(40px,13vw,60px)", color: "#2EE06E", letterSpacing: ".06em", textShadow: "0 0 30px rgba(46,224,110,0.5)" }}>CORRECT</div>
-            <div style={{ font: "700 clamp(17px,5vw,22px) 'Inter'", color: "#fff", marginTop: 12 }}>{correctText}</div>
+            <PlayerResultBanner tone="correct" title="CORRECT">{correctText}</PlayerResultBanner>
           </div>
         ) : (
           <>
@@ -951,7 +957,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const isBlocked = !!blockUntil && blockTeam !== teamName && new Date(blockUntil).getTime() > Date.now();
     if (isBlocked && !submitted) {
       return (
-        <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 12, textAlign: "center" as const, fontFamily: font }}>
+        <div className="qi-player-state qi-player-timeout" style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 12, textAlign: "center" as const, fontFamily: font }}>
           <div style={{ fontSize: 40 }}>TIME-OUT</div>
           <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>{blockTeam} played Time-Out</div>
           <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", marginTop: 8 }}>{blockSecondsLeft}s</div>
@@ -995,11 +1001,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     ].filter(o => o.text) as { key: string; text: string }[];
 
     return (
-      <div style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
+      <div className="qi-player-state qi-player-question-screen" style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} />
         {/* Only this inner area scrolls if content is too tall for the screen -
             the page itself never scrolls, and Power Cards (outside this div)
             always stays visible no matter what. */}
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+        <div className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
           <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
           {timeLeft !== null && timeLeft > 0 && (
@@ -1009,7 +1016,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           )}
         </div>
 
-        <div style={{ fontSize: "clamp(19px,5.4vw,24px)", fontWeight: 800, lineHeight: 1.3, marginBottom: 14, color: "#fff" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+        <div className="qi-player-question-text">{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
         {error && (
           <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, marginBottom: 10, textAlign: "center" as const }}>{error}</div>
         )}
@@ -1045,7 +1052,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
               {multiTapOptions.map(opt => {
                 const isTapped = tappedItems.includes(opt.key);
                 return (
-                  <button key={opt.key} type="button"
+                  <button key={opt.key} type="button" className={"qi-player-answer-button" + (isTapped ? " is-selected" : "")}
                     onClick={() => { if (!submitted) setTappedItems(prev => isTapped ? prev.filter(k => k !== opt.key) : [...prev, opt.key]); }}
                     style={{ minHeight: 62, padding: "12px 16px", borderRadius: 14, border: "1px solid", borderColor: isTapped ? "#D94FDC" : "#3A2668", background: isTapped ? "rgba(190,38,193,0.28)" : "#1D1140", boxShadow: isTapped ? "0 0 16px rgba(217,79,220,0.35)" : "none", color: "#fff", font: "700 17px 'Inter'", textAlign: "left" as const, cursor: submitted ? "default" : "pointer", display: "flex", alignItems: "center", gap: 14, opacity: submitted && !isTapped ? 0.35 : 1 }}>
                     <span style={{ width: 32, height: 32, borderRadius: 8, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", background: isTapped ? "#8A1B8D" : "#0A0118", border: "1px solid " + (isTapped ? "#D94FDC" : "#8A1B8D"), color: isTapped ? "#fff" : "#D94FDC", font: "800 15px 'Inter'" }}>{opt.key.toUpperCase()}</span>
@@ -1076,11 +1083,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
 
         {submitted && (
-          <div style={{ padding: "20px 18px", borderRadius: 16, background: "rgba(190,38,193,0.15)", border: "1.5px solid #D94FDC", textAlign: "center", marginBottom: 16 }}>
-            <div style={{ font: "800 22px 'Inter'", color: "#fff", letterSpacing: ".14em" }}>LOCKED IN ✓</div>
-            {mySubmittedDisplay && <div style={{ font: "700 16px 'Inter'", color: "#D94FDC", marginTop: 6 }}>{mySubmittedDisplay}</div>}
-            <div style={{ font: "400 13px 'Inter'", color: "#B9A8D9", marginTop: 6 }}>Sit tight — waiting for the host</div>
-          </div>
+          <PlayerResultBanner tone="locked" title="LOCKED IN ✓">{mySubmittedDisplay || "Waiting for the reveal"}</PlayerResultBanner>
         )}
         </div>
         <PowerCards />
@@ -1102,7 +1105,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const myRankRevealed = myRank !== null && (quizEndTrophyVisible || (sortedFinal.length - quizEndRevealedCount) < myRank);
     const ordinal = (n: number) => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
     return (
-      <div className="fbl fbl-phone" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 14, textAlign: "center" as const }}>
+      <div className="fbl fbl-phone qi-player-state qi-player-finale" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 14, textAlign: "center" as const }}>
         <div style={{ position: "relative", zIndex: 2, font: "700 13px 'Inter'", letterSpacing: 4, color: "#B9A8D9" }}>{revealComplete ? "FINAL RESULTS" : "FINAL STANDINGS"}</div>
         {!myRankRevealed ? (
           <>
@@ -1132,7 +1135,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   // WAITING (lobby) — approved Fable handset "WAITING" state: crest birth,
   // team name, waiting line + room count. Power-card selector preserved below.
   return (
-    <div className="fbl fbl-phone" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div className="fbl fbl-phone qi-player-state qi-player-waiting" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: 24, textAlign: "center", position: "relative", zIndex: 2 }}>
         <Crest initials={teamInitials(teamName)} size={120} />
         <div style={{ font: "800 clamp(22px,6.6vw,30px) 'Inter'", color: "#fff" }}>{teamName}</div>
@@ -1146,7 +1150,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           )}
         </div>
       </div>
-      {allowPowerCards && <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} enabled={allowPowerCards} />}
+      {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
     </div>
   );
 }

@@ -43,8 +43,8 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
   const backspace = () => setValue(prev => prev.slice(0, -1));
 
   return (
-    <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
-      <div style={{
+    <div className="qi-player-keypad" style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+      <div className="qi-player-keypad__value" aria-live="polite" style={{
         padding: isCompact ? "10px 14px" : "14px 16px", borderRadius: 12,
         background: "rgba(255,255,255,0.06)", border: "1.5px solid " + purple,
         minHeight: isCompact ? 44 : 58, display: "flex", alignItems: "center",
@@ -57,7 +57,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
       {mode === "number" ? (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
           {NUMBERS.map(n => (
-            <button key={n} type="button" onClick={() => addChar(n)}
+            <button key={n} type="button" className="qi-player-keypad__key" onClick={() => addChar(n)} aria-label={`Enter ${n}`}
               style={{ ...keyStyle, flexBasis: "18%", background: pressedKey === n ? purple : keyStyle.background, transform: pressedKey === n ? "scale(0.92)" : "scale(1)", transition: "all 0.1s" }}>
               {n}
             </button>
@@ -68,7 +68,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
           {ROWS.map((row, i) => (
             <div key={i} style={{ display: "flex", gap: 5, justifyContent: "center" }}>
               {row.map(letter => (
-                <button key={letter} type="button" onClick={() => addChar(letter)}
+                <button key={letter} type="button" className="qi-player-keypad__key" onClick={() => addChar(letter)} aria-label={`Enter ${letter}`}
                   style={{ ...keyStyle, background: pressedKey === letter ? purple : keyStyle.background, transform: pressedKey === letter ? "scale(0.92)" : "scale(1)", transition: "all 0.1s" }}>
                   {letter}
                 </button>
@@ -79,7 +79,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
       )}
 
       {mode === "text" && (
-        <button type="button" onClick={() => addChar(" ")}
+        <button type="button" className="qi-player-keypad__space" onClick={() => addChar(" ")}
           style={{
             width: "100%", padding: "clamp(8px, 1.6vh, 16px) 0", borderRadius: 12,
             background: pressedKey === " " ? purple : "rgba(190,38,193,0.18)",
@@ -93,11 +93,11 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
       )}
 
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-        <button type="button" onClick={backspace} disabled={!value}
+        <button type="button" className="qi-player-keypad__delete" onClick={backspace} disabled={!value}
           style={{ flex: 1, padding: isCompact ? "clamp(10px, 1.8vh, 18px)" : "18px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: value ? "#fff" : "rgba(255,255,255,0.3)", fontSize: 15, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
           {"\u232B"} DELETE
         </button>
-        <button type="button" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}
+        <button type="button" className="qi-player-keypad__submit" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}
           style={{ flex: 2, padding: isCompact ? "clamp(12px, 2vh, 20px)" : "20px", borderRadius: 12, background: value.trim() ? purple : "#150A2E", color: value.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: value.trim() ? "1px solid #D94FDC" : "1px solid #2E1A52", fontSize: 18, fontWeight: 800, fontFamily: font, letterSpacing: 2, boxShadow: value.trim() ? "0 0 20px rgba(190,38,193,0.35)" : "none", cursor: value.trim() ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
           LOCK IT IN
         </button>

@@ -260,11 +260,11 @@ export function JoinForm() {
   }
 
     if (restoring) {
-      return <div style={{ textAlign: "center", padding: 40, color: "rgba(255,255,255,0.4)", fontFamily: "'Inter',sans-serif", fontSize: 13, letterSpacing: 2 }}>Reconnecting...</div>;
+      return <div className="qi-player-loading" role="status"><span aria-hidden="true" />Reconnecting…</div>;
     }
     if (done) {
       return (
-        <>
+        <div className="qi-player-live-root">
           <PlayerQuizScreen teamName={teamName} sessionPin={sessionPin} />
           {/* Persistent branding overlay - sits on top of every phase screen
               PlayerQuizScreen renders internally, instead of needing to be
@@ -281,13 +281,13 @@ export function JoinForm() {
               <span style={{ fontFamily: "'Bruno Ace SC',sans-serif" }}>Quiz-It</span><span style={{ fontFamily: "'Inter',sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>
             </span>
           </div>
-        </>
+        </div>
       );
     }
 
   if (step === "pin") {
     return (
-      <div className="fbl" style={{ width: "100%", maxWidth: 360, display: "flex", flexDirection: "column" }}>
+      <div className="fbl qi-player-join-card qi-player-pin" style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
         <div className="pj-wm wm"><span className="q">QUIZ-</span>IT</div>
         <div className="pj-title">Enter tonight&rsquo;s PIN</div>
         <div className="pj-slots">
@@ -300,11 +300,11 @@ export function JoinForm() {
           : <div className="pj-hint">{pinLoading ? "Checking…" : "It's the big number on the screen."}</div>}
         <div className="pj-pad">
           {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map(k => (
-            <div key={k} className="pj-key" onClick={() => pinPress(k)}>{k}</div>
+            <button key={k} type="button" className="pj-key" onClick={() => pinPress(k)} aria-label={`Enter ${k}`}>{k}</button>
           ))}
-          <div className="pj-key ghost" onClick={pinBack}>⌫</div>
-          <div className="pj-key" onClick={() => pinPress("0")}>0</div>
-          <div className="pj-key ghost" />
+          <button type="button" className="pj-key ghost" onClick={pinBack} aria-label="Delete last digit">⌫</button>
+          <button type="button" className="pj-key" onClick={() => pinPress("0")} aria-label="Enter 0">0</button>
+          <span className="pj-key ghost" aria-hidden="true" />
         </div>
       </div>
     );
@@ -312,7 +312,7 @@ export function JoinForm() {
 
   if (step === "name") {
     return (
-      <div style={{ display:"flex", flexDirection:"column", gap:16, width:"100%", maxWidth:400 }}>
+      <div className="qi-player-join-card qi-player-form-card" style={{ display:"flex", flexDirection:"column", gap:16, width:"100%", maxWidth:440 }}>
         <label style={{ fontFamily:"'Inter',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Team Name</label>
         <input
           value={teamName}
@@ -368,7 +368,7 @@ export function JoinForm() {
 
   if (step === "song") {
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:12, width:"100%", maxWidth:480 }}>
+    <div className="qi-player-join-card qi-player-form-card" style={{ display:"flex", flexDirection:"column", gap:12, width:"100%", maxWidth:520 }}>
       <div style={{ fontFamily:"'Inter',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Choose Your Victory Song</div>
       <div style={{ fontFamily:"'Inter',sans-serif", fontSize:14, letterSpacing:1, color:"rgba(255,255,255,0.7)" }}>This plays when you win! Tap to preview.</div>
 
@@ -422,7 +422,7 @@ export function JoinForm() {
   }
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:16, width:"100%", maxWidth:400, alignItems:"center" }}>
+    <div className="qi-player-join-card qi-player-form-card" style={{ display:"flex", flexDirection:"column", gap:16, width:"100%", maxWidth:440, alignItems:"center" }}>
       <div style={{ fontFamily:"'Inter',sans-serif", fontSize:16, letterSpacing:2, color:"rgba(190,38,193,0.9)" }}>Add a Team Photo</div>
       <div style={{ fontFamily:"'Inter',sans-serif", fontSize:13, letterSpacing:1, color:"rgba(255,255,255,0.6)", textAlign:"center" as const }}>Optional — shown when you win, and on the shareable results graphic!</div>
 

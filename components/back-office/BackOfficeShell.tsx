@@ -7,8 +7,7 @@ import type { ReactNode } from "react";
 const navigation = [
   ["Dashboard", "/host"], ["Calendar", "/host/events"], ["Venues", "/host/venues"],
   ["Quiz Library", "/host/quizzes"], ["Question Library", "/host/question-bank"],
-  ["Media Library", "/host/media"], ["Hosts", "/host/hosts"], ["Sponsors", "/host/sponsors"],
-  ["Reports", "/host/reports"], ["Settings", "/host/settings"],
+  ["Media", "/host/media"], ["Reports", "/host/reports"], ["Settings", "/host/settings"],
 ] as const;
 
 const livePrefixes = ["/host/quiz", "/host/display", "/host/session", "/host/spin", "/host/wheel"];

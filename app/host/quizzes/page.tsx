@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LibraryRound, QuizDefinition, QuizRound } from "@/lib/quiz-builder/types";
-import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell, TopSpacer } from "@/components/fable/HostConsole";
+import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell } from "@/components/fable/HostConsole";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
@@ -108,9 +108,9 @@ export default function QuizBuilderPage() {
     await supabase.from("quizzes").delete().eq("id", quiz.id); setSelectedId(null); await load();
   }
 
-  return <HostShell><main style={{ minHeight: "100vh", background: BG, color: "#fff", padding: "24px 32px" }}>
-    <div className="fbh-top"><span className="fbh-wm"><span className="q">QUIZ-</span>IT</span><span className="fbh-bc">Quiz Plan Builder</span><TopSpacer /><Link className="fbh-btn" href="/host/rounds">Round Library</Link><Link className="fbh-btn pri" href="/host/session">Create Session</Link></div>
-    {loading ? <HostLoading title="Quiz Plan Builder" note="Loading quizzes and rounds…" /> : error && !quizzes.length ? <div className="fbh-panel" role="alert">{error}</div> : <div className="qi-quiz-builder-grid">
+  return <HostShell><main className="qi-bo-page" style={{ minHeight: "100vh", background: BG, color: "#fff" }}>
+    <header className="qi-bo-pagehead"><div><p>Programme planning</p><h1>Quiz Library</h1><span>Build reusable running orders before they reach the Calendar.</span></div><div className="qi-bo-page-actions"><Link className="fbh-btn" href="/host/rounds">Round Library</Link><Link className="fbh-btn pri" href="/host/session">Open Live Session</Link></div></header>
+    {loading ? <HostLoading title="Quiz Library" note="Loading Quiz Plans and rounds…" /> : error && !quizzes.length ? <section className="qi-bo-setup-state" role="alert"><span>Setup required</span><h2>Quiz Library is not available yet</h2><p>The existing Quiz Builder database migration must be applied before Quiz Plans can be created. No data has been changed.</p><details><summary>Technical detail</summary><code>{error}</code></details></section> : <div className="qi-quiz-builder-grid">
       <section className="fbh-panel"><HostLabel>New Quiz Plan</HostLabel><HostInput value={name} onChange={e => setName(e.target.value)} placeholder="Thursday Night Quiz" /><textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" rows={2} className="fbh-input" style={{ width: "100%", marginTop: 8 }} /><HostButton variant="pri" onClick={createQuiz} disabled={!name.trim() || saving} style={{ width: "100%", marginTop: 10 }}>CREATE QUIZ PLAN</HostButton>
         <div className="fbh-lbl" style={{ marginTop: 22 }}>Your Quiz Plans</div>{quizzes.length ? quizzes.map(q => <button key={q.id} onClick={() => setSelectedId(q.id)} className="fbh-answer-row" style={{ width: "100%", cursor: "pointer", borderColor: q.id === selectedId ? "#BE26C1" : undefined, opacity: q.archived ? .55 : 1 }}><span className="nm">{q.name}</span><span className="ans">{q.quiz_rounds.length} rounds{q.archived ? " · Archived" : ""}</span></button>) : <HostEmpty title="No Quiz Plans Yet" note="Create one, then add reusable rounds." />}
       </section>

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
+import Image from "next/image";
 import { SlotReels, SLOT_SEGS } from "@/components/SlotReels";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -8,6 +9,7 @@ import { PursuitPanel } from "@/components/PursuitPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc } from "@/lib/quiz/scoreService";
 import { teamInitials } from "@/components/TeamBadge";
+import { BrandLockup, Button, Field, Input, Select, StatusPill } from "@/components/ui/quiz-it-ui";
 
 type Question = {
   id?: number;
@@ -1089,56 +1091,48 @@ function QuizControllerInner() {
 
   if (!connected) {
     return (
-      <div style={{ minHeight:"100vh", background:"radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"sans-serif" }}>
-        <div style={{ background:"rgba(45,10,94,0.7)", border:"2px solid #BE26C1", borderRadius:20, padding:48, textAlign:"center", width:400 }}>
-          <div style={{ fontSize:28, fontWeight:700, color:"#BE26C1", letterSpacing:4, marginBottom:8 }}>Quiz Controller</div>
-          <div style={{ fontSize:15, color:"rgba(255,255,255,0.7)", marginBottom:32 }}>Enter the session PIN to connect</div>
-          <input value={pinInput} onChange={e => setPinInput(e.target.value.replace(/\D/g,"").slice(0,4))}
-            onKeyDown={e => e.key==="Enter" && connectToSession()} placeholder="PIN" maxLength={4}
-            style={{ width:"100%", padding:"16px", borderRadius:12, background:"rgba(255,255,255,0.1)", color:"#fff", border:"2px solid rgba(190,38,193,0.6)", fontSize:32, fontFamily:"monospace", textAlign:"center", letterSpacing:12, outline:"none", marginBottom:16, boxSizing:"border-box" as const }} />
-          <button onClick={connectToSession} disabled={pinInput.length!==4}
-            style={{ width:"100%", padding:16, borderRadius:12, background:pinInput.length===4?"#BE26C1":"#333", color:"#fff", border:"none", fontSize:18, letterSpacing:4, cursor:pinInput.length===4?"pointer":"not-allowed" }}>
-            Connect
-          </button>
+      <main className="qi-app-shell qi-auth-shell">
+        <div className="qi-panel qi-panel--elevated qi-mc-connect">
+          <BrandLockup />
+          <div className="qi-mc-connect__copy">
+            <p className="qi-eyebrow">Mission Control</p>
+            <h1>Connect to tonight&apos;s quiz</h1>
+            <p>Enter the four-digit session PIN.</p>
+          </div>
+          <Field label="Session PIN">
+            {({ id, describedBy }) => <Input id={id} aria-describedby={describedBy} value={pinInput} onChange={e => setPinInput(e.target.value.replace(/\D/g,"").slice(0,4))} onKeyDown={e => e.key==="Enter" && connectToSession()} inputMode="numeric" autoComplete="one-time-code" placeholder="0000" maxLength={4} className="qi-mc-pin-input" />}
+          </Field>
+          <Button onClick={connectToSession} disabled={pinInput.length!==4} className="qi-mc-connect__action">Connect to quiz</Button>
         </div>
-      </div>
+      </main>
     );
   }
 
   // Fable law: the console phase indicator speaks in purple (green reserved for
   // "correct" only). Live phases glow purple; idle phases sit neutral.
   const phaseLive = hostPhase!=="waiting" && hostPhase!=="quiz_end";
-  const phaseColor = phaseLive ? "#D94FDC" : "#B9A8D9";
-  const phaseBg = phaseLive ? "rgba(190,38,193,0.15)" : "rgba(255,255,255,0.05)";
 
   return (
-    <div className="fbh" style={{ minHeight:"100vh", background:"radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118", color:"#fff", display:"flex", flexDirection:"column" as const }}>
+    <div className="fbh qi-mc-shell">
       {/* HEADER */}
-      <div style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 24px", borderBottom:"1px solid #2E1A52", background:"rgba(21,10,46,0.6)", backdropFilter:"blur(12px)", flexWrap:"wrap" as const }}>
-        <div style={{ width:34, height:34, borderRadius:"50%", flexShrink:0, border:"1.5px solid #BE26C1", boxShadow:"0 0 12px rgba(190,38,193,0.5)", display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(190,38,193,0.08)", overflow:"hidden" as const }}>
-          <img src="/me-logo.jpg" alt="ME" style={{ width:"100%", height:"100%", objectFit:"cover" as const }} />
+      <header className="qi-mc-header">
+        <div className="qi-mc-brand">
+          <Image src="/me-logo.jpg" alt="Mac Entertainment" width={44} height={44} className="qi-mc-brand__mark" />
+          <BrandLockup compact align="left" />
+          <span className="qi-mc-brand__section">Mission Control</span>
         </div>
-        <span className="fbh-wm" style={{ fontSize:16 }}><span className="q">QUIZ-</span>IT</span>
-        <span className="fbh-bc">Mission Control</span>
-        <div style={{ padding:"4px 12px", borderRadius:999, background:"rgba(190,38,193,0.12)", border:"1px solid rgba(190,38,193,0.4)", fontSize:11, fontWeight:700, letterSpacing:1, color:"#BE26C1" }}>PIN: {sessionPin}</div>
-        <div style={{ padding:"4px 12px", borderRadius:999, fontSize:11, fontWeight:700, letterSpacing:1, background:phaseBg, color:phaseColor, border:"1px solid rgba(255,255,255,0.12)", boxShadow:"0 0 10px "+phaseBg }}>
-          {hostPhase.toUpperCase().replace("_"," ")}{hostPhase==="timer" ? " "+timeLeft+"s" : ""}
+        <div className="qi-mc-session" aria-label="Live session information">
+          <div><span>Session PIN</span><strong>{sessionPin}</strong></div>
+          <StatusPill tone={phaseLive ? "live" : "inactive"}>{hostPhase.replace("_"," ")}{hostPhase==="timer" ? ` · ${timeLeft}s` : ""}</StatusPill>
+          {selectedRound ? <div><span>Question</span><strong>{qIdx+1} / {selectedRound.questions.length}</strong></div> : null}
         </div>
-        {selectedRound && (
-          <div style={{ padding:"4px 14px", borderRadius:999, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.18)", fontSize:13, fontWeight:800, color:"#fff", letterSpacing:0.5 }}>
-            Q {qIdx+1} <span style={{ color:"rgba(255,255,255,0.4)", fontWeight:400 }}>of {selectedRound.questions.length}</span>
-          </div>
-        )}
-        <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)", letterSpacing:1, flex:1, textAlign:"center" as const }}>{nextActionLabel ? "" : spacebarHint}</div>
-        <a className="fbh-btn" href="/host/events" style={{ height:34 }}>Events</a>
-        <select value={selectedRound?.id||""} onChange={e => {
-          chooseRound(rounds.find(x=>x.id===e.target.value) || null);
-        }}
-          style={{ padding:"6px 12px", borderRadius:10, background:"rgba(255,255,255,0.06)", color:"#fff", border:"1px solid rgba(190,38,193,0.35)", fontSize:12, cursor:"pointer" }}>
-          <option value="">{rounds.length ? "Select round..." : "No rounds found — check host login"}</option>
-          {rounds.filter(r => r.round_type !== "pursuit").map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-        </select>
-        <button onClick={() => setRulesOpen(true)} style={{ padding:"6px 14px", borderRadius:10, background:"rgba(255,255,255,0.05)", border:"1px solid rgba(190,38,193,0.35)", color:"#BE26C1", fontSize:12, cursor:"pointer", fontWeight:600 }}>{"\u{1F4CB}"} Rules</button>
+        <nav className="qi-mc-nav" aria-label="Mission Control navigation">
+          <a className="qi-button qi-button--quiet" href="/host/events">Events</a>
+          <Select aria-label="Current round" value={selectedRound?.id||""} onChange={e => chooseRound(rounds.find(x=>x.id===e.target.value) || null)} className="qi-mc-round-select">
+            <option value="">{rounds.length ? "Select round…" : "No rounds found"}</option>
+            {rounds.filter(r => r.round_type !== "pursuit").map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </Select>
+          <Button variant="quiet" onClick={() => setRulesOpen(true)}>Rules</Button>
         {rulesOpen && (
           <div onClick={() => setRulesOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
             <div onClick={e => e.stopPropagation()} style={{ background:"#1a0535", border:"2px solid #BE26C1", borderRadius:16, padding:28, maxWidth:560, maxHeight:"80vh", overflowY:"auto" as const, color:"#fff" }}>
@@ -1196,50 +1190,48 @@ function QuizControllerInner() {
             </div>
           </div>
         )}
-        {sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
-        {sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={setPursuitActive} />}
-        <a href="/host/display" target="_blank" style={{ padding:"6px 14px", borderRadius:10, background:"#BE26C1", color:"#fff", textDecoration:"none", fontSize:11, fontWeight:700, letterSpacing:0.5, boxShadow:"0 0 12px rgba(190,38,193,0.4)" }}>Display</a>
-      </div>
+          {sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
+          {sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={setPursuitActive} />}
+          <a href="/host/display" target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
+        </nav>
+      </header>
 
       {/* SCOREBOARD BUTTONS BAR */}
-      <div style={{ display:"flex", gap:10, padding:"10px 20px", borderBottom:"1px solid #2E1A52", background:"rgba(21,10,46,0.4)", alignItems:"center", flexWrap:"wrap" as const }}>
-        <span className="fbh-lbl" style={{ margin:0 }}>Scoreboard</span>
-        <button className={showScoreboardOnHandsets ? "fbh-btn pri" : "fbh-btn"} style={{ height:34 }} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{showScoreboardOnHandsets ? "Hide from Handsets" : "Send to Handsets"}</button>
-        <button className={showScoreboard ? "fbh-btn pri" : "fbh-btn"} style={{ height:34 }} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{showScoreboard ? "Hide from Screen" : "Show on Screen"}</button>
-        <button className="fbh-btn" style={{ height:38, marginLeft:"auto" }} onClick={doEndOfQuiz}>End Quiz</button>
+      <div className="qi-mc-toolbar">
+        <div className="qi-mc-toolbar__label"><span>Audience</span><strong>Scoreboard controls</strong></div>
+        <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
+        <Button variant={showScoreboard ? "primary" : "secondary"} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{showScoreboard ? "Hide on display" : "Show on display"}</Button>
+        {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
+        <Button variant="destructive" className="qi-mc-toolbar__end" onClick={doEndOfQuiz}>End quiz</Button>
       </div>
 
       {/* DOMINANT NEXT-ACTION BAR — the one thing the host acts on next, huge and
           clickable (same as pressing Space). Readable from across the room / at a
           glance while talking. Timer phase shows the live countdown instead. */}
       {selectedRound && nextActionLabel && (
-        <button onClick={handleSpacebar}
-          style={{ display:"flex", alignItems:"center", gap:20, width:"100%", padding:"16px 28px", border:"none", borderBottom:"1px solid #2E1A52", cursor:"pointer", textAlign:"left" as const,
-            background: hostPhase==="timer" ? "rgba(190,38,193,0.10)" : "linear-gradient(90deg, rgba(190,38,193,0.28), rgba(190,38,193,0.10))",
-            boxShadow: hostPhase==="timer" ? "none" : "inset 0 0 40px rgba(190,38,193,0.15)" }}>
-          <span style={{ font:"700 13px 'Inter'", letterSpacing:".22em", color:"#B9A8D9", flexShrink:0 }}>NEXT</span>
-          <span style={{ font:"800 clamp(22px,3vw,40px) 'Inter'", color:"#fff", letterSpacing:".01em", flex:1 }}>{nextActionLabel}</span>
-          {hostPhase==="timer" && <span style={{ font:"900 clamp(30px,4vw,54px) 'Inter'", color:(timeLeft ?? 0)<=5 ? "#FF3B4E" : "#D94FDC", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{timeLeft}s</span>}
-          <span style={{ font:"800 13px 'Inter'", letterSpacing:".16em", color:"#fff", background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.25)", borderRadius:10, padding:"7px 14px", flexShrink:0 }}>SPACE ▸</span>
+        <button onClick={handleSpacebar} className={`qi-mc-next${hostPhase==="timer" ? " qi-mc-next--timer" : ""}`}>
+          <span className="qi-mc-next__eyebrow">Next action</span>
+          <span className="qi-mc-next__label">{nextActionLabel}</span>
+          {hostPhase==="timer" && <span className={`qi-mc-next__timer${(timeLeft ?? 0)<=5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft}s</span>}
+          <span className="qi-mc-next__key">Space ↵</span>
         </button>
       )}
 
       {/* MAIN CONTENT */}
-      <div style={{ flex:1, display:"grid", gridTemplateColumns:"1fr 380px", gap:0, overflow:"hidden" }}>
-        <div style={{ padding:24, overflowY:"auto" as const, borderRight:"1px solid rgba(190,38,193,0.2)" }}>
+      <div className="qi-mc-workspace">
+        <main className="qi-mc-desk">
           {!selectedRound ? (
-            <div style={{ maxWidth:760, margin:"36px auto 0" }}>
-              <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:"clamp(20px,2.6vw,34px)", letterSpacing:".08em", textAlign:"center", marginBottom:6 }}>Choose Tonight&rsquo;s Round</div>
-              <div style={{ font:"400 14px 'Inter'", color:"#B9A8D9", textAlign:"center", marginBottom:24 }}>Tap a round to load it — then press Space to start.</div>
+            <div className="qi-mc-round-picker">
+              <div className="qi-mc-round-picker__title">Choose Tonight&rsquo;s Round</div>
+              <div className="qi-mc-round-picker__description">Tap a round to load it — then press Space to start.</div>
               {rounds.filter(r => r.round_type !== "pursuit").length === 0 ? (
                 <div style={{ font:"600 15px 'Inter'", color:"#B9A8D9", textAlign:"center" }}>No rounds found — check host login, or build one in the Round Library.</div>
               ) : (
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))", gap:14 }}>
+                <div className="qi-mc-round-grid">
                   {rounds.filter(r => r.round_type !== "pursuit").map(r => (
-                    <button key={r.id} onClick={() => chooseRound(r)}
-                      style={{ textAlign:"left", padding:"18px 20px", borderRadius:16, background:"#1D1140", border:"1px solid #3A2668", color:"#fff", cursor:"pointer", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-                      <div style={{ font:"800 18px 'Inter'", marginBottom:6 }}>{r.name}</div>
-                      <div style={{ font:"400 13px 'Inter'", color:"#B9A8D9" }}>{r.questions?.length || 0} questions{r.round_type && r.round_type !== "regular" ? " · " + r.round_type : ""}</div>
+                    <button key={r.id} onClick={() => chooseRound(r)} className="qi-mc-round-card">
+                      <strong>{r.name}</strong>
+                      <span>{r.questions?.length || 0} questions{r.round_type && r.round_type !== "regular" ? " · " + r.round_type : ""}</span>
                     </button>
                   ))}
                 </div>
@@ -1308,8 +1300,8 @@ function QuizControllerInner() {
           ) : !currentQ ? (
             <div style={{ textAlign:"center", marginTop:80, color:"rgba(255,255,255,0.4)", fontSize:18 }}>No questions in this round</div>
           ) : (
-            <div>
-              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20, flexWrap:"wrap" as const }}>
+            <div className="qi-mc-question">
+              <div className="qi-mc-question__meta">
                 <span style={{ background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", padding:"5px 16px", borderRadius:999, fontSize:13, fontWeight:700 }}>Q{qIdx+1} of {selectedRound.questions.length}</span>
                 <span style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.15)", color:typeColor[currentQ.question_type]||"#aaa", padding:"5px 16px", borderRadius:999, fontSize:13, fontWeight:600 }}>{typeLabel[currentQ.question_type]||currentQ.question_type}</span>
                 <span style={{ fontSize:13, color:"rgba(255,255,255,0.5)" }}>{currentQ.difficulty}</span>
@@ -1319,16 +1311,16 @@ function QuizControllerInner() {
                 )}
               </div>
 
-              <div style={{ fontSize:"clamp(28px,3vw,44px)", fontWeight:800, lineHeight:1.3, marginBottom:24, color:"#fff", textShadow:"0 2px 12px rgba(0,0,0,0.3)" }}>{currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+              <h1 className="qi-mc-question__title">{currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</h1>
 
               {currentQ.question_type==="multiple_choice" && (
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
+              <div className="qi-mc-options">
                   {(["a","b","c","d"] as const).map(l => {
                     const opt = currentQ[("option_"+l) as keyof Question] as string;
                     const isCorrect = l===currentQ.correct_answer.toLowerCase();
                     const showCorrect = isCorrect;
                     return opt ? (
-                      <div key={l} style={{ padding:"14px 18px", borderRadius:12, background:showCorrect?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.06)", border:"2px solid "+(showCorrect?"#22c55e":"rgba(255,255,255,0.15)"), fontSize:15, boxShadow:showCorrect?"0 0 16px rgba(34,197,94,0.3)":"none" }}>
+                      <div key={l} className={`qi-mc-option${showCorrect ? " qi-mc-option--correct" : ""}`}>
                         <span style={{ color:"#BE26C1", fontWeight:800, marginRight:8 }}>{l.toUpperCase()}.</span>
                         <span style={{ color:"#fff", fontWeight:600 }}>{opt}</span>
                       </div>
@@ -1380,7 +1372,7 @@ function QuizControllerInner() {
               )}
 
               {(
-                <div style={{ padding:"16px 20px", borderRadius:12, background:"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.4)", marginBottom:20 }}>
+                <div className="qi-mc-answer-key">
                   <div style={{ fontSize:12, color:"rgba(34,197,94,0.7)", marginBottom:4, letterSpacing:2 }}>ANSWER</div>
                   <div style={{ fontSize:24, fontWeight:700, color:"#22c55e" }}>{getCorrectAnswerText(currentQ)}</div>
                   {currentQ.explanation && <div style={{ fontSize:14, color:"rgba(255,255,255,0.6)", marginTop:8 }}>{currentQ.explanation}</div>}
@@ -1390,29 +1382,28 @@ function QuizControllerInner() {
               {/* Manual overrides only — the NEXT bar above is the primary flow, so
                   this row is deliberately small and secondary (jump out of sequence,
                   dump a question, skip ahead). Reduces the screen to one dominant action. */}
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" as const, alignItems:"center", marginTop:20, paddingTop:16, borderTop:"1px solid #2E1A52" }}>
-                <span className="fbh-lbl" style={{ margin:0, marginRight:2 }}>Manual</span>
-                <button className="fbh-btn" style={{ height:34, opacity:0.85 }} onClick={doStartRound}>Start Round</button>
-                <button className="fbh-btn" style={{ height:34, opacity:0.85 }} onClick={() => doPreviewQuestion(qIdx)} disabled={hostPhase==="preview"}>Preview Q</button>
-                <button className="fbh-btn" style={{ height:34, opacity:0.85 }} onClick={doSendQuestion} disabled={hostPhase!=="preview"}>Send Live</button>
-                <button className="fbh-btn" style={{ height:34, opacity:0.85 }} onClick={doStartTimer} disabled={hostPhase==="timer"}>{hostPhase==="timer" ? timeLeft+"s" : "Timer"}</button>
-                <button className="fbh-btn" style={{ height:34, opacity:0.85 }} onClick={doRevealAnswer} disabled={hostPhase==="answer"}>Reveal</button>
-                <button className="fbh-btn" style={{ height:34, opacity:0.85 }} onClick={doCelebrate}>Celebrate</button>
-                <div style={{ width:1, height:24, background:"#2E1A52", margin:"0 4px" }} />
-                <button className="fbh-btn" style={{ height:34, opacity:0.6 }} onClick={doDumpQuestion} title="Skip this question without scoring it - stays in the round for next time">Dump Q</button>
+              <div className="qi-mc-manual">
+                <span className="qi-mc-manual__label">Manual recovery controls</span>
+                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doStartRound}>Start Round</button>
+                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={() => doPreviewQuestion(qIdx)} disabled={hostPhase==="preview"}>Preview Q</button>
+                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doSendQuestion} disabled={hostPhase!=="preview"}>Send Live</button>
+                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doStartTimer} disabled={hostPhase==="timer"}>{hostPhase==="timer" ? timeLeft+"s" : "Timer"}</button>
+                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doRevealAnswer} disabled={hostPhase==="answer"}>Reveal</button>
+                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doCelebrate}>Celebrate</button>
+                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doDumpQuestion} title="Skip this question without scoring it - stays in the round for next time">Dump Q</button>
                 {isLastQ ? (
-                  <button className="fbh-btn" style={{ height:34, opacity:0.85, marginLeft:"auto" }} onClick={doEndRound}>End Round</button>
+                  <button className="qi-button qi-button--secondary qi-mc-manual__last" onClick={doEndRound}>End Round</button>
                 ) : (
-                  <button className="fbh-btn" style={{ height:34, opacity:0.85, marginLeft:"auto" }} onClick={() => doPreviewQuestion(qIdx+1)}>Next Q</button>
+                  <button className="qi-button qi-button--secondary qi-mc-manual__last" onClick={() => doPreviewQuestion(qIdx+1)}>Next Q</button>
                 )}
               </div>
             </div>
           )}
-        </div>
+        </main>
 
         {/* RIGHT PANEL */}
-        <div style={{ overflowY:"auto" as const, display:"flex", flexDirection:"column" as const }}>
-          <div style={{ padding:"14px 18px", borderBottom:"1px solid #2E1A52", background:"rgba(21,10,46,0.5)" }}>
+        <aside className="qi-mc-rail" aria-label="Teams, answers and round settings">
+          <section className="qi-mc-settings">
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <div className="fbh-lbl" style={{ margin:0 }}>Round Settings</div>
               <button className="fbh-btn" style={{ height:28, padding:"0 12px", fontSize:11 }} onClick={() => setRoundSettingsOpen((p: boolean) => !p)}>{roundSettingsOpen ? "Hide" : "Edit"}</button>
@@ -1455,15 +1446,15 @@ function QuizControllerInner() {
             {!roundSettingsOpen && (
               <div style={{ font:"400 12px 'Inter'", color:"#6B5A8E" }}>{pointsPerQ}pts/q · {getTimerForQuestion(currentQ, timerDuration)}s · +{timeBonus} bonus · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal"}</div>
             )}
-          </div>
+          </section>
 
-          <div style={{ padding:"14px 18px", flex:1, overflowY:"auto" as const }}>
-            <div style={{ font:"800 13px 'Inter'", color:"#D94FDC", letterSpacing:".14em", marginBottom:12 }}>LEADERBOARD</div>
+          <section className="qi-mc-teams">
+            <div className="qi-mc-teams__header"><div><span>Live answers</span><strong>Teams & scores</strong></div><StatusPill tone="live">{answers.length}/{teams.length} answered</StatusPill></div>
             {scores.length === 0 && teams.length > 0 && (
               <>
                 <button onClick={() => ensureScores(sessionPin, teams)} style={{ width:"100%", padding:"9px", borderRadius:10, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:12 }}>Initialise Scores</button>
                 {teams.map(t => (
-                  <div key={t.id} style={{ padding:"10px 12px", borderRadius:12, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", marginBottom:8 }}>
+                  <div key={t.id} className="qi-mc-team-card">
                     <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                       <div style={{ width:7, height:7, borderRadius:"50%", background:"#D94FDC", flexShrink:0 }} />
                       <span style={{ fontWeight:700, fontSize:13, flex:1, color:"#fff" }}>{t.team_name}</span>
@@ -1482,15 +1473,15 @@ function QuizControllerInner() {
               const medal = i===0 ? "gold" : i===1 ? "silver" : i===2 ? "#cd7f32" : null;
               const isFastest = s.team_name === fastestTeam;
               return (
-                <div key={s.team_name} style={{ padding:"10px 12px", borderRadius:12, background:isFastest?"rgba(190,38,193,0.15)":"rgba(255,255,255,0.045)", border:"1px solid "+(isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)"), marginBottom:8, boxShadow:"0 1px 4px rgba(0,0,0,0.25)" }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <div key={s.team_name} className={`qi-mc-team-card${isFastest ? " qi-mc-team-card--fastest" : ""}`} style={{ borderColor:isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}>
+                  <div className="qi-mc-team-card__summary">
                     <span style={{ fontSize:16, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
                     <span className="fbh-crest" style={{ width:20, height:20, fontSize:7, flexShrink:0 }}>{teamInitials(s.team_name)}</span>
                     <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff" }}>{s.team_name}{isFastest?" ⚡":""}</span>
                     <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#D94FDC":"rgba(185,168,217,0.2)", flexShrink:0 }} />
                     <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const, fontVariantNumeric:"tabular-nums" }}>{s.total_points}</span>
                   </div>
-                  <div style={{ display:"flex", alignItems:"center", paddingLeft:36, marginTop:4, gap:6 }}>
+                  <div className="qi-mc-team-card__answer">
                     {answered ? (() => {
                       // Submission order + reveal-gated correctness. Green/red only
                       // AFTER reveal (design law: green = correct only). Before
@@ -1536,8 +1527,8 @@ function QuizControllerInner() {
                 </div>
               );
             })()}
-          </div>
-        </div>
+          </section>
+        </aside>
       </div>
     </div>
   );
@@ -1554,7 +1545,7 @@ export default function QuizController() {
         background: "rgba(13,2,37,0.6)", border: "1px solid rgba(190,38,193,0.3)",
         pointerEvents: "none" as const,
       }}>
-        <img src="/me-logo.jpg" alt="ME" style={{ width: 16, height: 16, borderRadius: "50%" }} />
+        <Image src="/me-logo.jpg" alt="Mac Entertainment" width={16} height={16} style={{ borderRadius: "50%" }} />
         <span style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: 0.3 }}>
           <span style={{ fontFamily: "'Bruno Ace SC',sans-serif" }}>Quiz-It</span><span style={{ fontFamily: "'Inter',sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>
         </span>

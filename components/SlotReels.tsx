@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 
 export const SLOT_SEGS = [
   { label: "1st Place",  color: "#1a1200", bg: "#F5C842", positive: true  },
@@ -41,17 +42,16 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
   const r2 = useRef<HTMLDivElement>(null);
   const reelRefs = [r0, r1, r2];
   const reelTops = useRef([0, 0, 0]);
-  const [spinning, setSpinning] = useState(false);
   const [overlay, setOverlay] = useState<Seg | null>(null);
   const [bulbTick, setBulbTick] = useState(0);
   const [bulbGolden, setBulbGolden] = useState(false);
   const bulbRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fwCanvasRef = useRef<HTMLCanvasElement>(null);
-  const spinAudioElRef = useRef<HTMLAudioElement | null>(null);
   const lastHandledTarget = useRef<number | string | null>(null);
 
   const INITIAL_CENTRE = Math.floor(STRIP_LEN / 2);
   const INITIAL_TOP = -(INITIAL_CENTRE - 1) * SEG_H;
+  const REEL_H = size === "compact" ? 160 : 480;
 
   useEffect(() => {
     reelTops.current = [INITIAL_TOP, INITIAL_TOP, INITIAL_TOP];
@@ -74,21 +74,14 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
 
   const startSpinSound = () => {
     if (!audioEnabled) return;
-    try {
-      const audio = new Audio("/sounds/slot-spin.mp3");
-      audio.loop = true;
-      audio.volume = 0.6;
-      audio.play().catch(() => {});
-      spinAudioElRef.current = audio;
-    } catch {}
+    playShowAudio("slot-spin.mp3", { channel: "spin", loop: true });
   };
   const stopSpinSound = () => {
-    if (spinAudioElRef.current) {
-      spinAudioElRef.current.pause();
-      spinAudioElRef.current.currentTime = 0;
-      spinAudioElRef.current = null;
-    }
+    if (audioEnabled) stopShowAudio("spin");
   };
+  useEffect(() => () => {
+    if (audioEnabled) stopShowAudio("spin");
+  }, [audioEnabled]);
 
   const animReel = (reelIdx: number, fromTop: number, toTop: number, dur: number, delay: number, easePow: number, cb?: () => void) => {
     let t0: number | null = null;
@@ -161,16 +154,8 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
 
   const playPositiveSounds = (songFile?: string) => {
     if (!audioEnabled) return;
-    try {
-      const horn = new Audio("/sounds/airhorn.mp3");
-      horn.volume = 1.0;
-      horn.play().catch(() => {});
-      if (songFile) {
-        const song = new Audio("/sounds/" + encodeURIComponent(songFile));
-        song.volume = 0.85;
-        song.play().catch(() => {});
-      }
-    } catch {}
+    playShowAudio("airhorn.mp3", { channel: "cue", volume: 0.65 });
+    if (songFile) playShowAudio(encodeURIComponent(songFile), { channel: "music" });
   };
   const playNegativeSounds = () => {
     // Negative Spin-to-Win outcome: one sad-trombone. This fires ONLY from the
@@ -180,11 +165,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
     // lastHandledTarget/spinNonce guard, exactly like playPositiveSounds — plays
     // once per spin, no overlap with any result sting.
     if (!audioEnabled) return;
-    try {
-      const trombone = new Audio("/sounds/sad-trombone.mp3");
-      trombone.volume = 0.9;
-      trombone.play().catch(() => {});
-    } catch {}
+    playShowAudio("sad-trombone.mp3", { channel: "cue", volume: 0.7 });
   };
 
   // Seeded pseudo-random number generator (mulberry32).
@@ -230,7 +211,6 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
     lastHandledTarget.current = spinKey;
 
     setOverlay(null);
-    setSpinning(true);
     startBulbs(false);
     startSpinSound();
 
@@ -258,7 +238,6 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
             const rebelStart = reelTops.current[rebelReel];
             const rebelTarget = landReelOn(winSegIdx, rng, REEL_H);
             animReel(rebelReel, rebelStart, rebelTarget, 2000, 0, 2, () => {
-              setSpinning(false);
               stopBulbs();
               const actualResult = SLOT_SEGS[winSegIdx];
               if (actualResult.positive) startBulbs(true);
@@ -293,7 +272,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
     if (bulbGolden) return bulbTick % 4 < 2 ? "0 0 8px #F5C842" : "0 0 8px #BE26C1";
     return "0 0 8px #BE26C1";
   };
-  const BulbRow = ({ bottom }: { bottom?: boolean }) => (
+  const renderBulbRow = (bottom = false) => (
     <div style={{ display: "flex", alignItems: "center", padding: bottom ? "8px 16px 10px" : "10px 16px 8px", gap: 4, background: "#0d0818" }}>
       {Array.from({ length: BC }).map((_, i) => (
         <div key={i} style={{ display: "contents" }}>
@@ -303,8 +282,6 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
       ))}
     </div>
   );
-
-  const REEL_H = size === "compact" ? 160 : 480;
 
   return (
     <div style={{
@@ -331,7 +308,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
       {/* Inner cabinet panel - unchanged content below, only this wrapper's own border/shadow enriched */}
       <div style={{ background: "#07030f", borderRadius: 18, border: "1px solid rgba(0,0,0,0.6)", overflow: "hidden", position: "relative", width: "100%", boxShadow: "inset 0 3px 16px rgba(0,0,0,0.85), inset 0 0 1px rgba(255,255,255,0.05)" }}>
       <canvas ref={fwCanvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 60 }} />
-      <BulbRow />
+      {renderBulbRow()}
       <div style={{ textAlign: "center", fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", padding: size === "compact" ? "6px 0 4px" : "10px 0 8px", fontSize: size === "compact" ? "clamp(14px,3vw,22px)" : "clamp(22px,3.6vw,50px)", letterSpacing: size === "compact" ? ".12em" : ".14em", color: "#fff", textShadow: "0 0 24px rgba(190,38,193,0.7)" }}>
         <span style={{ color: "#BE26C1" }}>SPIN</span> TO WIN
       </div>
@@ -353,7 +330,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
           </div>
         ))}
       </div>
-      <BulbRow bottom />
+      {renderBulbRow(true)}
 
       {overlay && (
         <div style={{ position: "fixed", inset: 0, background: overlay.positive ? "radial-gradient(circle at 50% 45%, #0c1912 0%, #030805 75%)" : "radial-gradient(circle at 50% 45%, #1c0808 0%, #060202 75%)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>

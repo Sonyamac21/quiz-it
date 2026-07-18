@@ -1185,8 +1185,36 @@ button, input, select, textarea { font: inherit; }
 .qi-display-spin-winner { margin-top: 12px; color: #ded2f3; font-size: clamp(18px,1.8vw,30px); font-weight: 700; letter-spacing: .14em; }
 .qi-display-spin-machine { position: relative; z-index: 2; width: min(90vw,1100px); }
 .qi-display-brand-signature { backdrop-filter: blur(12px); }
+.qi-display-fullscreen {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: var(--qi-z-toast);
+  min-height: 46px;
+  padding: 0 20px;
+  border: 1px solid rgba(217,79,220,.58);
+  border-radius: var(--qi-radius-md);
+  background: rgba(21,10,46,.9);
+  color: #fff;
+  box-shadow: var(--qi-shadow-md);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  transition: transform var(--qi-motion-fast) var(--qi-ease-settle), background var(--qi-motion-fast), border-color var(--qi-motion-fast);
+}
+.qi-display-fullscreen:hover { transform: translateY(-2px); background: #8a1b8d; border-color: #e04de3; }
 
 @keyframes qiDisplayResultIn { from { opacity: 0; transform: translateY(24px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes flashReveal { 0% { background: #0d0110; } 8% { background: #fff; } 18%,100% { background: #0d0110; } }
+@keyframes correctPop { 0%,100% { transform: scale(1); } 40% { transform: scale(1.04); } }
+@keyframes wrongFade { to { opacity: .18; } }
+@keyframes nameSlam { 0% { opacity: 0; transform: scale(.35) translateY(24px); } 60% { transform: scale(1.06) translateY(-4px); } 100% { opacity: 1; transform: none; } }
+@keyframes goldRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes confettiFall { 0% { transform: translateY(-16px) rotate(0); opacity: 1; } 100% { transform: translateY(105vh) rotate(540deg); opacity: 0; } }
+@keyframes qiGlowPulse { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
+@keyframes qiGuessPulse { 0% { transform: scale(.85); opacity: .4; } 60% { transform: scale(1.05); } 100% { transform: none; opacity: 1; } }
 @media (max-aspect-ratio: 4/3) {
   .qi-display-lobby .lb-split { grid-template-columns: 1fr; }
   .qi-display-lobby .lb-cardstage { display: none; }

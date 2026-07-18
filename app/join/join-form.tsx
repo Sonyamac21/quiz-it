@@ -1,7 +1,8 @@
 "use client";
 import { PlayerQuizScreen } from "@/components/PlayerQuizScreen";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 
 const STORAGE_KEY = "quizit_player_session";
 
@@ -84,7 +85,7 @@ export function JoinForm() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [sessionPin, setSessionPin] = useState("");
-  const [preview, setPreview] = useState<HTMLAudioElement | null>(null);
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [reconnecting, setReconnecting] = useState(false);
   const [reconnectName, setReconnectName] = useState("");
@@ -191,13 +192,15 @@ export function JoinForm() {
   }
 
   function playPreview(song: string) {
-    if (preview) { preview.pause(); preview.currentTime = 0; }
-    const audio = new Audio(`/sounds/${song}.mp3`);
-    audio.volume = 0.5;
-    audio.play().catch(() => {});
-    setTimeout(() => { audio.pause(); audio.currentTime = 0; }, 8000);
-    setPreview(audio);
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    playShowAudio(encodeURIComponent(song) + ".mp3", { channel: "music", volume: 0.5 });
+    previewTimerRef.current = setTimeout(() => stopShowAudio("music"), 8000);
   }
+
+  useEffect(() => () => {
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    stopShowAudio("music");
+  }, []);
 
   function handleSongNext() {
     if (!selectedSong) { setError("Please pick your victory song!"); return; }

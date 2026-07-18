@@ -251,7 +251,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
                   background: guess === "higher" ? "rgba(34,197,94,0.22)" : "rgba(239,68,68,0.22)",
                   border: "3px solid " + (guess === "higher" ? "#22c55e" : "#ef4444"),
                   boxShadow: "0 0 32px " + (guess === "higher" ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"),
-                  animation: "hdGuessPulse 0.6s ease-out"
+                  animation: "qiGuessPulse var(--qi-motion-moment) var(--qi-ease-settle)"
                 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>GUESS LOCKED IN</div>
                   <div style={{
@@ -264,7 +264,6 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
                   </div>
                 </div>
               )}
-              <style>{"@keyframes hdGuessPulse { 0% { transform: scale(0.85); opacity: 0.4; } 60% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }"}</style>
               <button onClick={revealNextCard} disabled={!guess} style={{ padding: "14px 32px", borderRadius: 12, fontSize: 16, fontWeight: 700, background: guess ? "rgba(190,38,193,0.3)" : "rgba(255,255,255,0.08)", border: "1px solid " + (guess ? "#BE26C1" : "rgba(255,255,255,0.2)"), color: "#fff", cursor: guess ? "pointer" : "not-allowed", boxShadow: guess ? "0 2px 10px rgba(0,0,0,0.3)" : "none" }}>Reveal Next Card</button>
             </>
           )}

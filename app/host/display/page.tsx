@@ -10,6 +10,7 @@ import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, purs
 import { PursuitBoard } from "@/components/PursuitBoard";
 import { teamInitials } from "@/components/TeamBadge";
 import { RoundStart, RoundEnd, Intermission, WaitingForHost } from "@/components/fable/DisplayStates";
+import { playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 
 type Question = {
   question_text: string;
@@ -102,12 +103,6 @@ function LiveAudioPlayer({ question }: { question: Question }) {
   );
 }
 
-// Cache of preloaded Audio elements, keyed by filename - playing a cloned node
-// from an already-loaded source starts instantly instead of re-fetching/decoding
-// the file from scratch on every single play. This was the cause of audio lag
-// during The Hard Deck, where the same short cues fire
-// repeatedly in quick succession.
-const audioPreloadCache = new Map<string, HTMLAudioElement>();
 const PRELOAD_SOUNDS = ["airhorn.mp3", "sad-trombone.mp3", "round-start.mp3", "clapping-scores.mp3"];
 
 // Lobby Power-Card rules rotation. Rules mirror the real cards in
@@ -118,29 +113,21 @@ const POWER_CARD_INFO = [
   { name: "BOOST", sigil: "⚡", color: "#FFC533", glow: "rgba(255,197,51,.45)", rule: "Doubles your points for every correct answer this round." },
   { name: "REVERSE", sigil: "↻", color: "#FF3B4E", glow: "rgba(255,59,78,.45)", rule: "Reverses the digits of your score." },
 ];
-function preloadSounds() {
-  for (const file of PRELOAD_SOUNDS) {
-    if (audioPreloadCache.has(file)) continue;
-    const a = new Audio("/sounds/" + file);
-    a.preload = "auto";
-    a.load();
-    audioPreloadCache.set(file, a);
-  }
+function playSound(file: string, volume = 1.0) {
+  const timerCue = file.includes("countdown") || file === "lock.mp3";
+  return playShowAudio(file, { channel: timerCue ? "timer" : "cue", volume });
 }
 
-function playSound(file: string, volume = 1.0) {
-  try {
-    const cached = audioPreloadCache.get(file);
-    if (cached) {
-      // Clone so overlapping/rapid repeat plays of the same sound don't cut each
-      // other off, while still benefiting from the already-buffered source.
-      const a = cached.cloneNode() as HTMLAudioElement;
-      a.volume = volume;
-      a.play().catch(() => {});
-      return a;
-    }
-    const a = new Audio("/sounds/" + file); a.volume = volume; a.play().catch(() => {}); return a;
-  } catch { return null; }
+function DisplayFullscreenControl() {
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const sync = () => setFullscreen(!!document.fullscreenElement);
+    sync();
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+  if (fullscreen) return null;
+  return <button type="button" className="qi-display-fullscreen" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}>FULLSCREEN</button>;
 }
 
 // Power card explainer screens shown one at a time on the lobby/waiting screen,
@@ -228,59 +215,9 @@ function DisplayScreenInner() {
     const id = setInterval(() => setPowerCardIdx(i => (i + 1) % 3), 8000);
     return () => clearInterval(id);
   }, [phase]);
-  const [introCardIdx, setIntroCardIdx] = useState(0);
-  useEffect(() => { preloadSounds(); }, []);
-
-  // Inject Inter font + all display screen animations on mount
   useEffect(() => {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap";
-    document.head.appendChild(link);
-    const style = document.createElement("style");
-    style.id = "quizit-display-anims";
-    style.textContent = [
-      "@keyframes qSlideUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}",
-      "@keyframes optSlide{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:translateX(0)}}",
-      "@keyframes flashReveal{0%{background:#0D0110}8%{background:#fff}18%{background:#0D0110}100%{background:#0D0110}}",
-      "@keyframes correctPop{0%{transform:scale(1)}40%{transform:scale(1.04)}100%{transform:scale(1)}}",
-      "@keyframes wrongFade{to{opacity:0.18}}",
-      "@keyframes nameSlam{0%{opacity:0;transform:scale(0.35) translateY(24px)}60%{transform:scale(1.06) translateY(-4px)}100%{opacity:1;transform:scale(1) translateY(0)}}",
-      "@keyframes goldRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}",
-      "@keyframes confettiFall{0%{transform:translateY(-16px) rotate(0deg);opacity:1}100%{transform:translateY(105vh) rotate(540deg);opacity:0}}",
-      "@keyframes timerUrgent{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}",
-      "@keyframes screenPulse{0%,100%{background:transparent}50%{background:rgba(239,68,68,0.05)}}",
-    ].join("");
-    document.head.appendChild(style);
-    return () => {
-      if (link.parentNode) link.parentNode.removeChild(link);
-      const s = document.getElementById("quizit-display-anims");
-      if (s && s.parentNode) s.parentNode.removeChild(s);
-    };
-  }, []);
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setIntroCardIdx(i => (i + 1) % POWER_CARDS.length);
-    }, 6000);
-    return () => clearInterval(interval);
-  }, []);
-  useEffect(() => {
-    const btn = document.createElement("button");
-    btn.textContent = "Fullscreen";
-    btn.style.cssText = "position:fixed;bottom:16px;right:16px;z-index:9999;padding:10px 18px;border-radius:8px;background:rgba(190,38,193,0.85);color:#fff;border:none;font-family:sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,0.4);";
-    btn.onclick = () => {
-      const el = document.documentElement;
-      if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
-    };
-    document.body.appendChild(btn);
-    const onFsChange = () => {
-      btn.style.display = document.fullscreenElement ? "none" : "block";
-    };
-    document.addEventListener("fullscreenchange", onFsChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", onFsChange);
-      if (btn.parentNode) btn.parentNode.removeChild(btn);
-    };
+    preloadShowAudio(PRELOAD_SOUNDS);
+    return () => stopAllShowAudio();
   }, []);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [pinInput, setPinInput] = useState("");
@@ -344,7 +281,6 @@ function DisplayScreenInner() {
   const [showWinnerPhoto, setShowWinnerPhoto] = useState(false);
   const winnerPhotoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const winnerPhotoStartedForRef = useRef<string | null>(null);
-  const [flash, setFlash] = useState(false);
   const [roundName, setRoundName] = useState("");
   const [roundNumber, setRoundNumber] = useState(1);
   const [scoreboardData, setScoreboardData] = useState<Score[]>([]);
@@ -374,11 +310,6 @@ function DisplayScreenInner() {
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
   const [spinTargetIdx, setSpinTargetIdx] = useState<number|null>(null);
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
-  // Track last spinNonce to detect new spins independently of phase state.
-  // When spinNonce changes on the display, we force spin_to_win locally even
-  // if the phase DB write was missed. This is the same dual-trigger pattern
-  // as Hard Deck uses for its wheel.
-    const lastSeenSpinNonceRef = useRef<number | null>(null);
   // Tracks which spin_nonce has already forced phase to spin_to_win once.
   // Prevents a stale/out-of-order delivery (poll vs realtime race) from
   // re-forcing the phase back to spin_to_win after the spin has genuinely
@@ -410,11 +341,8 @@ function DisplayScreenInner() {
     const clearTimer = setTimeout(() => setCurrentAnnounce(null), 3600);
     return () => { clearTimeout(fadeOutTimer); clearTimeout(clearTimer); };
   }, [currentAnnounce]);
-  const victorySongRef = useRef<HTMLAudioElement|null>(null);
   const celebrationPlayingForRef = useRef<string | null>(null);
-  const clappingRef = useRef<HTMLAudioElement|null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
-  const flashRef = useRef<ReturnType<typeof setInterval>|null>(null);
   // Tracks the full timer duration so the SVG ring can show correct progress
   const timerTotalRef = useRef<number>(30);
 
@@ -444,13 +372,9 @@ function DisplayScreenInner() {
     playSound("airhorn.mp3", 0.6);
     // Start the winning team's configured victory song at full volume and let it
     // play to its natural end - no forced stop timer, so it is never cut short.
-    if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
+    stopShowAudio("music");
     if (winnerTeam?.victory_song) {
-      const song = new Audio("/sounds/" + encodeURIComponent(winnerTeam.victory_song) + ".mp3");
-      song.volume = 1.0;
-      song.loop = false;
-      song.play().catch(() => {});
-      victorySongRef.current = song;
+      playShowAudio(encodeURIComponent(winnerTeam.victory_song) + ".mp3", { channel: "music", volume: 0.9 });
     }
   }
   function handleRevealNext(nextCount: number) {
@@ -466,7 +390,7 @@ function DisplayScreenInner() {
   }
 
   function stopClapping() {
-    if (clappingRef.current) { clappingRef.current.pause(); clappingRef.current.currentTime = 0; clappingRef.current = null; }
+    stopShowAudio("ambient");
   }
 
   function triggerCardFlash(team: string, type: string, roundNum: number | null, dedupKey: string) {
@@ -615,12 +539,8 @@ function DisplayScreenInner() {
         trophyCelebrationFiredRef.current = false;
         winnerCelebrationFiredRef.current = false;
         stopClapping();
-        if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
-        const clap = new Audio("/sounds/clapping-scores.mp3");
-        clap.volume = 0.5;
-        clap.loop = true;
-        clap.play().catch(() => {});
-        clappingRef.current = clap;
+        stopShowAudio("music");
+        playShowAudio("clapping-scores.mp3", { channel: "ambient", volume: 0.45, loop: true });
       } else if (syncedCount > prevQuizEndRevealedRef.current) {
         prevQuizEndRevealedRef.current = syncedCount;
         handleRevealNext(syncedCount);
@@ -650,15 +570,8 @@ function DisplayScreenInner() {
       // not just another applySession call (polling/realtime) for the same one already playing.
       if (celebrationPlayingForRef.current !== ft) {
         celebrationPlayingForRef.current = ft;
-        if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
-        const audio = new Audio("/sounds/" + encodeURIComponent(fs) + ".mp3");
-        audio.volume = 0.8;
-        audio.play().catch(() => {});
-        victorySongRef.current = audio;
-        if (flashRef.current) clearInterval(flashRef.current);
-        let f = false;
-        flashRef.current = setInterval(() => { f = !f; setFlash(f); }, 500);
-        setTimeout(() => { if (flashRef.current) clearInterval(flashRef.current); }, 15000);
+        stopShowAudio("music");
+        playShowAudio(encodeURIComponent(fs) + ".mp3", { channel: "music", volume: 0.8 });
       }
     } else if (newPhase === "celebration" && !ft) {
       // Nobody got this one right - previously this played no sound at all, which
@@ -676,27 +589,21 @@ function DisplayScreenInner() {
       // fastest_song still set (it only clears the spin_* columns) - if this ref
       // were nulled out, that return trip would look like "a genuinely new
       // celebration" for the same team and replay the victory song a second time.
-      if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
-      if (flashRef.current) { clearInterval(flashRef.current); flashRef.current = null; }
-      setFlash(false);
+      stopShowAudio("music");
     } else if (newPhase === "quiz_end") {
-      // The podium winner celebration (playWinnerCelebration) owns victorySongRef
-      // during the finale. Do NOT let the generic celebration-exit cleanup below
+      // The podium winner celebration owns the music channel during the finale.
+      // Do NOT let the generic celebration-exit cleanup below
       // pause/clear it - that was a path to the winner song being silenced/cut
       // short. Any leftover question-celebration song was already stopped on
       // quiz_end entry.
-      if (flashRef.current) { clearInterval(flashRef.current); flashRef.current = null; }
-      setFlash(false);
     } else {
       // Left celebration for something else entirely (Hard Deck, next question,
       // round end, etc) - this is a genuine exit, so the next celebration
       // (even for the same team on a later question) must be treated as new.
       if (celebrationPlayingForRef.current !== null) {
         celebrationPlayingForRef.current = null;
-        if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
-        if (flashRef.current) { clearInterval(flashRef.current); flashRef.current = null; }
+        stopShowAudio("music");
       }
-      setFlash(false);
     }
     if (data.timer_started_at && data.timer_duration) {
       const started = new Date(data.timer_started_at as string).getTime();
@@ -1442,6 +1349,7 @@ export default function DisplayScreen() {
     <Suspense fallback={<div style={{ minHeight:"100vh", background:"#0d0225" }} />}>
       <div className="qi-display-shell">
         <DisplayScreenInner />
+        <DisplayFullscreenControl />
       {/* Persistent branding overlay - sits on top of every phase screen
           regardless of which internal return branch rendered, instead of
           needing to be threaded through each one individually. */}

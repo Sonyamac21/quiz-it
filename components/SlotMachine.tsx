@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 
 const SEGS = [
   { label: "1st Place",  color: "#F5C842", bg: "#2a1e00", positive: true  },
@@ -62,7 +63,6 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
   const [bulbGolden, setBulbGolden] = useState(false);
   const fwRef = useRef<number | null>(null);
   const fwCanvasRef = useRef<HTMLCanvasElement>(null);
-  const spinSoundRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const INITIAL_CENTRE = Math.floor(STRIP_LEN / 2);
   const INITIAL_TOP = -(INITIAL_CENTRE - 1) * SEG_H;
@@ -122,24 +122,13 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
 
   useEffect(() => () => { stopBulbs(); }, [stopBulbs]);
 
-  const spinAudioElRef = useRef<HTMLAudioElement | null>(null);
   const startSpinSound = () => {
-    try {
-      const audio = new Audio("/sounds/slot-spin.mp3");
-      audio.loop = true;
-      audio.volume = 0.6;
-      audio.play().catch(() => {});
-      spinAudioElRef.current = audio;
-    } catch {}
+    playShowAudio("slot-spin.mp3", { channel: "spin", loop: true });
   };
   const stopSpinSound = () => {
-    if (spinAudioElRef.current) {
-      spinAudioElRef.current.pause();
-      spinAudioElRef.current.currentTime = 0;
-      spinAudioElRef.current = null;
-    }
-    if (spinSoundRef.current) { clearTimeout(spinSoundRef.current as unknown as ReturnType<typeof setTimeout>); spinSoundRef.current = null; }
+    stopShowAudio("spin");
   };
+  useEffect(() => () => stopShowAudio("spin"), []);
   const animReel = (reelIdx: number, fromTop: number, toTop: number, dur: number, delay: number, easePow: number, cb?: () => void) => {
     let t0: number | null = null;
     setTimeout(() => {
@@ -210,24 +199,12 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
   };
 
   const playPositiveSounds = (songFile: string) => {
-    try {
-      const horn = new Audio("/sounds/airhorn.mp3");
-      horn.volume = 1.0;
-      horn.play().catch(() => {});
-      if (songFile) {
-        const song = new Audio("/sounds/" + encodeURIComponent(songFile));
-        song.volume = 0.85;
-        song.play().catch(() => {});
-      }
-    } catch {}
+    playShowAudio("airhorn.mp3", { channel: "cue", volume: 0.65 });
+    if (songFile) playShowAudio(encodeURIComponent(songFile), { channel: "music" });
   };
 
   const playNegativeSounds = () => {
-    try {
-      const trombone = new Audio("/sounds/sad-trombone.mp3");
-      trombone.volume = 0.9;
-      trombone.play().catch(() => {});
-    } catch {}
+    playShowAudio("sad-trombone.mp3", { channel: "cue", volume: 0.7 });
   };
 
   const pickDifferent = (exclude: number) => {
@@ -325,7 +302,7 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
     return "0 0 8px #BE26C1";
   };
 
-  const BulbRow = ({ bottom }: { bottom?: boolean }) => (
+  const renderBulbRow = (bottom = false) => (
     <div style={{ display: "flex", alignItems: "center", padding: bottom ? "10px 20px 14px" : "14px 20px 10px", gap: 4, background: "#0d0818" }}>
       {Array.from({ length: BC }).map((_, i) => (
         <div key={i} style={{ display: "contents" }}>
@@ -347,11 +324,10 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
         <div style={{ textAlign: "center", flex: 1 }}>
           <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: "clamp(18px,2.5vw,32px)", letterSpacing: ".08em", textShadow: "0 0 16px rgba(190,38,193,0.6)" }}><span style={{ color: "#BE26C1" }}>QUIZ-</span><span style={{ color: "#fff" }}>IT</span></div>
           <div style={{ fontSize: "clamp(8px,1vw,13px)", letterSpacing: 3, color: "rgba(190,38,193,0.8)", marginTop: 2 }}>powered by Mac Entertainment</div>
-          <div style={{ fontSize: "clamp(7px,0.8vw,11px)", letterSpacing: 2, color: "rgba(255,255,255,0.3)" }}>by Sonya Mac</div>
         </div>
         <div style={{ width: 52 }} />
       </div>
-      <div style={{ height: 2, background: "linear-gradient(90deg, transparent, #BE26C1, transparent)", animation: "glowPulse 2s ease-in-out infinite", flexShrink: 0 }} />
+      <div style={{ height: 2, background: "linear-gradient(90deg, transparent, #BE26C1, transparent)", animation: "qiGlowPulse 2s ease-in-out infinite", flexShrink: 0 }} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 24px 8px", background: "#0d0520", flexShrink: 0, borderBottom: "1px solid rgba(190,38,193,0.2)" }}>
         <div style={{ flex: 1 }}>
@@ -367,7 +343,7 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#0d0818", borderLeft: "2px solid #7a107e", borderRight: "2px solid #7a107e", overflow: "hidden" }}>
-        <BulbRow />
+        {renderBulbRow()}
         <div style={{ textAlign: "center", fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", padding: "10px 0 8px", fontSize: "clamp(22px,3.6vw,50px)", letterSpacing: ".14em", color: "#fff", textShadow: "0 0 24px rgba(190,38,193,0.7)", flexShrink: 0 }}>
           <span style={{ color: "#BE26C1" }}>SPIN</span> TO WIN
         </div>
@@ -402,15 +378,14 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
             Spin to Win!
           </button>
         </div>
-        <BulbRow bottom />
+        {renderBulbRow(true)}
       </div>
 
       <div style={{ textAlign: "center", padding: "8px", fontSize: "clamp(8px,0.8vw,11px)", letterSpacing: 2, color: "rgba(190,38,193,0.3)", borderTop: "1px solid rgba(190,38,193,0.1)", background: "#07030f", flexShrink: 0 }}>
-        Quiz-It powered by Mac Entertainment by Sonya Mac
+        Quiz-It powered by Mac Entertainment
       </div>
 
       {overlay && <OverlayPanel seg={overlay} teamName={teamName || "Team"} onDismiss={dismiss} />}
-      <style>{"@keyframes glowPulse { 0%,100%{opacity:.4} 50%{opacity:1} }"}</style>
     </div>
   );
 }

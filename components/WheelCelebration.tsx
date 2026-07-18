@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 
 type Props = { teamName: string; victorySong: string; type: "positive" | "negative"; onDone: () => void; resultLabel?: string; };
 
 export function WheelCelebration({ teamName, victorySong, type, onDone, resultLabel = "" }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const rafRef = useRef<number>(0);
 
   useEffect(() => {
@@ -16,84 +16,21 @@ export function WheelCelebration({ teamName, victorySong, type, onDone, resultLa
   }, []);
 
   function cleanup() {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
+    stopShowAudio("music");
     cancelAnimationFrame(rafRef.current);
   }
 
   function playVictorySong() {
     if (!victorySong) return;
-    const audio = new Audio("/sounds/" + victorySong + ".mp3");
-    audio.volume = 0.85;
-    audio.play().catch(() => {});
-    audioRef.current = audio;
+    playShowAudio(victorySong + ".mp3", { channel: "music" });
   }
 
   function playAirHorn() {
-    try {
-      const horn = new Audio('/sounds/airhorn.mp3');
-      horn.volume = 1.0;
-      horn.play().catch(() => {});
-    } catch {}
-  }
-
-  function playPop() {
-    try {
-      const ac = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
-
-      // Air horn - long loud blast
-      const hornFreqs = [233, 311, 466, 622];
-      hornFreqs.forEach((freq) => {
-        const o = ac.createOscillator(); const g = ac.createGain();
-        const dist = ac.createWaveShaper();
-        const curve = new Float32Array(256);
-        for (let i = 0; i < 256; i++) { const x = (i * 2) / 256 - 1; curve[i] = (Math.PI + 400) * x / (Math.PI + 400 * Math.abs(x)); }
-        dist.curve = curve;
-        o.connect(dist); dist.connect(g); g.connect(ac.destination);
-        o.type = "sawtooth"; o.frequency.value = freq;
-        g.gain.setValueAtTime(0, ac.currentTime);
-        g.gain.linearRampToValueAtTime(0.4, ac.currentTime + 0.05);
-        g.gain.setValueAtTime(0.4, ac.currentTime + 0.8);
-        g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 1.4);
-        o.start(ac.currentTime); o.stop(ac.currentTime + 1.4);
-      });
-
-      // Crowd roar - noise burst that swells
-      for (let i = 0; i < 12; i++) {
-        const t = ac.currentTime + 0.3 + i * 0.15;
-        const o = ac.createOscillator(); const g = ac.createGain();
-        o.connect(g); g.connect(ac.destination);
-        o.type = "sawtooth";
-        o.frequency.value = 80 + Math.random() * 300;
-        g.gain.setValueAtTime(0, t);
-        g.gain.linearRampToValueAtTime(0.08 + Math.random() * 0.1, t + 0.08);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
-        o.start(t); o.stop(t + 0.5);
-      }
-
-      // Second horn blast shorter
-      setTimeout(() => {
-        try {
-          const ac2 = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
-          [233, 466].forEach((freq) => {
-            const o = ac2.createOscillator(); const g = ac2.createGain();
-            o.connect(g); g.connect(ac2.destination);
-            o.type = "sawtooth"; o.frequency.value = freq;
-            g.gain.setValueAtTime(0.3, ac2.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, ac2.currentTime + 0.6);
-            o.start(ac2.currentTime); o.stop(ac2.currentTime + 0.6);
-          });
-        } catch {}
-      }, 1600);
-
-    } catch {}
+    playShowAudio("airhorn.mp3", { channel: "cue", volume: 0.65 });
   }
 
     function playSadTrombone() {
-    try {
-      const trombone = new Audio('/sounds/sad-trombone.mp3');
-      trombone.volume = 0.9;
-      trombone.play().catch(() => {});
-    } catch {}
+    playShowAudio("sad-trombone.mp3", { channel: "cue", volume: 0.7 });
   }
 
   function startFireworks() {
@@ -154,7 +91,6 @@ export function WheelCelebration({ teamName, victorySong, type, onDone, resultLa
         <div style={{ fontFamily:"'Inter', sans-serif", fontSize:"clamp(64px,14vw,160px)", color:resultColor, textShadow:"0 0 80px "+glowColor+", 0 0 160px "+glowColor, textAlign:"center", padding:"0 32px", lineHeight:1, fontWeight:900 }}>{resultLabel}</div>
         <div style={{ fontFamily:"'Inter', sans-serif", fontSize:"clamp(16px,2.5vw,28px)", color:"rgba(255,255,255,0.4)", letterSpacing:4 }}>{subText}</div>
         <div style={{ fontFamily:"'Inter', sans-serif", fontSize:12, color:"rgba(255,255,255,0.2)", letterSpacing:3, marginTop:40 }}>tap to continue</div>
-      <style>{`@keyframes teamFlash{from{opacity:1;transform:scale(1)}to{opacity:0.6;transform:scale(1.08)}}`}</style>
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc } from "@/lib/quiz/scoreService";
 import { teamInitials } from "@/components/TeamBadge";
 import { BrandLockup, Button, Field, Input, StatusPill } from "@/components/ui/quiz-it-ui";
+import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 
 type Question = {
   id?: number;
@@ -102,12 +103,7 @@ function getTimerForQuestion(q: { question_type?: string } | null | undefined, f
 type HostPhase = "waiting" | "round_start" | "preview" | "question" | "timer" | "answer" | "celebration" | "round_end" | "quiz_end";
 
 function playSound(file: string, volume = 1.0) {
-  try {
-    const a = new Audio("/sounds/" + file);
-    a.volume = volume;
-    a.play().catch(() => {});
-    return a;
-  } catch { return null; }
+  return playShowAudio(file, { channel: file.includes("countdown") ? "timer" : "cue", volume });
 }
 
 function QuizControllerInner() {
@@ -761,14 +757,13 @@ function QuizControllerInner() {
   useEffect(() => () => stopTickAudio(), []); // unmount / recovery cleanup
 
   function stopVictorySong() {
-    if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current.currentTime = 0; victorySongRef.current = null; }
+    stopShowAudio("music");
+    victorySongRef.current = null;
   }
 
   function playVictorySong(songFile: string) {
     stopVictorySong();
-    const audio = new Audio("/sounds/" + encodeURIComponent(songFile) + ".mp3");
-    audio.volume = 0.8;
-    audio.play().catch(() => {});
+    const audio = playShowAudio(encodeURIComponent(songFile) + ".mp3", { channel: "music", volume: 0.8 });
     victorySongRef.current = audio;
   }
 

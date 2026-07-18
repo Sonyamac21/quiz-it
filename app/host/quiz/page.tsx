@@ -9,7 +9,7 @@ import { PursuitPanel } from "@/components/PursuitPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc } from "@/lib/quiz/scoreService";
 import { teamInitials } from "@/components/TeamBadge";
-import { BrandLockup, Button, Field, Input, Select, StatusPill } from "@/components/ui/quiz-it-ui";
+import { BrandLockup, Button, Field, Input, StatusPill } from "@/components/ui/quiz-it-ui";
 
 type Question = {
   id?: number;
@@ -28,7 +28,7 @@ type Question = {
   fade_in?: boolean;
   fade_out?: boolean;
 };
-type Round = { id: string; name: string; questions: Question[]; round_type?: string; hide_leaderboard?: boolean; allow_power_cards?: boolean; };
+type Round = { id: string; name: string; questions: Question[]; round_type?: string; hide_leaderboard?: boolean; allow_power_cards?: boolean; position?: number; completed_at?: string | null; source_round_id?: string | null; };
 type Team = { id: string; team_name: string; victory_song: string; session_pin: string; };
 type Answer = { session_pin: string; id: string; team_name: string; question_index: number; answer_text: string; submitted_at: string; };
 type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
@@ -176,8 +176,6 @@ function QuizControllerInner() {
   const isLastQ = selectedRound ? qIdx >= selectedRound.questions.length - 1 : false;
   const [picSubPhase, setPicSubPhase] = useState<"image_only"|"question_visible">("image_only");
 
-  useEffect(() => { loadRounds(); }, []);
-
   // Polling fallback for Spin to Win - the realtime listener in subscribeToUpdates
   // is the normal path, but unlike every other piece of synced state in this app
   // (answers, questions, scores all have a polling safety net), this had NONE -
@@ -245,19 +243,15 @@ function QuizControllerInner() {
       if (isLastQ) { doEndRound(); }
       else { doPreviewQuestion(qIdx + 1); }
     }
-    else if (hostPhase === "round_end") { doStartRound(); }
+    else if (hostPhase === "round_end") { chooseRound(rounds.find(r => (r.position ?? 0) === (selectedRound?.position ?? -1) + 1) || null); }
     else if (hostPhase === "quiz_end") { doRevealNextTeam(); }
   }
 
-  async function loadRounds() {
+  async function loadRounds(liveSessionId: string) {
     const supabase = createSupabaseBrowserClient();
-    const { data, error } = await supabase.from("rounds").select("id, name, questions, round_type, hide_leaderboard, allow_power_cards").order("created_at", { ascending: false });
-    // The round selector is populated from this query. If it fails (most commonly
-    // an RLS denial because the browser client has no authenticated Supabase
-    // session) the dropdown has nothing to choose — surface why instead of an
-    // empty list silently.
-    if (error) console.error("loadRounds failed — round selector will be empty:", error.message);
-    if (data) setRounds(data);
+    const { data, error } = await supabase.from("session_rounds").select("id,name,questions,round_type,hide_leaderboard,allow_power_cards,position,completed_at,source_round_id").eq("session_id", liveSessionId).order("position");
+    if (error) console.error("loadRounds failed — live quiz order unavailable:", error.message);
+    setRounds((data ?? []) as Round[]);
   }
 
   // Restores the host's local UI state from the session row in the database -
@@ -268,8 +262,10 @@ function QuizControllerInner() {
   // "refresh the host laptop mid-show" actually safe instead of disorienting.
   async function restoreSessionState(data: Record<string, unknown>) {
     const supabase = createSupabaseBrowserClient();
-    if (data.round_id) {
-      const { data: roundData } = await supabase.from("rounds").select("*").eq("id", data.round_id as string).maybeSingle();
+    if (data.current_session_round_id || data.round_id) {
+      const { data: roundData } = data.current_session_round_id
+        ? await supabase.from("session_rounds").select("*").eq("id", data.current_session_round_id as string).maybeSingle()
+        : await supabase.from("rounds").select("*").eq("id", data.round_id as string).maybeSingle();
       if (roundData) {
         setSelectedRound(roundData as Round);
         roundQuestionsRef.current = [...(roundData as Round).questions];
@@ -307,6 +303,7 @@ function QuizControllerInner() {
     if (!data) return;
     setSessionPin(p.trim());
     setSessionId(data.id); sessionIdRef.current = data.id;
+    await loadRounds(data.id);
     setVenueName(data.venue_name || null);
     setConnected(true);
     loadTeams(p.trim());
@@ -324,6 +321,7 @@ function QuizControllerInner() {
     if (!data) { alert("Session not found!"); return; }
     setSessionPin(pinInput.trim());
     setSessionId(data.id); sessionIdRef.current = data.id;
+    await loadRounds(data.id);
     setVenueName(data.venue_name || null);
     setConnected(true);
     loadTeams(pinInput.trim());
@@ -1026,6 +1024,11 @@ function QuizControllerInner() {
     setHostPhase("round_end");
     playSound("round-end.mp3");
     const supabase = createSupabaseBrowserClient();
+    if (selectedRound) {
+      const completedAt = new Date().toISOString();
+      await supabase.from("session_rounds").update({ completed_at: completedAt }).eq("id", selectedRound.id);
+      setRounds(previous => previous.map(round => round.id === selectedRound.id ? { ...round, completed_at: completedAt } : round));
+    }
     await supabase.from("sessions").update({ phase: "intermission" }).eq("id", sessionId);
     setRoundNumber(prev => prev + 1);
   }
@@ -1071,12 +1074,15 @@ function QuizControllerInner() {
   // big desk picker). Behaviour identical to the original inline handler.
   function chooseRound(r: (typeof rounds)[number] | null) {
     setSelectedRound(r || null); setQIdx(0); setAnswers([]); setHostPhase("waiting");
+    setRoundNumber((r?.position ?? 0) + 1);
     if (r?.hide_leaderboard) { setShowScoreboard(false); setShowScoreboardOnHandsets(false); }
     roundQuestionsRef.current = r ? [...r.questions] : [];
     if (sessionId) createSupabaseBrowserClient().from("sessions").update({
-      round_id: r?.id || null,
+      round_id: r?.source_round_id || null,
+      current_session_round_id: r?.id || null,
       hide_leaderboard: r?.hide_leaderboard ?? false,
       allow_power_cards: r?.allow_power_cards ?? true,
+      round_number: (r?.position ?? 0) + 1,
       ...(r?.hide_leaderboard ? { show_scoreboard: false } : {}),
     }).eq("id", sessionId);
   }
@@ -1090,7 +1096,7 @@ function QuizControllerInner() {
     hostPhase === "timer" ? "SPACE: Reveal Answer" :
     hostPhase === "answer" ? "SPACE: Celebrate Fastest Team" :
     hostPhase === "celebration" ? (isLastQ ? "SPACE: End Round" : "SPACE: Preview Next Question") :
-    hostPhase === "round_end" ? "SPACE: Start Next Round" :
+    hostPhase === "round_end" ? "SPACE: Load Next Round" :
     hostPhase === "quiz_end" ? "Leaderboard reveal active" : "";
 
   // The single next beat, as a plain verb — surfaced as the dominant control so
@@ -1104,7 +1110,7 @@ function QuizControllerInner() {
     hostPhase === "timer" ? "Reveal Answer" :
     hostPhase === "answer" ? "Celebrate Fastest Team" :
     hostPhase === "celebration" ? (isLastQ ? "End Round" : "Next Question") :
-    hostPhase === "round_end" ? "Start Next Round" : "";
+    hostPhase === "round_end" ? "Load Next Round" : "";
 
   if (!connected) {
     return (
@@ -1145,10 +1151,7 @@ function QuizControllerInner() {
         </div>
         <nav className="qi-mc-nav" aria-label="Mission Control navigation">
           <a className="qi-button qi-button--quiet" href="/host/events">Events</a>
-          <Select aria-label="Current round" value={selectedRound?.id||""} onChange={e => chooseRound(rounds.find(x=>x.id===e.target.value) || null)} className="qi-mc-round-select">
-            <option value="">{rounds.length ? "Select round…" : "No rounds found"}</option>
-            {rounds.filter(r => r.round_type !== "pursuit").map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </Select>
+          <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
           <Button variant="quiet" onClick={() => setRulesOpen(true)}>Rules</Button>
         {rulesOpen && (
           <div onClick={() => setRulesOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
@@ -1239,16 +1242,16 @@ function QuizControllerInner() {
         <main className="qi-mc-desk">
           {!selectedRound ? (
             <div className="qi-mc-round-picker">
-              <div className="qi-mc-round-picker__title">Choose Tonight&rsquo;s Round</div>
-              <div className="qi-mc-round-picker__description">Tap a round to load it — then press Space to start.</div>
+              <div className="qi-mc-round-picker__title">Tonight&rsquo;s Running Order</div>
+              <div className="qi-mc-round-picker__description">Only rounds prepared in this quiz are available. Completed rounds remain visible.</div>
               {rounds.filter(r => r.round_type !== "pursuit").length === 0 ? (
-                <div style={{ font:"600 15px 'Inter'", color:"#B9A8D9", textAlign:"center" }}>No rounds found — check host login, or build one in the Round Library.</div>
+                <div style={{ font:"600 15px 'Inter'", color:"#B9A8D9", textAlign:"center" }}>This session has no quiz snapshot. Create a new session from Quiz Builder.</div>
               ) : (
                 <div className="qi-mc-round-grid">
                   {rounds.filter(r => r.round_type !== "pursuit").map(r => (
                     <button key={r.id} onClick={() => chooseRound(r)} className="qi-mc-round-card">
-                      <strong>{r.name}</strong>
-                      <span>{r.questions?.length || 0} questions{r.round_type && r.round_type !== "regular" ? " · " + r.round_type : ""}</span>
+                      <strong>{(r.position ?? 0) + 1}. {r.name}</strong>
+                      <span>{r.completed_at ? "✓ Completed" : "Upcoming"} · {r.questions?.length || 0} questions{r.round_type && r.round_type !== "regular" ? " · " + r.round_type : ""}</span>
                     </button>
                   ))}
                 </div>

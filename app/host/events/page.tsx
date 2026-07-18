@@ -10,7 +10,8 @@ const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.
 
 function eventFromRow(row: Record<string, unknown>): EventRecord {
   const venueValue = row.venue;
-  const quizValue = row.quiz;
+  const currentQuizValue = row.quiz;
+  const quizValue = Array.isArray(currentQuizValue) && currentQuizValue.length === 0 ? row.legacy_quiz : currentQuizValue || row.legacy_quiz;
   const venue = Array.isArray(venueValue) ? venueValue[0] : venueValue;
   const quiz = Array.isArray(quizValue) ? quizValue[0] : quizValue;
   return {
@@ -50,7 +51,7 @@ export default function EventsDashboardPage() {
         supabase.auth.getUser(),
         supabase
           .from("events")
-          .select("*, venue:venues!events_venue_id_fkey(venue_name), quiz:rounds!events_quiz_id_fkey(name)")
+          .select("*, venue:venues!events_venue_id_fkey(venue_name), quiz:quizzes!events_quiz_definition_id_fkey(name), legacy_quiz:rounds!events_quiz_id_fkey(name)")
           .order("event_date", { ascending: true })
           .order("start_time", { ascending: true }),
       ]);
@@ -84,6 +85,7 @@ export default function EventsDashboardPage() {
           <TopSpacer />
           <Link className="fbh-btn" href="/host/session">Session</Link>
           <Link className="fbh-btn" href="/host/rounds">Rounds</Link>
+          <Link className="fbh-btn" href="/host/quizzes">Quiz Builder</Link>
           <Link className="fbh-btn pri" href="/host/events/new">Create Event</Link>
         </div>
 

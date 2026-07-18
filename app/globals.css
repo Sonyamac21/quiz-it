@@ -6,6 +6,17 @@
   --color-brand: #be26c1;
 }
 
+.qi-quiz-builder-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, .8fr) minmax(420px, 1.6fr);
+  gap: 18px;
+  margin-top: 20px;
+}
+
+@media (max-width: 900px) {
+  .qi-quiz-builder-grid { grid-template-columns: 1fr; }
+}
+
 :root {
   color-scheme: dark;
   --qi-bg-stage: #0a0118;

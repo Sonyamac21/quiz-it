@@ -13,6 +13,8 @@ type Team = {
   created_at: string;
 };
 
+type QuizOption = { id: string; name: string; quiz_rounds: { id: string }[] };
+
 function generatePin(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
@@ -39,6 +41,14 @@ export default function SessionPage() {
   const [intermissionOpen, setIntermissionOpen] = useState(false);
   const [venueName, setVenueName] = useState("");
   const [venueLogoUrl, setVenueLogoUrl] = useState<string | null>(null);
+  const [quizzes, setQuizzes] = useState<QuizOption[]>([]);
+  const [selectedQuizId, setSelectedQuizId] = useState("");
+  const [sessionQuizName, setSessionQuizName] = useState("");
+  const [createError, setCreateError] = useState("");
+
+  useEffect(() => {
+    createSupabaseBrowserClient().from("quizzes").select("id,name,quiz_rounds(id)").eq("archived", false).order("updated_at", { ascending: false }).then(({ data }) => setQuizzes((data ?? []) as QuizOption[]));
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -67,6 +77,7 @@ export default function SessionPage() {
           setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
           setVenueName(data.venue_name || "");
           setVenueLogoUrl(data.venue_logo_url || null);
+          setSelectedQuizId(data.quiz_id || "");
           const { data: teamData } = await supabase.from("teams").select("*").eq("session_pin", parsed.pin).order("created_at", { ascending: true });
           if (teamData) setTeams(teamData);
         } else {
@@ -106,7 +117,9 @@ export default function SessionPage() {
   }, [pin, loadTeams]);
 
   async function createSession() {
+    if (!selectedQuizId) { setCreateError("Select a quiz before creating the live session."); return; }
     setCreating(true);
+    setCreateError("");
     const newPin = generatePin();
     const supabase = createSupabaseBrowserClient();
     const today = new Date().getDay();
@@ -116,12 +129,28 @@ export default function SessionPage() {
       .insert({
         pin: newPin,
         status: "waiting",
+        quiz_id: selectedQuizId,
         venue_name: venueData?.venue_name || null,
         venue_logo_url: venueData?.venue_logo_url || null,
       })
       .select()
       .single();
     if (!error && data) {
+      const { data: quizRounds, error: roundsError } = await supabase.from("quiz_rounds").select("*").eq("quiz_id", selectedQuizId).order("position");
+      if (roundsError || !quizRounds?.length) {
+        await supabase.from("sessions").delete().eq("id", data.id);
+        setCreateError(roundsError?.message || "This quiz has no rounds. Add rounds in Quiz Builder first.");
+        setCreating(false);
+        return;
+      }
+      const { data: snapshots, error: snapshotError } = await supabase.from("session_rounds").insert(quizRounds.map(round => ({ session_id: data.id, source_quiz_round_id: round.id, source_round_id: round.source_round_id, position: round.position, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard, allow_power_cards: round.allow_power_cards, notes: round.notes, sponsor: round.sponsor }))).select("id,position").order("position");
+      if (snapshotError || !snapshots?.length) {
+        await supabase.from("sessions").delete().eq("id", data.id);
+        setCreateError(snapshotError?.message || "Could not snapshot this quiz.");
+        setCreating(false);
+        return;
+      }
+      await supabase.from("sessions").update({ current_session_round_id: snapshots[0].id }).eq("id", data.id);
       setPin(newPin);
       setSessionId(data.id);
       localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify({ pin: newPin, sessionId: data.id, savedAt: Date.now() }));
@@ -132,7 +161,9 @@ export default function SessionPage() {
       setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
       setVenueName(data.venue_name || "");
       setVenueLogoUrl(data.venue_logo_url || null);
+      setSessionQuizName(quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "");
     }
+    if (error) setCreateError(error.message);
     setCreating(false);
   }
 
@@ -199,6 +230,7 @@ export default function SessionPage() {
     setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
     setVenueName(data.venue_name || "");
     setVenueLogoUrl(data.venue_logo_url || null);
+    setSelectedQuizId(data.quiz_id || "");
     const { data: teamData } = await supabase.from("teams").select("*").eq("session_pin", data.pin).order("created_at", { ascending: true });
     if (teamData) setTeams(teamData);
     setReconnecting(false);
@@ -252,6 +284,7 @@ export default function SessionPage() {
           <TopSpacer />
           <a className="fbh-btn" href="/host/events">Events</a>
           <a className="fbh-btn" href="/host/rounds">Rounds</a>
+          <a className="fbh-btn" href="/host/quizzes">Quiz Builder</a>
           <a className="fbh-btn pri" href={"/host/quiz?pin=" + (pin || "")}>Quiz Controller</a>
           <a className="fbh-btn" href="/host/questions">Questions</a>
           <HostButton onClick={launchDisplay} disabled={!pin}>Launch Display</HostButton>
@@ -267,9 +300,12 @@ export default function SessionPage() {
                   <div style={{ font: "400 13px 'Inter'", color: "#B9A8D9", margin: "8px 0 18px", lineHeight: 1.6, maxWidth: 380 }}>
                     Your first quiz night is one decision away. Teams join at {host}/join
                   </div>
-                  <HostButton variant="pri" big onClick={createSession} disabled={creating}>
+                  <div style={{ width: "100%", maxWidth: 420, marginBottom: 14, textAlign: "left" }}><HostLabel>Tonight&apos;s Quiz</HostLabel><select value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)} className="fbh-input" style={{ width: "100%", minHeight: 48 }}><option value="">Select a prepared quiz…</option>{quizzes.map(quiz => <option key={quiz.id} value={quiz.id} disabled={!quiz.quiz_rounds.length}>{quiz.name} ({quiz.quiz_rounds.length} rounds)</option>)}</select></div>
+                  <HostButton variant="pri" big onClick={createSession} disabled={creating || !selectedQuizId}>
                     {creating ? "CREATING…" : "CREATE A SESSION"}
                   </HostButton>
+                  {createError && <div role="alert" style={{ color: "#D94FDC", marginTop: 10 }}>{createError}</div>}
+                  {!quizzes.length && <a className="fbh-btn" href="/host/quizzes" style={{ marginTop: 12 }}>Build your first quiz</a>}
                 </div>
 
                 <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid #2E1A52", maxWidth: 460, marginInline: "auto" }}>
@@ -327,6 +363,7 @@ export default function SessionPage() {
                 <span style={{ font: "600 12px 'Inter'", color: "#6B5A8E", letterSpacing: "0.16em" }}>STATUS</span>
                 <Pill live={status === "active"}>{status.toUpperCase()}</Pill>
               </div>
+              {sessionQuizName && <div style={{ marginTop: 10, color: "#B9A8D9", font: "600 13px 'Inter'" }}>{sessionQuizName}</div>}
             </div>
 
             {/* INTERMISSION PANEL (collapsible) */}

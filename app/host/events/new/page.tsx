@@ -39,7 +39,7 @@ export default function EventBuilderPage() {
       const [{ data: userData }, { data: venueData }, { data: quizData }, { data: eventData }] = await Promise.all([
         supabase.auth.getUser(),
         supabase.from("venues").select("day_of_week, venue_name").neq("venue_name", "").order("day_of_week"),
-        supabase.from("rounds").select("id, name, round_type").order("created_at", { ascending: false }),
+        supabase.from("quizzes").select("id, name").eq("archived", false).order("updated_at", { ascending: false }),
         supabase.from("events").select("sponsors"),
       ]);
       const user = userData.user;
@@ -78,7 +78,7 @@ export default function EventBuilderPage() {
       event_date: eventDate,
       start_time: startTime,
       host_id: hostId,
-      quiz_id: quizId || null,
+      quiz_definition_id: quizId || null,
       brand_kit: brandKit.trim() || null,
       music_pack: musicPack.trim() || null,
       sponsors: selectedSponsors,

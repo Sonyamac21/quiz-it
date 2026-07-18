@@ -131,6 +131,7 @@ export default function RoundsPage() {
           <a className="fbh-btn" href="/host/events">Events</a>
           <a className="fbh-btn" href="/host/music-prep">Music Prep</a>
           <a className="fbh-btn" href="/host/question-bank">Question Bank</a>
+          <a className="fbh-btn" href="/host/quizzes">Quiz Builder</a>
           <a className="fbh-btn pri" href="/host/questions">+ New Round</a>
         </div>
 

@@ -6,6 +6,7 @@ export type EventRecord = {
   start_time: string;
   host_id: string;
   quiz_id: string | null;
+  quiz_definition_id: string | null;
   brand_kit: string | null;
   music_pack: string | null;
   sponsors: string[];
@@ -24,7 +25,6 @@ export type EventVenue = {
 export type EventQuiz = {
   id: string;
   name: string;
-  round_type: string;
 };
 
 export function localDateKey(date = new Date()): string {
@@ -52,4 +52,3 @@ export function formatEventTime(value: string): string {
     minute: "2-digit",
   }).format(date);
 }
-

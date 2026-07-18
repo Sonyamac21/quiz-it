@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { safeRedirectPath } from "@/lib/auth/redirect";
-import { HostShell, HostButton, HostInput, HostLabel } from "@/components/fable/HostConsole";
+import { Alert, BrandLockup, Button, Field, Input, Panel } from "@/components/ui/quiz-it-ui";
 
 function LoginForm() {
   const router = useRouter();
@@ -68,150 +68,48 @@ function LoginForm() {
   }
 
   return (
-    <HostShell>
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#0A0118",
-          padding: 24,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            pointerEvents: "none",
-            background:
-              "radial-gradient(ellipse 45% 40% at 50% 45%,rgba(190,38,193,.14),transparent 70%)",
-          }}
-        />
+    <main className="qi-app-shell qi-auth-shell">
+      <Panel variant="elevated" className="qi-auth-card">
+        <BrandLockup />
         <form
           onSubmit={mode === "signin" ? handleSubmit : handleReset}
-          style={{ position: "relative", width: 320, textAlign: "center" }}
         >
-          <div
-            style={{
-              fontFamily: "'Bruno Ace SC',var(--font-logo),cursive",
-              fontSize: 26,
-              letterSpacing: ".05em",
-              marginBottom: 6,
-            }}
-          >
-            <span style={{ color: "#BE26C1" }}>QUIZ-</span>IT
-          </div>
-          <div style={{ font: "400 11px 'Inter'", color: "#6B5A8E", marginBottom: 22, letterSpacing: ".06em" }}>
-            POWERED BY MAC ENTERTAINMENT
-          </div>
-
-          <div style={{ textAlign: "left" }}>
-            {mode === "reset" && (
-              <>
-                <div
-                  style={{
-                    fontFamily: "'Bruno Ace SC',var(--font-logo),cursive",
-                    fontSize: 15,
-                    letterSpacing: ".06em",
-                    marginBottom: 4,
-                  }}
-                >
-                  Reset Password
-                </div>
-                <div style={{ font: "400 12px 'Inter'", color: "#B9A8D9", marginBottom: 8 }}>
-                  We&apos;ll email you a reset link. It&apos;s valid for one hour.
-                </div>
-              </>
-            )}
-
-            <HostLabel>Email</HostLabel>
-            <HostInput
-              id="email"
-              type="email"
-              required
-              autoComplete="email"
-              placeholder="you@venue.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-
-            {mode === "signin" && (
-              <>
-                <HostLabel>Password</HostLabel>
-                <HostInput
-                  id="password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </>
-            )}
-
-            {error && (
-              <div
-                style={{
-                  font: "600 11.5px 'Inter'",
-                  color: "#D94FDC",
-                  border: "1px solid #2E1A52",
-                  borderRadius: 12,
-                  padding: "8px 12px",
-                  marginTop: 12,
-                }}
-              >
-                {error}
-              </div>
-            )}
-            {(notice || passwordUpdated || recoveryError) && (
-              <div
-                style={{
-                  font: "600 11.5px 'Inter'",
-                  color: "#B9A8D9",
-                  border: "1px solid #2E1A52",
-                  borderRadius: 12,
-                  padding: "8px 12px",
-                  marginTop: 12,
-                }}
-              >
-                {notice ||
-                  (passwordUpdated
-                    ? "Password updated. Sign in with your new password."
-                    : recoveryErrorMessage)}
-              </div>
-            )}
-
-            <div style={{ height: 18 }} />
-            <HostButton type="submit" variant="pri" disabled={loading} style={{ width: "100%" }}>
-              {loading
-                ? mode === "signin"
-                  ? "SIGNING IN…"
-                  : "SENDING…"
-                : mode === "signin"
-                  ? "SIGN IN"
-                  : "SEND RESET LINK"}
-            </HostButton>
-
-            <div
-              style={{ textAlign: "center", font: "600 11.5px 'Inter'", color: "#B9A8D9", marginTop: 14, cursor: "pointer" }}
-              onClick={() => {
-                setError(null);
-                setNotice(null);
-                setMode(mode === "signin" ? "reset" : "signin");
-              }}
-              role="button"
-              tabIndex={0}
-            >
-              {mode === "signin" ? "Forgotten your password?" : "← Back to sign in"}
+          {mode === "signin" ? <h1 className="m-0 text-3xl font-bold">Host sign in</h1> : null}
+          {mode === "reset" ? (
+            <div>
+              <p className="qi-eyebrow">Account recovery</p>
+              <h1 className="m-0 text-2xl font-bold">Reset your password</h1>
+              <p className="mt-2 mb-0 text-[var(--qi-text-secondary)]">We&apos;ll email you a reset link. It&apos;s valid for one hour.</p>
             </div>
-          </div>
+          ) : null}
+
+          <Field label="Email">
+            {({ id, describedBy }) => <Input id={id} aria-describedby={describedBy} type="email" required autoComplete="email" placeholder="you@venue.com" value={email} onChange={(e) => setEmail(e.target.value)} />}
+          </Field>
+
+          {mode === "signin" ? (
+            <Field label="Password">
+              {({ id, describedBy }) => <Input id={id} aria-describedby={describedBy} type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />}
+            </Field>
+          ) : null}
+
+          {error ? <Alert tone="error" className="mt-4">{error}</Alert> : null}
+          {notice || passwordUpdated || recoveryError ? (
+            <Alert tone={passwordUpdated || notice ? "success" : "warning"} className="mt-4">
+              {notice || (passwordUpdated ? "Password updated. Sign in with your new password." : recoveryErrorMessage)}
+            </Alert>
+          ) : null}
+
+          <Button type="submit" loading={loading} className="mt-5 w-full">
+            {mode === "signin" ? "Sign in" : "Send reset link"}
+          </Button>
+
+          <button className="qi-auth-toggle" type="button" onClick={() => { setError(null); setNotice(null); setMode(mode === "signin" ? "reset" : "signin"); }}>
+            {mode === "signin" ? "Forgotten your password?" : "← Back to sign in"}
+          </button>
         </form>
-      </div>
-    </HostShell>
+      </Panel>
+    </main>
   );
 }
 

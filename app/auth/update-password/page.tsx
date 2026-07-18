@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { HostButton, HostInput, HostLabel, HostShell } from "@/components/fable/HostConsole";
+import { Alert, BrandLockup, Button, Field, Input, Panel } from "@/components/ui/quiz-it-ui";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function UpdatePasswordPage() {
@@ -52,42 +52,30 @@ export default function UpdatePasswordPage() {
   }
 
   return (
-    <HostShell>
-      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#0A0118", padding: 24 }}>
-        <form onSubmit={handleSubmit} style={{ width: "min(100%, 420px)", textAlign: "left" }}>
-          <h1 style={{ fontSize: 30, margin: "0 0 8px" }}>Choose a new password</h1>
-          <p style={{ color: "#B9A8D9", fontSize: 16, lineHeight: 1.5, margin: "0 0 24px" }}>
+    <main className="qi-app-shell qi-auth-shell">
+      <Panel variant="elevated" className="qi-auth-card">
+        <BrandLockup />
+        <form onSubmit={handleSubmit}>
+          <h1 className="m-0 text-3xl font-bold">Choose a new password</h1>
+          <p className="mt-2 mb-6 text-[var(--qi-text-secondary)]">
             Enter it twice, then sign in with your new password.
           </p>
 
-          <HostLabel>New password</HostLabel>
-          <HostInput
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
+          <Field label="New password" helpText="Use at least 8 characters.">
+            {({ id, describedBy }) => <Input id={id} aria-describedby={describedBy} type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} />}
+          </Field>
 
-          <HostLabel>Confirm new password</HostLabel>
-          <HostInput
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={8}
-            value={confirmation}
-            onChange={(event) => setConfirmation(event.target.value)}
-          />
+          <Field label="Confirm new password">
+            {({ id, describedBy }) => <Input id={id} aria-describedby={describedBy} type="password" autoComplete="new-password" required minLength={8} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />}
+          </Field>
 
-          {error && <p role="alert" style={{ color: "#FF7B88", fontSize: 15 }}>{error}</p>}
+          {error ? <Alert tone="error" className="mt-4">{error}</Alert> : null}
 
-          <div style={{ height: 18 }} />
-          <HostButton type="submit" variant="pri" disabled={!ready || loading} style={{ width: "100%", minHeight: 52 }}>
-            {loading ? "UPDATING…" : ready ? "UPDATE PASSWORD" : "CHECKING LINK…"}
-          </HostButton>
+          <Button type="submit" loading={loading} disabled={!ready} className="mt-5 w-full">
+            {ready ? "Update password" : "Checking link…"}
+          </Button>
         </form>
-      </main>
-    </HostShell>
+      </Panel>
+    </main>
   );
 }

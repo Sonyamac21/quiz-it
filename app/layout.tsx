@@ -1,11 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Bruno_Ace_SC } from "next/font/google";
+import { Bruno_Ace_SC, Inter } from "next/font/google";
 import "./globals.css";
 
 const brunoAceSC = Bruno_Ace_SC({
   weight: "400",
   subsets: ["latin"],
   variable: "--font-bruno-ace-sc",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
 });
 
 export const metadata: Metadata = {
@@ -32,8 +37,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${brunoAceSC.variable} h-full`}>
-      <body className="min-h-full flex flex-col bg-black">{children}</body>
+    <html lang="en" className={`${brunoAceSC.variable} ${inter.variable} h-full`}>
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }

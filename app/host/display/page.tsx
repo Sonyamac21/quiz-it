@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -416,9 +416,7 @@ function DisplayScreenInner() {
   // Tracks the full timer duration so the SVG ring can show correct progress
   const timerTotalRef = useRef<number>(30);
 
-  const font = "'Inter', sans-serif";
   const purple = "#BE26C1";
-  const bg = "#080810";
 
 
   // Track picture sub-phase: "image_only" -> "question_visible"
@@ -856,17 +854,18 @@ function DisplayScreenInner() {
   }, [searchParams]);
   if (!connected) {
     return (
-      <div style={{ minHeight:"100vh", background:bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:font }}>
-        <div style={{ background:"rgba(45,10,94,0.7)", border:"2px solid "+purple, borderRadius:20, padding:48, textAlign:"center", width:380 }}>
-          <div style={{ fontSize:30, fontWeight:700, color:purple, letterSpacing:4, marginBottom:8 }}>Display Screen</div>
-          <div style={{ fontSize:18, color:"rgba(255,255,255,0.5)", marginBottom:28 }}>Enter session PIN to connect</div>
+      <div className="qi-display-connect">
+        <div className="qi-display-connect-card">
+          <div className="qi-display-wordmark"><span>QUIZ-</span>IT</div>
+          <div className="qi-display-connect-title">Connect this display</div>
+          <div className="qi-display-connect-copy">Enter the four-digit session PIN</div>
           <input value={pinInput} onChange={e => setPinInput(e.target.value.replace(/\D/g,"").slice(0,4))}
             onKeyDown={e => e.key==="Enter" && connect()} placeholder="PIN" maxLength={4}
-            style={{ width:"100%", padding:"16px", borderRadius:12, background:"rgba(255,255,255,0.1)", color:"#fff", border:"2px solid rgba(190,38,193,0.6)", fontSize:40, fontFamily:"monospace", textAlign:"center", letterSpacing:12, outline:"none", marginBottom:16, boxSizing:"border-box" }} />
-          {connecting && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:14, marginBottom:12 }}>Connecting...</div>}
-          {connectError && <div style={{ color:"#ef4444", fontSize:13, marginBottom:12 }}>{connectError}</div>}
+            className="qi-display-pin-input" aria-label="Session PIN" />
+          {connecting && <div className="qi-display-connect-status" role="status">Connecting…</div>}
+          {connectError && <div className="qi-display-connect-error" role="alert">{connectError}</div>}
           <button onClick={connect} disabled={pinInput.length!==4}
-            style={{ width:"100%", padding:14, borderRadius:12, background:pinInput.length===4?purple:"#333", color:"#fff", border:"none", fontSize:20, letterSpacing:3, cursor:pinInput.length===4?"pointer":"not-allowed", fontFamily:font, boxShadow:pinInput.length===4?"0 2px 12px rgba(0,0,0,0.3)":"none" }}>
+            className="qi-display-connect-button">
             Connect
           </button>
         </div>
@@ -884,7 +883,7 @@ function DisplayScreenInner() {
     const LADDER = [5, 10, 20, 40];
     const nextRung = LADDER.find(v => v > hardDeckPotential) ?? 40;
     return (
-      <div className="fbl fbl-stage">
+      <div className="fbl fbl-stage qi-display-stage qi-display-lobby">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         <div className="hd">
           <div className="hd-title">THE HARD DECK</div>
@@ -1042,30 +1041,31 @@ function DisplayScreenInner() {
       );
     }
     return (
-      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, padding:48 }}>
+      <div className="qi-display-intermission">
       <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-        <div style={{ fontSize:42, fontWeight:800, color:purple, letterSpacing:5, marginBottom:8 }}>INTERMISSION</div>
-        <div style={{ fontSize:18, color:"rgba(255,255,255,0.4)", letterSpacing:2, marginBottom:40 }}>Next round starting soon...</div>
+        <div className="qi-display-eyebrow">TAKE A BREATHER</div>
+        <div className="qi-display-intermission-title">INTERMISSION</div>
+        <div className="qi-display-intermission-subtitle">Next round starting soon…</div>
         {(
-          <div style={{ display:"flex", gap:48, alignItems:"flex-start", maxWidth:"90vw" }}>
-            <div style={{ display:"flex", flexDirection:"column", gap:24, maxWidth:500 }}>
+          <div className="qi-display-promo-grid">
+            <div className="qi-display-promo-stack">
               {intermissionOffers && (
-                <div style={{ padding:"24px 28px", borderRadius:16, background:"rgba(255,255,255,0.05)", border:"2px solid rgba(190,38,193,0.4)" }}>
-                  <div style={{ fontSize:14, color:purple, letterSpacing:3, marginBottom:10 }}>TONIGHT'S OFFERS</div>
-                  <div style={{ fontSize:24, color:"#fff", lineHeight:1.4 }}>{intermissionOffers}</div>
+                <div className="qi-display-promo-card">
+                  <div className="qi-display-promo-label">TONIGHT&apos;S OFFERS</div>
+                  <div className="qi-display-promo-copy">{intermissionOffers}</div>
                 </div>
               )}
               {intermissionOtherQuizzes && (
-                <div style={{ padding:"24px 28px", borderRadius:16, background:"rgba(255,255,255,0.05)", border:"2px solid rgba(190,38,193,0.4)" }}>
-                  <div style={{ fontSize:14, color:purple, letterSpacing:3, marginBottom:10 }}>MORE QUIZ NIGHTS</div>
-                  <div style={{ fontSize:22, color:"#fff", lineHeight:1.4 }}>{intermissionOtherQuizzes}</div>
+                <div className="qi-display-promo-card">
+                  <div className="qi-display-promo-label">MORE QUIZ NIGHTS</div>
+                  <div className="qi-display-promo-copy">{intermissionOtherQuizzes}</div>
                 </div>
               )}
             </div>
             {intermissionWhatsapp && (
-              <div style={{ padding:"24px 28px", borderRadius:16, background:"rgba(255,255,255,0.05)", border:"2px solid rgba(190,38,193,0.4)", textAlign:"center" }}>
-                <div style={{ fontSize:14, color:purple, letterSpacing:3, marginBottom:14 }}>JOIN OUR WHATSAPP</div>
-                <img src={"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(intermissionWhatsapp)} alt="WhatsApp QR" style={{ width:220, height:220, borderRadius:12, background:"#fff", padding:8 }} />
+              <div className="qi-display-promo-card qi-display-promo-qr">
+                <div className="qi-display-promo-label">JOIN OUR WHATSAPP</div>
+                <img src={"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(intermissionWhatsapp)} alt="WhatsApp QR code" />
               </div>
             )}
           </div>
@@ -1078,19 +1078,19 @@ function DisplayScreenInner() {
   // props, nonce, scoring, audio and sync. Presentation-only wrapper.
   if (phase === "spin_to_win") {
     return (
-      <div className="fbl fbl-stage" style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40 }}>
+      <div className="fbl fbl-stage qi-display-stage qi-display-spin">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-        <div style={{ position:"relative", zIndex:2, textAlign:"center", marginBottom:24 }}>
-          <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:"clamp(28px,5vw,72px)", letterSpacing:".12em", textShadow:"0 0 34px rgba(190,38,193,.6)" }}>
+        <div className="qi-display-spin-heading">
+          <div className="qi-display-spin-title">
             <span style={{ color:"#BE26C1" }}>SPIN</span> TO WIN
           </div>
           {fastestTeam && (
-            <div style={{ font:"600 clamp(14px,2vw,26px) 'Inter'", color:"#B9A8D9", letterSpacing:".18em", marginTop:8 }}>
+            <div className="qi-display-spin-winner">
               FASTEST CORRECT ANSWER: {fastestTeam.toUpperCase()}
             </div>
           )}
         </div>
-        <div style={{ position:"relative", zIndex:2, width:"100%", maxWidth:900 }}>
+        <div className="qi-display-spin-machine">
           <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeam || "Team"} victorySong={fastestSong || undefined} size="full" audioEnabled={true} />
         </div>
         <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
@@ -1103,10 +1103,11 @@ function DisplayScreenInner() {
     const leader = sorted[0]?.total_points || 1;
     const topGap = sorted.length >= 3 ? sorted[0].total_points - sorted[2].total_points : sorted.length === 2 ? sorted[0].total_points - sorted[1].total_points : 0;
     return (
-      <div className="fbl fbl-stage">
+      <div className="fbl fbl-stage qi-display-stage qi-display-scoreboard">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         <div className="ld">
-          <div className="ld-title">STANDINGS</div>
+          <div className="qi-display-eyebrow">AFTER ROUND {roundNumber}</div>
+          <div className="ld-title">LIVE STANDINGS</div>
           {sorted.map((s, i) => {
             const move = rankMoves.get(s.team_name);
             return (
@@ -1148,7 +1149,7 @@ function DisplayScreenInner() {
         { left: "90%", bg: "var(--gold)", dur: "6.2s", delay: ".6s" },
       ];
       return (
-        <div className="fbl fbl-stage">
+        <div className="fbl fbl-stage qi-display-stage qi-display-winner">
           <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
           <div className="wc">
             <div className="wc-bg" />
@@ -1170,35 +1171,27 @@ function DisplayScreenInner() {
 
     // Reveal in progress
     return (
-      <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, padding:"48px 80px" }}>
-        <div style={{ fontSize:22, color:"rgba(255,255,255,0.4)", letterSpacing:6, marginBottom:48 }}>FINAL LEADERBOARD</div>
-        <div style={{ width:"100%", maxWidth:700 }}>
+      <div className="qi-display-final-reveal">
+        <div className="qi-display-eyebrow">TONIGHT&apos;S RESULTS</div>
+        <div className="qi-display-final-title">FINAL LEADERBOARD</div>
+        <div className="qi-display-final-list">
           {[...revealed].reverse().map((s, i) => {
             const pos = sorted.length - revealed.length + 1 + i;
             const isTop = pos <= 3;
             const medal = pos===1?"gold":pos===2?"silver":pos===3?"#cd7f32":null;
             return (
-              <div key={s.team_name} style={{ display:"flex", alignItems:"center", gap:20, padding:"20px 28px", borderRadius:16,
-                background:medal?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.04)",
-                border:"2px solid "+(medal||"rgba(255,255,255,0.1)"),
-                marginBottom:12, animation:"fadeSlide 0.5s ease-out both" }}>
-                <span style={{ fontSize:35, fontWeight:900, color:medal||"rgba(255,255,255,0.3)", minWidth:40 }}>{pos}</span>
-                <span style={{ fontSize:32, fontWeight:700, flex:1, color:"#fff" }}>{s.team_name}</span>
-                <span style={{ fontSize:40, fontWeight:900, color:medal||purple }}>{s.total_points}</span>
+              <div key={s.team_name} className={"qi-display-final-row" + (isTop ? " is-podium" : "")} style={{ "--qi-medal": medal || undefined } as CSSProperties}>
+                <span className="qi-display-final-rank">{pos}</span>
+                <span className="qi-display-final-team">{s.team_name}</span>
+                <span className="qi-display-final-score">{s.total_points.toLocaleString()}</span>
               </div>
             );
           })}
           {revealedCount === 0 && (
-            <div style={{ textAlign:"center", color:"rgba(255,255,255,0.2)", fontSize:22, letterSpacing:3 }}>Press SPACE to reveal results...</div>
+            <div className="qi-display-final-wait">Results incoming…</div>
           )}
         </div>
-        <div style={{ marginTop:48, fontSize:15, color:"rgba(255,255,255,0.2)", letterSpacing:3 }}>Quiz-It · Powered by Mac Entertainment</div>
-        <style>{`
-          @keyframes fadeSlide {
-            from { opacity: 0; transform: translateX(-30px); }
-            to { opacity: 1; transform: translateX(0); }
-          }
-        `}</style>
+        <div className="qi-display-powered">QUIZ-IT · Powered by Mac Entertainment</div>
       </div>
     );
   }
@@ -1208,7 +1201,7 @@ function DisplayScreenInner() {
     const winnerTeam = teams.find(t => t.team_name === fastestTeam);
     const confettiColors = ["#BE26C1","#F5B800","#22C55E","#38BDF8","#F87171","#A78BFA","#FB923C"];
     return (
-      <div style={{ height:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',sans-serif", position:"relative", overflow:"hidden" }}>
+      <div className="qi-display-celebration">
       <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         {/* Confetti layer */}
         {fastestTeam && (
@@ -1228,19 +1221,19 @@ function DisplayScreenInner() {
         {/* Brand ambient glow */}
         <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 60% 50% at 50% 50%, rgba(190,38,193,0.12) 0%, transparent 70%)", pointerEvents:"none" }} />
         {fastestTeam ? (
-          <div style={{ textAlign:"center", position:"relative", zIndex:2, padding:"0 48px" }}>
-            <div style={{ fontSize:13, fontWeight:700, letterSpacing:5, color:"rgba(255,255,255,0.3)", marginBottom:28 }}>FASTEST CORRECT ANSWER</div>
-            <div style={{ fontSize:"clamp(52px,8vw,96px)", fontWeight:900, color:"#fff", letterSpacing:2, lineHeight:1, animation:"nameSlam 0.65s cubic-bezier(0.34,1.56,0.64,1) both" }}>
+          <div className="qi-display-celebration-content">
+            <div className="qi-display-eyebrow">FASTEST CORRECT ANSWER</div>
+            <div className="qi-display-fastest-team">
               {fastestTeam}
             </div>
             {showWinnerPhoto && winnerTeam?.photo_url && (
-              <div style={{ display:"flex", justifyContent:"center", marginTop:24 }}>
-                <img src={winnerTeam.photo_url} alt={fastestTeam} style={{ width:"clamp(220px,20vw,340px)", height:"clamp(220px,20vw,340px)", borderRadius:"50%", objectFit:"cover", border:"4px solid "+purple, animation:"goldRise 0.5s 0.5s ease-out both", opacity:0 }} />
+              <div className="qi-display-fastest-photo">
+                <img src={winnerTeam.photo_url} alt={fastestTeam} />
               </div>
             )}
           </div>
         ) : (
-          <div style={{ fontSize:52, fontWeight:800, color:"rgba(255,255,255,0.25)", fontFamily:"'Inter',sans-serif", textAlign:"center" }}>{question?.question_type === "multi_tap" ? "Nobody got all answers correct." : "No correct answers this round"}</div>
+          <div className="qi-display-no-winner">{question?.question_type === "multi_tap" ? "Nobody got all answers correct." : "No correct answers this round"}</div>
         )}
         {/* Brand */}
         <div style={{ position:"absolute", bottom:22, textAlign:"center", zIndex:2 }}>
@@ -1262,52 +1255,46 @@ function DisplayScreenInner() {
     const correctText = isMulti ? (options.find(o => o.key.toLowerCase()===question.correct_answer.toLowerCase())?.text || question.correct_answer) : question.correct_answer;
     const correctKey = question.correct_answer.toLowerCase();
     return (
-      <div style={{ height:"100vh", background:"#0D0110", display:"flex", flexDirection:"column", fontFamily:"'Inter',sans-serif", color:"#fff", animation:"flashReveal 0.45s ease-out", position:"relative" }}>
+      <div className="qi-display-answer-reveal">
       <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         {/* HEADER */}
-        <div style={{ flexShrink:0, padding:"14px 40px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid rgba(34,197,94,0.2)" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <span style={{ fontSize:11, fontWeight:700, letterSpacing:3, color:"rgba(255,255,255,0.22)" }}>{roundName || "GENERAL KNOWLEDGE"}</span>
-            <span style={{ padding:"3px 12px", background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.4)", borderRadius:999, fontSize:10, fontWeight:700, color:"#22C55E", letterSpacing:2 }}>ANSWER REVEALED</span>
+        <div className="qi-display-answer-header">
+          <div className="qi-display-answer-meta">
+            <span>{roundName || "GENERAL KNOWLEDGE"}</span>
+            <strong>ANSWER REVEALED</strong>
           </div>
-          <span style={{ fontSize:12, fontWeight:700, color:"rgba(255,255,255,0.2)" }}>Q {questionIndex + 1}</span>
+          <span className="qi-display-question-number">QUESTION {questionIndex + 1}</span>
         </div>
         {/* CONTENT */}
-        <div style={{ flex:1, minHeight:0, padding:"20px 48px 14px", display:"flex", flexDirection:"column", gap:14 }}>
-          <div style={{ fontSize:"clamp(22px,2.2vw,36px)", fontWeight:700, color:"rgba(255,255,255,0.38)", lineHeight:1.25 }}>
+        <div className="qi-display-answer-content">
+          <div className="qi-display-answer-question">
             {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
           </div>
           {isMulti ? (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginTop:12 }}>
+            <div className="qi-display-answer-options">
               {options.map((opt, idx) => {
                 const isCorrect = opt.key.toLowerCase() === correctKey;
                 return (
-                  <div key={opt.key} style={{ display:"flex", alignItems:"center", gap:20,
-                    padding:"22px 28px", borderRadius:16,
-                    background: isCorrect ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.07)",
-                    border: `1px solid ${isCorrect ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.12)"}`,
-                    animation: isCorrect ? "correctPop 0.5s 0.05s ease-out" : `wrongFade 0.5s ${0.08 + idx * 0.05}s forwards` }}>
-                    <span style={{ fontSize:isCorrect?30:24, fontWeight:900, color:isCorrect?"#2EE06E":purple, minWidth:36, flexShrink:0 }}>{opt.key}.</span>
-                    <span style={{ fontSize:isCorrect?"clamp(28px,2.4vw,40px)":26, fontWeight:isCorrect?800:700, color:isCorrect?"#2EE06E":"rgba(255,255,255,0.35)", lineHeight:1.2 }}>{opt.text}</span>
-                    {isCorrect && <span style={{ fontSize:28, color:"#2EE06E", marginLeft:"auto" }}>✓</span>}
+                  <div key={opt.key} className={"qi-display-answer-option" + (isCorrect ? " is-correct" : " is-dimmed")} style={{ "--qi-option-delay": `${0.08 + idx * 0.05}s` } as CSSProperties}>
+                    <span className="qi-display-answer-key">{opt.key}</span>
+                    <span className="qi-display-answer-text">{opt.text}</span>
+                    {isCorrect && <span className="qi-display-answer-check" aria-label="Correct">✓</span>}
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <div style={{ padding:"40px 60px", borderRadius:20, background:"rgba(34,197,94,0.08)",
-                border:"2px solid rgba(34,197,94,0.5)", textAlign:"center", animation:"correctPop 0.5s 0.05s ease-out",
-                maxWidth:"70%" }}>
-                <div style={{ fontSize:12, fontWeight:700, letterSpacing:4, color:"rgba(34,197,94,0.7)", marginBottom:16 }}>CORRECT ANSWER</div>
-                <div style={{ fontSize:"clamp(48px,6vw,96px)", fontWeight:900, color:"#22C55E", lineHeight:1 }}>{correctText}</div>
+            <div className="qi-display-answer-hero-wrap">
+              <div className="qi-display-answer-hero">
+                <div className="qi-display-answer-hero-label">CORRECT ANSWER</div>
+                <div className="qi-display-answer-hero-text">{correctText}</div>
               </div>
             </div>
           )}
         </div>
         {/* FOOTER */}
-        <div style={{ flexShrink:0, padding:"9px 40px", borderTop:"1px solid rgba(34,197,94,0.15)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ fontSize:11, color:"rgba(255,255,255,0.28)", fontStyle:"italic" }}>
+        <div className="qi-display-answer-footer">
+          <div className="qi-display-answer-explanation">
             {question.explanation || ""}
           </div>
           <div style={{ textAlign:"right", lineHeight:1.3 }}>
@@ -1332,17 +1319,17 @@ function DisplayScreenInner() {
     // PICTURE ROUND - image only (first space)
     if (isPicture && pictureSubPhase === "image_only" && imageUrl) {
       return (
-        <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:font, position:"relative" }}>
+        <div className="qi-display-picture-hero">
       <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-          <div style={{ position:"absolute", top:20, right:30, fontSize:18, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Q{questionIndex+1} - Quiz-It</div>
-          <img src={imageUrl} alt="Quiz image" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; setImageLoadFailed(true); }} style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:16, objectFit:"contain", boxShadow:"0 0 60px rgba(190,38,193,0.3)", display: imageLoadFailed ? "none" : "block" }} />
+          <div className="qi-display-picture-meta">QUESTION {questionIndex+1} · PICTURE ROUND</div>
+          <img className="qi-display-picture-image" src={imageUrl} alt="Quiz image" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; setImageLoadFailed(true); }} style={{ display: imageLoadFailed ? "none" : "block" }} />
           {imageLoadFailed && (
-            <div style={{ padding:"60px 80px", borderRadius:20, background:"rgba(255,255,255,0.06)", border:"2px solid rgba(255,255,255,0.15)", textAlign:"center" }}>
+            <div className="qi-display-media-error" role="status">
               <div style={{ fontSize:48, marginBottom:16 }}>🖼️</div>
               <div style={{ fontSize:22, color:"rgba(255,255,255,0.5)" }}>Image could not be loaded</div>
             </div>
           )}
-          <div style={{ position:"absolute", bottom:24, left:0, right:0, textAlign:"center", fontSize:16, color:"rgba(255,255,255,0.2)", letterSpacing:3 }}>PICTURE ROUND</div>
+          <div className="qi-display-picture-prompt">TAKE A GOOD LOOK</div>
         </div>
       );
     }
@@ -1350,33 +1337,33 @@ function DisplayScreenInner() {
     // PICTURE ROUND - image + question (second space)
     if (isPicture && pictureSubPhase === "question_visible") {
       return (
-        <div style={{ minHeight:"100vh", background:bg, display:"flex", flexDirection:"column", fontFamily:font, color:"#fff" }}>
+        <div className="qi-display-picture-question">
       <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-          <div style={{ display:"flex", alignItems:"center", gap:16, padding:"20px 48px", borderBottom:"1px solid rgba(190,38,193,0.2)" }}>
-            <div style={{ fontSize:16, letterSpacing:4, color:"rgba(255,255,255,0.3)" }}>Q{questionIndex+1}</div>
-            <div style={{ padding:"4px 16px", borderRadius:999, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", fontSize:16, color:purple, letterSpacing:2 }}>PICTURE ROUND</div>
+          <div className="qi-display-picture-header">
+            <div className="qi-display-question-number">QUESTION {questionIndex+1}</div>
+            <div className="qi-display-picture-chip">PICTURE ROUND</div>
             <div style={{ flex:1 }} />
             {timeLeft !== null && timeLeft > 0 && (
-              <div style={{ width:56, height:56, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"3px solid "+(timeLeft<=3?"#ef4444":purple), display:"flex", alignItems:"center", justifyContent:"center", fontSize:30, fontWeight:800, color:timeLeft<=3?"#ef4444":purple }}>{timeLeft}</div>
+              <div className={"qi-display-picture-timer" + (timeLeft<=3 ? " is-urgent" : "")}>{timeLeft}</div>
             )}
             <div style={{ fontSize:18, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Quiz-It</div>
           </div>
-          <div style={{ flex:1, display:"grid", gridTemplateColumns:"1fr 1fr", gap:0 }}>
+          <div className="qi-display-picture-layout">
             {imageUrl && (
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:32, borderRight:"1px solid rgba(190,38,193,0.2)" }}>
+              <div className="qi-display-picture-media">
                 {!imageLoadFailed ? (
-                  <img src={imageUrl} alt="Quiz image" onError={() => setImageLoadFailed(true)} style={{ maxWidth:"100%", maxHeight:"70vh", borderRadius:12, objectFit:"contain" }} />
+                  <img src={imageUrl} alt="Quiz image" onError={() => setImageLoadFailed(true)} />
                 ) : (
-                  <div style={{ padding:"40px 60px", borderRadius:16, background:"rgba(255,255,255,0.06)", border:"2px solid rgba(255,255,255,0.15)", textAlign:"center" as const }}>
+                  <div className="qi-display-media-error">
                     <div style={{ fontSize:40, marginBottom:12 }}>🖼️</div>
                     <div style={{ fontSize:18, color:"rgba(255,255,255,0.5)" }}>Image could not be loaded</div>
                   </div>
                 )}
               </div>
             )}
-            <div style={{ display:"flex", flexDirection:"column", justifyContent:"center", padding:48 }}>
-              <div style={{ fontSize:45, fontWeight:700, lineHeight:1.4, marginBottom:24 }}>{question.question_text.replace(/^Show teams this image:\s*/i, "")}</div>
-              <div style={{ padding:"16px 20px", borderRadius:12, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", fontSize:22, color:"rgba(255,255,255,0.4)", fontStyle:"italic" }}>
+            <div className="qi-display-picture-copy">
+              <div className="qi-display-picture-question-text">{question.question_text.replace(/^Show teams this image:\s*/i, "")}</div>
+              <div className="qi-display-answer-on-phone">
                 Type your answer on your phone
               </div>
             </div>
@@ -1395,7 +1382,7 @@ function DisplayScreenInner() {
     const totalTeams = teams.length;
     const lockedCount = lockedTeams.filter(t => teams.some(tm => tm.team_name === t)).length;
     return (
-      <div className="fbl fbl-stage">
+      <div className="fbl fbl-stage qi-display-stage qi-display-question">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         <div className="qd-ring" />
         {/* Final-5s urgent glow: intensity ramps steadily as time approaches 0.
@@ -1443,11 +1430,12 @@ function DisplayScreenInner() {
 export default function DisplayScreen() {
   return (
     <Suspense fallback={<div style={{ minHeight:"100vh", background:"#0d0225" }} />}>
-      <DisplayScreenInner />
+      <div className="qi-display-shell">
+        <DisplayScreenInner />
       {/* Persistent branding overlay - sits on top of every phase screen
           regardless of which internal return branch rendered, instead of
           needing to be threaded through each one individually. */}
-      <div style={{
+        <div className="qi-display-brand-signature" style={{
         position: "fixed", bottom: 14, right: 18, zIndex: 9999,
         display: "flex", alignItems: "center", gap: 8,
         padding: "6px 12px", borderRadius: 999,
@@ -1458,6 +1446,7 @@ export default function DisplayScreen() {
         <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", letterSpacing: 0.5 }}>
           <span style={{ fontFamily: "'Bruno Ace SC',sans-serif" }}>Quiz-It</span><span style={{ fontFamily: "'Inter',sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>
         </span>
+        </div>
       </div>
     </Suspense>
   );

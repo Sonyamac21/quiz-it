@@ -1,9 +1,7 @@
 "use client";
 
 /**
- * Fable Display state presentation components.
- * Ported verbatim from design/fable/quiz-it-show-screens.html
- * ("DISPLAY — SHOW STRUCTURE" and "DISPLAY — SYSTEM STATES").
+ * Shared Quiz-It display state presentation components.
  *
  * These are PRESENTATION ONLY. They take plain props and render the
  * approved 1920×1080 Display language: purple bloom, Bruno stamps,
@@ -39,7 +37,7 @@ export function DisplayStage({
   badge?: string;
 }) {
   return (
-    <div className={`fbl fbl-state ${className}`.trim()}>
+    <div className={`fbl fbl-state qi-display-state ${className}`.trim()}>
       {children}
       <DisplayBadge label={badge} />
     </div>
@@ -70,6 +68,7 @@ export function RoundStart({
     .join(" · ");
   return (
     <DisplayStage>
+      <div className="qi-display-eyebrow">UP NEXT</div>
       <div className="stamp enter">ROUND {roundNumber}</div>
       {sub && <div className="sub">{sub}</div>}
       {modifierLine && <div className="whis">{modifierLine.toUpperCase()}</div>}
@@ -88,6 +87,7 @@ export function RoundEnd({
 }) {
   return (
     <DisplayStage>
+      <div className="qi-display-eyebrow">ROUND COMPLETE</div>
       <div className="stamp enter">END OF ROUND {roundNumber}</div>
       {captions.length > 0 && <div className="sub">{captions.join(" · ").toUpperCase()}</div>}
       {hostPick && <div className="whis">{hostPick.toUpperCase()}</div>}
@@ -133,7 +133,7 @@ export function Intermission({
 }) {
   return (
     <DisplayStage>
-      <div className="bloom" />
+      <div className="bloom" aria-hidden="true" />
       <div className="sub">{nextLabel.toUpperCase()}</div>
       <div className="whis">
         STANDINGS ON YOUR PHONES{venueLine ? ` · ${venueLine.toUpperCase()}` : ""}
@@ -149,7 +149,7 @@ export function WaitingForHost({
 }) {
   return (
     <DisplayStage>
-      <div className="bloom" />
+      <div className="bloom" aria-hidden="true" />
       <div className="sub">{message.toUpperCase()}</div>
     </DisplayStage>
   );
@@ -162,7 +162,7 @@ export function WaitingForHost({
 export function DisplayLoading({ message = "SETTING THE STAGE…" }: { message?: string }) {
   return (
     <DisplayStage>
-      <div className="bloom" />
+      <div className="bloom" aria-hidden="true" />
       <div className="whis">{message.toUpperCase()}</div>
     </DisplayStage>
   );

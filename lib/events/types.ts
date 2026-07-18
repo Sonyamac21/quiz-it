@@ -5,7 +5,10 @@ export type EventRecord = {
   venue_record_id: string | null;
   event_date: string;
   start_time: string;
+  end_time: string | null;
+  status: EventStatus;
   host_id: string;
+  host_name: string | null;
   quiz_id: string | null;
   quiz_definition_id: string | null;
   brand_kit: string | null;
@@ -14,7 +17,11 @@ export type EventRecord = {
   prizes: string | null;
   power_cards: boolean;
   notes: string | null;
-  venue: { venue_name: string; address?: string | null } | null;
+  special_offers: string | null;
+  overrides: Record<string, unknown>;
+  recurrence_group_id: string | null;
+  recurrence_rule: RecurrenceRule | null;
+  venue: { venue_name: string; address?: string | null; venue_logo_url?: string | null } | null;
   quiz: { name: string } | null;
 };
 
@@ -25,8 +32,29 @@ export type EventVenue = {
   address: string | null;
   default_start_time: string | null;
   default_host_id: string | null;
+  default_host_name?: string | null;
   default_brand_kit: string | null;
   default_music_pack: string | null;
+  default_quiz_id: string | null;
+  default_quiz_day: number | null;
+  default_end_time: string | null;
+  venue_logo_url?: string | null;
+  hero_image_url?: string | null;
+  sponsors?: string[];
+  food_offers?: string | null;
+  drink_offers?: string | null;
+  happy_hour?: string | null;
+  prize_information?: string | null;
+};
+
+export type EventStatus = "draft" | "scheduled" | "live" | "completed" | "cancelled";
+export type CalendarView = "month" | "week" | "agenda";
+export type RecurrenceRule = {
+  frequency: "none" | "daily" | "weekly" | "monthly" | "custom_weeks";
+  interval: number;
+  end: "never" | "date" | "occurrences";
+  endDate?: string;
+  occurrences?: number;
 };
 
 export type EventQuiz = {

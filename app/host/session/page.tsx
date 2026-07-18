@@ -14,7 +14,7 @@ type Team = {
 };
 
 type QuizOption = { id: string; name: string; quiz_rounds: { id: string }[] };
-type PreparedEvent = { id: string; event_name: string; event_date: string; start_time: string; venue_record_id: string | null; quiz_definition_id: string; brand_kit: string | null; music_pack: string | null; sponsors: string[]; prizes: string | null; notes: string | null; venue: { venue_name: string; venue_logo_url: string | null; address: string | null } | null };
+type PreparedEvent = { id: string; event_name: string; event_date: string; start_time: string; end_time: string | null; venue_record_id: string | null; quiz_definition_id: string; brand_kit: string | null; music_pack: string | null; sponsors: string[]; prizes: string | null; notes: string | null; special_offers: string | null; overrides: Record<string, unknown>; venue: { venue_name: string; venue_logo_url: string | null; address: string | null; hero_image_url?: string | null; gallery_images?: string[]; google_maps_url?: string | null; contact_name?: string | null; contact_email?: string | null; contact_phone?: string | null; website?: string | null; social_links?: Record<string,string>; food_offers?: string | null; drink_offers?: string | null; happy_hour?: string | null; prize_information?: string | null; sponsors?: string[]; brand_colours?: Record<string,string>; display_slides?: string[]; display_adverts?: string[]; default_brand_kit?: string | null; default_music_pack?: string | null } | null };
 
 function generatePin(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
@@ -55,7 +55,7 @@ export default function SessionPage() {
   useEffect(() => {
     const eventId = new URLSearchParams(window.location.search).get("event");
     if (!eventId) return;
-    createSupabaseBrowserClient().from("events").select("id,event_name,event_date,start_time,venue_record_id,quiz_definition_id,brand_kit,music_pack,sponsors,prizes,notes,venue:venues!events_venue_record_id_fkey(venue_name,venue_logo_url,address)").eq("id", eventId).maybeSingle().then(({ data, error }) => {
+    createSupabaseBrowserClient().from("events").select("id,event_name,event_date,start_time,end_time,venue_record_id,quiz_definition_id,brand_kit,music_pack,sponsors,prizes,notes,special_offers,overrides,venue:venues!events_venue_record_id_fkey(*)").eq("id", eventId).maybeSingle().then(({ data, error }) => {
       if (error || !data?.quiz_definition_id) { setCreateError(error?.message || "This event needs a Quiz Plan before it can start."); return; }
       const venue = Array.isArray(data.venue) ? data.venue[0] : data.venue;
       const prepared = { ...data, venue: venue || null } as PreparedEvent;
@@ -138,6 +138,7 @@ export default function SessionPage() {
     const today = new Date().getDay();
     const { data: venueData } = preparedEvent ? { data: preparedEvent.venue } : await supabase.from("venues").select("*").eq("day_of_week", today).maybeSingle();
     const quizName = quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "";
+    const inheritedOffers = preparedEvent?.special_offers || [preparedEvent?.venue?.food_offers, preparedEvent?.venue?.drink_offers, preparedEvent?.venue?.happy_hour].filter(Boolean).join("\n");
     const { data, error } = await supabase
       .from("sessions")
       .insert({
@@ -147,9 +148,10 @@ export default function SessionPage() {
         event_id: preparedEvent?.id || null,
         venue_record_id: preparedEvent?.venue_record_id || null,
         quiz_plan_name: quizName,
-        event_snapshot: preparedEvent ? { event_name: preparedEvent.event_name, event_date: preparedEvent.event_date, start_time: preparedEvent.start_time, venue: preparedEvent.venue, brand_kit: preparedEvent.brand_kit, music_pack: preparedEvent.music_pack, sponsors: preparedEvent.sponsors, prizes: preparedEvent.prizes, notes: preparedEvent.notes, quiz_plan_id: selectedQuizId, quiz_plan_name: quizName } : { quiz_plan_id: selectedQuizId, quiz_plan_name: quizName },
+        event_snapshot: preparedEvent ? { event_name: preparedEvent.event_name, event_date: preparedEvent.event_date, start_time: preparedEvent.start_time, end_time: preparedEvent.end_time, venue: preparedEvent.venue, brand_kit: preparedEvent.brand_kit || preparedEvent.venue?.default_brand_kit, music_pack: preparedEvent.music_pack || preparedEvent.venue?.default_music_pack, sponsors: preparedEvent.sponsors.length ? preparedEvent.sponsors : preparedEvent.venue?.sponsors, prizes: preparedEvent.prizes || preparedEvent.venue?.prize_information, offers: inheritedOffers, notes: preparedEvent.notes, overrides: preparedEvent.overrides, quiz_plan_id: selectedQuizId, quiz_plan_name: quizName } : { quiz_plan_id: selectedQuizId, quiz_plan_name: quizName },
         venue_name: venueData?.venue_name || null,
         venue_logo_url: venueData?.venue_logo_url || null,
+        intermission_offers: inheritedOffers || null,
       })
       .select()
       .single();
@@ -169,6 +171,7 @@ export default function SessionPage() {
         return;
       }
       await supabase.from("sessions").update({ current_session_round_id: snapshots[0].id }).eq("id", data.id);
+      if (preparedEvent) await supabase.from("events").update({ status: "live", updated_at: new Date().toISOString() }).eq("id", preparedEvent.id);
       setPin(newPin);
       setSessionId(data.id);
       localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify({ pin: newPin, sessionId: data.id, savedAt: Date.now() }));
@@ -259,6 +262,7 @@ export default function SessionPage() {
     if (!sessionId) return;
     const supabase = createSupabaseBrowserClient();
     await supabase.from("sessions").update({ status: "finished" }).eq("id", sessionId);
+    if (preparedEvent) await supabase.from("events").update({ status: "completed", updated_at: new Date().toISOString() }).eq("id", preparedEvent.id);
     setStatus("finished");
   }
 

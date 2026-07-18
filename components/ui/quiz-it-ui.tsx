@@ -190,9 +190,9 @@ export function SectionHeader({ title, description, action }: { title: string; d
 
 export function BrandLockup({ context, compact = false, align = "center" }: { context?: string; compact?: boolean; align?: "left" | "center" }) {
   return (
-    <div className={classes("qi-brand", compact && "qi-brand--compact", align === "left" && "qi-brand--left")} aria-label={context ? `Quiz-It, presented by Mac Entertainment. Tonight at ${context}.` : "Quiz-It, presented by Mac Entertainment."}>
+    <div className={classes("qi-brand", compact && "qi-brand--compact", align === "left" && "qi-brand--left")} aria-label={context ? `Quiz-It, powered by Mac Entertainment. Tonight at ${context}.` : "Quiz-It, powered by Mac Entertainment."}>
       <div className="qi-brand__name" aria-hidden="true"><span>QUIZ-</span>IT</div>
-      <div className="qi-brand__producer" aria-hidden="true">Presented by Mac Entertainment</div>
+      <div className="qi-brand__producer" aria-hidden="true">Powered by Mac Entertainment</div>
       {context ? <div className="qi-brand__context" aria-hidden="true">Tonight at {context}</div> : null}
     </div>
   );

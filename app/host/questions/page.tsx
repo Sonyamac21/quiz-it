@@ -37,8 +37,14 @@ type Question = {
 };
 
 type ValidationStatus = "passed" | "failed" | "not_run" | "not_applicable";
-type ValidationStage = "moderation" | "theme" | "duplicate" | "memory" | "quality" | "media";
-type ValidationResult = { status: ValidationStatus; note: string };
+type ValidationStage = "moderation" | "theme" | "duplicate" | "balance" | "memory" | "quality" | "media";
+type RoundBalanceDetails = {
+  candidate_subtopic: string | null;
+  candidate_entity: string | null;
+  conflict_index: number | null;
+  rejection_reason: string;
+};
+type ValidationResult = { status: ValidationStatus; note: string; details?: RoundBalanceDetails };
 type ValidationResults = Record<ValidationStage, ValidationResult>;
 type GenerationReportEntry = {
   id: string;
@@ -55,6 +61,9 @@ function emptyValidationResults(hasTheme: boolean, isMedia: boolean): Validation
     moderation: { status: "not_run", note: "Not run" },
     theme: hasTheme ? { status: "not_run", note: "Not run" } : { status: "not_applicable", note: "No theme selected" },
     duplicate: { status: "not_run", note: "Not run" },
+    balance: hasTheme
+      ? { status: "not_applicable", note: "Themed rounds allow repeated subject matter" }
+      : { status: "not_run", note: "Not run" },
     memory: { status: "not_run", note: "Not run" },
     quality: { status: "not_run", note: "Not run" },
     media: isMedia ? { status: "not_run", note: "Not run" } : { status: "not_applicable", note: "Not a media question" },
@@ -66,6 +75,7 @@ function stageLabel(stage: ValidationStage): string {
     moderation: "Moderation",
     theme: "Theme",
     duplicate: "Duplicate",
+    balance: "Round balance",
     memory: "Permanent memory",
     quality: "Final quality",
     media: "Media lookup",
@@ -274,8 +284,30 @@ export default function QuestionsPage() {
         .filter(Boolean);
       if (correctTexts.length) answerForCheck = correctTexts.join(", ");
     }
-    const allText = [q.question_text, ...optionTexts, answerForCheck].filter(Boolean).join(" ");
-    const prompt = "You are a content moderator for a quiz night in Dubai, UAE. Check this question is safe for a mixed international audience. Reject if it contains: sexual references, crude body parts, alcohol, pork, drugs, religion, LGBTQ+ topics or references, references to Iran or Israel, or anything offensive. Also verify the answer is factually correct. Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"reason\"}. Content: " + allText;
+    const isMedia = q.question_type === "picture" || q.question_type === "audio";
+    const labelledContent = {
+      Question: q.question_text || "",
+      Options: isMedia ? [] : optionTexts.filter(Boolean),
+      Answer: answerForCheck || "",
+      "Player-visible media": q.question_type === "audio"
+        ? "An audio clip is played; no lyric transcript or other content description is supplied to the moderator."
+        : q.question_type === "picture"
+          ? "An image is shown; no visual-content description is supplied to the moderator."
+          : "None",
+      "Internal media lookup": isMedia ? (q.option_a || "None") : "None",
+      Theme: (theme || "").trim() || "None",
+    };
+    const prompt =
+      "You are a content moderator and factual checker for a commercial quiz night in Dubai, UAE. " +
+      "Judge this question independently. Moderate ONLY content actually presented to quiz players: the Question, visible Options, Answer, and any Player-visible media content explicitly described below. " +
+      "The Internal media lookup is private metadata. You may use its literal title, artist, subject or work name to identify the answer and check factual correctness, but MUST NOT infer, research or analyse any underlying lyrics, plot, themes, subtext, artist history, character history or other content that is not explicitly presented to players. " +
+      "Do NOT reject mainstream commercial songs, films, books or TV programmes solely because the referenced work contains mature themes. Allow well-known commercial music suitable for ordinary radio play and mainstream public venues unless the actual title, question, answer, quoted content, described image or described media presented to players is itself inappropriate. " +
+      "Distinguish factual reference from promotion: a neutral factual reference to alcohol or another restricted subject may pass; reject content that promotes, celebrates or encourages restricted activity. " +
+      "Reject only when the presented content itself contains genuinely explicit sexual material, crude anatomical language, illegal-drug promotion, pork promotion, religious or LGBTQ+ advocacy or sensitive discussion, Iran or Israel political content, hate speech, slurs, harassment, discriminatory content, graphic violence, or other clearly offensive or prohibited material. " +
+      "Example that MUST pass: Question 'Name this song.' with Internal media lookup 'Mr. Brightside - The Killers'. Do not analyse the song's lyrics or themes. " +
+      "Also verify that the Answer is factually correct for the Question, using the literal reference metadata when needed. " +
+      "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"short reason based only on presented content\"}. " +
+      "Labelled fields: " + JSON.stringify(labelledContent);
     try {
       const text = await callAPI(prompt, 300);
       return JSON.parse(text);
@@ -729,6 +761,83 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     return null;
   }
 
+  // ── Round Balance (within this unthemed round only) ───────────────────────
+  // Duplicate detection answers "is this the same question?"; this separate
+  // semantic judge answers "would a professional host consider this round
+  // repetitive?". It compares only with questions already accepted into the
+  // current round, rejects only an explicit high-confidence conflict, and fails
+  // open so a transient model/parser problem never lowers generation reliability.
+  async function checkRoundBalance(q: Question, currentRound: Question[]): Promise<{
+    ok: boolean;
+    note: string;
+    details: RoundBalanceDetails;
+  }> {
+    const emptyDetails: RoundBalanceDetails = {
+      candidate_subtopic: null,
+      candidate_entity: null,
+      conflict_index: null,
+      rejection_reason: "",
+    };
+    if ((theme || "").trim()) {
+      return { ok: true, note: "Themed rounds allow repeated subject matter", details: emptyDetails };
+    }
+    if (currentRound.length === 0) {
+      return { ok: true, note: "First accepted question in round", details: emptyDetails };
+    }
+
+    const candidate = {
+      type: q.question_type,
+      question: q.question_text || "",
+      answer: resolveAnswerText(q) || "",
+      internal_media_lookup: ["picture", "audio"].includes(q.question_type) ? (q.option_a || "None") : "None",
+    };
+    const accepted = currentRound.map((existing, index) => ({
+      index: index + 1,
+      type: existing.question_type,
+      question: existing.question_text || "",
+      answer: resolveAnswerText(existing) || "",
+      internal_media_lookup: ["picture", "audio"].includes(existing.question_type) ? (existing.option_a || "None") : "None",
+    }));
+    const prompt =
+      "You are an experienced professional pub-quiz host checking the balance of an UNTHEMED general-knowledge round. " +
+      "Compare ONE candidate only with the already accepted questions supplied below. Reject only with HIGH confidence when an experienced host would consider the round noticeably repetitive because: (1) the same primary entity appears twice; (2) the same narrow subtopic appears twice; or (3) both questions effectively test the same underlying knowledge. " +
+      "Examples that should be rejected: two tennis questions, two Beatles questions, or two volcano questions. " +
+      "Allow broad-category overlap such as two different sports or two different music subjects. Allow incidental or weak relationships. Do NOT reject merely because two questions mention or concern the same country; reject only if they also share a genuinely narrow subtopic, primary entity, or underlying knowledge test. " +
+      "Be conservative: uncertainty MUST pass. The candidate must be judged against accepted questions only. conflict_index is the 1-based index of the accepted question it conflicts with, otherwise null. " +
+      "Reply ONLY with JSON {\"ok\":true,\"note\":\"No high-confidence round-balance conflict\",\"confidence\":\"low|medium|high\",\"candidate_subtopic\":\"short label or null\",\"candidate_entity\":\"primary entity or null\",\"conflict_index\":null,\"rejection_reason\":\"\"} or {\"ok\":false,\"note\":\"short reason\",\"confidence\":\"high\",\"candidate_subtopic\":\"short label\",\"candidate_entity\":\"primary entity or null\",\"conflict_index\":1,\"rejection_reason\":\"specific repeated subject\"}. " +
+      "Candidate: " + JSON.stringify(candidate) + " | Accepted questions: " + JSON.stringify(accepted);
+    try {
+      const parsed = JSON.parse(await callAPI(prompt, 350)) as {
+        ok?: boolean;
+        note?: string;
+        confidence?: string;
+        candidate_subtopic?: string | null;
+        candidate_entity?: string | null;
+        conflict_index?: number | null;
+        rejection_reason?: string;
+      };
+      const conflictIndex = Number.isInteger(parsed.conflict_index) && (parsed.conflict_index as number) >= 1 && (parsed.conflict_index as number) <= currentRound.length
+        ? parsed.conflict_index as number
+        : null;
+      const details: RoundBalanceDetails = {
+        candidate_subtopic: parsed.candidate_subtopic || null,
+        candidate_entity: parsed.candidate_entity || null,
+        conflict_index: conflictIndex,
+        rejection_reason: parsed.rejection_reason || parsed.note || "",
+      };
+      const highConfidenceConflict = parsed.ok === false && parsed.confidence === "high" && conflictIndex !== null;
+      return {
+        ok: !highConfidenceConflict,
+        note: highConfidenceConflict
+          ? (details.rejection_reason || "High-confidence repeated subject")
+          : (parsed.note || "No high-confidence round-balance conflict"),
+        details,
+      };
+    } catch {
+      return { ok: true, note: "Round-balance check unavailable - allowed", details: emptyDetails };
+    }
+  }
+
   // ── Permanent Question Memory (cross-session, DB-backed) ───────────────────
   // The authoritative store is the public.questions table; the check runs
   // server-side in Postgres (check_question_memory RPC) so it persists across
@@ -769,6 +878,16 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       ? { status: "failed", note: duplicateReason }
       : { status: "passed", note: "No session or round duplicate" };
     if (duplicateReason) return { ok: false, category: "Duplicate", reason: duplicateReason, stages };
+
+    if (!(theme || "").trim()) {
+      const balance = await checkRoundBalance(q, currentRound);
+      stages.balance = {
+        status: balance.ok ? "passed" : "failed",
+        note: balance.note,
+        details: balance.details,
+      };
+      if (!balance.ok) return { ok: false, category: "Round balance", reason: balance.note, stages };
+    }
 
     const memoryDuplicate = await isDuplicateInMemory(q);
     stages.memory = memoryDuplicate
@@ -932,10 +1051,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       consecutiveFailures = 0;
       setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
       const validation = await validateCandidate(q, good);
-      // Gate order: moderation -> in-round duplicate detection -> permanent
-      // Question Memory (cross-session) -> FINAL quiz quality check. Each stage is
-      // short-circuited so the expensive AI checks only run once the cheaper ones
-      // pass; the final quality judge is the very last gate before acceptance.
+      // Gate order: moderation -> in-round duplicate detection -> Round Balance
+      // (unthemed rounds only) -> permanent Question Memory (cross-session) ->
+      // FINAL quiz quality check. Each stage is short-circuited so the expensive
+      // AI checks only run once the cheaper ones pass; the final quality judge is
+      // the very last gate before acceptance.
       if (validation.ok) {
         await commitToMemory(q); // accepted -> becomes part of permanent memory
         good.push(q);
@@ -1281,6 +1401,14 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                           <div style={{ color:"#B9A8D9", font:"700 11px 'Inter'", textTransform:"uppercase", letterSpacing:".05em" }}>{stageLabel(stage)}</div>
                           <div style={{ color:result.status === "failed" ? "#FF7280" : result.status === "passed" ? "#2EE06E" : "#6B5A8E", font:"600 12px 'Inter'", marginTop:3 }}>{result.status.replace("_", " ")}</div>
                           <div style={{ color:"#8D7AAE", font:"400 11px 'Inter'", marginTop:3, lineHeight:1.35 }}>{result.note}</div>
+                          {result.details && (
+                            <div style={{ color:"#8D7AAE", font:"400 11px 'Inter'", marginTop:5, lineHeight:1.35 }}>
+                              <div>Subtopic: {result.details.candidate_subtopic || "None"}</div>
+                              <div>Entity: {result.details.candidate_entity || "None"}</div>
+                              <div>Conflict: {result.details.conflict_index ? `Question ${result.details.conflict_index}` : "None"}</div>
+                              {result.details.rejection_reason && <div>Reason: {result.details.rejection_reason}</div>}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

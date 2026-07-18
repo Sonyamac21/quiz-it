@@ -140,6 +140,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.code !== "Space" && e.key !== " ") return;
+      if (e.repeat) return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       e.preventDefault();
@@ -356,7 +357,9 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
             )}
           </div>
           <div style={{ fontSize: 16, fontWeight: 600, color: "#fff" }}>{currentQuestion.question_text}</div>
-          {status === "reveal" && <div style={{ fontSize: 14, color: "#2EE06E", fontWeight: 700, marginTop: 6 }}>Answer: {currentQuestion.correct_answer}</div>}
+          <div style={{ marginTop: 10, padding: "9px 12px", borderRadius: 9, background: "rgba(46,224,110,.1)", border: "1px solid rgba(46,224,110,.35)", color: "#2EE06E", fontSize: 14, fontWeight: 800 }}>
+            HOST ANSWER: {currentQuestion.correct_answer}
+          </div>
         </div>
       )}
 

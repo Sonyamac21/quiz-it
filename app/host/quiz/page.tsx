@@ -79,7 +79,7 @@ const RULES = {
   ],
 };
 
-const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "Multi Tap", music: "Music Round" };
+const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "TapType", music: "Music Round" };
 
 // Per-question-type timer defaults, confirmed by host: Multiple Choice,
 // Sequence, Multi Tap, and Number need less thinking time than written
@@ -151,6 +151,7 @@ function QuizControllerInner() {
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
+  const [spinFeedback, setSpinFeedback] = useState<{ ok: boolean; message: string } | null>(null);
   const [decisionMade, setDecisionMade] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
@@ -210,6 +211,7 @@ function QuizControllerInner() {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.code !== "Space" && e.key !== " ") return;
+      if (e.repeat) return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       e.preventDefault();
@@ -641,6 +643,7 @@ function QuizControllerInner() {
       // non-null targetIdx and would silently never animate.
       setSpinTargetIdx(winIdx);
       setSpinNonce(nonce);
+      setSpinFeedback(null);
       // Host animation is now triggered by the subscription echo of the DB write below,
       // same source as display and handset - achieving visual synchronisation.
       // Use pin (already verified above) rather than sessionId, which can be a stale
@@ -655,7 +658,10 @@ function QuizControllerInner() {
         .update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: nonce })
         .eq("id", sid)
         .then(({ error }) => {
-          if (error) console.error("Failed to write spin_to_win phase:", error);
+          if (error) {
+            console.error("Failed to write spin_to_win phase:", error);
+            setSpinFeedback({ ok: false, message: "Spin could not start on the display. Check the connection and retry." });
+          }
         });
       if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current, nonce, pin);
       setTimeout(() => {
@@ -746,6 +752,13 @@ function QuizControllerInner() {
       }, 1000);
     } catch {}
   }
+
+  useEffect(() => {
+    if (hostPhase !== "timer") stopTickAudio();
+    // Audio lifecycle follows the live phase; the timer starter owns creation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostPhase]);
+  useEffect(() => () => stopTickAudio(), []); // unmount / recovery cleanup
 
   function stopVictorySong() {
     if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current.currentTime = 0; victorySongRef.current = null; }
@@ -938,7 +951,10 @@ function QuizControllerInner() {
     if (!pin) { console.error("applySpinResult: no session pin available"); return; }
     const supabase = createSupabaseBrowserClient();
     const allScores = await getScoresSvc(supabase, pin);
-    if (!allScores.length) return;
+    if (!allScores.length) {
+      setSpinFeedback({ ok: false, message: "Spin score could not be loaded. No points were changed." });
+      return;
+    }
     // Other teams' TOTALS, highest first. Rank outcomes are computed purely from
     // these so a team lands on the score needed to occupy that leaderboard
     // position - never the ordinal number (1/2/3) and never an arbitrary 0.
@@ -1000,6 +1016,14 @@ function QuizControllerInner() {
     });
     if (result.scoreboardSyncError) {
       console.error("applySpinResult: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
+      setSpinFeedback({ ok: false, message: "Score changed, but the live leaderboard did not refresh. Reopen the scoreboard." });
+    } else {
+      const { data: verified } = await supabase.from("scores").select("total_points").eq("session_pin", pin).eq("team_name", teamName).maybeSingle();
+      if (!verified || verified.total_points !== newTotal) {
+        setSpinFeedback({ ok: false, message: "Spin score update failed. No result has been confirmed." });
+      } else {
+        setSpinFeedback({ ok: true, message: `${teamName}: ${label} applied — ${newTotal} points.` });
+      }
     }
     loadScores(pin);
   }
@@ -1307,6 +1331,9 @@ function QuizControllerInner() {
                       <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeam || "Team"} size="compact" audioEnabled={false} />
                     </div>
                   )}
+                  {spinFeedback && (
+                    <div role="status" style={{ maxWidth:520, margin:"0 auto 16px", padding:"12px 16px", borderRadius:12, background: spinFeedback.ok ? "rgba(46,224,110,.12)" : "rgba(255,59,78,.14)", border:`1px solid ${spinFeedback.ok ? "rgba(46,224,110,.45)" : "rgba(255,59,78,.5)"}`, color:spinFeedback.ok ? "#2EE06E" : "#ff8290", fontWeight:800 }}>{spinFeedback.message}</div>
+                  )}
                   <button onClick={() => { if (isLastQ) doEndRound(); else doPreviewQuestion(qIdx + 1); }} style={{ padding:"12px 32px", borderRadius:10, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", marginBottom:24, marginTop:16 }}>Continue ▶</button>
                   {spinChoice === "pass" && (
                     <div style={{ fontSize:16, color:"rgba(255,255,255,0.5)", marginBottom:24 }}>{fastestTeam} passed</div>
@@ -1438,7 +1465,7 @@ function QuizControllerInner() {
                   <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Timer - Picture/Audio (s)</label>
                   <input type="number" value={timerDuration} onChange={e => setTimerDuration(Number(e.target.value))} style={{ width:60, padding:"6px 8px", borderRadius:10, background:"#0A0118", color:"#fff", border:"1px solid #2E1A52", font:"600 14px 'Inter'", textAlign:"center" as const }} />
                 </div>
-                <div style={{ font:"400 11px 'Inter'", color:"#6B5A8E" }}>Multiple Choice/Sequence/Multi Tap/Number = 15s, written answers = 30s (fixed)</div>
+                <div style={{ font:"400 11px 'Inter'", color:"#6B5A8E" }}>Multiple Choice/Sequence/TapType/Number = 15s, written answers = 30s (fixed)</div>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Max time bonus</label>
                   <input type="number" value={timeBonus} onChange={e => setTimeBonus(Number(e.target.value))} style={{ width:60, padding:"6px 8px", borderRadius:10, background:"#0A0118", color:"#fff", border:"1px solid #2E1A52", font:"600 14px 'Inter'", textAlign:"center" as const }} />

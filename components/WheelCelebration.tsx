@@ -9,7 +9,7 @@ export function WheelCelebration({ teamName, victorySong, type, onDone, resultLa
   const rafRef = useRef<number>(0);
 
   useEffect(() => {
-    if (type === "positive") { playAirHornAndCrowd(); playVictorySong(); startFireworks(); }
+    if (type === "positive") { playAirHorn(); playVictorySong(); startFireworks(); }
     else { playSadTrombone(); }
     const timer = setTimeout(() => { cleanup(); onDone(); }, type === "positive" ? 10000 : 5000);
     return () => { clearTimeout(timer); cleanup(); };
@@ -28,20 +28,11 @@ export function WheelCelebration({ teamName, victorySong, type, onDone, resultLa
     audioRef.current = audio;
   }
 
-  function playAirHornAndCrowd() {
+  function playAirHorn() {
     try {
       const horn = new Audio('/sounds/airhorn.mp3');
       horn.volume = 1.0;
       horn.play().catch(() => {});
-      const crowd = new Audio('/sounds/crowd-cheer.mp3');
-      crowd.volume = 0.9;
-      crowd.play().catch(() => {});
-      setTimeout(() => {
-        const fadeOut = setInterval(() => {
-          if (crowd.volume > 0.05) { crowd.volume = Math.max(0, crowd.volume - 0.05); }
-          else { crowd.pause(); crowd.currentTime = 0; clearInterval(fadeOut); }
-        }, 100);
-      }, 3500);
     } catch {}
   }
 

@@ -62,7 +62,6 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
   const [bulbGolden, setBulbGolden] = useState(false);
   const fwRef = useRef<number | null>(null);
   const fwCanvasRef = useRef<HTMLCanvasElement>(null);
-  const crowdRef = useRef<HTMLAudioElement | null>(null);
   const spinSoundRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const INITIAL_CENTRE = Math.floor(STRIP_LEN / 2);
@@ -215,27 +214,11 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
       const horn = new Audio("/sounds/airhorn.mp3");
       horn.volume = 1.0;
       horn.play().catch(() => {});
-      const crowd = new Audio("/sounds/crowd-cheer.mp3");
-      crowd.volume = 0.9;
-      crowdRef.current = crowd;
-      crowd.play().catch(() => {});
       if (songFile) {
         const song = new Audio("/sounds/" + encodeURIComponent(songFile));
         song.volume = 0.85;
         song.play().catch(() => {});
       }
-      setTimeout(() => {
-        if (crowdRef.current) {
-          const fadeInterval = setInterval(() => {
-            if (crowdRef.current && crowdRef.current.volume > 0.05) {
-              crowdRef.current.volume = Math.max(0, crowdRef.current.volume - 0.05);
-            } else {
-              if (crowdRef.current) crowdRef.current.pause();
-              clearInterval(fadeInterval);
-            }
-          }, 200);
-        }
-      }, 4000);
     } catch {}
   };
 
@@ -321,7 +304,6 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
     setOverlay(null);
     stopBulbs();
     if (fwRef.current) { cancelAnimationFrame(fwRef.current); fwRef.current = null; }
-    if (crowdRef.current) { crowdRef.current.pause(); crowdRef.current = null; }
     if (fwCanvasRef.current) {
       const ctx = fwCanvasRef.current.getContext("2d");
       if (ctx) ctx.clearRect(0, 0, 9999, 9999);

@@ -47,7 +47,6 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
   const [bulbGolden, setBulbGolden] = useState(false);
   const bulbRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fwCanvasRef = useRef<HTMLCanvasElement>(null);
-  const crowdRef = useRef<HTMLAudioElement | null>(null);
   const spinAudioElRef = useRef<HTMLAudioElement | null>(null);
   const lastHandledTarget = useRef<number | string | null>(null);
 
@@ -166,27 +165,11 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
       const horn = new Audio("/sounds/airhorn.mp3");
       horn.volume = 1.0;
       horn.play().catch(() => {});
-      const crowd = new Audio("/sounds/crowd-cheer.mp3");
-      crowd.volume = 0.9;
-      crowdRef.current = crowd;
-      crowd.play().catch(() => {});
       if (songFile) {
         const song = new Audio("/sounds/" + encodeURIComponent(songFile));
         song.volume = 0.85;
         song.play().catch(() => {});
       }
-      setTimeout(() => {
-        if (crowdRef.current) {
-          const fadeInterval = setInterval(() => {
-            if (crowdRef.current && crowdRef.current.volume > 0.05) {
-              crowdRef.current.volume = Math.max(0, crowdRef.current.volume - 0.05);
-            } else {
-              if (crowdRef.current) crowdRef.current.pause();
-              clearInterval(fadeInterval);
-            }
-          }, 200);
-        }
-      }, 4000);
     } catch {}
   };
   const playNegativeSounds = () => {

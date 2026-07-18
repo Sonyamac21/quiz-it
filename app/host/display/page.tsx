@@ -105,10 +105,10 @@ function LiveAudioPlayer({ question }: { question: Question }) {
 // Cache of preloaded Audio elements, keyed by filename - playing a cloned node
 // from an already-loaded source starts instantly instead of re-fetching/decoding
 // the file from scratch on every single play. This was the cause of audio lag
-// during The Hard Deck, where the same few sounds (crowd-cheer, airhorn) fire
+// during The Hard Deck, where the same short cues fire
 // repeatedly in quick succession.
 const audioPreloadCache = new Map<string, HTMLAudioElement>();
-const PRELOAD_SOUNDS = ["crowd-cheer.mp3", "airhorn.mp3", "sad-trombone.mp3", "round-start.mp3", "clapping-scores.mp3"];
+const PRELOAD_SOUNDS = ["airhorn.mp3", "sad-trombone.mp3", "round-start.mp3", "clapping-scores.mp3"];
 
 // Lobby Power-Card rules rotation. Rules mirror the real cards in
 // components/UnoCards.tsx; colours are the locked feature tokens
@@ -220,6 +220,7 @@ function DisplayScreenInner() {
   // filter to the current question without re-subscribing.
   const [lockedTeams, setLockedTeams] = useState<string[]>([]);
   const qIndexRef = useRef(0);
+  const lockedQuestionRef = useRef(-1);
   // Lobby Power-Card rules rotation (Time-Out · Boost · Reverse), one at a time.
   const [powerCardIdx, setPowerCardIdx] = useState(0);
   useEffect(() => {
@@ -412,7 +413,6 @@ function DisplayScreenInner() {
   const victorySongRef = useRef<HTMLAudioElement|null>(null);
   const celebrationPlayingForRef = useRef<string | null>(null);
   const clappingRef = useRef<HTMLAudioElement|null>(null);
-  const quizEndCrowdRef = useRef<HTMLAudioElement|null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
   const flashRef = useRef<ReturnType<typeof setInterval>|null>(null);
   // Tracks the full timer duration so the SVG ring can show correct progress
@@ -430,7 +430,7 @@ function DisplayScreenInner() {
   const trophyCelebrationFiredRef = useRef(false);
   // Single source of truth for the end-of-quiz winner audio. Both the final
   // team reveal and the trophy/podium reveal used to independently start the
-  // airhorn/crowd/victory-song sequence, so whichever fired second paused and
+  // airhorn/victory-song sequence, so whichever fired second paused and
   // restarted the first - cutting the winner's song short (or making it seem
   // inaudible). This guard guarantees the sequence starts exactly once, at the
   // winner reveal, and is not restarted by the later phase/trophy update.
@@ -440,13 +440,8 @@ function DisplayScreenInner() {
     winnerCelebrationFiredRef.current = true;
     stopClapping();
     const winnerTeam = winnerName ? teamsRef.current.find(t => t.team_name === winnerName) : null;
-    // The winner's victory theme must be the PRIMARY audio. The airhorn/crowd are
-    // brief accents kept well below it so they never mask the song.
+    // The winner's victory theme is the primary audio. The airhorn is a brief accent.
     playSound("airhorn.mp3", 0.6);
-    const crowd = new Audio("/sounds/crowd-cheer.mp3");
-    crowd.volume = 0.35;
-    crowd.play().catch(() => {});
-    quizEndCrowdRef.current = crowd;
     // Start the winning team's configured victory song at full volume and let it
     // play to its natural end - no forced stop timer, so it is never cut short.
     if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
@@ -457,21 +452,6 @@ function DisplayScreenInner() {
       song.play().catch(() => {});
       victorySongRef.current = song;
     }
-    // Fade the crowd cheer out quickly (starts low, ~2s) so the winner theme is
-    // the only thing playing for the rest of the podium.
-    setTimeout(() => {
-      const crowdEl = quizEndCrowdRef.current;
-      if (!crowdEl) return;
-      const fadeInterval = setInterval(() => {
-        if (crowdEl.volume > 0.05) {
-          crowdEl.volume = Math.max(0, crowdEl.volume - 0.05);
-        } else {
-          crowdEl.pause();
-          clearInterval(fadeInterval);
-          if (quizEndCrowdRef.current === crowdEl) quizEndCrowdRef.current = null;
-        }
-      }, 150);
-    }, 2000);
   }
   function handleRevealNext(nextCount: number) {
     const sorted = [...quizEndScores].sort((a,b) => a.total_points - b.total_points);
@@ -479,12 +459,9 @@ function DisplayScreenInner() {
     const isFirst = nextCount === sorted.length && sorted.length > 0;
     if (isFirst) {
       // Winner reveal: fire the (once-only) winner celebration. Do NOT also play
-      // the generic per-reveal crowd cheer here - that overlapped/competed with
-      // the winner sequence.
+      // any generic per-reveal sound here; it would compete with the winner sequence.
       const winner = sorted[sorted.length - 1];
       playWinnerCelebration(winner?.team_name);
-    } else {
-      playSound("crowd-cheer.mp3", 0.7);
     }
   }
 
@@ -550,14 +527,9 @@ function DisplayScreenInner() {
       const newHDStatus = (data.hard_deck_status as string) || "idle";
       const newHDPotential = (data.hard_deck_potential as number) || 0;
       if (newHDStatus !== prevHardDeckStatusRef.current) {
-        if (newHDStatus === "decision") {
-          playSound("crowd-cheer.mp3", 0.6);
-        } else if (newHDStatus === "won") {
+        if (newHDStatus === "won") {
           if (newHDPotential >= 40) {
             playSound("airhorn.mp3", 1.0);
-            setTimeout(() => playSound("crowd-cheer.mp3", 0.8), 200);
-          } else {
-            playSound("crowd-cheer.mp3", 0.6);
           }
         } else if (newHDStatus === "lost") {
           playSound("sad-trombone.mp3", 0.9);
@@ -578,7 +550,7 @@ function DisplayScreenInner() {
       // in public/sounds/ (playSound also swallows any missing-file error).
       const prevStatus = prevPursuitStatusRef.current;
       if (p.status !== prevStatus) {
-        if (p.status === "question") { playSound("race-ambience.mp3", 0.15); }
+        if (p.status === "intro") { playSound("round-start.mp3", 0.65); }
         else if (p.status === "reveal") { playSound("correct-chime.mp3", 0.5); }
         else if (p.status === "advance") {
           const prevRace = prevPursuitRaceRef.current;
@@ -589,15 +561,15 @@ function DisplayScreenInner() {
           // Runner advancing → footsteps; the final sprint (gate 7) is the same
           // footsteps, louder. Eliminations stay silent.
           if (advanced) playSound("footsteps.mp3", gate7 ? 0.65 : 0.4);
-          if (newlyFinished) setTimeout(() => playSound("crowd-cheer.mp3", 0.8), 600); // one shared cheer + finish sweep
+          if (newlyFinished) playSound("airhorn.mp3", 0.45);
           // Lane compaction whoosh — fired once at COMPACTION_DELAY (1300ms), after
           // the runners have finished moving, as the surviving lanes reflow. Well
           // clear of the footsteps at t=0, so the two never overlap.
           setTimeout(() => playSound("whoosh.mp3", 0.3), 1300);
         }
         else if (p.status === "complete") {
-          // Nobody finished → one sad trombone. Finishers already got the shared
-          // cheer when they crossed, so no extra audio here (no duplicate).
+          // Nobody finished → one sad trombone. Finishers already received their
+          // finish cue, so no extra audio here.
           const finishers = Object.values(newRace).filter(e => e.status === "completed").length;
           if (finishers === 0) playSound("sad-trombone.mp3", 0.9);
         }
@@ -616,7 +588,8 @@ function DisplayScreenInner() {
     }
 
     // Reset picture sub-phase when new question arrives
-    if (newPhase === "question") {
+    if (newPhase === "question" && lockedQuestionRef.current !== qIndexRef.current) {
+      lockedQuestionRef.current = qIndexRef.current;
       const q = data.current_question as {question_type?: string} | null;
       if (q?.question_type === "picture") {
         setPictureSubPhase("image_only");
@@ -643,7 +616,6 @@ function DisplayScreenInner() {
         winnerCelebrationFiredRef.current = false;
         stopClapping();
         if (victorySongRef.current) { victorySongRef.current.pause(); victorySongRef.current = null; }
-        if (quizEndCrowdRef.current) { quizEndCrowdRef.current.pause(); quizEndCrowdRef.current = null; }
         const clap = new Audio("/sounds/clapping-scores.mp3");
         clap.volume = 0.5;
         clap.loop = true;
@@ -808,6 +780,26 @@ function DisplayScreenInner() {
     }, 1000);
     return () => clearInterval(poll);
   }, [connected, sessionPin]);
+
+  // Rebuild the live Locked In state from authoritative answers. Realtime gives
+  // immediate feedback, while this short poll repairs dropped websocket events
+  // and makes refresh/reconnect land on the correct count.
+  useEffect(() => {
+    if (!connected || !sessionPin || (phase !== "question" && phase !== "pursuit")) return;
+    let active = true;
+    const supabase = createSupabaseBrowserClient();
+    const load = async () => {
+      const { data } = await supabase.from("answers")
+        .select("team_name")
+        .eq("session_pin", sessionPin)
+        .eq("question_index", questionIndex);
+      if (!active || !data) return;
+      setLockedTeams([...new Set(data.map(row => row.team_name).filter(Boolean))]);
+    };
+    load();
+    const id = window.setInterval(load, 1000);
+    return () => { active = false; window.clearInterval(id); };
+  }, [connected, sessionPin, phase, questionIndex]);
 
   useEffect(() => {
     const pinFromUrl = searchParams.get("pin");

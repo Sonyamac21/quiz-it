@@ -136,7 +136,7 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
     "--lane-gap": layout.gap + "px",
   });
 
-  const boardClass = ["pursuit-board", answering ? "answering" : ""].filter(Boolean).join(" ");
+  const boardClass = ["pursuit-board", answering ? "answering" : "", answering && typeof timeLeft === "number" && timeLeft <= 5 ? "urgent" : ""].filter(Boolean).join(" ");
 
   return (
     <div ref={boardRef} className={boardClass} style={rootStyle}>

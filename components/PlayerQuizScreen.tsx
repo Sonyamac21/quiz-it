@@ -6,7 +6,7 @@ import { UnoPlayerCards } from "@/components/UnoCards";
 import { AnswerKeypad } from "@/components/AnswerKeypad";
 import { SlotReels } from "@/components/SlotReels";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
-import { PursuitPhase, readPursuitState, readQIndex, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
+import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitTotalPoints, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { Crest } from "@/components/fable/HandsetStates";
 import { teamInitials } from "@/components/TeamBadge";
 import { PlayerShell, PlayerStatusBar, PlayerResultBanner } from "@/components/player/PlayerUI";
@@ -219,6 +219,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   // question / answer screens (see the render conditions below).
   const [pursuitStatus, setPursuitStatus] = useState<PursuitPhase>("idle");
   const [pursuitQIndex, setPursuitQIndex] = useState(-1);
+  const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
+  const [connectionLost, setConnectionLost] = useState(false);
   const [sessionStatus, setSessionStatus] = useState<string>("waiting");
   const [allTeamNames, setAllTeamNames] = useState<string[]>([]);
   const [intermissionOffers, setIntermissionOffers] = useState("");
@@ -239,6 +241,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   // when no question was in play. Handled-once per nonce so the return trip to
   // "celebration" (nonce cleared) isn't re-forced back into the spin.
   const spinNonceHandledRef = useRef<number | null>(null);
+  const connectionFailuresRef = useRef(0);
 
 
   // Fable handset stage: violet-black (--stage-deep) with a single low bloom.
@@ -293,26 +296,6 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       if (sentinel) { sentinel.release().catch(() => {}); sentinel = null; }
     };
   }, [sessionStatus]);
-  // Backup: a silent looping audio track discourages most mobile browsers from sleeping the screen,
-  // since actively playing media is treated differently from an idle tab.
-  useEffect(() => {
-    const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
-    const audio = new Audio(SILENT_WAV);
-    audio.loop = true;
-    audio.volume = 0.01;
-    const tryPlay = () => { audio.play().catch(() => {}); };
-    tryPlay();
-    document.addEventListener("click", tryPlay, { once: true });
-    document.addEventListener("touchstart", tryPlay, { once: true });
-    document.addEventListener("visibilitychange", tryPlay);
-    return () => {
-      audio.pause();
-      document.removeEventListener("click", tryPlay);
-      document.removeEventListener("touchstart", tryPlay);
-      document.removeEventListener("visibilitychange", tryPlay);
-    };
-  }, []);
-
   const applySessionDataRef = useRef<(data: Record<string, unknown>) => void>(() => {});
 
   useEffect(() => {
@@ -323,12 +306,20 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const supabase = createSupabaseBrowserClient();
 
     async function fetchSession() {
-      const { data } = await supabase
+      const { data, error: fetchError } = await supabase
         .from("sessions")
         .select("phase, status, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data")
         .eq("pin", sessionPin)
         .single();
-      if (data) applySessionDataRef.current(data as Record<string, unknown>);
+      if (fetchError) {
+        connectionFailuresRef.current += 1;
+        if (connectionFailuresRef.current >= 3) setConnectionLost(true);
+      }
+      if (data) {
+        connectionFailuresRef.current = 0;
+        setConnectionLost(false);
+        applySessionDataRef.current(data as Record<string, unknown>);
+      }
     }
 
     async function fetchTeamOrder() {
@@ -367,7 +358,10 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           applySessionDataRef.current(payload.new as Record<string, unknown>);
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") setConnectionLost(false);
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") fetchSession();
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -424,6 +418,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const newPursuitStatus = pursuitState.status;
     setPursuitStatus(newPursuitStatus);
     setPursuitQIndex(readQIndex(pursuitState));
+    setPursuitRace(readRace(pursuitState));
     setSpinOffered(!!data.spin_offered);
     setSpinChoice((data.spin_choice as string) || null);
     setIntermissionOffers((data.intermission_offers as string) || "");
@@ -473,6 +468,10 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
   async function submitAnswer(answer: string, retryCount = 0) {
     if (submitted || !answer.trim()) return;
+    if (phase === "pursuit" && pursuitRace[teamName]?.status !== "active") {
+      setError("Your Pursuit run is complete. You can watch the race from here.");
+      return;
+    }
     if (timeLeft !== null && timeLeft <= -2) {
       setError("Time's up! No more answers accepted for this question.");
       setTimeout(() => setError(""), 2500);
@@ -521,8 +520,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         setTimeout(() => { setSubmitted(false); submitAnswer(answer, retryCount + 1); }, 800);
       } else {
         setSubmitted(false);
-        setError("Connection issue - your answer didn't save. Please try again.");
-        setTimeout(() => setError(""), 4000);
+        setConnectionLost(true);
+        setError("Connection lost. Close and reopen the keypad to reconnect.");
       }
     }
   }
@@ -583,6 +582,31 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
     </div> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>
   );
+
+  if (connectionLost) {
+    return (
+      <PlayerShell className="qi-player-recovery">
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} />
+        <PlayerResultBanner tone="neutral" title="CONNECTION LOST">Close and reopen the keypad to reconnect.</PlayerResultBanner>
+        <button className="qi-player-reconnect" onClick={() => window.location.reload()}>RECONNECT</button>
+      </PlayerShell>
+    );
+  }
+
+  if (phase === "pursuit" && pursuitStatus === "question" && pursuitRace[teamName]?.status !== "active") {
+    const entry = pursuitRace[teamName];
+    const stage = entry?.stage ?? 0;
+    return (
+      <PlayerShell className="qi-player-pursuit-observer">
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={false} />
+        <div className="qi-player-observer-label">OBSERVATION ONLY</div>
+        <h1>{entry?.status === "completed" ? "FINISHED" : "ELIMINATED"}</h1>
+        <div className="qi-player-observer-score"><span>Banked score</span><strong>{pursuitTotalPoints(stage)}</strong></div>
+        <div className="qi-player-observer-progress">Race progress: {stage} of {PURSUIT_TOTAL_QUESTIONS}</div>
+        <p>Stay connected and watch the remaining teams race.</p>
+      </PlayerShell>
+    );
+  }
 
   if (showScoreboardOnPhone && !hideLeaderboard && phase !== "quiz_end") {
     const sorted = [...phoneScoreboardData].sort((a,b) => b.total_points - a.total_points);
@@ -1076,7 +1100,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           <SequenceQuestion options={seqItems} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} submitted={submitted} />
         )}
 
-        {!isMultiChoice && !isSequence && !submitted && (
+        {!isMultiChoice && !isSequence && !isMultiTap && !submitted && (
           <div style={{ marginBottom: 16 }}>
             <AnswerKeypad mode={question.question_type === "number" ? "number" : "text"} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
           </div>
@@ -1137,8 +1161,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   return (
     <div className="fbl fbl-phone qi-player-state qi-player-waiting" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: 24, textAlign: "center", position: "relative", zIndex: 2 }}>
-        <Crest initials={teamInitials(teamName)} size={120} />
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 14, textAlign: "center", position: "relative", zIndex: 2 }}>
+        <Crest initials={teamInitials(teamName)} size={88} />
         <div style={{ font: "800 clamp(22px,6.6vw,30px) 'Inter'", color: "#fff" }}>{teamName}</div>
         <div style={{ font: "600 clamp(15px,4.6vw,18px) 'Inter'", color: "#B9A8D9", lineHeight: 1.45 }}>
           Waiting for your host…
@@ -1150,7 +1174,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           )}
         </div>
       </div>
-      {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+      {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
     </div>
   );
 }

@@ -1,5 +1,25 @@
-import { redirect } from "next/navigation";
+"use client";
 
-export default function HostPage() {
-  redirect("/host/events");
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { formatEventDate, formatEventTime, localDateKey, type EventRecord } from "@/lib/events/types";
+
+type VenueAlert = { id:string; venue_name:string; venue_logo_url:string|null; default_quiz_id:string|null; default_start_time:string|null; contact_email:string|null; active:boolean };
+const addDays=(date:Date,days:number)=>{const copy=new Date(date);copy.setDate(copy.getDate()+days);return localDateKey(copy)};
+
+export default function BackOfficeDashboard(){
+  const [events,setEvents]=useState<EventRecord[]>([]);const [venues,setVenues]=useState<VenueAlert[]>([]);const [questionCount,setQuestionCount]=useState(0);const [loading,setLoading]=useState(true);const [error,setError]=useState("");
+  const load=useCallback(async()=>{const supabase=createSupabaseBrowserClient();const today=localDateKey();const [{data:eventData,error:eventError},{data:venueData},{count}]=await Promise.all([supabase.from("events").select("*,venue:venues!events_venue_record_id_fkey(venue_name,address,venue_logo_url),quiz:quizzes!events_quiz_definition_id_fkey(name)").gte("event_date",today).order("event_date").order("start_time").limit(30),supabase.from("venues").select("id,venue_name,venue_logo_url,default_quiz_id,default_start_time,contact_email,active").order("venue_name"),supabase.from("question_bank").select("id",{count:"exact",head:true})]);setEvents((eventData||[]) as EventRecord[]);setVenues((venueData||[]) as VenueAlert[]);setQuestionCount(count||0);if(eventError)setError(eventError.message);setLoading(false)},[]);
+  useEffect(()=>{const timer=window.setTimeout(()=>void load(),0);return()=>window.clearTimeout(timer)},[load]);
+  const today=localDateKey();const weekEnd=addDays(new Date(),7);const todayEvents=events.filter(e=>e.event_date===today);const weekEvents=events.filter(e=>e.event_date<=weekEnd);const alerts=useMemo(()=>venues.filter(v=>v.active&&(!v.default_quiz_id||!v.default_start_time||!v.contact_email)),[venues]);
+  return <main className="qi-bo-page"><header className="qi-bo-pagehead"><div><p>Back Office</p><h1>Good evening</h1><span>Everything needed to prepare the next live event.</span></div><Link className="qi-bo-primary" href="/host/events">Open Calendar</Link></header>{error&&<div className="qi-bo-alert" role="alert">Dashboard data could not be fully loaded: {error}</div>}
+    <section className="qi-bo-stats"><article><strong>{todayEvents.length}</strong><span>Today&apos;s quizzes</span></article><article><strong>{weekEvents.length}</strong><span>Next 7 days</span></article><article><strong>{venues.filter(v=>v.active).length}</strong><span>Active venues</span></article><article><strong>{questionCount}</strong><span>Saved questions</span></article></section>
+    <div className="qi-bo-dashboard-grid"><section><div className="qi-bo-sectionhead"><div><p>Today</p><h2>Today&apos;s quizzes</h2></div><Link href="/host/events">Full calendar</Link></div>{loading?<div className="qi-bo-card">Loading today&apos;s schedule…</div>:todayEvents.length?todayEvents.map(event=><EventRow key={event.id} event={event}/>):<div className="qi-bo-empty"><strong>No quizzes today</strong><span>The calendar is clear.</span><Link href="/host/events">Schedule an event</Link></div>}</section>
+      <aside><div className="qi-bo-sectionhead"><div><p>Attention</p><h2>Venue alerts</h2></div><Link href="/host/venues">Manage venues</Link></div>{alerts.length?alerts.slice(0,5).map(v=><div className="qi-bo-card" key={v.id}><strong>{v.venue_name}</strong><span>{[!v.default_quiz_id&&"Quiz Plan",!v.default_start_time&&"start time",!v.contact_email&&"contact email"].filter(Boolean).join(", ")} missing</span></div>):<div className="qi-bo-card"><strong>Venue profiles ready</strong><span>No essential planning details need attention.</span></div>}</aside>
+    </div><section><div className="qi-bo-sectionhead"><div><p>This week</p><h2>Upcoming quizzes</h2></div></div><div className="qi-bo-upcoming">{weekEvents.length?weekEvents.map(event=><EventRow key={event.id} event={event}/>):<div className="qi-bo-empty"><strong>No upcoming quizzes</strong><span>Choose a date in Calendar to schedule one.</span></div>}</div></section>
+    <section><div className="qi-bo-sectionhead"><div><p>Shortcuts</p><h2>Quick actions</h2></div></div><div className="qi-bo-actions"><Link href="/host/events">Schedule quiz</Link><Link href="/host/venues">Add venue</Link><Link href="/host/quizzes">Build Quiz Plan</Link><Link href="/host/questions">Generate questions</Link><Link href="/host/media">Review media</Link></div></section>
+  </main>
 }
+
+function EventRow({event}:{event:EventRecord}){return <article className="qi-bo-event"><div className="qi-bo-date"><strong>{new Date(`${event.event_date}T12:00:00`).getDate()}</strong><span>{new Date(`${event.event_date}T12:00:00`).toLocaleDateString("en-GB",{month:"short"})}</span></div><div><strong>{event.venue?.venue_name||event.event_name}</strong><span>{formatEventDate(event.event_date)} · {formatEventTime(event.start_time)} · {event.host_name||"Host"}</span><small>{event.quiz?.name||"Quiz Plan needed"}</small></div><span className={`qi-bo-status ${event.status}`}>{event.status}</span><Link href={`/host/events`}>Open</Link></article>}

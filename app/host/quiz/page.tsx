@@ -28,7 +28,7 @@ type Question = {
   fade_in?: boolean;
   fade_out?: boolean;
 };
-type Round = { id: string; name: string; questions: Question[]; round_type?: string; };
+type Round = { id: string; name: string; questions: Question[]; round_type?: string; hide_leaderboard?: boolean; allow_power_cards?: boolean; };
 type Team = { id: string; team_name: string; victory_song: string; session_pin: string; };
 type Answer = { session_pin: string; id: string; team_name: string; question_index: number; answer_text: string; submitted_at: string; };
 type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
@@ -251,7 +251,7 @@ function QuizControllerInner() {
 
   async function loadRounds() {
     const supabase = createSupabaseBrowserClient();
-    const { data, error } = await supabase.from("rounds").select("id, name, questions, round_type").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("rounds").select("id, name, questions, round_type, hide_leaderboard, allow_power_cards").order("created_at", { ascending: false });
     // The round selector is populated from this query. If it fails (most commonly
     // an RLS denial because the browser client has no authenticated Supabase
     // session) the dropdown has nothing to choose — surface why instead of an
@@ -565,6 +565,7 @@ function QuizControllerInner() {
 
   async function pushScoreboardToScreen() {
     if (!sessionId) return;
+    if (selectedRound?.hide_leaderboard) return;
     // scoreboard_data is kept fresh by the score service after every score
     // mutation - no need to recompute or embed it here, just toggle visibility.
     const supabase = createSupabaseBrowserClient();
@@ -581,6 +582,7 @@ function QuizControllerInner() {
 
   async function pushScoreboardToHandsets() {
     if (!sessionId) return;
+    if (selectedRound?.hide_leaderboard) return;
     // scoreboard_data is kept fresh by the score service after every score
     // mutation - no need to recompute or embed it here, just toggle visibility.
     const supabase = createSupabaseBrowserClient();
@@ -773,7 +775,16 @@ function QuizControllerInner() {
     roundStartedRef.current = Date.now();
     playSound("round-start.mp3");
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "round_start", round_name: selectedRound.name, round_number: roundNumber, fastest_team: null, fastest_song: null }).eq("id", sessionId);
+    await supabase.from("sessions").update({
+      phase: "round_start",
+      round_name: selectedRound.name,
+      round_number: roundNumber,
+      fastest_team: null,
+      fastest_song: null,
+      hide_leaderboard: selectedRound.hide_leaderboard ?? false,
+      allow_power_cards: selectedRound.allow_power_cards ?? true,
+      ...(selectedRound.hide_leaderboard ? { show_scoreboard: false } : {}),
+    }).eq("id", sessionId);
     // Reset round_points for the new round - previously this only happened if the
     // host remembered to click "Reset Round Points" manually, so the leaderboard's
     // "Rd: +X" figure could carry over and keep accumulating across the whole game
@@ -1060,8 +1071,14 @@ function QuizControllerInner() {
   // big desk picker). Behaviour identical to the original inline handler.
   function chooseRound(r: (typeof rounds)[number] | null) {
     setSelectedRound(r || null); setQIdx(0); setAnswers([]); setHostPhase("waiting");
+    if (r?.hide_leaderboard) { setShowScoreboard(false); setShowScoreboardOnHandsets(false); }
     roundQuestionsRef.current = r ? [...r.questions] : [];
-    if (sessionId) createSupabaseBrowserClient().from("sessions").update({ round_id: r?.id || null }).eq("id", sessionId);
+    if (sessionId) createSupabaseBrowserClient().from("sessions").update({
+      round_id: r?.id || null,
+      hide_leaderboard: r?.hide_leaderboard ?? false,
+      allow_power_cards: r?.allow_power_cards ?? true,
+      ...(r?.hide_leaderboard ? { show_scoreboard: false } : {}),
+    }).eq("id", sessionId);
   }
 
   const spacebarHint =
@@ -1199,8 +1216,8 @@ function QuizControllerInner() {
       {/* SCOREBOARD BUTTONS BAR */}
       <div className="qi-mc-toolbar">
         <div className="qi-mc-toolbar__label"><span>Audience</span><strong>Scoreboard controls</strong></div>
-        <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
-        <Button variant={showScoreboard ? "primary" : "secondary"} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{showScoreboard ? "Hide on display" : "Show on display"}</Button>
+        <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handset leaderboard hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
+        <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display leaderboard hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
         {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
         <Button variant="destructive" className="qi-mc-toolbar__end" onClick={doEndOfQuiz}>End quiz</Button>
       </div>

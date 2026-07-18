@@ -25,6 +25,8 @@ type Round = {
   difficulty: string;
   created_at: string;
   questions: Question[];
+  hide_leaderboard: boolean;
+  allow_power_cards: boolean;
 };
 
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence" };
@@ -75,12 +77,28 @@ export default function RoundsPage() {
       round_type: round.round_type,
       difficulty: round.difficulty,
       questions: round.questions,
+      hide_leaderboard: round.hide_leaderboard ?? false,
+      allow_power_cards: round.allow_power_cards ?? true,
     }).select().single();
     if (!error && data) {
       setRounds(prev => [data, ...prev]);
       setStatus("Round duplicated!");
       setTimeout(() => setStatus(""), 2000);
     }
+  }
+
+  async function updateRoundBehaviour(id: string, field: "hide_leaderboard" | "allow_power_cards", value: boolean) {
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.from("rounds").update({ [field]: value }).eq("id", id);
+    if (error) {
+      setStatus("Could not update round settings: " + error.message);
+      return;
+    }
+    const apply = (round: Round) => round.id === id ? { ...round, [field]: value } : round;
+    setRounds(prev => prev.map(apply));
+    setOpenRound(prev => prev ? apply(prev) : prev);
+    setStatus("Round behaviour updated");
+    setTimeout(() => setStatus(""), 2000);
   }
 
   async function sendToBank(roundId: string, qIdx: number) {
@@ -187,6 +205,20 @@ export default function RoundsPage() {
               <HostButton onClick={() => setOpenRound(null)} style={{ height: 36 }}>Back</HostButton>
               <div style={{ font: "800 18px 'Inter'" }}>{openRound.name}</div>
               <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>{openRound.questions.length} questions</div>
+            </div>
+            <div className="fbh-panel" style={{ display: "grid", gap: 14 }}>
+              <div>
+                <div style={{ font: "800 14px 'Inter'", marginBottom: 4 }}>Round behaviour</div>
+                <div style={{ font: "400 12px 'Inter'", color: "#B9A8D9" }}>These rules apply whenever this round is selected. They do not change scoring.</div>
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+                <input type="checkbox" checked={openRound.hide_leaderboard ?? false} onChange={e => updateRoundBehaviour(openRound.id, "hide_leaderboard", e.target.checked)} />
+                <span><strong style={{ display: "block", font: "700 13px 'Inter'" }}>Hide leaderboard during this round</strong><small style={{ color: "#6B5A8E" }}>Prevents host, display and handset leaderboard surfaces until the quiz finale.</small></span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+                <input type="checkbox" checked={openRound.allow_power_cards ?? true} onChange={e => updateRoundBehaviour(openRound.id, "allow_power_cards", e.target.checked)} />
+                <span><strong style={{ display: "block", font: "700 13px 'Inter'" }}>Allow Power Cards during this round</strong><small style={{ color: "#6B5A8E" }}>When disabled, unused cards stay available for a later round.</small></span>
+              </label>
             </div>
             {openRound.questions.map((q, i) => (
               <div key={i} className="fbh-panel">

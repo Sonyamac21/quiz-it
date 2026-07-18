@@ -89,11 +89,11 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
   );
 }
 
-function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAnswerText, onSubmit, questionIndex, timeLeft, purple, font, bg, teamName, sessionPin, roundNumber }: {
+function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAnswerText, onSubmit, questionIndex, timeLeft, purple, font, bg, teamName, sessionPin, roundNumber, allowPowerCards }: {
   imageUrl: string; questionText: string; submitted: boolean; answerText: string;
   setAnswerText: (v: string) => void; onSubmit: (a: string) => void;
   questionIndex: number; timeLeft: number | null; purple: string; font: string; bg: string;
-  teamName: string; sessionPin: string; roundNumber: number;
+  teamName: string; sessionPin: string; roundNumber: number; allowPowerCards: boolean;
 }) {
   const [imageDismissed, setImageDismissed] = React.useState(false);
   const [imageFailed, setImageFailed] = React.useState(false);
@@ -147,9 +147,9 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginTop:4 }}>Waiting for host...</div>
         </div>
       )}
-      <div style={{ marginTop:"auto", paddingTop:12 }}>
-        <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} />
-      </div>
+      {allowPowerCards && <div style={{ marginTop:"auto", paddingTop:12 }}>
+        <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} enabled={allowPowerCards} />
+      </div>}
     </div>
   );
 }
@@ -196,6 +196,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [fastestSongName, setFastestSongName] = useState<string | null>(null);
   const [fastestPoints, setFastestPoints] = useState(0);
   const [showScoreboardOnPhone, setShowScoreboardOnPhone] = useState(false);
+  const [hideLeaderboard, setHideLeaderboard] = useState(false);
+  const [allowPowerCards, setAllowPowerCards] = useState(true);
   const [phoneScoreboardData, setPhoneScoreboardData] = useState<{team_name:string; total_points:number}[]>([]);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
@@ -321,7 +323,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data } = await supabase
         .from("sessions")
-        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data")
+        .select("phase, status, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data")
         .eq("pin", sessionPin)
         .single();
       if (data) applySessionDataRef.current(data as Record<string, unknown>);
@@ -394,7 +396,10 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setFastestSongName((data.fastest_song as string) || null);
     setFastestPoints((data.fastest_points as number) || 0);
     setRoundNumber((data.round_number as number) || 1);
-    setShowScoreboardOnPhone(!!data.show_scoreboard);
+    const leaderboardHidden = !!data.hide_leaderboard;
+    setHideLeaderboard(leaderboardHidden);
+    setAllowPowerCards(data.allow_power_cards !== false);
+    setShowScoreboardOnPhone(!leaderboardHidden && !!data.show_scoreboard);
     setPhoneScoreboardData((data.scoreboard_data as {team_name:string; total_points:number}[]) || []);
     setSpinTargetIdx((data.spin_target_idx as number) ?? null);
     setSpinNonce((data.spin_nonce as number) ?? null);
@@ -571,12 +576,12 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
 
   const PowerCards = () => (
-    <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
-      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} />
-    </div>
+    allowPowerCards ? <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
+      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
+    </div> : null
   );
 
-  if (showScoreboardOnPhone) {
+  if (showScoreboardOnPhone && !hideLeaderboard && phase !== "quiz_end") {
     const sorted = [...phoneScoreboardData].sort((a,b) => b.total_points - a.total_points);
     return (
       <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", padding: 24, fontFamily: font, color: "#fff" }}>
@@ -894,7 +899,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             </>
           );
         })()}
-        <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} />
+        {allowPowerCards && <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />}
       </div>
     );
   }
@@ -970,6 +975,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         teamName={teamName}
         sessionPin={sessionPin}
         roundNumber={roundNumber}
+        allowPowerCards={allowPowerCards}
       />;
     }
     const options = [
@@ -1140,7 +1146,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           )}
         </div>
       </div>
-      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} />
+      {allowPowerCards && <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} enabled={allowPowerCards} />}
     </div>
   );
 }

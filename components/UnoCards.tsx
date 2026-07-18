@@ -9,7 +9,7 @@ const CARDS = [
   { type: "x2",      label: "Boost",    emoji: "⚡", color: "#facc15", bg: "rgba(234,179,8,0.2)",   desc: "Doubles your points for every correct answer in the current round." },
 ];
 
-export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = false }: { teamName: string; sessionPin?: string; roundNumber?: number; compact?: boolean }) {
+export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = false, enabled = true }: { teamName: string; sessionPin?: string; roundNumber?: number; compact?: boolean; enabled?: boolean }) {
   const [used, setUsed] = useState<string[]>([]);
 
   useEffect(() => {
@@ -41,9 +41,16 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
   const [playing, setPlaying] = useState<string | null>(null);
 
   const playCard = async (cardType: string) => {
-    if (!sessionPin || used.includes(cardType) || playing) return;
+    if (!enabled || !sessionPin || used.includes(cardType) || playing) return;
     setPlaying(cardType);
     const supabase = createSupabaseBrowserClient();
+    // Re-check the live round rule at activation time so a handset with a
+    // briefly stale realtime view cannot spend a card during a disabled round.
+    const { data: sessionRule } = await supabase.from("sessions").select("allow_power_cards").eq("pin", sessionPin).maybeSingle();
+    if (sessionRule?.allow_power_cards === false) {
+      setPlaying(null);
+      return;
+    }
     const playedAt = new Date().toISOString();
     // REVERSE needs an existing score to change. Check that before atomically
     // consuming the card so a team never loses it without receiving its effect.
@@ -112,7 +119,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
         <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
           {CARDS.map(card => {
             const isUsed = used.includes(card.type);
-            const isLocked = isUsed;
+            const isLocked = isUsed || !enabled;
             const isPlaying = playing === card.type;
             const fb = FABLE[card.type] || { face: card.bg, ink: card.color, sig: card.emoji, cname: card.label.toUpperCase() };
             return (
@@ -149,7 +156,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
           })}
         </div>
         <div style={{ marginTop: 8, textAlign: "center", font: "600 10px 'Inter'", color: "#6B5A8E", letterSpacing: "0.14em" }}>
-          {`${remaining} OF ${CARDS.length} CARD${remaining === 1 ? "" : "S"} REMAINING TONIGHT · EACH ONCE PER QUIZ`}
+          {enabled ? `${remaining} OF ${CARDS.length} CARD${remaining === 1 ? "" : "S"} REMAINING TONIGHT · EACH ONCE PER QUIZ` : "POWER CARDS ARE NOT AVAILABLE THIS ROUND"}
         </div>
       </div>
     );
@@ -163,7 +170,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
         {CARDS.map(card => {
           const isUsed = used.includes(card.type);
-          const isLocked = isUsed;
+          const isLocked = isUsed || !enabled;
           const isPlaying = playing === card.type;
           return (
             <button

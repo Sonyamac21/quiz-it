@@ -9,7 +9,7 @@ import { SlotReels } from "@/components/SlotReels";
 import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitCorrectAnswerText, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { PursuitBoard } from "@/components/PursuitBoard";
 import { teamInitials } from "@/components/TeamBadge";
-import { RoundStart, RoundEnd, Intermission } from "@/components/fable/DisplayStates";
+import { RoundStart, RoundEnd, Intermission, WaitingForHost } from "@/components/fable/DisplayStates";
 
 type Question = {
   question_text: string;
@@ -347,6 +347,8 @@ function DisplayScreenInner() {
   const [roundName, setRoundName] = useState("");
   const [roundNumber, setRoundNumber] = useState(1);
   const [scoreboardData, setScoreboardData] = useState<Score[]>([]);
+  const [hideLeaderboard, setHideLeaderboard] = useState(false);
+  const [allowPowerCards, setAllowPowerCards] = useState(true);
   // Leaderboard climber chips — movement since the previous board (climbers only).
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const [rankMoves, setRankMoves] = useState<Map<string, number>>(new Map());
@@ -521,6 +523,8 @@ function DisplayScreenInner() {
     }
     setRoundName((data.round_name as string) || "");
     setRoundNumber((data.round_number as number) || 1);
+    setHideLeaderboard(!!data.hide_leaderboard);
+    setAllowPowerCards(data.allow_power_cards !== false);
     const ft = (data.fastest_team as string) || null;
     const fs = (data.fastest_song as string) || null;
     setFastestTeam(ft);
@@ -1001,6 +1005,16 @@ function DisplayScreenInner() {
             </div>
           </div>
           <div className="lb-cardstage">
+            {!allowPowerCards ? (
+              <>
+                <div className="lb-cardkicker">ROUND RULE</div>
+                <div className="lb-pcard">
+                  <div className="lb-pcard-sigil" aria-hidden="true">◇</div>
+                  <div className="lb-pcard-name">POWER CARDS PAUSED</div>
+                  <div className="lb-pcard-rule">Unused cards stay available for a later round.</div>
+                </div>
+              </>
+            ) : <>
             <div className="lb-cardkicker">POWER CARDS</div>
             {(() => {
               const c = POWER_CARD_INFO[powerCardIdx];
@@ -1016,6 +1030,7 @@ function DisplayScreenInner() {
             <div className="lb-dots">
               {POWER_CARD_INFO.map((_, i) => <span key={i} className={"lb-dot" + (i === powerCardIdx ? " on" : "")} />)}
             </div>
+            </>}
           </div>
           <div className="lb-foot">
             <div className="lb-start">SHOW STARTS SOON</div>
@@ -1099,6 +1114,9 @@ function DisplayScreenInner() {
   }
   // SCOREBOARD
   if (phase === "scoreboard") {
+    if (hideLeaderboard) {
+      return <WaitingForHost message="STANDINGS HIDDEN FOR THIS ROUND" />;
+    }
     const sorted = [...scoreboardData].sort((a,b) => b.total_points - a.total_points);
     const leader = sorted[0]?.total_points || 1;
     const topGap = sorted.length >= 3 ? sorted[0].total_points - sorted[2].total_points : sorted.length === 2 ? sorted[0].total_points - sorted[1].total_points : 0;

@@ -1,5 +1,6 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { QUIZ_BROADCAST_CHANNEL } from "@/lib/quiz/realtime";
+import { platformLogger, reportUnexpectedError } from "@/lib/platform/logger";
 
 export async function broadcastToHandsets(
   event: string,
@@ -14,6 +15,7 @@ export async function broadcastToHandsets(
         if (status === "SUBSCRIBED") {
           resolve();
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          platformLogger.warn("realtime", "Handset broadcast channel unavailable", { event, status });
           reject(new Error("Could not connect to realtime channel."));
         }
       });
@@ -28,11 +30,13 @@ export async function broadcastToHandsets(
     await supabase.removeChannel(channel);
 
     if (result !== "ok") {
+      platformLogger.warn("realtime", "Handset broadcast was not acknowledged", { event, result });
       return { ok: false, message: "Broadcast failed. Please try again." };
     }
 
     return { ok: true };
-  } catch {
+  } catch (error) {
+    reportUnexpectedError("realtime", error, "Handset broadcast failed. Gameplay state was preserved.");
     return { ok: false, message: "Something went wrong. Please try again." };
   }
 }

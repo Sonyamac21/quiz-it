@@ -11,6 +11,7 @@ import { PursuitBoard } from "@/components/PursuitBoard";
 import { teamInitials } from "@/components/TeamBadge";
 import { RoundStart, RoundEnd, Intermission, WaitingForHost } from "@/components/fable/DisplayStates";
 import { playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
+import { PLATFORM_CONFIG } from "@/lib/platform/config";
 
 type Question = {
   question_text: string;
@@ -212,7 +213,7 @@ function DisplayScreenInner() {
   const [powerCardIdx, setPowerCardIdx] = useState(0);
   useEffect(() => {
     if (phase !== "waiting") return;
-    const id = setInterval(() => setPowerCardIdx(i => (i + 1) % 3), 8000);
+    const id = setInterval(() => setPowerCardIdx(i => (i + 1) % 3), PLATFORM_CONFIG.display.powerCardRotationMilliseconds);
     return () => clearInterval(id);
   }, [phase]);
   useEffect(() => {
@@ -337,8 +338,8 @@ function DisplayScreenInner() {
   useEffect(() => {
     if (!currentAnnounce) return;
     setAnnounceVisible(true);
-    const fadeOutTimer = setTimeout(() => setAnnounceVisible(false), 3200);
-    const clearTimer = setTimeout(() => setCurrentAnnounce(null), 3600);
+    const fadeOutTimer = setTimeout(() => setAnnounceVisible(false), PLATFORM_CONFIG.display.announcementVisibleMilliseconds);
+    const clearTimer = setTimeout(() => setCurrentAnnounce(null), PLATFORM_CONFIG.display.announcementClearMilliseconds);
     return () => { clearTimeout(fadeOutTimer); clearTimeout(clearTimer); };
   }, [currentAnnounce]);
   const celebrationPlayingForRef = useRef<string | null>(null);
@@ -434,7 +435,7 @@ function DisplayScreenInner() {
         winnerPhotoStartedForRef.current = ft;
         setShowWinnerPhoto(false);
         if (winnerPhotoTimerRef.current) clearTimeout(winnerPhotoTimerRef.current);
-        winnerPhotoTimerRef.current = setTimeout(() => setShowWinnerPhoto(true), 2000);
+        winnerPhotoTimerRef.current = setTimeout(() => setShowWinnerPhoto(true), PLATFORM_CONFIG.display.winnerPhotoDelayMilliseconds);
       }
     } else if (newPhase !== "celebration") {
       winnerPhotoStartedForRef.current = null;
@@ -624,7 +625,7 @@ function DisplayScreenInner() {
         if (prev === null || prev <= 1) { if (timerRef.current) clearInterval(timerRef.current); return 0; }
         return prev - 1;
       });
-    }, 1000);
+    }, PLATFORM_CONFIG.timers.tickMilliseconds);
   }
 
   async function connect() {
@@ -632,7 +633,7 @@ function DisplayScreenInner() {
     setConnecting(true);
     setConnectError("");
     const supabase = createSupabaseBrowserClient();
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000));
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), PLATFORM_CONFIG.reconnect.requestTimeoutMilliseconds));
     let data;
     try {
       const result = await Promise.race([
@@ -684,7 +685,7 @@ function DisplayScreenInner() {
     const poll = setInterval(async () => {
       const { data } = await supabase.from("sessions").select("*").eq("pin", sessionPin).single();
       if (data) applySession(data);
-    }, 1000);
+    }, PLATFORM_CONFIG.polling.displaySessionMilliseconds);
     return () => clearInterval(poll);
   }, [connected, sessionPin]);
 
@@ -704,7 +705,7 @@ function DisplayScreenInner() {
       setLockedTeams([...new Set(data.map(row => row.team_name).filter(Boolean))]);
     };
     load();
-    const id = window.setInterval(load, 1000);
+    const id = window.setInterval(load, PLATFORM_CONFIG.polling.displayScoreboardMilliseconds);
     return () => { active = false; window.clearInterval(id); };
   }, [connected, sessionPin, phase, questionIndex]);
 
@@ -718,7 +719,7 @@ function DisplayScreenInner() {
       const tryAutoConnect = (attempt: number) => {
         supabase.from("sessions").select("*").eq("pin", pinFromUrl).single().then(({ data }) => {
         if (!data) {
-          if (attempt < 3) { setTimeout(() => tryAutoConnect(attempt + 1), 2000); return; }
+          if (attempt < PLATFORM_CONFIG.reconnect.displayAttempts) { setTimeout(() => tryAutoConnect(attempt + 1), PLATFORM_CONFIG.reconnect.displayRetryMilliseconds); return; }
           setConnecting(false);
           setConnectError("Could not connect - check wifi and reload");
           return;

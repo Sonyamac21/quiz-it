@@ -3,8 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { stopAllShowAudio, getShowAudioState, subscribeShowAudio } from "@/lib/audio/showAudio";
 import { diagnosticTimestamp } from "@/lib/diagnostics/time";
+import { BUILD_INFO } from "@/lib/platform/buildInfo";
+import { PLATFORM_CONFIG } from "@/lib/platform/config";
+import { FEATURE_FLAGS } from "@/lib/platform/featureFlags";
+import { createPlatformStatus, type HealthLevel } from "@/lib/platform/health";
+import { platformLogger } from "@/lib/platform/logger";
 
-type Health = "healthy" | "warning" | "problem" | "unknown";
+type Health = HealthLevel;
 type EventItem = { at: number; message: string; level: Health };
 
 export type HostDiagnosticsProps = {
@@ -72,10 +77,15 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
   const previousRef = useRef({ phase: session.phase, answers: answers.length, realtime: realtime.status });
 
   const addEvent = (message: string, level: Health = "healthy") => {
-    setEvents(current => [{ at: diagnosticTimestamp(), message, level }, ...current].slice(0, 200));
+    setEvents(current => [{ at: diagnosticTimestamp(), message, level }, ...current].slice(0, PLATFORM_CONFIG.diagnostics.recentEventLimit));
   };
 
   useEffect(() => subscribeShowAudio(setAudio), []);
+
+  useEffect(() => platformLogger.subscribe(entry => {
+    const level: Health = entry.level === "ERROR" ? "problem" : entry.level === "WARN" ? "warning" : "healthy";
+    setEvents(current => [{ at: entry.at, message: `${entry.scope}: ${entry.message}`, level }, ...current].slice(0, PLATFORM_CONFIG.diagnostics.recentEventLimit));
+  }), []);
 
   useEffect(() => {
     if (!open) return;
@@ -86,13 +96,13 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
 
   useEffect(() => {
     if (!open) return;
-    const id = window.setInterval(() => setNow(diagnosticTimestamp()), 1000);
+    const id = window.setInterval(() => setNow(diagnosticTimestamp()), PLATFORM_CONFIG.diagnostics.sampleMilliseconds);
     let frames = 0;
     let started = performance.now();
     let raf = 0;
     const sample = (stamp: number) => {
       frames += 1;
-      if (stamp - started >= 1000) {
+      if (stamp - started >= PLATFORM_CONFIG.diagnostics.sampleMilliseconds) {
         setFps(Math.round((frames * 1000) / (stamp - started)));
         frames = 0;
         started = stamp;
@@ -126,7 +136,19 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
   const missing = teams.filter(team => !submittedTeams.has(team.team_name));
   const duplicates = Math.max(0, answers.length - submittedTeams.size);
   const realtimeAge = realtime.lastSync ? now - realtime.lastSync : Infinity;
-  const realtimeHealth: Health = realtime.status === "SUBSCRIBED" && realtimeAge < 10_000 ? "healthy" : realtime.status === "SUBSCRIBED" ? "warning" : "problem";
+  const platformStatus = createPlatformStatus({
+    now,
+    sessionId: session.id,
+    realtimeStatus: realtime.status,
+    realtimeLastSync: realtime.lastSync,
+    realtimeStaleAfter: PLATFORM_CONFIG.diagnostics.staleRealtimeMilliseconds,
+    audio,
+    timerRunning: timer.running,
+    timerRemaining: timer.remaining,
+    displayKnown: false,
+    diagnosticsEnabled: FEATURE_FLAGS.diagnostics,
+  });
+  const realtimeHealth = platformStatus.realtime.level;
   const memory = typeof performance !== "undefined" && "memory" in performance
     ? Math.round(((performance as Performance & { memory: { usedJSHeapSize: number } }).memory.usedJSHeapSize / 1024 / 1024)) + " MB"
     : "Unsupported";
@@ -134,14 +156,19 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
   async function recover(label: string, action: () => Promise<void> | void) {
     setBusy(label);
     try { await action(); addEvent(label); }
-    catch { addEvent(`${label} failed`, "problem"); }
+    catch (error) {
+      platformLogger.error("recovery", `${label} failed`, { error });
+      addEvent(`${label} failed`, "problem");
+    }
     finally { setBusy(null); }
   }
 
   async function copyDiagnostics() {
     const report = {
       capturedAt: new Date().toISOString(),
-      build: process.env.NEXT_PUBLIC_BUILD_VERSION || "local/unspecified",
+      build: BUILD_INFO,
+      featureFlags: FEATURE_FLAGS,
+      platformStatus,
       browser: navigator.userAgent,
       session,
       teams: { registered: teams.length, submitted: submittedTeams.size, missing: missing.map(team => team.team_name) },
@@ -168,6 +195,7 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
         </header>
 
         <div className="qi-health-summary">
+          <HealthPill value={platformStatus.overall}>Platform {platformStatus.overall}</HealthPill>
           <HealthPill value={realtimeHealth}>Realtime {realtime.status.toLowerCase()}</HealthPill>
           <HealthPill value={timer.running ? "healthy" : "unknown"}>Timer {timer.running ? "running" : "stopped"}</HealthPill>
           <HealthPill value={audio.overlap ? "problem" : "healthy"}>{audio.active.length} audio channel{audio.active.length === 1 ? "" : "s"}</HealthPill>
@@ -175,6 +203,14 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
         </div>
 
         <main className="qi-health-grid">
+          <Card title="Platform" health={platformStatus.overall}>
+            <Metric label="Version" value={BUILD_INFO.version} health="healthy" />
+            <Metric label="Git commit" value={BUILD_INFO.commit} />
+            <Metric label="Build date" value={BUILD_INFO.builtAt === "unknown" ? "Unknown" : new Date(BUILD_INFO.builtAt).toLocaleString()} />
+            <Metric label="Environment" value={BUILD_INFO.environment} />
+            <Metric label="Database schema" value={BUILD_INFO.schemaVersion} />
+            <Metric label="Feature flags" value={Object.entries(FEATURE_FLAGS).map(([name, enabled]) => `${name}: ${enabled ? "on" : "off"}`).join(" · ")} />
+          </Card>
           <Card title="Session" health={session.id ? "healthy" : "problem"}>
             <Metric label="Session ID" value={session.id || "Missing"} health={session.id ? "healthy" : "problem"} />
             <Metric label="Event" value={session.eventName || "Not recorded"} /><Metric label="Quiz Plan" value={session.quizPlan || "Not recorded"} />

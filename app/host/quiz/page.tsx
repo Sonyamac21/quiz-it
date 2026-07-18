@@ -13,6 +13,9 @@ import { BrandLockup, Button, Field, Input, StatusPill } from "@/components/ui/q
 import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 import { HostDiagnostics } from "@/components/HostDiagnostics";
 import { diagnosticTimestamp } from "@/lib/diagnostics/time";
+import { PLATFORM_CONFIG } from "@/lib/platform/config";
+import { FEATURE_FLAGS } from "@/lib/platform/featureFlags";
+import { platformLogger } from "@/lib/platform/logger";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
 
@@ -125,7 +128,7 @@ function QuizControllerInner() {
   const [scores, setScores] = useState<Score[]>([]);
   const [pointsPerQ, setPointsPerQ] = useState(10);
   const [timeBonus, setTimeBonus] = useState(5);
-  const [timerDuration, setTimerDuration] = useState(30);
+  const [timerDuration, setTimerDuration] = useState<number>(PLATFORM_CONFIG.timers.defaultSeconds);
   // True while The Pursuit overlay is running — the global spacebar handler stands
   // down so the Pursuit panel drives Space itself (no double-handling).
   const [pursuitActive, setPursuitActive] = useState(false);
@@ -206,7 +209,7 @@ function QuizControllerInner() {
         setSpinChoice((data.spin_choice as string) || null);
         triggerSpinIfChosen((data.spin_choice as string) || null, sessionPin);
       }
-    }, 500);
+    }, PLATFORM_CONFIG.polling.hostSpinSafetyMilliseconds);
     return () => clearInterval(interval);
   }, [spinOffered, sessionPin]);
 
@@ -225,7 +228,7 @@ function QuizControllerInner() {
     function handleKey(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "d") {
         e.preventDefault();
-        setDiagnosticsOpen(value => !value);
+        if (FEATURE_FLAGS.diagnostics) setDiagnosticsOpen(value => !value);
         return;
       }
       if (e.code !== "Space" && e.key !== " ") return;
@@ -270,7 +273,7 @@ function QuizControllerInner() {
   async function loadRounds(liveSessionId: string) {
     const supabase = createSupabaseBrowserClient();
     const { data, error } = await supabase.from("session_rounds").select("id,name,questions,round_type,hide_leaderboard,allow_power_cards,position,completed_at,source_round_id").eq("session_id", liveSessionId).order("position");
-    if (error) console.error("loadRounds failed — live quiz order unavailable:", error.message);
+    if (error) platformLogger.error("host", "Live quiz order unavailable", { error });
     setRounds((data ?? []) as Round[]);
   }
 
@@ -312,7 +315,7 @@ function QuizControllerInner() {
             if (prev <= 1) { if (timerRef.current) clearInterval(timerRef.current); stopTickAudio(); return 0; }
             return prev - 1;
           });
-        }, 1000);
+        }, PLATFORM_CONFIG.timers.tickMilliseconds);
       }
     }
   }
@@ -390,7 +393,7 @@ function QuizControllerInner() {
   // it had already ended.
   useEffect(() => {
     if (!sessionPin || !["question", "timer", "answer"].includes(hostPhase)) return;
-    const interval = setInterval(() => { loadAnswers(sessionPin, qIdx); }, 2500);
+    const interval = setInterval(() => { loadAnswers(sessionPin, qIdx); }, PLATFORM_CONFIG.polling.hostAnswerSafetyMilliseconds);
     return () => clearInterval(interval);
   }, [sessionPin, qIdx, hostPhase]);
 
@@ -806,7 +809,7 @@ function QuizControllerInner() {
         gain.gain.setValueAtTime(0.3, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
         osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
-      }, 1000);
+      }, PLATFORM_CONFIG.timers.tickMilliseconds);
     } catch {}
   }
 
@@ -937,7 +940,7 @@ function QuizControllerInner() {
         if (prev <= 1) { if (timerRef.current) clearInterval(timerRef.current); stopTickAudio(); return 0; }
         return prev - 1;
       });
-    }, 1000);
+    }, PLATFORM_CONFIG.timers.tickMilliseconds);
   }
 
   async function doRevealAnswer() {
@@ -1233,7 +1236,7 @@ function QuizControllerInner() {
           <a className="qi-button qi-button--quiet" href="/host/events">Events</a>
           <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
           <Button variant="quiet" onClick={() => setRulesOpen(true)}>Rules</Button>
-          <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>
+          {FEATURE_FLAGS.diagnostics && <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>}
         {rulesOpen && (
           <div onClick={() => setRulesOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
             <div onClick={e => e.stopPropagation()} style={{ background:"#1a0535", border:"2px solid #BE26C1", borderRadius:16, padding:28, maxWidth:560, maxHeight:"80vh", overflowY:"auto" as const, color:"#fff" }}>
@@ -1291,8 +1294,8 @@ function QuizControllerInner() {
             </div>
           </div>
         )}
-          {sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
-          {sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={setPursuitActive} />}
+          {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
+          {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={setPursuitActive} />}
           <a href="/host/display" target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
         </nav>
       </header>
@@ -1634,7 +1637,7 @@ function QuizControllerInner() {
           </section>
         </aside>
       </div>
-      <HostDiagnostics
+      {FEATURE_FLAGS.diagnostics && <HostDiagnostics
         open={diagnosticsOpen}
         onClose={() => setDiagnosticsOpen(false)}
         session={{ id: sessionId, pin: sessionPin, eventName: sessionEventName, quizPlan: sessionQuizPlan, venue: venueName, host: hostIdentity, phase: hostPhase, roundName: selectedRound?.name, roundNumber, questionIndex: qIdx, questionCount: selectedRound?.questions.length || 0, status: connected ? "active" : "disconnected", connectedAt }}
@@ -1646,7 +1649,7 @@ function QuizControllerInner() {
         onRestartSubscriptions={() => { if (sessionPin) subscribeToUpdates(sessionPin); }}
         onRefreshDisplay={() => { if (sessionPin) window.open(`/host/display?pin=${encodeURIComponent(sessionPin)}`, "quizit-display"); }}
         onRefreshPlayers={diagnosticsRefreshPlayers}
-      />
+      />}
     </div>
   );
 }

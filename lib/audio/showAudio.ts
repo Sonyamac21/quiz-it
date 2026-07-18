@@ -1,14 +1,10 @@
 "use client";
+import { PLATFORM_CONFIG } from "@/lib/platform/config";
+import { platformLogger } from "@/lib/platform/logger";
 
 export type ShowAudioChannel = "cue" | "timer" | "music" | "ambient" | "spin";
 
-export const SHOW_AUDIO_VOLUME = {
-  cue: 0.55,
-  timer: 0.3,
-  music: 0.85,
-  ambient: 0.45,
-  spin: 0.55,
-} as const;
+export const SHOW_AUDIO_VOLUME = PLATFORM_CONFIG.audio;
 
 const active = new Map<ShowAudioChannel, HTMLAudioElement>();
 const preloaded = new Map<string, HTMLAudioElement>();
@@ -71,6 +67,9 @@ export function playShowAudio(
   const release = () => { if (active.get(channel) === audio) { active.delete(channel); activeFiles.delete(channel); emitAudioState(); } };
   audio.addEventListener("ended", release, { once: true });
   audio.addEventListener("error", release, { once: true });
-  audio.play().catch(release);
+  audio.play().catch(error => {
+    release();
+    platformLogger.warn("audio", "Playback could not start", { channel, file, error });
+  });
   return audio;
 }

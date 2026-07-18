@@ -10,6 +10,8 @@ import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, purs
 import { Crest } from "@/components/fable/HandsetStates";
 import { teamInitials } from "@/components/TeamBadge";
 import { PlayerShell, PlayerStatusBar, PlayerResultBanner } from "@/components/player/PlayerUI";
+import { PLATFORM_CONFIG } from "@/lib/platform/config";
+import { platformLogger } from "@/lib/platform/logger";
 
 type Question = {
   question_text: string;
@@ -331,13 +333,13 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     fetchTeamOrder();
 
     // Polling every 500ms to keep handset in sync
-    const pollInterval = setInterval(fetchSession, 500);
+    const pollInterval = setInterval(fetchSession, PLATFORM_CONFIG.polling.playerSessionMilliseconds);
     // Re-poll the team order too. A handset that connected before some teams had
     // joined would otherwise keep a shorter/stale list, so the SAME Hard Deck
     // wheel index would point to a DIFFERENT team than on other phones. Refetching
     // (ordered by created_at, identical query on every device) keeps every handset
     // on the exact same team list the wheel is built from.
-    const teamPollInterval = setInterval(fetchTeamOrder, 3000);
+    const teamPollInterval = setInterval(fetchTeamOrder, PLATFORM_CONFIG.polling.playerTeamOrderMilliseconds);
 
     // Mobile browsers throttle or fully pause setInterval (and can drop the
     // realtime websocket) while the phone screen is locked or the tab is
@@ -463,7 +465,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         if (prev === null || prev <= 1) { if (timerRef.current) clearInterval(timerRef.current); return 0; }
         return prev - 1;
       });
-    }, 1000);
+    }, PLATFORM_CONFIG.timers.tickMilliseconds);
   }
 
   async function submitAnswer(answer: string, retryCount = 0) {
@@ -545,7 +547,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const supabase = createSupabaseBrowserClient();
     const { error: err } = await supabase.from("sessions").update({ spin_choice: "spin" }).eq("pin", sessionPin);
     if (err) {
-      console.error("chooseSpin failed:", err);
+      platformLogger.error("player", "Spin choice failed", { error: err });
       setError("Could not register your spin choice - please try again.");
       setTimeout(() => setError(""), 4000);
     }
@@ -555,7 +557,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const supabase = createSupabaseBrowserClient();
     const { error: err } = await supabase.from("sessions").update({ spin_choice: "pass" }).eq("pin", sessionPin);
     if (err) {
-      console.error("choosePass failed:", err);
+      platformLogger.error("player", "Pass choice failed", { error: err });
       setError("Could not register your choice - please try again.");
       setTimeout(() => setError(""), 4000);
     }

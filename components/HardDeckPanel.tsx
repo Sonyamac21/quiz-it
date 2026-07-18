@@ -76,6 +76,30 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
     return newDeck;
   }
 
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from("sessions").select("phase,hard_deck_team,hard_deck_cards,hard_deck_guess,hard_deck_potential,hard_deck_status,hard_deck_has_swapped,hard_deck_wheel_target").eq("id", sessionId).maybeSingle();
+      if (cancelled || !data || data.phase !== "hard_deck") return;
+      const restoredStatus = data.hard_deck_status as HardDeckStatus;
+      if (!restoredStatus || ["idle", "won", "lost"].includes(restoredStatus)) return;
+      const restoredCards = (data.hard_deck_cards as PlayingCard[] | null) ?? [];
+      const restoredDeck = buildDeck().filter(card => !restoredCards.some(shown => shown.rank === card.rank && shown.suit === card.suit));
+      setTeam(data.hard_deck_team || null);
+      setCards(restoredCards);
+      setGuess(data.hard_deck_guess || null);
+      setPotential(data.hard_deck_potential || 0);
+      setHasSwapped(!!data.hard_deck_has_swapped);
+      setWheelTarget(data.hard_deck_wheel_target ?? null);
+      setDeck(restoredDeck);
+      setShowWheel(restoredStatus === "wheel");
+      setStatus(restoredStatus);
+      setOpen(true);
+    })();
+    return () => { cancelled = true; };
+  }, [sessionId, supabase]);
+
   function startHardDeck() {
     const targetIdx = Math.floor(Math.random() * teams.length);
     setOpen(true);

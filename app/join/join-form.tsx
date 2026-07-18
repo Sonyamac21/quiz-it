@@ -110,8 +110,11 @@ export function JoinForm() {
           return;
         }
         const supabase = createSupabaseBrowserClient();
-        const { data } = await supabase.from("sessions").select("status").eq("pin", parsed.sessionPin).single();
-        if (data && data.status !== "finished") {
+        const [{ data: session }, { data: team }] = await Promise.all([
+          supabase.from("sessions").select("status").eq("pin", parsed.sessionPin).single(),
+          supabase.from("teams").select("team_name").eq("session_pin", parsed.sessionPin).eq("team_name", parsed.teamName).maybeSingle(),
+        ]);
+        if (session && session.status !== "finished" && team) {
           setTeamName(parsed.teamName);
           setSessionPin(parsed.sessionPin);
           setDone(true);
@@ -202,6 +205,10 @@ export function JoinForm() {
     stopShowAudio("music");
   }, []);
 
+  useEffect(() => () => {
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+  }, [photoPreviewUrl]);
+
   function handleSongNext() {
     if (!selectedSong) { setError("Please pick your victory song!"); return; }
     setError("");
@@ -251,9 +258,9 @@ export function JoinForm() {
         session_pin: pin,
         photo_url: photoUrl,
       });
+      if (dbError) throw dbError;
       setSessionPin(pin);
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin, savedAt: Date.now() }));
-      if (dbError) throw dbError;
       setDone(true);
     } catch {
       setError("Something went wrong. Please try again.");
@@ -384,10 +391,14 @@ export function JoinForm() {
 
       <div style={{ maxHeight:340, overflowY:"auto", display:"flex", flexDirection:"column", gap:6, paddingRight:4 }}>
         {filtered.map(song => (
-          <div
+          <button
+            type="button"
             key={song}
             onClick={() => { setSelectedSong(song); playPreview(song); }}
+            aria-pressed={selectedSong === song}
             style={{
+              width:"100%",
+              textAlign:"left",
               padding:"12px 16px",
               borderRadius:10,
               background: selectedSong === song ? "rgba(190,38,193,0.2)" : "#0f0f1a",
@@ -406,7 +417,7 @@ export function JoinForm() {
           >
             <span>{cleanName(song)}</span>
             {selectedSong === song && <span style={{ color:"#BE26C1", fontSize:14 }}>♪</span>}
-          </div>
+          </button>
         ))}
       </div>
 

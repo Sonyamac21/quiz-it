@@ -211,6 +211,13 @@ function DisplayScreenInner() {
   const lockedQuestionRef = useRef(-1);
   // Lobby Power-Card rules rotation (Time-Out · Boost · Reverse), one at a time.
   const [powerCardIdx, setPowerCardIdx] = useState(0);
+  const displayChannelRef = useRef<ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]> | null>(null);
+  useEffect(() => () => {
+    if (displayChannelRef.current) {
+      void createSupabaseBrowserClient().removeChannel(displayChannelRef.current);
+      displayChannelRef.current = null;
+    }
+  }, []);
   useEffect(() => {
     if (phase !== "waiting") return;
     const id = setInterval(() => setPowerCardIdx(i => (i + 1) % 3), PLATFORM_CONFIG.display.powerCardRotationMilliseconds);
@@ -658,7 +665,7 @@ function DisplayScreenInner() {
     hydrateCardPlays(pinInput);
     const { data: teamData } = await supabase.from("teams").select("*").eq("session_pin", pinInput).order("created_at", { ascending: true });
     if (teamData) setTeams(teamData);
-    supabase.channel("display-" + pinInput)
+    const channel = supabase.channel("display-" + pinInput)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: "pin=eq." + pinInput }, (payload) => {
         applySession(payload.new as Record<string, unknown>);
       })
@@ -675,8 +682,10 @@ function DisplayScreenInner() {
         if (a && a.team_name && typeof a.question_index === "number" && a.question_index === qIndexRef.current) {
           setLockedTeams(prev => prev.includes(a.team_name!) ? prev : [...prev, a.team_name!]);
         }
-      })
-      .subscribe();
+      });
+    if (displayChannelRef.current) void supabase.removeChannel(displayChannelRef.current);
+    displayChannelRef.current = channel;
+    channel.subscribe();
   }
 
   useEffect(() => {
@@ -732,7 +741,7 @@ function DisplayScreenInner() {
         supabase.from("teams").select("*").eq("session_pin", pinFromUrl).order("created_at", { ascending: true }).then(({ data: teamData }) => {
           if (teamData) setTeams(teamData);
         });
-        supabase.channel("display-" + pinFromUrl)
+        const channel = supabase.channel("display-" + pinFromUrl)
           .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: "pin=eq." + pinFromUrl }, (payload) => {
             applySession(payload.new as Record<string, unknown>);
           })
@@ -749,8 +758,10 @@ function DisplayScreenInner() {
             if (a && a.team_name && typeof a.question_index === "number" && a.question_index === qIndexRef.current) {
               setLockedTeams(prev => prev.includes(a.team_name!) ? prev : [...prev, a.team_name!]);
             }
-          })
-          .subscribe();
+          });
+        if (displayChannelRef.current) void supabase.removeChannel(displayChannelRef.current);
+        displayChannelRef.current = channel;
+        channel.subscribe();
         });
       };
       tryAutoConnect(0);

@@ -32,14 +32,15 @@ export default function EventBuilderPage() {
   const [prizes, setPrizes] = useState("");
   const [powerCards, setPowerCards] = useState(false);
   const [notes, setNotes] = useState("");
+  const [legacyEventId, setLegacyEventId] = useState("");
 
   useEffect(() => {
     (async () => {
       const supabase = createSupabaseBrowserClient();
       const [{ data: userData }, { data: venueData }, { data: quizData }, { data: eventData }] = await Promise.all([
         supabase.auth.getUser(),
-        supabase.from("venues").select("day_of_week, venue_name").neq("venue_name", "").order("day_of_week"),
-        supabase.from("quizzes").select("id, name").eq("archived", false).order("updated_at", { ascending: false }),
+        supabase.from("venues").select("id,day_of_week,venue_name,address,default_start_time,default_host_id,default_brand_kit,default_music_pack").eq("active", true).neq("venue_name", "").order("venue_name"),
+        supabase.from("quizzes").select("id,name,quiz_rounds(id,position,name,round_type,questions,hide_leaderboard,allow_power_cards)").eq("archived", false).order("updated_at", { ascending: false }),
         supabase.from("events").select("sponsors"),
       ]);
       const user = userData.user;
@@ -52,11 +53,32 @@ export default function EventBuilderPage() {
       const usedSponsors = new Set<string>();
       (eventData ?? []).forEach(row => (row.sponsors as string[] | null)?.forEach(sponsor => usedSponsors.add(sponsor)));
       setSponsorOptions([...usedSponsors].sort((a, b) => a.localeCompare(b)));
+      const legacyId = new URLSearchParams(window.location.search).get("legacy");
+      if (legacyId) {
+        const { data: legacy } = await supabase.from("events").select("*").eq("id", legacyId).maybeSingle();
+        if (legacy) {
+          setLegacyEventId(legacy.id); setEventName(legacy.event_name); setEventDate(legacy.event_date); setStartTime(String(legacy.start_time).slice(0, 5)); setHostId(legacy.host_id); setQuizId(legacy.quiz_definition_id || ""); setBrandKit(legacy.brand_kit || ""); setMusicPack(legacy.music_pack || ""); setSelectedSponsors(legacy.sponsors || []); setPrizes(legacy.prizes || ""); setPowerCards(legacy.power_cards); setNotes(legacy.notes || "");
+          const venue = (venueData ?? []).find(item => item.id === legacy.venue_record_id || item.day_of_week === legacy.venue_id);
+          if (venue) setVenueId(venue.id);
+        }
+      }
       setLoading(false);
     })();
   }, []);
 
-  const canSave = useMemo(() => Boolean(eventName.trim() && venueId && eventDate && startTime && hostId), [eventName, venueId, eventDate, startTime, hostId]);
+  const selectedVenue = venues.find(venue => venue.id === venueId) ?? null;
+  const selectedQuiz = quizzes.find(quiz => quiz.id === quizId) ?? null;
+  const orderedRounds = [...(selectedQuiz?.quiz_rounds ?? [])].sort((a, b) => a.position - b.position);
+  const canSave = useMemo(() => Boolean(eventName.trim() && selectedVenue && eventDate && startTime && hostId && selectedQuiz && orderedRounds.length), [eventName, selectedVenue, eventDate, startTime, hostId, selectedQuiz, orderedRounds.length]);
+
+  function selectVenue(id: string) {
+    setVenueId(id);
+    const venue = venues.find(item => item.id === id);
+    if (!venue) return;
+    if (venue.default_start_time) setStartTime(venue.default_start_time.slice(0, 5));
+    if (venue.default_brand_kit) setBrandKit(venue.default_brand_kit);
+    if (venue.default_music_pack) setMusicPack(venue.default_music_pack);
+  }
 
   function addSponsor() {
     const sponsor = newSponsor.trim();
@@ -72,9 +94,10 @@ export default function EventBuilderPage() {
     setSaving(true);
     setError("");
     const supabase = createSupabaseBrowserClient();
-    const { error: saveError } = await supabase.from("events").insert({
+    const eventValues = {
       event_name: eventName.trim(),
-      venue_id: Number(venueId),
+      venue_id: selectedVenue!.day_of_week,
+      venue_record_id: selectedVenue!.id,
       event_date: eventDate,
       start_time: startTime,
       host_id: hostId,
@@ -85,7 +108,10 @@ export default function EventBuilderPage() {
       prizes: prizes.trim() || null,
       power_cards: powerCards,
       notes: notes.trim() || null,
-    });
+    };
+    const { error: saveError } = legacyEventId
+      ? await supabase.from("events").update({ ...eventValues, updated_at: new Date().toISOString() }).eq("id", legacyEventId)
+      : await supabase.from("events").insert(eventValues);
     if (saveError) {
       setError(saveError.message);
       setSaving(false);
@@ -104,22 +130,26 @@ export default function EventBuilderPage() {
       <div style={{ minHeight: "100vh", background: STAGE_BG, color: "#fff", padding: "24px 32px" }}>
         <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 24 }}>
           <span className="fbh-wm" style={{ fontSize: 16 }}><span className="q">QUIZ-</span>IT</span>
-          <span className="fbh-bc">Event Builder</span>
+          <span className="fbh-bc">{legacyEventId ? "Repair Legacy Event" : "Event Builder"}</span>
           <TopSpacer />
+          <Link className="fbh-btn" href="/host/venues">Venues</Link>
+          <Link className="fbh-btn" href="/host/quizzes">Quiz Plans</Link>
           <Link className="fbh-btn" href="/host/events">Back to Events</Link>
         </div>
 
         <form onSubmit={saveEvent} className="fbh-panel" style={{ maxWidth: 900, margin: "0 auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 16 }}>
             <div><HostLabel>Event Name</HostLabel><HostInput value={eventName} onChange={e => setEventName(e.target.value)} required placeholder="Thursday Night Quiz" /></div>
-            <div><HostLabel>Venue</HostLabel><select value={venueId} onChange={e => setVenueId(e.target.value)} required style={fieldStyle}><option value="">Select venue…</option>{venues.map(venue => <option key={venue.day_of_week} value={venue.day_of_week}>{venue.venue_name}</option>)}</select></div>
+            <div><HostLabel>Venue</HostLabel><select value={venueId} onChange={e => selectVenue(e.target.value)} required style={fieldStyle}><option value="">Select saved venue…</option>{venues.map(venue => <option key={venue.id} value={venue.id}>{venue.venue_name}</option>)}</select></div>
             <div><HostLabel>Date</HostLabel><HostInput type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} required /></div>
             <div><HostLabel>Start Time</HostLabel><HostInput type="time" value={startTime} onChange={e => setStartTime(e.target.value)} required /></div>
             <div><HostLabel>Host</HostLabel><select value={hostId} onChange={e => setHostId(e.target.value)} required style={fieldStyle}><option value={hostId}>{hostLabel || "Current host"}</option></select></div>
-            <div><HostLabel>Quiz</HostLabel><select value={quizId} onChange={e => setQuizId(e.target.value)} style={fieldStyle}><option value="">Select quiz…</option>{quizzes.map(quiz => <option key={quiz.id} value={quiz.id}>{quiz.name}</option>)}</select></div>
+            <div><HostLabel>Quiz Plan</HostLabel><select value={quizId} onChange={e => setQuizId(e.target.value)} required style={fieldStyle}><option value="">Select Quiz Plan…</option>{quizzes.map(quiz => <option key={quiz.id} value={quiz.id}>{quiz.name} ({quiz.quiz_rounds.length} rounds)</option>)}</select></div>
             <div><HostLabel>Brand Kit</HostLabel><HostInput value={brandKit} onChange={e => setBrandKit(e.target.value)} placeholder="Optional brand kit name" /></div>
             <div><HostLabel>Music Pack</HostLabel><HostInput value={musicPack} onChange={e => setMusicPack(e.target.value)} placeholder="Optional music pack name" /></div>
           </div>
+
+          <div className="fbh-panel" style={{ marginTop: 16 }}><HostLabel>Quiz Plan Preview</HostLabel>{selectedQuiz ? orderedRounds.length ? orderedRounds.map((round, index) => <div className="fbh-answer-row" key={round.id}><span className="ord">{index + 1}</span><span className="nm">{round.name}</span><span className="ans">{round.questions.length} questions · {round.round_type} · {round.hide_leaderboard ? "Leaderboard hidden" : "Leaderboard shown"} · {round.allow_power_cards ? "Cards allowed" : "Cards paused"}</span></div>) : <div role="alert" style={{ color: "#FFC533" }}>This Quiz Plan has no rounds and cannot be used.</div> : <div style={{ color: "#B9A8D9" }}>Select a Quiz Plan to review its ordered rounds.</div>}</div>
 
           <div style={{ marginTop: 16 }}>
             <HostLabel>Sponsors</HostLabel>
@@ -140,7 +170,7 @@ export default function EventBuilderPage() {
           {error && <div role="alert" style={{ color: "#D94FDC", font: "600 12px 'Inter'", marginTop: 16 }}>Event could not be saved. {error}</div>}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
             <Link className="fbh-btn" href="/host/events">Cancel</Link>
-            <HostButton type="submit" variant="pri" big disabled={!canSave || saving}>{saving ? "SAVING…" : "CREATE EVENT"}</HostButton>
+            <HostButton type="submit" variant="pri" big disabled={!canSave || saving}>{saving ? "SAVING…" : legacyEventId ? "SAVE EVENT PLAN" : "CREATE EVENT"}</HostButton>
           </div>
         </form>
       </div>

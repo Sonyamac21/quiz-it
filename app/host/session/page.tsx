@@ -14,6 +14,7 @@ type Team = {
 };
 
 type QuizOption = { id: string; name: string; quiz_rounds: { id: string }[] };
+type PreparedEvent = { id: string; event_name: string; event_date: string; start_time: string; venue_record_id: string | null; quiz_definition_id: string; brand_kit: string | null; music_pack: string | null; sponsors: string[]; prizes: string | null; notes: string | null; venue: { venue_name: string; venue_logo_url: string | null; address: string | null } | null };
 
 function generatePin(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
@@ -45,9 +46,21 @@ export default function SessionPage() {
   const [selectedQuizId, setSelectedQuizId] = useState("");
   const [sessionQuizName, setSessionQuizName] = useState("");
   const [createError, setCreateError] = useState("");
+  const [preparedEvent, setPreparedEvent] = useState<PreparedEvent | null>(null);
 
   useEffect(() => {
     createSupabaseBrowserClient().from("quizzes").select("id,name,quiz_rounds(id)").eq("archived", false).order("updated_at", { ascending: false }).then(({ data }) => setQuizzes((data ?? []) as QuizOption[]));
+  }, []);
+
+  useEffect(() => {
+    const eventId = new URLSearchParams(window.location.search).get("event");
+    if (!eventId) return;
+    createSupabaseBrowserClient().from("events").select("id,event_name,event_date,start_time,venue_record_id,quiz_definition_id,brand_kit,music_pack,sponsors,prizes,notes,venue:venues!events_venue_record_id_fkey(venue_name,venue_logo_url,address)").eq("id", eventId).maybeSingle().then(({ data, error }) => {
+      if (error || !data?.quiz_definition_id) { setCreateError(error?.message || "This event needs a Quiz Plan before it can start."); return; }
+      const venue = Array.isArray(data.venue) ? data.venue[0] : data.venue;
+      const prepared = { ...data, venue: venue || null } as PreparedEvent;
+      setPreparedEvent(prepared); setSelectedQuizId(prepared.quiz_definition_id); setVenueName(prepared.venue?.venue_name || ""); setVenueLogoUrl(prepared.venue?.venue_logo_url || null);
+    });
   }, []);
 
   useEffect(() => {
@@ -123,13 +136,18 @@ export default function SessionPage() {
     const newPin = generatePin();
     const supabase = createSupabaseBrowserClient();
     const today = new Date().getDay();
-    const { data: venueData } = await supabase.from("venues").select("*").eq("day_of_week", today).maybeSingle();
+    const { data: venueData } = preparedEvent ? { data: preparedEvent.venue } : await supabase.from("venues").select("*").eq("day_of_week", today).maybeSingle();
+    const quizName = quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "";
     const { data, error } = await supabase
       .from("sessions")
       .insert({
         pin: newPin,
         status: "waiting",
         quiz_id: selectedQuizId,
+        event_id: preparedEvent?.id || null,
+        venue_record_id: preparedEvent?.venue_record_id || null,
+        quiz_plan_name: quizName,
+        event_snapshot: preparedEvent ? { event_name: preparedEvent.event_name, event_date: preparedEvent.event_date, start_time: preparedEvent.start_time, venue: preparedEvent.venue, brand_kit: preparedEvent.brand_kit, music_pack: preparedEvent.music_pack, sponsors: preparedEvent.sponsors, prizes: preparedEvent.prizes, notes: preparedEvent.notes, quiz_plan_id: selectedQuizId, quiz_plan_name: quizName } : { quiz_plan_id: selectedQuizId, quiz_plan_name: quizName },
         venue_name: venueData?.venue_name || null,
         venue_logo_url: venueData?.venue_logo_url || null,
       })
@@ -284,7 +302,7 @@ export default function SessionPage() {
           <TopSpacer />
           <a className="fbh-btn" href="/host/events">Events</a>
           <a className="fbh-btn" href="/host/rounds">Rounds</a>
-          <a className="fbh-btn" href="/host/quizzes">Quiz Builder</a>
+          <a className="fbh-btn" href="/host/quizzes">Quiz Plans</a>
           <a className="fbh-btn pri" href={"/host/quiz?pin=" + (pin || "")}>Quiz Controller</a>
           <a className="fbh-btn" href="/host/questions">Questions</a>
           <HostButton onClick={launchDisplay} disabled={!pin}>Launch Display</HostButton>
@@ -298,9 +316,9 @@ export default function SessionPage() {
                 <div className="fbh-center" style={{ minHeight: 220 }}>
                   <div className="fbh-stage-title" style={{ fontSize: 17 }}>No Show Yet</div>
                   <div style={{ font: "400 13px 'Inter'", color: "#B9A8D9", margin: "8px 0 18px", lineHeight: 1.6, maxWidth: 380 }}>
-                    Your first quiz night is one decision away. Teams join at {host}/join
+                    {preparedEvent ? `${preparedEvent.event_name} · ${preparedEvent.venue?.venue_name || "Venue not assigned"}` : `Your first quiz night is one decision away. Teams join at ${host}/join`}
                   </div>
-                  <div style={{ width: "100%", maxWidth: 420, marginBottom: 14, textAlign: "left" }}><HostLabel>Tonight&apos;s Quiz</HostLabel><select value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)} className="fbh-input" style={{ width: "100%", minHeight: 48 }}><option value="">Select a prepared quiz…</option>{quizzes.map(quiz => <option key={quiz.id} value={quiz.id} disabled={!quiz.quiz_rounds.length}>{quiz.name} ({quiz.quiz_rounds.length} rounds)</option>)}</select></div>
+                  <div style={{ width: "100%", maxWidth: 420, marginBottom: 14, textAlign: "left" }}><HostLabel>Quiz Plan</HostLabel><select value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)} disabled={!!preparedEvent} className="fbh-input" style={{ width: "100%", minHeight: 48 }}><option value="">Select a prepared Quiz Plan…</option>{quizzes.map(quiz => <option key={quiz.id} value={quiz.id} disabled={!quiz.quiz_rounds.length}>{quiz.name} ({quiz.quiz_rounds.length} rounds)</option>)}</select></div>
                   <HostButton variant="pri" big onClick={createSession} disabled={creating || !selectedQuizId}>
                     {creating ? "CREATING…" : "CREATE A SESSION"}
                   </HostButton>

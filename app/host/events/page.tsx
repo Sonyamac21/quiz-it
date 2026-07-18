@@ -9,7 +9,8 @@ import { HostEmpty, HostLoading, HostShell, TopSpacer } from "@/components/fable
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
 function eventFromRow(row: Record<string, unknown>): EventRecord {
-  const venueValue = row.venue;
+  const currentVenueValue = row.venue;
+  const venueValue = Array.isArray(currentVenueValue) && currentVenueValue.length === 0 ? row.legacy_venue : currentVenueValue || row.legacy_venue;
   const currentQuizValue = row.quiz;
   const quizValue = Array.isArray(currentQuizValue) && currentQuizValue.length === 0 ? row.legacy_quiz : currentQuizValue || row.legacy_quiz;
   const venue = Array.isArray(venueValue) ? venueValue[0] : venueValue;
@@ -29,7 +30,7 @@ function eventCard(event: EventRecord) {
           <div style={{ font: "800 15px 'Inter'", color: "#fff", marginBottom: 5 }}>{event.event_name}</div>
           <div style={{ font: "500 12px 'Inter'", color: "#B9A8D9", lineHeight: 1.7 }}>
             {formatEventDate(event.event_date)} · {formatEventTime(event.start_time)}<br />
-            {event.venue?.venue_name || "Venue not available"} · {event.quiz?.name || "Quiz not selected"}
+            {event.venue?.venue_name || "Venue not available"} · {event.quiz?.name || "Quiz Plan not assigned"}{!event.quiz_definition_id && event.quiz_id ? " · Legacy event" : ""}
           </div>
         </div>
         <span className="fbh-chip">{event.power_cards ? "Power Cards On" : "Power Cards Off"}</span>
@@ -51,7 +52,7 @@ export default function EventsDashboardPage() {
         supabase.auth.getUser(),
         supabase
           .from("events")
-          .select("*, venue:venues!events_venue_id_fkey(venue_name), quiz:quizzes!events_quiz_definition_id_fkey(name), legacy_quiz:rounds!events_quiz_id_fkey(name)")
+          .select("*, venue:venues!events_venue_record_id_fkey(venue_name,address), legacy_venue:venues!events_venue_id_fkey(venue_name), quiz:quizzes!events_quiz_definition_id_fkey(name), legacy_quiz:rounds!events_quiz_id_fkey(name)")
           .order("event_date", { ascending: true })
           .order("start_time", { ascending: true }),
       ]);
@@ -106,7 +107,7 @@ export default function EventsDashboardPage() {
                   {[
                     ["Tonight's venue", todaysEvent.venue?.venue_name || "Not selected"],
                     ["Start time", formatEventTime(todaysEvent.start_time)],
-                    ["Quiz", todaysEvent.quiz?.name || "Not selected"],
+                    ["Quiz Plan", todaysEvent.quiz?.name || "Not assigned"],
                     ["Display status", "Not launched"],
                     ["Music status", todaysEvent.music_pack ? "Music pack selected" : "Not selected"],
                     ["Question status", todaysEvent.quiz ? "Quiz selected" : "Not selected"],
@@ -117,8 +118,8 @@ export default function EventsDashboardPage() {
                     </div>
                   ))}
                 </div>
-                <Link href="/host/session" className="fbh-btn pri big" style={{ display: "flex", width: "100%", minHeight: 62, justifyContent: "center", fontSize: 19, textDecoration: "none" }}>
-                  START EVENT
+                <Link href={todaysEvent.quiz_definition_id ? `/host/session?event=${todaysEvent.id}` : `/host/events/new?legacy=${todaysEvent.id}`} className="fbh-btn pri big" style={{ display: "flex", width: "100%", minHeight: 62, justifyContent: "center", fontSize: 19, textDecoration: "none" }}>
+                  {todaysEvent.quiz_definition_id ? "START EVENT" : "ASSIGN QUIZ PLAN BEFORE REUSE"}
                 </Link>
               </section>
             ) : (

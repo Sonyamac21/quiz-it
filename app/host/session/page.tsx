@@ -56,7 +56,10 @@ export default function SessionPage() {
     const eventId = new URLSearchParams(window.location.search).get("event");
     if (!eventId) return;
     createSupabaseBrowserClient().from("events").select("id,event_name,event_date,start_time,end_time,venue_record_id,quiz_definition_id,brand_kit,music_pack,sponsors,prizes,notes,special_offers,overrides,venue:venues!events_venue_record_id_fkey(*)").eq("id", eventId).maybeSingle().then(({ data, error }) => {
-      if (error || !data?.quiz_definition_id) { setCreateError(error?.message || "This event needs a Quiz Plan before it can start."); return; }
+      // A Calendar Event only schedules a quiz - it does not require one to
+      // exist. This is the point where a valid assigned quiz actually becomes
+      // mandatory, since a live session cannot run without round content.
+      if (error || !data?.quiz_definition_id) { setCreateError(error?.message || "This event doesn't have a Quiz Plan assigned yet. Go back to the Calendar and attach one before launching."); return; }
       const venue = Array.isArray(data.venue) ? data.venue[0] : data.venue;
       const prepared = { ...data, venue: venue || null } as PreparedEvent;
       setPreparedEvent(prepared); setSelectedQuizId(prepared.quiz_definition_id); setVenueName(prepared.venue?.venue_name || ""); setVenueLogoUrl(prepared.venue?.venue_logo_url || null);

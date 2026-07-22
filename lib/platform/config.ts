@@ -8,11 +8,13 @@ export const PLATFORM_CONFIG = Object.freeze({
   polling: {
     playerSessionMilliseconds: 500,
     playerTeamOrderMilliseconds: 3000,
+    playerHeartbeatMilliseconds: 5000,
     hostAnswerSafetyMilliseconds: 2500,
     hostSpinSafetyMilliseconds: 500,
     displaySessionMilliseconds: 1000,
     displayScoreboardMilliseconds: 1000,
     hostTeamSafetyMilliseconds: 4000,
+    hostTeamHeartbeatMilliseconds: 4000,
   },
   reconnect: {
     displayAttempts: 3,
@@ -29,6 +31,7 @@ export const PLATFORM_CONFIG = Object.freeze({
     sampleMilliseconds: 1000,
     recentEventLimit: 200,
     staleRealtimeMilliseconds: 10_000,
+    staleHeartbeatMilliseconds: 12_000,
   },
   audio: {
     cue: 0.55,

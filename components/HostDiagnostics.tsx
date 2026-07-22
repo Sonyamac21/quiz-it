@@ -30,7 +30,7 @@ export type HostDiagnosticsProps = {
     status: string;
     connectedAt: number | null;
   };
-  teams: Array<{ team_name: string }>;
+  teams: Array<{ team_name: string; last_seen_at?: string | null }>;
   answers: Array<{ id?: string | number; team_name: string; submitted_at?: string }>;
   timer: { remaining: number; running: boolean; duration: number };
   realtime: { status: string; lastSync: number | null; lastReconnect: number | null; errors: number };
@@ -134,6 +134,12 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
   const lastActivityByTeam = useMemo(() => new Map(answers.map(answer => [answer.team_name, answer.submitted_at ? new Date(answer.submitted_at).getTime() : 0])), [answers]);
   const sortedTeams = useMemo(() => [...teams].sort((a,b) => teamSort === "name" ? a.team_name.localeCompare(b.team_name) : (lastActivityByTeam.get(b.team_name) || 0) - (lastActivityByTeam.get(a.team_name) || 0)), [lastActivityByTeam, teamSort, teams]);
   const missing = teams.filter(team => !submittedTeams.has(team.team_name));
+  const isTeamConnected = (team: { last_seen_at?: string | null }) => {
+    if (!team.last_seen_at) return false;
+    return now - new Date(team.last_seen_at).getTime() < PLATFORM_CONFIG.diagnostics.staleHeartbeatMilliseconds;
+  };
+  const connectedTeams = useMemo(() => teams.filter(isTeamConnected), [teams, now]);
+  const disconnectedTeams = teams.length - connectedTeams.length;
   const duplicates = Math.max(0, answers.length - submittedTeams.size);
   const realtimeAge = realtime.lastSync ? now - realtime.lastSync : Infinity;
   const platformStatus = createPlatformStatus({
@@ -199,7 +205,7 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
           <HealthPill value={realtimeHealth}>Realtime {realtime.status.toLowerCase()}</HealthPill>
           <HealthPill value={timer.running ? "healthy" : "unknown"}>Timer {timer.running ? "running" : "stopped"}</HealthPill>
           <HealthPill value={audio.overlap ? "problem" : "healthy"}>{audio.active.length} audio channel{audio.active.length === 1 ? "" : "s"}</HealthPill>
-          <HealthPill value="warning">Remote heartbeat telemetry unavailable</HealthPill>
+          <HealthPill value={!teams.length ? "warning" : disconnectedTeams ? "warning" : "healthy"}>{connectedTeams.length}/{teams.length} handsets connected</HealthPill>
         </div>
 
         <main className="qi-health-grid">
@@ -220,14 +226,18 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
             <Metric label="Status" value={session.status} health={session.status === "active" ? "healthy" : "warning"} />
           </Card>
 
-          <Card title="Connections & Players" health={teams.length ? "healthy" : "warning"}>
+          <Card title="Connections & Players" health={!teams.length ? "warning" : disconnectedTeams ? "warning" : "healthy"}>
             <Metric label="Registered teams" value={teams.length} health={teams.length ? "healthy" : "warning"} />
-            <Metric label="Connected / disconnected" value="Heartbeat data unavailable" health="warning" />
-            <Metric label="Reconnecting / failed reconnects" value="Client telemetry unavailable" />
+            <Metric label="Connected / disconnected" value={`${connectedTeams.length} connected · ${disconnectedTeams} disconnected`} health={!teams.length ? "warning" : disconnectedTeams ? "warning" : "healthy"} />
+            <Metric label="Reconnecting / failed reconnects" value="Not tracked (heartbeat only reports last-seen, not reconnect attempts)" />
             <Metric label="Last player activity" value={answers[answers.length - 1]?.submitted_at ? new Date(answers[answers.length - 1].submitted_at!).toLocaleTimeString() : "No activity"} />
             <Metric label="Last answer" value={answers[answers.length - 1]?.team_name || "None"} />
             <div className="qi-health-sort"><span>Sort teams</span><button className={teamSort === "name" ? "is-active" : ""} onClick={() => setTeamSort("name")}>Name</button><button className={teamSort === "activity" ? "is-active" : ""} onClick={() => setTeamSort("activity")}>Activity</button></div>
-            <div className="qi-health-team-list">{sortedTeams.map(team => <span key={team.team_name}>{team.team_name}<i className={submittedTeams.has(team.team_name) ? "is-active" : ""} /></span>)}</div>
+            <div className="qi-health-team-list">{sortedTeams.map(team => {
+              const connected = isTeamConnected(team);
+              const lastSeenLabel = team.last_seen_at ? `Last seen ${ageLabel(new Date(team.last_seen_at).getTime(), now)} ago` : "Never checked in";
+              return <span key={team.team_name} title={`${connected ? "Connected" : "Disconnected"} · ${lastSeenLabel}`}>{team.team_name}<i className={submittedTeams.has(team.team_name) ? "is-active" : ""} />{!connected && <i style={{ background: "#ff8290" }} />}</span>;
+            })}</div>
           </Card>
 
           <Card title="Realtime" health={realtimeHealth}>

@@ -244,6 +244,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   // "celebration" (nonce cleared) isn't re-forced back into the spin.
   const spinNonceHandledRef = useRef<number | null>(null);
   const connectionFailuresRef = useRef(0);
+  // DIAGNOSTIC ONLY (temporary): timestamp of the first failure in the current
+  // run of consecutive fetchSession failures, used only for log timing.
+  const firstFailureAtRef = useRef<number | null>(null);
 
 
   // Fable handset stage: violet-black (--stage-deep) with a single low bloom.
@@ -315,10 +318,45 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         .single();
       if (fetchError) {
         connectionFailuresRef.current += 1;
-        if (connectionFailuresRef.current >= 3) setConnectionLost(true);
+        if (firstFailureAtRef.current === null) firstFailureAtRef.current = Date.now();
+        // DIAGNOSTIC ONLY (temporary): capture the actual PostgREST/network error
+        // driving connectionLost, plus browser lifecycle state at the moment of
+        // failure. No thresholds/behaviour changed - see connectionLost logic below.
+        platformLogger.warn("player-session-poll", "fetchSession failed", {
+          failureCount: connectionFailuresRef.current,
+          errorCode: fetchError.code,
+          errorMessage: fetchError.message,
+          errorDetails: fetchError.details,
+          errorHint: fetchError.hint,
+          sessionPin,
+          visibilityState: typeof document !== "undefined" ? document.visibilityState : "unknown",
+          online: typeof navigator !== "undefined" ? navigator.onLine : "unknown",
+        });
+        if (connectionFailuresRef.current >= 3) {
+          // DIAGNOSTIC ONLY (temporary): identify this trip as coming from
+          // session polling, not answer submission (the other setConnectionLost(true) site).
+          platformLogger.error("player-session-poll", "connectionLost triggered by session polling", {
+            failureCount: connectionFailuresRef.current,
+            sessionPin,
+            visibilityState: typeof document !== "undefined" ? document.visibilityState : "unknown",
+            online: typeof navigator !== "undefined" ? navigator.onLine : "unknown",
+          });
+          setConnectionLost(true);
+        }
       }
       if (data) {
+        // DIAGNOSTIC ONLY (temporary): log recovery after one or more prior failures.
+        if (connectionFailuresRef.current > 0) {
+          const elapsedMs = firstFailureAtRef.current !== null ? Date.now() - firstFailureAtRef.current : null;
+          platformLogger.info("player-session-poll", "fetchSession recovered after failures", {
+            previousFailureCount: connectionFailuresRef.current,
+            elapsedSinceFirstFailureMs: elapsedMs,
+            visibilityState: typeof document !== "undefined" ? document.visibilityState : "unknown",
+            online: typeof navigator !== "undefined" ? navigator.onLine : "unknown",
+          });
+        }
         connectionFailuresRef.current = 0;
+        firstFailureAtRef.current = null;
         setConnectionLost(false);
         applySessionDataRef.current(data as Record<string, unknown>);
       }
@@ -351,6 +389,27 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", fetchSession);
 
+    // DIAGNOSTIC ONLY (temporary): trace browser lifecycle events so a
+    // reproduction can be lined up against the fetchSession failure/recovery
+    // logs above. Logging only - no behaviour here.
+    const logLifecycle = (event: string) => {
+      platformLogger.info("player-lifecycle", event, {
+        sessionPin,
+        visibilityState: typeof document !== "undefined" ? document.visibilityState : "unknown",
+        online: typeof navigator !== "undefined" ? navigator.onLine : "unknown",
+      });
+    };
+    const onVisibilityChangeLog = () => logLifecycle("visibilitychange");
+    const onFocusLog = () => logLifecycle("focus");
+    const onBlurLog = () => logLifecycle("blur");
+    const onOnlineLog = () => logLifecycle("online");
+    const onOfflineLog = () => logLifecycle("offline");
+    document.addEventListener("visibilitychange", onVisibilityChangeLog);
+    window.addEventListener("focus", onFocusLog);
+    window.addEventListener("blur", onBlurLog);
+    window.addEventListener("online", onOnlineLog);
+    window.addEventListener("offline", onOfflineLog);
+
     const channel = supabase
       .channel("player-session-" + sessionPin)
       .on("postgres_changes", {
@@ -371,8 +430,52 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       clearInterval(teamPollInterval);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", fetchSession);
+      document.removeEventListener("visibilitychange", onVisibilityChangeLog);
+      window.removeEventListener("focus", onFocusLog);
+      window.removeEventListener("blur", onBlurLog);
+      window.removeEventListener("online", onOnlineLog);
+      window.removeEventListener("offline", onOfflineLog);
     };
   }, [sessionPin]);
+
+  // Presence heartbeat. Separate from the session poll above so it never
+  // interacts with connectionLost/retry logic - this only tells the host
+  // diagnostics panel "this handset is actually still here," it doesn't
+  // affect gameplay state. Writes teams.last_seen_at on an interval and
+  // immediately whenever the tab becomes visible/focused again, since that's
+  // exactly when a real reconnect after backgrounding needs to be reflected.
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    let cancelled = false;
+
+    async function sendHeartbeat() {
+      const { error } = await supabase
+        .from("teams")
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq("session_pin", sessionPin)
+        .eq("team_name", teamName);
+      if (error && !cancelled) {
+        platformLogger.warn("player-heartbeat", "heartbeat write failed", {
+          errorCode: error.code,
+          errorMessage: error.message,
+          sessionPin,
+        });
+      }
+    }
+
+    sendHeartbeat();
+    const heartbeatInterval = setInterval(sendHeartbeat, PLATFORM_CONFIG.polling.playerHeartbeatMilliseconds);
+    const onHeartbeatVisible = () => { if (document.visibilityState === "visible") sendHeartbeat(); };
+    document.addEventListener("visibilitychange", onHeartbeatVisible);
+    window.addEventListener("focus", sendHeartbeat);
+
+    return () => {
+      cancelled = true;
+      clearInterval(heartbeatInterval);
+      document.removeEventListener("visibilitychange", onHeartbeatVisible);
+      window.removeEventListener("focus", sendHeartbeat);
+    };
+  }, [sessionPin, teamName]);
 
   function applySessionData(data: Record<string, unknown>) {
     setSessionStatus((data.status as string) || "waiting");
@@ -522,6 +625,19 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         setTimeout(() => { setSubmitted(false); submitAnswer(answer, retryCount + 1); }, 800);
       } else {
         setSubmitted(false);
+        // DIAGNOSTIC ONLY (temporary): identify this trip as coming from
+        // answer submission, not session polling (the other setConnectionLost(true) site).
+        // No answer content logged.
+        platformLogger.error("player-answer-submit", "connectionLost triggered by answer submission", {
+          retryCount,
+          errorCode: error.code,
+          errorMessage: error.message,
+          errorDetails: error.details,
+          errorHint: error.hint,
+          sessionPin,
+          visibilityState: typeof document !== "undefined" ? document.visibilityState : "unknown",
+          online: typeof navigator !== "undefined" ? navigator.onLine : "unknown",
+        });
         setConnectionLost(true);
         setError("Connection lost. Close and reopen the keypad to reconnect.");
       }

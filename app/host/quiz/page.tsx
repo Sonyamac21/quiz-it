@@ -1384,7 +1384,14 @@ function QuizControllerInner() {
                     </div>
                   )}
                   {spinOffered && !spinChoice && (
-                    <div style={{ fontSize:18, color:"#D94FDC", fontWeight:700, marginBottom:24 }}>{fastestTeam}, Spin to Win?</div>
+                    <div style={{ marginBottom:24 }}>
+                      <div style={{ fontSize:18, color:"#D94FDC", fontWeight:700, marginBottom:10 }}>{fastestTeam}, Spin to Win?</div>
+                      {/* Host override: runs the identical path the handset's "Spin" button
+                          uses (triggerSpinIfChosen writes phase="spin_to_win" and scores the
+                          result via applySpinResult) rather than a separate code path, so a
+                          slow/unresponsive handset never blocks the wheel from appearing. */}
+                      <button onClick={() => triggerSpinIfChosen("spin", sessionPin)} style={{ padding:"8px 16px", borderRadius:10, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.25)", color:"#fff", fontSize:13, cursor:"pointer" }}>Spin Now (Host Override)</button>
+                    </div>
                   )}
                   {spinChoice === "spin" && (
                     <div style={{ width:"100%", maxWidth:420, margin:"0 auto 16px" }}>

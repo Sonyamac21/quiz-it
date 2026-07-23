@@ -1015,6 +1015,11 @@ button, input, select, textarea { font: inherit; }
   overflow: hidden;
 }
 .qi-display-shell :focus-visible { outline: 4px solid #d94fdc; outline-offset: 4px; }
+/* The shared .fbl .badge rule (clamp(9px,0.8vw,12px)) is sized for close-up
+   viewing elsewhere (host console, join screen) and was unreadable on this
+   route's TV/projector screen, viewed from across a room. Scoped override -
+   does not touch the shared rule or any other screen using it. */
+.qi-display-shell .badge { font-size: clamp(13px, 1.1vw, 19px) !important; }
 .qi-display-shell .fbl-stage,
 .qi-display-connect,
 .qi-display-intermission,
@@ -1127,7 +1132,9 @@ button, input, select, textarea { font: inherit; }
 
 /* Live question */
 .qi-display-question .qd { padding-top: clamp(16px,2vh,30px); }
-.qi-display-question .qd-top { margin: 0 6%; font-size: clamp(13px,1.25vw,21px); color: #cfc2e7; }
+/* Bumped from clamp(13px,1.25vw,21px) - the "QUESTION N · ROUND NAME" line
+   was too small to read from across a room. */
+.qi-display-question .qd-top { margin: 0 6%; font-size: clamp(19px,2vw,32px); color: #cfc2e7; }
 .qi-display-question .qd-q { margin: 3vh 6% 2.5vh; font-size: clamp(46px,5.2vw,96px); line-height: 1.08; letter-spacing: -.025em; max-width: 88%; }
 .qi-display-question .qd-opts { margin: 0 6%; gap: clamp(12px,1.5vw,24px); }
 .qi-display-question .qd-opt { min-height: clamp(72px,9vh,118px); border-radius: 20px; font-size: clamp(22px,2.1vw,38px); line-height: 1.16; background: rgba(31,15,62,.88); border-color: rgba(217,79,220,.28); }
@@ -1139,13 +1146,17 @@ button, input, select, textarea { font: inherit; }
 
 /* Picture questions */
 .qi-display-picture-hero { position: relative; display: grid; place-items: center; padding: clamp(70px,8vh,110px) var(--qi-display-safe-x); }
-.qi-display-picture-meta { position: absolute; top: 4vh; left: var(--qi-display-safe-x); font-size: clamp(14px,1.25vw,21px); color: #d7cbea; letter-spacing: .2em; }
+/* Bumped from clamp(14px,1.25vw,21px) - too small to read from across a room
+   on a TV/projector even at full viewport width. */
+.qi-display-picture-meta { position: absolute; top: 4vh; left: var(--qi-display-safe-x); font-size: clamp(20px,2vw,32px); color: #d7cbea; letter-spacing: .2em; }
 .qi-display-picture-image { max-width: min(92vw, 1600px); max-height: 78vh; border-radius: 22px; object-fit: contain; box-shadow: 0 28px 90px rgba(0,0,0,.48), 0 0 0 1px rgba(217,79,220,.3), 0 0 70px rgba(190,38,193,.18); }
 .qi-display-picture-prompt { position: absolute; bottom: 3vh; font-size: clamp(13px,1.2vw,20px); color: #9c89c2; letter-spacing: .28em; }
 .qi-display-media-error { padding: clamp(36px,5vw,70px); border-radius: 24px; background: var(--qi-display-surface); border: 1px solid rgba(255,255,255,.16); text-align: center; }
 .qi-display-picture-question { position: relative; display: flex; flex-direction: column; }
 .qi-display-picture-header { min-height: 9vh; display: flex; align-items: center; gap: 18px; padding: 0 var(--qi-display-safe-x); border-bottom: 1px solid var(--qi-display-line); }
-.qi-display-question-number { color: #a999c6; font-size: clamp(12px,1vw,17px); font-weight: 750; letter-spacing: .18em; }
+/* Bumped from clamp(12px,1vw,17px) - same room-readability fix as the
+   picture-round meta line above. */
+.qi-display-question-number { color: #a999c6; font-size: clamp(18px,1.6vw,28px); font-weight: 750; letter-spacing: .18em; }
 .qi-display-picture-chip { padding: 8px 16px; border-radius: 999px; background: rgba(190,38,193,.16); border: 1px solid rgba(217,79,220,.4); color: #f0a9f2; font-size: clamp(12px,1.1vw,18px); font-weight: 750; letter-spacing: .14em; }
 .qi-display-picture-timer { width: clamp(64px,5vw,86px); aspect-ratio: 1; margin-left: auto; border-radius: 50%; display: grid; place-items: center; background: rgba(190,38,193,.16); border: 3px solid #d94fdc; font-size: clamp(30px,3vw,50px); font-weight: 850; font-variant-numeric: tabular-nums; }
 .qi-display-picture-timer.is-urgent { color: #ff6b7a; border-color: #ff5365; background: rgba(255,59,78,.15); }
@@ -1200,7 +1211,12 @@ button, input, select, textarea { font: inherit; }
 .qi-display-celebration-content { position: relative; z-index: 2; padding: 0 var(--qi-display-safe-x); text-align: center; }
 .qi-display-fastest-team { margin-top: 3vh; font-size: clamp(70px,10vw,180px); font-weight: 900; line-height: .92; letter-spacing: -.04em; text-shadow: 0 12px 60px rgba(190,38,193,.48); animation: nameSlam .65s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
 .qi-display-fastest-photo { display: flex; justify-content: center; margin-top: 4vh; }
-.qi-display-fastest-photo img { width: clamp(200px,20vw,340px); aspect-ratio: 1; border-radius: 50%; object-fit: cover; object-position: center 30%; border: 5px solid #d94fdc; box-shadow: 0 0 58px rgba(217,79,220,.35); animation: goldRise .5s .5s var(--ease-settle, ease-out) both; opacity: 0; }
+/* Bumped from clamp(200px,20vw,340px) - wanted "more of a feature", not a
+   thumbnail. Animation delay removed (was 0.5s stacked on top of the
+   winnerPhotoDelayMilliseconds JS delay in app/host/display/page.tsx,
+   doubling up the wait before it actually appeared) - the JS delay alone now
+   times the reveal. */
+.qi-display-fastest-photo img { width: clamp(260px,28vw,460px); aspect-ratio: 1; border-radius: 50%; object-fit: cover; object-position: center 30%; border: 6px solid #d94fdc; box-shadow: 0 0 76px rgba(217,79,220,.4); animation: goldRise .5s var(--ease-settle, ease-out) both; opacity: 0; }
 .qi-display-no-winner { position: relative; z-index: 2; max-width: 80vw; color: #b9a8d9; font-size: clamp(42px,5.5vw,92px); font-weight: 850; line-height: 1.06; text-align: center; }
 .qi-display-winner .wc-name { font-size: clamp(52px,8vw,140px); }
 .qi-display-winner .wc-crest { width: clamp(110px,12vw,200px); }
@@ -1208,11 +1224,17 @@ button, input, select, textarea { font: inherit; }
 .qi-display-winner .wc-meta { font-size: clamp(16px,1.5vw,25px); }
 
 /* Spin and persistent signature */
+/* This screen sits inside a fixed 100dvh/overflow:hidden stage (see
+   .qi-display-shell .fbl-stage above). The machine used to size purely off
+   viewport WIDTH (min(90vw,1100px)) with no height limit, so on shorter/
+   wider screens its actual (width-driven) height outgrew the stage and the
+   flex-centred layout pushed the title off the top edge, clipped by the
+   overflow:hidden - looking like an oversized wheel with a vanishing title. */
 .qi-display-spin { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--qi-display-safe-y) var(--qi-display-safe-x); }
-.qi-display-spin-heading { position: relative; z-index: 2; text-align: center; margin-bottom: 3vh; }
+.qi-display-spin-heading { position: relative; z-index: 2; text-align: center; margin-bottom: 3vh; flex-shrink: 0; }
 .qi-display-spin-title { font-size: clamp(48px,6vw,104px); text-shadow: 0 0 44px rgba(190,38,193,.5); }
 .qi-display-spin-winner { margin-top: 12px; color: #ded2f3; font-size: clamp(18px,1.8vw,30px); font-weight: 700; letter-spacing: .14em; }
-.qi-display-spin-machine { position: relative; z-index: 2; width: min(90vw,1100px); }
+.qi-display-spin-machine { position: relative; z-index: 2; width: min(90vw,60vh,1100px); max-height: 58vh; flex-shrink: 0; }
 .qi-display-brand-signature { backdrop-filter: blur(12px); }
 .qi-display-fullscreen {
   position: fixed;
@@ -1297,6 +1319,7 @@ button, input, select, textarea { font: inherit; }
 .qi-player-state,.qi-player-shell { min-height: 100dvh; max-width: 100vw; overflow-x: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(12px,env(safe-area-inset-top)); padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); padding-bottom: max(14px,env(safe-area-inset-bottom)); padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
 .qi-player-status { width: 100%; min-height: 56px; flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 0 12px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 14px; position: relative; z-index: 5; }
 .qi-player-status__crest { width: 38px; height: 38px; flex: none; display: grid; place-items: center; clip-path: polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); background: linear-gradient(145deg,#8a1b8d,#211044); border: 1px solid #d94fdc; font-size: 12px; font-weight: 900; }
+.qi-player-status__crest--photo { object-fit: cover; object-position: center 30%; }
 .qi-player-status__identity { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .qi-player-card-rail { justify-content: flex-start; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x proximity; padding: 4px 2px 8px; scrollbar-width: thin; }
 .qi-player-card-rail > button { scroll-snap-align: start; }
@@ -1315,12 +1338,21 @@ button, input, select, textarea { font: inherit; }
 .qi-player-status__connection i { width: 7px; height: 7px; border-radius: 50%; background: #ff5365; }
 .qi-player-status__connection.is-online i { background: #2ee06e; box-shadow: 0 0 8px rgba(46,224,110,.55); }
 .qi-player-question-scroll { scrollbar-width: thin; scrollbar-color: #8a1b8d transparent; overscroll-behavior: contain; padding: 2px; }
-.qi-player-question-text { font-size: clamp(23px,6.6vw,34px); font-weight: 850; line-height: 1.22; letter-spacing: -.018em; margin: 4px 0 18px; text-wrap: balance; }
-.qi-player-question-screen .fbl .opt { min-height: 68px; margin-bottom: 10px; border-radius: 18px; padding: 14px 16px; background: var(--qi-player-raised); border-color: rgba(217,79,220,.25); font-size: clamp(17px,4.7vw,21px); line-height: 1.25; touch-action: manipulation; }
+/* Row sizing below used fixed px min-heights (68px options, 62px lockbar)
+   regardless of viewport height or how many options/rows a question needed -
+   fine for 2-3 short options on a tall phone, but a 6-option multi_tap
+   question with a two-line question on a shorter phone/iPad reliably
+   outgrew the screen and forced the "safety net" scroll (see
+   .qi-player-question-scroll) to kick in on nearly every question - which is
+   the actual "still scrolling" complaint. Switching these to dvh-based
+   clamps lets rows compress on shorter viewports / more options instead of
+   overflowing, so the safety-net scroll goes back to being a rare fallback. */
+.qi-player-question-text { font-size: clamp(20px,6.6vw,34px); font-weight: 850; line-height: 1.2; letter-spacing: -.018em; margin: clamp(2px,0.6dvh,4px) 0 clamp(8px,1.8dvh,18px); text-wrap: balance; }
+.qi-player-question-screen .fbl .opt { min-height: clamp(46px,7.5dvh,68px); margin-bottom: clamp(6px,1.2dvh,10px); border-radius: 18px; padding: clamp(8px,1.6dvh,14px) 16px; background: var(--qi-player-raised); border-color: rgba(217,79,220,.25); font-size: clamp(15px,4.7vw,21px); line-height: 1.2; touch-action: manipulation; }
 .qi-player-question-screen .fbl .opt.sel { background: rgba(190,38,193,.27); border: 2px solid #d94fdc; box-shadow: 0 0 0 4px rgba(217,79,220,.1); }
-.qi-player-question-screen .fbl .opt .chip { width: 38px; height: 38px; border-radius: 11px; font-size: 14px; }
-.qi-player-question-screen .fbl .lockbar { min-height: 62px; border-radius: 18px; margin-top: 14px; font-size: 16px; letter-spacing: .12em; touch-action: manipulation; }
-.qi-player-answer-button { min-height: 68px !important; border-radius: 18px !important; background: var(--qi-player-raised) !important; font-size: clamp(17px,4.6vw,21px) !important; line-height: 1.25; touch-action: manipulation; }
+.qi-player-question-screen .fbl .opt .chip { width: 38px; height: 38px; border-radius: 11px; font-size: 14px; flex-shrink: 0; }
+.qi-player-question-screen .fbl .lockbar { min-height: clamp(44px,6.5dvh,62px); border-radius: 18px; margin-top: clamp(8px,1.8dvh,14px); font-size: 16px; letter-spacing: .12em; touch-action: manipulation; }
+.qi-player-answer-button { min-height: clamp(46px,7.5dvh,68px) !important; border-radius: 18px !important; background: var(--qi-player-raised) !important; font-size: clamp(17px,4.6vw,21px) !important; line-height: 1.2; touch-action: manipulation; }
 .qi-player-answer-button.is-selected { background: rgba(190,38,193,.27) !important; border: 2px solid #d94fdc !important; box-shadow: 0 0 0 4px rgba(217,79,220,.1) !important; }
 .qi-player-result { width: 100%; padding: 20px; border-radius: 20px; text-align: center; border: 2px solid rgba(217,79,220,.45); background: rgba(190,38,193,.13); margin: auto 0 16px; }
 .qi-player-result strong { display: block; font-family: var(--font-logo),"Bruno Ace SC",sans-serif; font-size: clamp(25px,8vw,38px); letter-spacing: .08em; }
@@ -1391,9 +1423,13 @@ button, input, select, textarea { font: inherit; }
 @media (max-height: 680px) {
   .qi-player-status { min-height: 46px; margin-bottom: 8px; padding-block: 4px 8px; }
   .qi-player-status__crest { width: 32px; height: 32px; }
-  .qi-player-question-text { font-size: clamp(20px,5.8vw,27px); margin-bottom: 10px; }
-  .qi-player-question-screen .fbl .opt,.qi-player-answer-button { min-height: 56px !important; padding-block: 10px !important; }
-  .qi-player-question-screen .fbl .lockbar { min-height: 54px; margin-top: 8px; }
+  .qi-player-question-text { font-size: clamp(18px,5.8vw,27px); margin-bottom: clamp(4px,1dvh,10px); }
+  /* Was a flat 56px !important floor on every short phone regardless of how
+     many rows needed to fit - the exact case (short viewport, 6-option
+     multi_tap) that pushed content into the safety-net scroll most often.
+     Scaled with dvh instead so it keeps shrinking as needed. */
+  .qi-player-question-screen .fbl .opt,.qi-player-answer-button { min-height: clamp(40px,7dvh,56px) !important; padding-block: clamp(6px,1.2dvh,10px) !important; }
+  .qi-player-question-screen .fbl .lockbar { min-height: clamp(38px,6dvh,54px); margin-top: clamp(4px,1dvh,8px); }
 }
 @media (orientation: landscape) and (max-height: 540px) {
   .qi-player-state { padding-top: max(8px,env(safe-area-inset-top)); }

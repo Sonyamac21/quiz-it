@@ -590,14 +590,20 @@ function DisplayScreenInner() {
         playSound("sad-trombone.mp3", 0.9);
       }
     } else if (newPhase === "spin_to_win") {
-      // Leaving celebration for the spin - stop the question's victory song/flash
-      // (Spin to Win has its own audio), but deliberately do NOT reset
-      // celebrationPlayingForRef to null here. The spin-cleanup timeout on the
-      // host writes phase back to "celebration" with the SAME fastest_team/
-      // fastest_song still set (it only clears the spin_* columns) - if this ref
-      // were nulled out, that return trip would look like "a genuinely new
-      // celebration" for the same team and replay the victory song a second time.
-      stopShowAudio("music");
+      // The host now moves the Display into this phase as soon as they click
+      // "Offer Spin to Win" - before the wheel has actually spun (spin_target_idx
+      // is still null at that point). Cutting the victory song at that instant,
+      // as this used to do unconditionally, silenced it every time a spin was
+      // offered quickly - which read as "the song didn't play" for that team.
+      // Only stop it once a real spin starts (spin_target_idx present); while
+      // merely offered/idle, let the song keep playing under the wheel screen.
+      // Deliberately do NOT reset celebrationPlayingForRef to null here either
+      // way. The spin-cleanup timeout on the host writes phase back to
+      // "celebration" with the SAME fastest_team/fastest_song still set (it only
+      // clears the spin_* columns) - if this ref were nulled out, that return
+      // trip would look like "a genuinely new celebration" for the same team
+      // and replay the victory song a second time.
+      if (data.spin_target_idx != null) stopShowAudio("music");
     } else if (newPhase === "quiz_end") {
       // The podium winner celebration owns the music channel during the finale.
       // Do NOT let the generic celebration-exit cleanup below

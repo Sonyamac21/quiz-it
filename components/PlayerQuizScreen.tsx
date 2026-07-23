@@ -124,8 +124,15 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
   }
 
   return (
-    <div style={{ height:"100dvh", overflowY:"auto", WebkitOverflowScrolling:"touch" as const, background:bg, display:"flex", flexDirection:"column", padding:20, boxSizing:"border-box" as const, fontFamily:font, color:"#fff" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+    // Outer frame is fixed to the viewport (matches the main question screen's
+    // pattern) - it never scrolls itself. Previously the WHOLE screen scrolled
+    // unconditionally, including the header and Power Cards footer, which
+    // could disappear off-screen while answering. Only the middle content
+    // (image/question/keypad) scrolls, and only as a safety net if it's
+    // genuinely too tall for the screen - the image height and text/keypad
+    // spacing below are also now viewport-relative so that's rare in practice.
+    <div style={{ height:"100dvh", overflow:"hidden", background:bg, display:"flex", flexDirection:"column", padding:"clamp(12px,3dvh,20px) 20px", boxSizing:"border-box" as const, fontFamily:font, color:"#fff" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:"clamp(8px,2dvh,14px)", flexShrink:0 }}>
         <div style={{ fontSize:11, letterSpacing:3, color:"rgba(255,255,255,0.3)" }}>Q{questionIndex+1} — PICTURE ROUND</div>
       {timeLeft !== null && timeLeft > 0 && (
           <div style={{ marginLeft:"auto", width:40, height:40, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"2px solid "+(timeLeft<=3?"#ef4444":purple), display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:timeLeft<=3?"#ef4444":purple }}>
@@ -133,15 +140,16 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
           </div>
         )}
       </div>
+      <div style={{ flex:1, minHeight:0, overflowY:"auto", WebkitOverflowScrolling:"touch" as const, display:"flex", flexDirection:"column" }}>
       {!imageFailed ? (
-        <img src={imageUrl} alt="Quiz" onError={() => setImageFailed(true)} style={{ width:"100%", maxHeight:"35vh", objectFit:"contain", borderRadius:12, marginBottom:16 }} />
+        <img src={imageUrl} alt="Quiz" onError={() => setImageFailed(true)} style={{ width:"100%", maxHeight:"30dvh", objectFit:"contain", borderRadius:12, marginBottom:"clamp(8px,2dvh,16px)" }} />
       ) : (
-        <div style={{ width:"100%", padding:"24px 16px", borderRadius:12, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", textAlign:"center" as const, marginBottom:16 }}>
+        <div style={{ width:"100%", padding:"24px 16px", borderRadius:12, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", textAlign:"center" as const, marginBottom:"clamp(8px,2dvh,16px)" }}>
           <div style={{ fontSize:28, marginBottom:8 }}>🖼️</div>
           <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", fontFamily:font }}>Image could not be loaded — listen for the host</div>
         </div>
       )}
-      <div style={{ fontSize:16, fontWeight:700, lineHeight:1.4, marginBottom:16, color:"#fff" }}>{questionText}</div>
+      <div style={{ fontSize:16, fontWeight:700, lineHeight:1.4, marginBottom:"clamp(8px,2dvh,16px)", color:"#fff" }}>{questionText}</div>
       {!submitted ? (
         <AnswerKeypad mode="text" onSubmit={onSubmit} />
       ) : (
@@ -150,9 +158,10 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginTop:4 }}>Waiting for host...</div>
         </div>
       )}
-      {allowPowerCards ? <div style={{ marginTop:"auto", paddingTop:12 }}>
+      </div>
+      {allowPowerCards ? <div style={{ flexShrink:0, paddingTop:12 }}>
         <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} enabled={allowPowerCards} />
-      </div> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+      </div> : <div className="qi-player-cards-paused" style={{ flexShrink:0 }}>Power Cards unavailable this round</div>}
     </div>
   );
 }
@@ -208,6 +217,21 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
   const [roundNumber, setRoundNumber] = useState<number>(1);
   const [roundName, setRoundName] = useState("");
+  // The team's own photo (uploaded at join), shown in the status bar crest
+  // instead of the initial-letter badge when present. Fetched once - it
+  // never changes mid-session, so no realtime subscription is needed.
+  const [teamPhotoUrl, setTeamPhotoUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    createSupabaseBrowserClient()
+      .from("teams")
+      .select("photo_url")
+      .eq("session_pin", sessionPin)
+      .eq("team_name", teamName)
+      .maybeSingle()
+      .then(({ data }) => { if (!cancelled) setTeamPhotoUrl((data?.photo_url as string) || null); });
+    return () => { cancelled = true; };
+  }, [sessionPin, teamName]);
   const [hardDeckGuess, setHardDeckGuess] = useState<string | null>(null);
   const [stickGamblePressed, setStickGamblePressed] = useState<string | null>(null);
   const [spinOffered, setSpinOffered] = useState(false);
@@ -704,7 +728,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   if (connectionLost) {
     return (
       <PlayerShell className="qi-player-recovery">
-        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} />
         <PlayerResultBanner tone="neutral" title="CONNECTION LOST">Close and reopen the keypad to reconnect.</PlayerResultBanner>
         <button className="qi-player-reconnect" onClick={() => window.location.reload()}>RECONNECT</button>
       </PlayerShell>
@@ -716,7 +740,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const stage = entry?.stage ?? 0;
     return (
       <PlayerShell className="qi-player-pursuit-observer">
-        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={false} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={false} photoUrl={teamPhotoUrl} />
         <div className="qi-player-observer-label">OBSERVATION ONLY</div>
         <h1>{entry?.status === "completed" ? "FINISHED" : "ELIMINATED"}</h1>
         <div className="qi-player-observer-score"><span>Banked score</span><strong>{pursuitTotalPoints(stage)}</strong></div>
@@ -730,7 +754,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const sorted = [...phoneScoreboardData].sort((a,b) => b.total_points - a.total_points);
     return (
       <PlayerShell className="qi-player-leaderboard">
-        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} />
         <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 18, color: purple, letterSpacing: ".24em", textAlign: "center" as const, marginBottom: 20, textShadow: "0 0 24px rgba(190,38,193,.5)" }}>LEADERBOARD</div>
         <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
           {sorted.map((s, i) => (
@@ -775,7 +799,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const rankLabel = (r: number) => rankLabels[r] || String(r);
     return (
       <div className="qi-player-state qi-player-hard-deck" style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const }}>
-        <PlayerStatusBar teamName={teamName} roundName="The Hard Deck" powerCardsEnabled={false} />
+        <PlayerStatusBar teamName={teamName} roundName="The Hard Deck" powerCardsEnabled={false} photoUrl={teamPhotoUrl} />
         <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: (hardDeckTeam && hardDeckStatus !== "wheel") ? 14 : 20, color: (hardDeckTeam && hardDeckStatus !== "wheel") ? "rgba(190,38,193,0.5)" : purple, letterSpacing: (hardDeckTeam && hardDeckStatus !== "wheel") ? 2 : 3, fontWeight: (hardDeckTeam && hardDeckStatus !== "wheel") ? 600 : 400 }}>THE HARD DECK</div>
 
         {/* Everyone sees the same team-select wheel and card faces, not just text -
@@ -907,7 +931,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       : "The Pursuit is starting soon…";
     return (
       <div className="qi-player-state qi-player-pursuit" style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
-        <PlayerStatusBar teamName={teamName} roundName="The Pursuit" powerCardsEnabled={false} />
+        <PlayerStatusBar teamName={teamName} roundName="The Pursuit" powerCardsEnabled={false} photoUrl={teamPhotoUrl} />
         <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 22, color: "#38bdf8", letterSpacing: 3 }}>THE PURSUIT</div>
         {pursuitQIndex >= 0 && pursuitStatus === "advance" && (
           <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>QUESTION {pursuitQIndex + 1} / {PURSUIT_TOTAL_QUESTIONS}</div>
@@ -1063,7 +1087,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       : null;
     return (
       <div className={"fbl fbl-phone qi-player-state qi-player-answer" + (mcVerdict === true ? " is-correct" : mcVerdict === false ? " is-incorrect" : "")} style={{ minHeight: "100vh", display: "flex", flexDirection: "column", padding: 20 }}>
-        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} />
         {mcVerdict === true ? (
           /* The player's whole moment: did I get it? — one dominant answer. */
           <div style={{ position: "relative", zIndex: 2, margin: "auto 0", textAlign: "center" }}>
@@ -1144,7 +1168,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
     return (
       <div className="qi-player-state qi-player-question-screen" style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
-        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} />
         {/* Only this inner area scrolls if content is too tall for the screen -
             the page itself never scrolls, and Power Cards (outside this div)
             always stays visible no matter what. */}
@@ -1278,7 +1302,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   // team name, waiting line + room count. Power-card selector preserved below.
   return (
     <div className="fbl fbl-phone qi-player-state qi-player-waiting" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} />
+      <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} />
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 14, textAlign: "center", position: "relative", zIndex: 2 }}>
         <Crest initials={teamInitials(teamName)} size={88} />
         <div style={{ font: "800 clamp(22px,6.6vw,30px) 'Inter'", color: "#fff" }}>{teamName}</div>

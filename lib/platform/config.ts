@@ -25,7 +25,12 @@ export const PLATFORM_CONFIG = Object.freeze({
     powerCardRotationMilliseconds: 8000,
     announcementVisibleMilliseconds: 3200,
     announcementClearMilliseconds: 3600,
-    winnerPhotoDelayMilliseconds: 2000,
+    // Was 2000ms - stacked with the photo's own 500ms CSS animation-delay plus
+    // its 500ms animation duration, the photo didn't actually finish appearing
+    // until ~3s after the team name landed. Shortened to land right after the
+    // name-slam animation (nameSlam is .65s) instead of feeling like a second,
+    // separate reveal.
+    winnerPhotoDelayMilliseconds: 550,
   },
   diagnostics: {
     sampleMilliseconds: 1000,

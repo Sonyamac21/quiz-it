@@ -9,7 +9,7 @@ import { SlotReels } from "@/components/SlotReels";
 import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitCorrectAnswerText, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { PursuitBoard } from "@/components/PursuitBoard";
 import { teamInitials } from "@/components/TeamBadge";
-import { RoundStart, RoundEnd, Intermission, WaitingForHost } from "@/components/fable/DisplayStates";
+import { RoundStart, RoundEnd, Intermission, IntermissionGallery, WaitingForHost } from "@/components/fable/DisplayStates";
 import { playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 
@@ -242,6 +242,21 @@ function DisplayScreenInner() {
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number|null>(null);
   const [hardDeckWheelSpinning, setHardDeckWheelSpinning] = useState(false);
   const prevHardDeckStatusRef = useRef<string>("idle");
+  // Poll approved customer photos only while actually on the intermission
+  // screen - approvals can land at any moment, so this can't be a one-shot
+  // fetch, but there's no need to keep querying it during live gameplay.
+  useEffect(() => {
+    if (phase !== "intermission" || !sessionPin) { setApprovedCustomerPhotos([]); return; }
+    let cancelled = false;
+    const supabase = createSupabaseBrowserClient();
+    async function loadApprovedPhotos() {
+      const { data } = await supabase.from("session_photos").select("photo_url").eq("session_pin", sessionPin).eq("approved", true).order("created_at", { ascending: true });
+      if (!cancelled) setApprovedCustomerPhotos((data || []).map(row => row.photo_url as string));
+    }
+    loadApprovedPhotos();
+    const interval = window.setInterval(loadApprovedPhotos, 5000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [phase, sessionPin]);
   // THE PURSUIT — display-side mirror of pursuit_status + the pursuit_data race.
   const [pursuitStatus, setPursuitStatus] = useState<PursuitPhase>("idle");
   const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
@@ -316,6 +331,16 @@ function DisplayScreenInner() {
   const [intermissionOffers, setIntermissionOffers] = useState("");
   const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
+  // Venue gallery photos, snapshotted onto the session at creation (see
+  // 202607230003_intermission_photos). Rarely changes mid-show, so this is
+  // read directly off the session row in applySession, same as the other
+  // intermission fields.
+  const [intermissionVenuePhotos, setIntermissionVenuePhotos] = useState<string[]>([]);
+  // Host-approved customer photos (session_photos.approved = true). Unlike
+  // the venue photos above, approvals can land at any moment mid-show, so
+  // this polls its own session_photos query rather than riding the session
+  // row - approving a photo does not touch `sessions` at all.
+  const [approvedCustomerPhotos, setApprovedCustomerPhotos] = useState<string[]>([]);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number|null>(null);
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
   // Tracks which spin_nonce has already forced phase to spin_to_win once.
@@ -512,6 +537,7 @@ function DisplayScreenInner() {
     setIntermissionOffers((data.intermission_offers as string) || "");
     setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
     setIntermissionOtherQuizzes((data.intermission_other_quizzes as string) || "");
+    setIntermissionVenuePhotos((data.intermission_photos as string[]) || []);
     setSpinTargetIdx((data.spin_target_idx as number) ?? null);
     setSpinNonce((data.spin_nonce as number) ?? null);
 
@@ -961,7 +987,8 @@ function DisplayScreenInner() {
 
   // INTERMISSION
   if (phase === "intermission") {
-    const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes;
+    const galleryPhotos = [...intermissionVenuePhotos, ...approvedCustomerPhotos];
+    const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes || galleryPhotos.length > 0;
     // No venue content → the approved Fable holding shot. With content →
     // preserve the working offers/WhatsApp/other-quizzes advertising layout.
     if (!hasContent) {
@@ -1002,6 +1029,7 @@ function DisplayScreenInner() {
             )}
           </div>
         )}
+        <IntermissionGallery photos={galleryPhotos} />
       </div>
     );
   }

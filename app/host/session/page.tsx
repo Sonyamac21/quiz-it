@@ -155,6 +155,7 @@ export default function SessionPage() {
         venue_name: venueData?.venue_name || null,
         venue_logo_url: venueData?.venue_logo_url || null,
         intermission_offers: inheritedOffers || null,
+        intermission_photos: venueData?.gallery_images || [],
       })
       .select()
       .single();

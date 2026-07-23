@@ -1130,6 +1130,14 @@ button, input, select, textarea { font: inherit; }
 .qi-display-promo-qr { min-width: 280px; text-align: center; }
 .qi-display-promo-qr img { width: clamp(200px, 16vw, 280px); aspect-ratio: 1; border-radius: 16px; background: #fff; padding: 10px; }
 
+/* Intermission photo gallery - venue offer/gallery photos plus host-approved
+   customer photos, cross-fading in place. Sits below the offers/WhatsApp
+   grid, full width of the same promo column so it reads as part of the same
+   layout rather than a bolted-on extra. */
+.qi-display-promo-gallery { position: relative; width: min(92vw, 1280px); aspect-ratio: 21 / 9; margin-top: clamp(20px,2.6vh,36px); border-radius: 24px; overflow: hidden; border: 1px solid var(--qi-display-line); box-shadow: 0 22px 58px rgba(0,0,0,.28); z-index: 2; }
+.qi-display-promo-gallery-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.1s ease; }
+.qi-display-promo-gallery-img.active { opacity: 1; }
+
 /* Live question */
 .qi-display-question .qd { padding-top: clamp(16px,2vh,30px); }
 /* Bumped from clamp(13px,1.25vw,21px) - the "QUESTION N · ROUND NAME" line

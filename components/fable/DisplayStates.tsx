@@ -10,7 +10,7 @@
  * here reads Supabase or drives the show.
  */
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 const BADGE = "QUIZ-IT";
 
@@ -139,6 +139,30 @@ export function Intermission({
         STANDINGS ON YOUR PHONES{venueLine ? ` · ${venueLine.toUpperCase()}` : ""}
       </div>
     </DisplayStage>
+  );
+}
+
+// Rotating photo gallery for the intermission screen - venue offer/gallery
+// photos plus host-approved customer photos, already merged and filtered by
+// the caller (this stays presentation-only, per this file's convention: no
+// Supabase reads happen here). Cross-fades on a fixed interval; a single
+// photo just holds still instead of flashing.
+export function IntermissionGallery({ photos, intervalMs = 6000 }: { photos: string[]; intervalMs?: number }) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (photos.length < 2) return;
+    const id = window.setInterval(() => setIndex(current => (current + 1) % photos.length), intervalMs);
+    return () => window.clearInterval(id);
+  }, [photos.length, intervalMs]);
+  if (photos.length === 0) return null;
+  const safeIndex = index % photos.length;
+  return (
+    <div className="qi-display-promo-gallery">
+      {photos.map((url, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img key={url + i} src={url} alt="" className={"qi-display-promo-gallery-img" + (i === safeIndex ? " active" : "")} />
+      ))}
+    </div>
   );
 }
 

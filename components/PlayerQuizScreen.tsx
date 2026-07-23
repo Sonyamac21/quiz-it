@@ -10,6 +10,7 @@ import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, purs
 import { Crest } from "@/components/fable/HandsetStates";
 import { teamInitials } from "@/components/TeamBadge";
 import { PlayerShell, PlayerStatusBar, PlayerResultBanner } from "@/components/player/PlayerUI";
+import { TeamPhotoUpload } from "@/components/player/TeamPhotoUpload";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { platformLogger } from "@/lib/platform/logger";
 
@@ -976,6 +977,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             <div style={{ fontSize: 14, color: "#fff", lineHeight: 1.4 }}>{intermissionOtherQuizzes}</div>
           </div>
         )}
+        <TeamPhotoUpload sessionPin={sessionPin} teamName={teamName} />
       </div>
     );
   }
@@ -1323,6 +1325,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             </>
           )}
         </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", padding: "0 14px 10px" }}>
+        <TeamPhotoUpload sessionPin={sessionPin} teamName={teamName} />
       </div>
       {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
     </div>

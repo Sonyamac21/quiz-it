@@ -1210,13 +1210,28 @@ button, input, select, textarea { font: inherit; }
 .qi-display-celebration { position: relative; display: grid; place-items: center; overflow: hidden; }
 .qi-display-celebration-content { position: relative; z-index: 2; padding: 0 var(--qi-display-safe-x); text-align: center; }
 .qi-display-fastest-team { margin-top: 3vh; font-size: clamp(70px,10vw,180px); font-weight: 900; line-height: .92; letter-spacing: -.04em; text-shadow: 0 12px 60px rgba(190,38,193,.48); animation: nameSlam .65s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
-.qi-display-fastest-photo { display: flex; justify-content: center; margin-top: 4vh; }
-/* Bumped from clamp(200px,20vw,340px) - wanted "more of a feature", not a
-   thumbnail. Animation delay removed (was 0.5s stacked on top of the
+.qi-display-fastest-photo { position: relative; display: flex; justify-content: center; align-items: center; margin-top: 4vh; }
+/* Spotlight glow behind the photo - a pulsing radial wash that makes this
+   its own dedicated beat on screen instead of just a circular thumbnail
+   sitting under the team name. Sized bigger than the photo itself and
+   layered behind it (z-index) so it reads as a stage-light, not a shadow. */
+.qi-display-fastest-photo::before {
+  content: "";
+  position: absolute;
+  width: clamp(340px,38vw,620px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(217,79,220,.55) 0%, rgba(217,79,220,.18) 45%, transparent 72%);
+  animation: photoSpotlight 2.2s ease-in-out .5s infinite;
+  z-index: 0;
+}
+/* Bumped from clamp(200px,20vw,340px), then again from clamp(260px,28vw,460px)
+   - this is meant to read as a genuine feature moment, not a thumbnail next
+   to the name. Animation delay removed (was 0.5s stacked on top of the
    winnerPhotoDelayMilliseconds JS delay in app/host/display/page.tsx,
    doubling up the wait before it actually appeared) - the JS delay alone now
-   times the reveal. */
-.qi-display-fastest-photo img { width: clamp(260px,28vw,460px); aspect-ratio: 1; border-radius: 50%; object-fit: cover; object-position: center 30%; border: 6px solid #d94fdc; box-shadow: 0 0 76px rgba(217,79,220,.4); animation: goldRise .5s var(--ease-settle, ease-out) both; opacity: 0; }
+   times the reveal, with a bouncier scale-in instead of a plain fade/slide. */
+.qi-display-fastest-photo img { position: relative; z-index: 1; width: clamp(300px,34vw,560px); aspect-ratio: 1; border-radius: 50%; object-fit: cover; object-position: center 30%; border: 7px solid #d94fdc; box-shadow: 0 0 100px rgba(217,79,220,.5); animation: photoFeature .6s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; opacity: 0; }
 .qi-display-no-winner { position: relative; z-index: 2; max-width: 80vw; color: #b9a8d9; font-size: clamp(42px,5.5vw,92px); font-weight: 850; line-height: 1.06; text-align: center; }
 .qi-display-winner .wc-name { font-size: clamp(52px,8vw,140px); }
 .qi-display-winner .wc-crest { width: clamp(110px,12vw,200px); }
@@ -1263,6 +1278,8 @@ button, input, select, textarea { font: inherit; }
 @keyframes wrongFade { to { opacity: .18; } }
 @keyframes nameSlam { 0% { opacity: 0; transform: scale(.35) translateY(24px); } 60% { transform: scale(1.06) translateY(-4px); } 100% { opacity: 1; transform: none; } }
 @keyframes goldRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes photoFeature { 0% { opacity: 0; transform: scale(.55) translateY(18px); } 65% { opacity: 1; transform: scale(1.08) translateY(-4px); } 100% { opacity: 1; transform: none; } }
+@keyframes photoSpotlight { 0%,100% { opacity: .5; transform: scale(.94); } 50% { opacity: .9; transform: scale(1.04); } }
 @keyframes confettiFall { 0% { transform: translateY(-16px) rotate(0); opacity: 1; } 100% { transform: translateY(105vh) rotate(540deg); opacity: 0; } }
 @keyframes qiGlowPulse { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
 @keyframes qiGuessPulse { 0% { transform: scale(.85); opacity: .4; } 60% { transform: scale(1.05); } 100% { transform: none; opacity: 1; } }

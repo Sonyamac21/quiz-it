@@ -142,6 +142,24 @@ export default function SessionPage() {
     const { data: venueData } = preparedEvent ? { data: preparedEvent.venue } : await supabase.from("venues").select("*").eq("day_of_week", today).maybeSingle();
     const quizName = quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "";
     const inheritedOffers = preparedEvent?.special_offers || [preparedEvent?.venue?.food_offers, preparedEvent?.venue?.drink_offers, preparedEvent?.venue?.happy_hour].filter(Boolean).join("\n");
+    // Auto-built from the host's own Calendar - the next few scheduled
+    // events (soonest first), excluding tonight's own event. RLS already
+    // scopes "events" to this host, so no extra owner filter is needed here.
+    // Snapshotted once now rather than looked up live from the handset,
+    // matching every other intermission_* field's pattern.
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const { data: upcomingEvents } = await supabase
+      .from("events")
+      .select("event_date, start_time, venue:venues!events_venue_record_id_fkey(venue_name)")
+      .gte("event_date", todayKey)
+      .neq("status", "cancelled")
+      .neq("id", preparedEvent?.id || "")
+      .order("event_date", { ascending: true })
+      .order("start_time", { ascending: true })
+      .limit(5);
+    const upcomingQuizzes = (upcomingEvents || [])
+      .map(row => ({ venue_name: (Array.isArray(row.venue) ? row.venue[0] : row.venue)?.venue_name as string | undefined, event_date: row.event_date, start_time: row.start_time }))
+      .filter((row): row is { venue_name: string; event_date: string; start_time: string } => !!row.venue_name);
     const { data, error } = await supabase
       .from("sessions")
       .insert({
@@ -156,6 +174,7 @@ export default function SessionPage() {
         venue_logo_url: venueData?.venue_logo_url || null,
         intermission_offers: inheritedOffers || null,
         intermission_photos: venueData?.gallery_images || [],
+        upcoming_quizzes: upcomingQuizzes,
       })
       .select()
       .single();

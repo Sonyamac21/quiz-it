@@ -183,6 +183,10 @@ function QuizControllerInner() {
   const roundStartedRef = useRef<number>(0);
   const quizEndRevealedRef = useRef<number>(0);
   const [venueName, setVenueName] = useState<string | null>(null);
+  const [venueLogoUrl, setVenueLogoUrl] = useState<string | null>(null);
+  const [buildingReel, setBuildingReel] = useState(false);
+  const [reelProgress, setReelProgress] = useState(0);
+  const [reelError, setReelError] = useState<string | null>(null);
   const lastDeltasRef = useRef<Record<string, number>>({});
   const roundQuestionsRef = useRef<Question[]>([]);
   // Always-current question index for the realtime answers handler, whose
@@ -344,6 +348,7 @@ function QuizControllerInner() {
     setSessionQuizPlan((data.quiz_plan_name as string) || null);
     await loadRounds(data.id);
     setVenueName(data.venue_name || null);
+    setVenueLogoUrl(data.venue_logo_url || null);
     setConnected(true);
     loadTeams(p.trim());
     loadAnswers(p.trim(), (data.current_question_index as number) || 0);
@@ -365,6 +370,7 @@ function QuizControllerInner() {
     setSessionQuizPlan((data.quiz_plan_name as string) || null);
     await loadRounds(data.id);
     setVenueName(data.venue_name || null);
+    setVenueLogoUrl(data.venue_logo_url || null);
     setConnected(true);
     loadTeams(pinInput.trim());
     loadAnswers(pinInput.trim(), (data.current_question_index as number) || 0);
@@ -656,6 +662,30 @@ function QuizControllerInner() {
     }
     setHostPhase("quiz_end");
   }
+  async function doBuildReel() {
+    if (!sessionPin || buildingReel) return;
+    setBuildingReel(true);
+    setReelProgress(0);
+    setReelError(null);
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data: approved, error: fetchError } = await supabase.from("session_photos").select("photo_url").eq("session_pin", sessionPin).eq("approved", true).order("created_at", { ascending: true });
+      if (fetchError) throw fetchError;
+      if (!approved || approved.length === 0) throw new Error("No approved photos yet - approve some in the Photos panel first.");
+      const { buildAndDownloadReel } = await import("@/lib/reel/buildReel");
+      await buildAndDownloadReel({
+        photos: approved.map(row => ({ url: row.photo_url as string })),
+        venueName,
+        venueLogoUrl,
+        onProgress: setReelProgress,
+      });
+    } catch (err) {
+      setReelError(err instanceof Error ? err.message : "Could not build the reel");
+    } finally {
+      setBuildingReel(false);
+    }
+  }
+
   async function doRevealNextTeam() {
     if (!sessionId) return;
     const total = scores.length;
@@ -1390,10 +1420,17 @@ function QuizControllerInner() {
               <div style={{ font:"600 16px 'Inter'", color:"#B9A8D9", marginBottom:24 }}>Leaderboard reveal is live on the display screen</div>
               <button onClick={doRevealNextTeam} style={{ padding:"16px 40px", borderRadius:14, background:"#BE26C1", border:"none", color:"#fff", font:"700 18px 'Inter'", letterSpacing:".08em", cursor:"pointer", marginBottom:12, boxShadow:"0 0 24px rgba(190,38,193,0.5)" }}>Reveal Next Team</button>
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2, marginBottom:24 }}>or press SPACE</div>
-              <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+              <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" as const, marginBottom: 12 }}>
                 <button onClick={() => downloadWinnerCard(scores, teams, venueName, "vertical")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Story)</button>
                 <button onClick={() => downloadWinnerCard(scores, teams, venueName, "square")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Post)</button>
+                <button onClick={doBuildReel} disabled={buildingReel} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(217,79,220,0.25)", border:"1px solid #D94FDC", color:"#fff", fontSize:13, cursor: buildingReel ? "default" : "pointer", opacity: buildingReel ? 0.7 : 1 }}>
+                  {buildingReel ? `Building reel… ${Math.round(reelProgress * 100)}%` : "Download Instagram Reel"}
+                </button>
               </div>
+              {reelError && <div style={{ fontSize:12, color:"#ff8290", maxWidth:420, margin:"0 auto 12px" }}>{reelError}</div>}
+              {!reelError && !buildingReel && (
+                <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", maxWidth:420, margin:"0 auto" }}>Built from tonight&apos;s approved photos. No music included - add a track in Instagram before posting.</div>
+              )}
             </div>
           ) : hostPhase === "celebration" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>

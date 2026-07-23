@@ -27,6 +27,40 @@ type Question = {
 };
 
 type Phase = "waiting" | "question" | "answer" | "celebration" | "hard_deck" | "intermission" | "spin_to_win" | "quiz_end" | "pursuit";
+type UpcomingQuiz = { venue_name: string; event_date: string; start_time: string };
+
+function formatUpcomingDate(value: string): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${value}T12:00:00`));
+}
+function formatUpcomingTime(value: string): string {
+  const [hours, minutes] = value.split(":").map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+// Auto-built from the host's own Calendar (see app/host/session/page.tsx
+// snapshotting sessions.upcoming_quizzes at session creation) - no extra
+// upload work for the host, per the "auto-generated" requirement. Cycles
+// one card at a time rather than a static list, since this is meant to read
+// as a graphic moment during the break, not a text listing.
+function UpcomingQuizzesCard({ quizzes }: { quizzes: UpcomingQuiz[] }) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (quizzes.length < 2) return;
+    const id = window.setInterval(() => setIndex(current => (current + 1) % quizzes.length), 4500);
+    return () => window.clearInterval(id);
+  }, [quizzes.length]);
+  if (quizzes.length === 0) return null;
+  const quiz = quizzes[index % quizzes.length];
+  return (
+    <div style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(190,38,193,0.1)", border: "1.5px solid rgba(190,38,193,0.4)", width: "100%", maxWidth: 340, textAlign: "center" as const }}>
+      <div style={{ fontSize: 11, color: "#D94FDC", letterSpacing: 2, marginBottom: 8 }}>COMING UP</div>
+      <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 20, color: "#fff", letterSpacing: 1, marginBottom: 4 }}>{quiz.venue_name}</div>
+      <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>{formatUpcomingDate(quiz.event_date)} · {formatUpcomingTime(quiz.start_time)}</div>
+    </div>
+  );
+}
 
 interface Props {
   teamName: string;
@@ -261,6 +295,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [intermissionOffers, setIntermissionOffers] = useState("");
   const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
+  const [upcomingQuizzes, setUpcomingQuizzes] = useState<UpcomingQuiz[]>([]);
   const [quizEndRevealedCount, setQuizEndRevealedCount] = useState(0);
   const [quizEndTrophyVisible, setQuizEndTrophyVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -562,6 +597,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setIntermissionOffers((data.intermission_offers as string) || "");
     setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
     setIntermissionOtherQuizzes((data.intermission_other_quizzes as string) || "");
+    setUpcomingQuizzes((data.upcoming_quizzes as UpcomingQuiz[]) || []);
     setQuizEndRevealedCount((data.quiz_end_revealed_count as number) || 0);
     setQuizEndTrophyVisible(!!data.quiz_end_trophy_visible);
 
@@ -977,6 +1013,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             <div style={{ fontSize: 14, color: "#fff", lineHeight: 1.4 }}>{intermissionOtherQuizzes}</div>
           </div>
         )}
+        <UpcomingQuizzesCard quizzes={upcomingQuizzes} />
         <TeamPhotoUpload sessionPin={sessionPin} teamName={teamName} />
       </div>
     );

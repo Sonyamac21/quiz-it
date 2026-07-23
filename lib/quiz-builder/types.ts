@@ -6,6 +6,7 @@ export type LibraryRound = {
   questions: Record<string, unknown>[];
   hide_leaderboard: boolean;
   allow_power_cards: boolean;
+  points_per_question: number | null;
 };
 
 export type QuizRound = LibraryRound & {

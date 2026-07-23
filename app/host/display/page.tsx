@@ -262,7 +262,7 @@ function DisplayScreenInner() {
       playSound("lock.mp3", 0.5);
     }
   }, [timeLeft, pursuitStatus, pursuitQIndex]);
-  const [teams, setTeams] = useState<{ team_name: string; victory_song?: string; photo_url?: string }[]>([]);
+  const [teams, setTeams] = useState<{ team_name: string; victory_song?: string; photo_url?: string; photo_approved?: boolean }[]>([]);
   // Lobby crest wall — flare newly-arrived teams once, then let them settle.
   const [flaringTeams, setFlaringTeams] = useState<Set<string>>(new Set());
   const seenTeamsRef = useRef<Set<string>>(new Set());
@@ -1161,7 +1161,9 @@ function DisplayScreenInner() {
             <div className="qi-display-fastest-team">
               {fastestTeam}
             </div>
-            {showWinnerPhoto && winnerTeam?.photo_url && (
+            {/* Never shown until a host has approved this team's photo - see
+                the 202607230002_photo_approval migration. */}
+            {showWinnerPhoto && winnerTeam?.photo_url && winnerTeam?.photo_approved && (
               <div className="qi-display-fastest-photo">
                 <img src={winnerTeam.photo_url} alt={fastestTeam} />
               </div>

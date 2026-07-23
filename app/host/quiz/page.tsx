@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HardDeckPanel } from "@/components/HardDeckPanel";
 import { PursuitPanel } from "@/components/PursuitPanel";
+import { PhotoApprovalPanel } from "@/components/PhotoApprovalPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc } from "@/lib/quiz/scoreService";
 import { teamInitials } from "@/components/TeamBadge";
@@ -36,8 +37,9 @@ type Question = {
   fade_in?: boolean;
   fade_out?: boolean;
 };
-type Round = { id: string; name: string; questions: Question[]; round_type?: string; hide_leaderboard?: boolean; allow_power_cards?: boolean; position?: number; completed_at?: string | null; source_round_id?: string | null; };
+type Round = { id: string; name: string; questions: Question[]; round_type?: string; hide_leaderboard?: boolean; allow_power_cards?: boolean; points_per_question?: number | null; position?: number; completed_at?: string | null; source_round_id?: string | null; };
 type Team = { id: string; team_name: string; victory_song: string; session_pin: string; };
+const DEFAULT_POINTS_PER_QUESTION = 10;
 type Answer = { session_pin: string; id: string; team_name: string; question_index: number; answer_text: string; submitted_at: string; };
 type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
 type Score = { team_name: string; total_points: number; round_points: number; };
@@ -126,7 +128,7 @@ function QuizControllerInner() {
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [unoCards, setUnoCards] = useState<UnoCard[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
-  const [pointsPerQ, setPointsPerQ] = useState(10);
+  const [pointsPerQ, setPointsPerQ] = useState(DEFAULT_POINTS_PER_QUESTION);
   const [timeBonus, setTimeBonus] = useState(5);
   const [timerDuration, setTimerDuration] = useState<number>(PLATFORM_CONFIG.timers.defaultSeconds);
   // True while The Pursuit overlay is running — the global spacebar handler stands
@@ -276,7 +278,7 @@ function QuizControllerInner() {
 
   async function loadRounds(liveSessionId: string) {
     const supabase = createSupabaseBrowserClient();
-    const { data, error } = await supabase.from("session_rounds").select("id,name,questions,round_type,hide_leaderboard,allow_power_cards,position,completed_at,source_round_id").eq("session_id", liveSessionId).order("position");
+    const { data, error } = await supabase.from("session_rounds").select("id,name,questions,round_type,hide_leaderboard,allow_power_cards,points_per_question,position,completed_at,source_round_id").eq("session_id", liveSessionId).order("position");
     if (error) platformLogger.error("host", "Live quiz order unavailable", { error });
     setRounds((data ?? []) as Round[]);
   }
@@ -1178,6 +1180,11 @@ function QuizControllerInner() {
   function chooseRound(r: (typeof rounds)[number] | null) {
     setSelectedRound(r || null); setQIdx(0); setAnswers([]); setHostPhase("waiting");
     setRoundNumber((r?.position ?? 0) + 1);
+    // Auto-load this round's saved points-per-question (set in Round Builder)
+    // instead of always starting from the flat session default - the input
+    // next to the round controls is unchanged and still overrides this for
+    // tonight only, per round, same as before.
+    setPointsPerQ(r?.points_per_question ?? DEFAULT_POINTS_PER_QUESTION);
     if (r?.hide_leaderboard) { setShowScoreboard(false); setShowScoreboardOnHandsets(false); }
     roundQuestionsRef.current = r ? [...r.questions] : [];
     if (sessionId) createSupabaseBrowserClient().from("sessions").update({
@@ -1316,6 +1323,7 @@ function QuizControllerInner() {
         )}
           {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
           {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} autoStartRoundId={pursuitAutoStartId} />}
+          {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
           <a href="/host/display" target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
         </nav>
       </header>

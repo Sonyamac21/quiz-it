@@ -166,7 +166,7 @@ export default function SessionPage() {
         setCreating(false);
         return;
       }
-      const { data: snapshots, error: snapshotError } = await supabase.from("session_rounds").insert(quizRounds.map(round => ({ session_id: data.id, source_quiz_round_id: round.id, source_round_id: round.source_round_id, position: round.position, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard, allow_power_cards: round.allow_power_cards, notes: round.notes, sponsor: round.sponsor }))).select("id,position").order("position");
+      const { data: snapshots, error: snapshotError } = await supabase.from("session_rounds").insert(quizRounds.map(round => ({ session_id: data.id, source_quiz_round_id: round.id, source_round_id: round.source_round_id, position: round.position, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard, allow_power_cards: round.allow_power_cards, points_per_question: round.points_per_question ?? null, notes: round.notes, sponsor: round.sponsor }))).select("id,position").order("position");
       if (snapshotError || !snapshots?.length) {
         await supabase.from("sessions").delete().eq("id", data.id);
         setCreateError(snapshotError?.message || "Could not snapshot this quiz.");

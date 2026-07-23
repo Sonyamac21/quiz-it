@@ -218,19 +218,27 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [roundNumber, setRoundNumber] = useState<number>(1);
   const [roundName, setRoundName] = useState("");
   // The team's own photo (uploaded at join), shown in the status bar crest
-  // instead of the initial-letter badge when present. Fetched once - it
-  // never changes mid-session, so no realtime subscription is needed.
+  // instead of the initial-letter badge - but ONLY once a host has approved
+  // it (teams.photo_approved). A photo can be approved any time after join,
+  // so this polls rather than fetching once, the same interval as the
+  // heartbeat above, instead of adding a separate realtime channel just for
+  // this.
   const [teamPhotoUrl, setTeamPhotoUrl] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    createSupabaseBrowserClient()
-      .from("teams")
-      .select("photo_url")
-      .eq("session_pin", sessionPin)
-      .eq("team_name", teamName)
-      .maybeSingle()
-      .then(({ data }) => { if (!cancelled) setTeamPhotoUrl((data?.photo_url as string) || null); });
-    return () => { cancelled = true; };
+    async function fetchPhoto() {
+      const { data } = await createSupabaseBrowserClient()
+        .from("teams")
+        .select("photo_url, photo_approved")
+        .eq("session_pin", sessionPin)
+        .eq("team_name", teamName)
+        .maybeSingle();
+      if (cancelled) return;
+      setTeamPhotoUrl(data?.photo_approved ? (data?.photo_url as string) || null : null);
+    }
+    fetchPhoto();
+    const interval = setInterval(fetchPhoto, PLATFORM_CONFIG.polling.playerHeartbeatMilliseconds);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [sessionPin, teamName]);
   const [hardDeckGuess, setHardDeckGuess] = useState<string | null>(null);
   const [stickGamblePressed, setStickGamblePressed] = useState<string | null>(null);

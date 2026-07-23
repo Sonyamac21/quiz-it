@@ -27,6 +27,7 @@ type Round = {
   questions: Question[];
   hide_leaderboard: boolean;
   allow_power_cards: boolean;
+  points_per_question: number | null;
 };
 
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence" };
@@ -79,12 +80,27 @@ export default function RoundsPage() {
       questions: round.questions,
       hide_leaderboard: round.hide_leaderboard ?? false,
       allow_power_cards: round.allow_power_cards ?? true,
+      points_per_question: round.points_per_question ?? null,
     }).select().single();
     if (!error && data) {
       setRounds(prev => [data, ...prev]);
       setStatus("Round duplicated!");
       setTimeout(() => setStatus(""), 2000);
     }
+  }
+
+  async function updateRoundPoints(id: string, value: number | null) {
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.from("rounds").update({ points_per_question: value }).eq("id", id);
+    if (error) {
+      setStatus("Could not update round points: " + error.message);
+      return;
+    }
+    const apply = (round: Round) => round.id === id ? { ...round, points_per_question: value } : round;
+    setRounds(prev => prev.map(apply));
+    setOpenRound(prev => prev ? apply(prev) : prev);
+    setStatus("Round points updated");
+    setTimeout(() => setStatus(""), 2000);
   }
 
   async function updateRoundBehaviour(id: string, field: "hide_leaderboard" | "allow_power_cards", value: boolean) {
@@ -220,6 +236,20 @@ export default function RoundsPage() {
                 <input type="checkbox" checked={openRound.allow_power_cards ?? true} onChange={e => updateRoundBehaviour(openRound.id, "allow_power_cards", e.target.checked)} />
                 <span><strong style={{ display: "block", font: "700 13px 'Inter'" }}>Allow Power Cards during this round</strong><small style={{ color: "#6B5A8E" }}>When disabled, unused cards stay available for a later round.</small></span>
               </label>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <input
+                  type="number"
+                  min={0}
+                  value={openRound.points_per_question ?? ""}
+                  placeholder="10"
+                  onChange={e => {
+                    const raw = e.target.value;
+                    updateRoundPoints(openRound.id, raw === "" ? null : Number(raw));
+                  }}
+                  style={{ width: 70, padding: "6px 8px", borderRadius: 10, background: "#0A0118", color: "#fff", border: "1px solid #2E1A52", font: "600 14px 'Inter'", textAlign: "center" as const }}
+                />
+                <span><strong style={{ display: "block", font: "700 13px 'Inter'" }}>Points per question</strong><small style={{ color: "#6B5A8E" }}>Auto-loads on the host console when this round starts. Leave blank to use the session default (10), and it can still be overridden live.</small></span>
+              </div>
             </div>
             {openRound.questions.map((q, i) => (
               <div key={i} className="fbh-panel">

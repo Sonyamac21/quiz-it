@@ -1,7 +1,7 @@
 "use client";
 
 type Score = { team_name: string; total_points: number };
-type TeamInfo = { team_name: string; photo_url?: string | null };
+type TeamInfo = { team_name: string; photo_url?: string | null; photo_approved?: boolean | null };
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -89,7 +89,10 @@ export async function downloadWinnerCard(
   const photoSize = format === "vertical" ? 420 : 320;
   let photoBottom = photoY + photoSize;
   let drewPhoto = false;
-  if (winnerTeam?.photo_url) {
+  // Never shown until a host has approved this team's photo - this card can
+  // be downloaded and posted publicly, so it must respect the same approval
+  // gate as the live display/handset (202607230002_photo_approval).
+  if (winnerTeam?.photo_url && winnerTeam?.photo_approved) {
     try {
       const photo = await loadImage(winnerTeam.photo_url);
       ctx.save();

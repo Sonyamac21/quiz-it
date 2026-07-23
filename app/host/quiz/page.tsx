@@ -150,6 +150,10 @@ function QuizControllerInner() {
   // Using .eq("pin", pin) in a closure was silently hitting 0 rows.
   const sessionIdRef = useRef<string | null>(null);
   const [fastestSong, setFastestSong] = useState<string|null>(null);
+  // Set when the host picks a Pursuit round from the main running-order list -
+  // passed into PursuitPanel to launch it directly, instead of the host having
+  // to separately reach for the always-visible header button.
+  const [pursuitAutoStartId, setPursuitAutoStartId] = useState<string | null>(null);
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
@@ -298,8 +302,15 @@ function QuizControllerInner() {
     if (typeof data.round_number === "number") setRoundNumber(data.round_number);
     if (data.fastest_team) { setFastestTeam(data.fastest_team as string); fastestTeamRef.current = data.fastest_team as string; }
     if (data.fastest_song) setFastestSong(data.fastest_song as string);
-    const restoredPhase = (data.phase as string) || "waiting";
+    let restoredPhase = (data.phase as string) || "waiting";
+    // "spin_to_win" only exists as a Display/handset screen - the host's own
+    // console still shows its celebration panel (with the spin controls) the
+    // whole time the spin is offered/running, so a refresh mid-spin must land
+    // back on "celebration", not an unhandled host phase.
+    if (restoredPhase === "spin_to_win") restoredPhase = "celebration";
     setHostPhase(restoredPhase as HostPhase);
+    if (data.spin_offered) { setSpinOffered(true); setDecisionMade(true); }
+    if (data.spin_choice) setSpinChoice(data.spin_choice as string);
 
     // If a timer was actively running when the refresh happened, resume the
     // countdown from elapsed wall-clock time instead of either losing it
@@ -992,6 +1003,12 @@ function QuizControllerInner() {
     setSpinOffered(false);
     setSpinChoice(null);
     setDecisionMade(false);
+    // Clear any leftover result message from a previous question's spin - without
+    // this, the "<team>: <label> applied — <total> points." banner from the last
+    // spin stayed on screen and reappeared under THIS question's Just
+    // Celebrate/Offer Spin to Win buttons, making a spin's points look like they
+    // landed a question late instead of immediately when the spin resolved.
+    setSpinFeedback(null);
     setHostPhase("celebration");
     const supabase = createSupabaseBrowserClient();
     const { error: celebErr } = await supabase.from("sessions").update({ phase: "celebration", fastest_team: fastestTeamName, fastest_song: song, fastest_points: fastestPoints, spin_offered: false, spin_choice: null }).eq("id", sessionId);
@@ -1093,11 +1110,14 @@ function QuizControllerInner() {
     setSpinOffered(true);
     setDecisionMade(true);
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ spin_offered: true, spin_choice: null }).eq("id", sessionId);
-  }
-
-  function doCelebratePlain() {
-    setDecisionMade(true);
+    // Move the Display into the spin_to_win screen as soon as the host offers -
+    // previously phase stayed "celebration" until spin_choice="spin" arrived,
+    // so the wheel only appeared once the participant actually pressed Spin,
+    // not when the host offered it. The Display already renders SlotReels with
+    // targetIdx/nonce still null at this point (idle machine, no scoring), and
+    // triggerSpinIfChosen's later write of the real target/nonce is what
+    // starts the animation - this only changes when the screen switches over.
+    await supabase.from("sessions").update({ phase: "spin_to_win", spin_offered: true, spin_choice: null }).eq("id", sessionId);
   }
 
   async function doEndRound() {
@@ -1295,7 +1315,7 @@ function QuizControllerInner() {
           </div>
         )}
           {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
-          {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={setPursuitActive} />}
+          {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} autoStartRoundId={pursuitAutoStartId} />}
           <a href="/host/display" target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
         </nav>
       </header>
@@ -1328,14 +1348,18 @@ function QuizControllerInner() {
             <div className="qi-mc-round-picker">
               <div className="qi-mc-round-picker__title">Tonight&rsquo;s Running Order</div>
               <div className="qi-mc-round-picker__description">Only rounds prepared in this quiz are available. Completed rounds remain visible.</div>
-              {rounds.filter(r => r.round_type !== "pursuit").length === 0 ? (
+              {rounds.length === 0 ? (
                 <div style={{ font:"600 15px 'Inter'", color:"#B9A8D9", textAlign:"center" }}>This session has no quiz snapshot. Create a new session from Quiz Builder.</div>
               ) : (
                 <div className="qi-mc-round-grid">
-                  {rounds.filter(r => r.round_type !== "pursuit").map(r => (
-                    <button key={r.id} onClick={() => chooseRound(r)} className="qi-mc-round-card">
+                  {rounds.map(r => (
+                    <button
+                      key={r.id}
+                      onClick={() => r.round_type === "pursuit" ? setPursuitAutoStartId(r.id) : chooseRound(r)}
+                      className="qi-mc-round-card"
+                    >
                       <strong>{(r.position ?? 0) + 1}. {r.name}</strong>
-                      <span>{r.completed_at ? "✓ Completed" : "Upcoming"} · {r.questions?.length || 0} questions{r.round_type && r.round_type !== "regular" ? " · " + r.round_type : ""}</span>
+                      <span>{r.completed_at ? "✓ Completed" : "Upcoming"} · {r.round_type === "pursuit" ? "The Pursuit" : `${r.questions?.length || 0} questions${r.round_type && r.round_type !== "regular" ? " · " + r.round_type : ""}`}</span>
                     </button>
                   ))}
                 </div>
@@ -1379,7 +1403,6 @@ function QuizControllerInner() {
                   <div style={{ fontSize:16, color:"rgba(255,255,255,0.5)", marginBottom:32 }}>Victory song playing...</div>
                   {!decisionMade && (
                     <div style={{ display:"flex", gap:12, justifyContent:"center", marginBottom:24 }}>
-                      <button onClick={doCelebratePlain} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", fontSize:14, cursor:"pointer" }}>Just Celebrate</button>
                       <button onClick={doOfferSpinToWin} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>Offer Spin to Win</button>
                     </div>
                   )}

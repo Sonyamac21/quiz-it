@@ -56,9 +56,15 @@ type Props = {
   timerDuration: number;
   onScoreChange?: () => void;
   onActiveChange?: (active: boolean) => void;
+  // Set by the host's main round list when a Pursuit round is picked there,
+  // so reaching it in the planned running order starts The Pursuit directly
+  // instead of requiring the separate always-visible launch button. Each
+  // distinct value (including being set to the same round again) triggers
+  // one launch - see the effect below.
+  autoStartRoundId?: string | null;
 };
 
-export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDuration, onScoreChange, onActiveChange }: Props) {
+export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDuration, onScoreChange, onActiveChange, autoStartRoundId }: Props) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<PursuitPhase>("idle");
@@ -158,6 +164,34 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, status, answersLocked, qIndex, race, timeLeft, pursuitQuestions.length]);
+
+  // Auto-launch: fires when the host picks a Pursuit round from the main
+  // running-order list (app/host/quiz/page.tsx), instead of requiring the
+  // separate always-visible "Start The Pursuit" button. lastAutoStartRef
+  // guards against re-launching on every render once a value is set - only a
+  // genuinely NEW id (a different round, or the same round chosen again after
+  // being cleared back to null by the parent) triggers a launch, and it never
+  // fires while a Pursuit is already open.
+  const lastAutoStartRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoStartRoundId) { lastAutoStartRef.current = null; return; }
+    if (open) return;
+    if (lastAutoStartRef.current === autoStartRoundId) return;
+    lastAutoStartRef.current = autoStartRoundId;
+    const match = rounds.find((r) => r.id === autoStartRoundId);
+    if (!match) return;
+    // startPursuit() only initialises the race/phase - it doesn't read roundId
+    // itself, so no ordering issue setting both in the same pass. The next
+    // render picks up chosenRound/pursuitQuestions from the new roundId before
+    // nextQuestion() can be reached (via Space or the panel's own button).
+    // Deferred via setTimeout(...,0), matching the rest of this codebase's
+    // pattern for state writes triggered from inside an effect body.
+    window.setTimeout(() => {
+      setRoundId(match.id);
+      startPursuit();
+    }, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStartRoundId, rounds, open]);
 
   // Refresh recovery: reopen and restore from the row if a Pursuit is in progress.
   useEffect(() => {

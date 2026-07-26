@@ -1,5 +1,7 @@
 "use client";
 
+import { getMediaUrl } from "@/lib/getMediaUrl";
+
 // Builds a downloadable vertical (Reels-shaped) video from approved
 // quiz-night photos entirely in the browser - no server, no video encoding
 // service. Branded per the "essential" requirement: a Quiz-It + Mac
@@ -26,12 +28,21 @@ const CLOSING_SECONDS = 2.8;
 const FADE_SECONDS = 0.5;
 
 function loadImage(src: string): Promise<HTMLImageElement> {
+  // Vercel Blob on this account only supports private stores, so a raw
+  // blob.vercel-storage.com URL 401s when fetched directly from the browser
+  // - it needs to go through /api/media-proxy (see lib/getMediaUrl.ts) the
+  // same way every other image in the app already does. This function used
+  // to set img.src to the raw URL, so the venue logo (and any team/session
+  // photo actually stored in Blob rather than Supabase Storage) silently
+  // failed to load - caught by the .catch(() => null) below in
+  // buildAndDownloadReel and just left out of the reel with no error shown.
+  const resolved = getMediaUrl(src) || src;
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Could not load " + src));
-    img.src = src;
+    img.onerror = () => reject(new Error("Could not load " + resolved));
+    img.src = resolved;
   });
 }
 
@@ -116,15 +127,18 @@ async function drawClosingCard(ctx: CanvasRenderingContext2D, venueName: string 
   ctx.fillText("Powered by Mac Entertainment", WIDTH / 2, HEIGHT * 0.92);
 }
 
-export async function buildAndDownloadReel({ photos, venueName, venueLogoUrl, onProgress }: ReelOptions): Promise<void> {
+export type ReelResult = { fileExt: string; venueLogoIncluded: boolean };
+
+export async function buildAndDownloadReel({ photos, venueName, venueLogoUrl, onProgress }: ReelOptions): Promise<ReelResult> {
   if (typeof document === "undefined") throw new Error("Reel export only runs in the browser");
   if (!("MediaRecorder" in window)) throw new Error("This browser cannot export video. Try Chrome or Edge.");
 
   // Preload every asset up front - a mid-recording image load stall would
   // otherwise show up as a frozen frame in the exported video.
+  let venueLogoLoadFailed = false;
   const [images, venueLogo] = await Promise.all([
     Promise.all(photos.map(p => loadImage(p.url).catch(() => null))),
-    venueLogoUrl ? loadImage(venueLogoUrl).catch(() => null) : Promise.resolve(null),
+    venueLogoUrl ? loadImage(venueLogoUrl).catch(() => { venueLogoLoadFailed = true; return null; }) : Promise.resolve(null),
   ]);
   const goodImages = images.filter((img): img is HTMLImageElement => !!img);
 
@@ -145,7 +159,16 @@ export async function buildAndDownloadReel({ photos, venueName, venueLogoUrl, on
   const ctx: CanvasRenderingContext2D = context2d;
 
   const stream = canvas.captureStream(FPS);
-  const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
+  // Instagram (and iOS generally) doesn't accept .webm - the host would have
+  // to convert it themselves before every post. Safari's MediaRecorder can
+  // encode straight to mp4/h264, so prefer that wherever it's supported and
+  // only fall back to webm on browsers that can't (current Chrome/Edge) -
+  // the download filename below matches whichever format actually got used.
+  const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=avc1") ? "video/mp4;codecs=avc1"
+    : MediaRecorder.isTypeSupported("video/mp4") ? "video/mp4"
+    : MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9"
+    : "video/webm";
+  const fileExt = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
   const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
   const chunks: BlobPart[] = [];
   recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
@@ -196,9 +219,11 @@ export async function buildAndDownloadReel({ photos, venueName, venueLogoUrl, on
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = (venueName ? venueName.replace(/\s+/g, "-").toLowerCase() + "-" : "") + "quiz-it-reel.webm";
+  a.download = (venueName ? venueName.replace(/\s+/g, "-").toLowerCase() + "-" : "") + "quiz-it-reel." + fileExt;
   document.body.appendChild(a);
   a.click();
   a.remove();
+  URL.revokeObjectURL(url);
+  return { fileExt, venueLogoIncluded: !!venueLogo && !venueLogoLoadFailed };
   URL.revokeObjectURL(url);
 }

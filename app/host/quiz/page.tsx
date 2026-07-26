@@ -673,12 +673,15 @@ function QuizControllerInner() {
       if (fetchError) throw fetchError;
       if (!approved || approved.length === 0) throw new Error("No approved photos yet - approve some in the Photos panel first.");
       const { buildAndDownloadReel } = await import("@/lib/reel/buildReel");
-      await buildAndDownloadReel({
+      const result = await buildAndDownloadReel({
         photos: approved.map(row => ({ url: row.photo_url as string })),
         venueName,
         venueLogoUrl,
         onProgress: setReelProgress,
       });
+      if (venueLogoUrl && !result.venueLogoIncluded) {
+        setReelError("Reel downloaded, but the venue logo couldn't be loaded for the closing card - it's still in the file.");
+      }
     } catch (err) {
       setReelError(err instanceof Error ? err.message : "Could not build the reel");
     } finally {

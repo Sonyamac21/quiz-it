@@ -53,24 +53,28 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
   const INITIAL_TOP = -(INITIAL_CENTRE - 1) * SEG_H;
   // The full-size machine used to be a fixed 480px tall regardless of the
   // viewport, while its OUTER wrapper (.qi-display-spin-machine in
-  // globals.css) was capped to fit within the display's available height
-  // (min(90vw,60vh,1100px) width, max-height:58vh). On a shorter/wider
-  // screen the wrapper shrank in WIDTH to respect that budget, but the reel
-  // columns kept their fixed 480px height regardless - so the machine no
-  // longer matched the space it was meant to fit, reading as "too small"
-  // relative to the display and, on some aspect ratios, clipped by the
-  // wrapper's max-height (which crops top/bottom rather than scaling).
-  // Sizing the reel height directly off the viewport keeps the whole
-  // cabinet - not just its width - responsive to the actual screen.
-  const [reelH, setReelH] = useState(() => size === "compact" ? 160 : 480);
+  // globals.css) was capped to fit within the display's available height.
+  // A first attempt tried to GUESS a smaller fixed height from a percentage
+  // of window.innerHeight, but that guess didn't account for the cabinet's
+  // own chrome (header plate, title, bulb rows) eating into the same box,
+  // so it was still too tall and got clipped/scrolled off-screen. This
+  // measures the ACTUAL rendered height of the reel row itself via
+  // ResizeObserver - whatever space is genuinely left after every other
+  // cabinet element has taken its share - so the strip math always matches
+  // reality exactly, no matter how the surrounding chrome changes later.
+  const reelRowRef = useRef<HTMLDivElement>(null);
+  const [reelH, setReelH] = useState(() => size === "compact" ? 160 : 380);
   useEffect(() => {
-    if (size === "compact") return;
-    function fit() {
-      setReelH(Math.max(220, Math.min(480, Math.round(window.innerHeight * 0.34))));
-    }
-    fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    if (size === "compact" || !reelRowRef.current) return;
+    const el = reelRowRef.current;
+    const measure = () => {
+      const h = Math.round(el.getBoundingClientRect().height);
+      if (h > 40) setReelH(h);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [size]);
   const REEL_H = reelH;
 
@@ -327,15 +331,15 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
       </div>
 
       {/* Inner cabinet panel - unchanged content below, only this wrapper's own border/shadow enriched */}
-      <div style={{ background: "#07030f", borderRadius: 18, border: "1px solid rgba(0,0,0,0.6)", overflow: "hidden", position: "relative", width: "100%", boxShadow: "inset 0 3px 16px rgba(0,0,0,0.85), inset 0 0 1px rgba(255,255,255,0.05)" }}>
+      <div style={{ background: "#07030f", borderRadius: 18, border: "1px solid rgba(0,0,0,0.6)", overflow: "hidden", position: "relative", width: "100%", boxShadow: "inset 0 3px 16px rgba(0,0,0,0.85), inset 0 0 1px rgba(255,255,255,0.05)", display: size === "compact" ? undefined : "flex", flexDirection: size === "compact" ? undefined : "column", flex: size === "compact" ? undefined : "1 1 0", minHeight: size === "compact" ? undefined : 0 }}>
       <canvas ref={fwCanvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 60 }} />
       {renderBulbRow()}
       <div style={{ textAlign: "center", fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", padding: size === "compact" ? "6px 0 4px" : "10px 0 8px", fontSize: size === "compact" ? "clamp(14px,3vw,22px)" : "clamp(22px,3.6vw,50px)", letterSpacing: size === "compact" ? ".12em" : ".14em", color: "#fff", textShadow: "0 0 24px rgba(190,38,193,0.7)" }}>
         <span style={{ color: "#BE26C1" }}>SPIN</span> TO WIN
       </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: size === "compact" ? "8px 12px" : "16px 24px", gap: size === "compact" ? 8 : 16, background: "#08050f", boxShadow: "inset 0 4px 14px rgba(0,0,0,0.6), inset 0 -4px 14px rgba(0,0,0,0.5)" }}>
+      <div ref={reelRowRef} style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: size === "compact" ? "8px 12px" : "16px 24px", gap: size === "compact" ? 8 : 16, background: "#08050f", boxShadow: "inset 0 4px 14px rgba(0,0,0,0.6), inset 0 -4px 14px rgba(0,0,0,0.5)", flex: size === "compact" ? undefined : "1 1 0", minHeight: 0 }}>
         {[0, 1, 2].map((i) => (
-          <div key={i} style={{ flex: 1, height: REEL_H, overflow: "hidden", position: "relative", border: "1px solid rgba(10,4,20,0.9)", borderRadius: 12, background: "#06040f", boxShadow: "inset 0 3px 10px rgba(5,0,13,0.85), inset 0 -3px 10px rgba(5,0,13,0.7), inset 0 0 0 2px rgba(140,120,185,0.3), 0 3px 10px rgba(5,0,13,0.6), 0 0 0 1px rgba(212,175,90,0.25)" }}>
+          <div key={i} style={{ flex: 1, height: size === "compact" ? REEL_H : "100%", overflow: "hidden", position: "relative", border: "1px solid rgba(10,4,20,0.9)", borderRadius: 12, background: "#06040f", boxShadow: "inset 0 3px 10px rgba(5,0,13,0.85), inset 0 -3px 10px rgba(5,0,13,0.7), inset 0 0 0 2px rgba(140,120,185,0.3), 0 3px 10px rgba(5,0,13,0.6), 0 0 0 1px rgba(212,175,90,0.25)" }}>
             <div style={{ position: "absolute", left: 0, right: 0, top: "50%", transform: "translateY(-50%)", height: SEG_H, background: "rgba(100,10,120,0.3)", borderTop: "2px solid #BE26C1", borderBottom: "2px solid #BE26C1", pointerEvents: "none", zIndex: 3 }} />
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 60, background: "linear-gradient(to bottom, #06040f, transparent)", zIndex: 4, pointerEvents: "none" }} />
             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 60, background: "linear-gradient(to top, #06040f, transparent)", zIndex: 4, pointerEvents: "none" }} />

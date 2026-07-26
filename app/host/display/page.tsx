@@ -336,6 +336,7 @@ function DisplayScreenInner() {
   // read directly off the session row in applySession, same as the other
   // intermission fields.
   const [intermissionVenuePhotos, setIntermissionVenuePhotos] = useState<string[]>([]);
+  const [venueName, setVenueName] = useState<string | null>(null);
   // Host-approved customer photos (session_photos.approved = true). Unlike
   // the venue photos above, approvals can land at any moment mid-show, so
   // this polls its own session_photos query rather than riding the session
@@ -457,6 +458,7 @@ function DisplayScreenInner() {
     }
     setRoundName((data.round_name as string) || "");
     setRoundNumber((data.round_number as number) || 1);
+    setVenueName((data.venue_name as string) || null);
     setHideLeaderboard(!!data.hide_leaderboard);
     setAllowPowerCards(data.allow_power_cards !== false);
     const ft = (data.fastest_team as string) || null;
@@ -1018,7 +1020,7 @@ function DisplayScreenInner() {
       <div className="qi-display-intermission">
       <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         <div className="qi-display-eyebrow">TAKE A BREATHER</div>
-        <div className="qi-display-intermission-title">INTERMISSION</div>
+        <div className="qi-display-intermission-title">{venueName ? venueName.toUpperCase() : "INTERMISSION"}</div>
         <div className="qi-display-intermission-subtitle">Next round starting soon…</div>
         {(
           <div className="qi-display-promo-grid">

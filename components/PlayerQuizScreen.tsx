@@ -369,6 +369,46 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       if (sentinel) { sentinel.release().catch(() => {}); sentinel = null; }
     };
   }, [sessionStatus]);
+  // Fallback for phones/browsers where the Screen Wake Lock API above is
+  // either unsupported (older iOS Safari, or the in-app browser used when a
+  // join link is opened from WhatsApp/Instagram) or gets silently ignored -
+  // navigator.wakeLock being undefined means the effect above just no-ops
+  // every time, and the screen goes to sleep mid-quiz with no warning. A
+  // muted, looping, inline video is the long-standing cross-browser trick
+  // (same idea as the NoSleep.js library) for keeping the display awake
+  // where the real API doesn't exist - it costs one tiny offscreen <video>
+  // and no visible UI.
+  useEffect(() => {
+    if (sessionStatus === "finished") return;
+    const nav = navigator as Navigator & { wakeLock?: unknown };
+    if (nav.wakeLock) return; // real API is available and handled above
+    const video = document.createElement("video");
+    video.setAttribute("muted", "");
+    video.setAttribute("playsinline", "");
+    video.setAttribute("loop", "");
+    video.muted = true;
+    video.playsInline = true;
+    video.loop = true;
+    video.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;";
+    // 1x1 black frame, looped forever via a canvas stream - no video asset needed.
+    const canvas = document.createElement("canvas");
+    canvas.width = 2; canvas.height = 2;
+    const ctx = canvas.getContext("2d");
+    if (ctx) { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, 2, 2); }
+    try {
+      const stream = (canvas as HTMLCanvasElement & { captureStream: (fps?: number) => MediaStream }).captureStream(1);
+      video.srcObject = stream;
+    } catch { return; }
+    document.body.appendChild(video);
+    video.play().catch(() => {});
+    const resume = () => { if (document.visibilityState === "visible") video.play().catch(() => {}); };
+    document.addEventListener("visibilitychange", resume);
+    return () => {
+      document.removeEventListener("visibilitychange", resume);
+      video.pause();
+      if (video.parentNode) video.parentNode.removeChild(video);
+    };
+  }, [sessionStatus]);
   const applySessionDataRef = useRef<(data: Record<string, unknown>) => void>(() => {});
 
   useEffect(() => {

@@ -206,23 +206,59 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
     requestAnimationFrame(tick);
   }
 
+  // Cabinet chrome matches the Spin to Win slot machine (components/SlotReels.tsx)
+  // - graphite/chrome shell, gold trim, illuminated purple border, bulb rows and
+  // the same "QUIZ-IT" header plate - so the Hard Deck picker no longer looks like
+  // a separate, unstyled leftover next to every other reskinned show graphic.
+  // Only this wrapper is new; the canvas drum drawing/animation above is untouched.
+  const renderBulbRow = () => (
+    <div style={{ display: "flex", alignItems: "center", padding: "10px 16px 8px", gap: 4, background: "#0d0818" }}>
+      {Array.from({ length: 20 }).map((_, i) => (
+        <div key={i} style={{ display: "contents" }}>
+          {i > 0 && <div style={{ flex: 1, height: 1, background: "#2a0a3a" }} />}
+          <div style={{ width: 16, height: 16, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.85), #BE26C1 55%, #BE26C1 100%)", border: "1px solid rgba(180,185,200,0.4)", flexShrink: 0, boxShadow: "0 0 8px #BE26C1, inset 0 1px 1px rgba(255,255,255,0.35), inset 0 -1px 2px rgba(0,0,0,0.5)" }} />
+        </div>
+      ))}
+    </div>
+  );
+
   return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
-      <div style={{ position:"relative" }}>
-        <div style={{ position:"absolute", left:-18, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"20px solid transparent", borderBottom:"20px solid transparent", borderLeft:"34px solid #BE26C1", filter:"drop-shadow(0 0 10px rgba(190,38,193,0.9))", zIndex:10 }} />
-        <div style={{ position:"absolute", right:-18, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"20px solid transparent", borderBottom:"20px solid transparent", borderRight:"34px solid #BE26C1", filter:"drop-shadow(0 0 10px rgba(190,38,193,0.9))", zIndex:10 }} />
-        <div style={{ position:"absolute", left:0, right:0, top:"50%", height:2, background:"linear-gradient(90deg,transparent,rgba(190,38,193,0.6),transparent)", transform:"translateY(-50%)", zIndex:5 }} />
-        <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", maxWidth:"90vw" }} />
+    <div style={{
+      position: "relative", width: "100%", maxWidth: W + 60, borderRadius: 26,
+      background: "linear-gradient(145deg, #2E1A52 0%, #231543 8%, #1D1140 20%, #150A2E 34%, #0A0118 55%)",
+      padding: 10,
+      boxShadow: "0 24px 70px rgba(0,0,0,0.75), 0 0 0 1px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.35), inset 0 -2px 6px rgba(0,0,0,0.5)",
+    }}>
+      <div style={{ position: "absolute", inset: -4, borderRadius: 30, boxShadow: "0 0 18px 2px rgba(190,38,193,0.4), 0 0 40px 6px rgba(190,38,193,0.22), 0 0 70px 14px rgba(190,38,193,0.08)", pointerEvents: "none" as const }} />
+      <div style={{ position: "absolute", inset: 0, borderRadius: 26, border: "1px solid rgba(212,175,90,0.55)", pointerEvents: "none" as const }} />
+      <div style={{ textAlign: "center", marginBottom: 10 }}>
+        <div style={{ display: "inline-block", padding: "6px 24px", borderRadius: 999, background: "linear-gradient(180deg, #180429, #0a0116)", border: "1px solid rgba(212,175,90,0.55)", boxShadow: "0 3px 10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
+          <span style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 16, letterSpacing: ".05em" }}>
+            <span style={{ color: "#BE26C1" }}>QUIZ-</span><span style={{ color: "#ffffff" }}>IT</span>
+          </span>
+        </div>
       </div>
-      {/* The manual spin button is HOST-ONLY. Passive surfaces (player handsets
-          and the venue display) pass allowManualSpin={false} and drive the wheel
-          purely via autoSpin/forceResultIndex, so only the host can start the
-          Hard Deck team-selection spin. */}
-      {allowManualSpin && !autoSpin && (
-        <button onClick={spin} disabled={spinning} style={{ padding:"14px 52px", background:spinning?"#1a1a2e":"#BE26C1", color:"#fff", border:"none", borderRadius:50, fontSize:18, fontFamily:"sans-serif", letterSpacing:3, cursor:spinning?"not-allowed":"pointer", boxShadow:spinning?"none":"0 0 24px rgba(190,38,193,0.5)", opacity:spinning?0.4:1, transition:"all 0.2s" }}>
-          {spinning ? "Spinning..." : "Spin The Wheel"}
-        </button>
-      )}
+      <div style={{ background: "#07030f", borderRadius: 18, border: "1px solid rgba(0,0,0,0.6)", overflow: "hidden", position: "relative", width: "100%", boxShadow: "inset 0 3px 16px rgba(0,0,0,0.85), inset 0 0 1px rgba(255,255,255,0.05)" }}>
+        {renderBulbRow()}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "18px 16px", background: "#08050f", boxShadow: "inset 0 4px 14px rgba(0,0,0,0.6), inset 0 -4px 14px rgba(0,0,0,0.5)" }}>
+          <div style={{ position:"relative" }}>
+            <div style={{ position:"absolute", left:-18, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"20px solid transparent", borderBottom:"20px solid transparent", borderLeft:"34px solid #BE26C1", filter:"drop-shadow(0 0 10px rgba(190,38,193,0.9))", zIndex:10 }} />
+            <div style={{ position:"absolute", right:-18, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"20px solid transparent", borderBottom:"20px solid transparent", borderRight:"34px solid #BE26C1", filter:"drop-shadow(0 0 10px rgba(190,38,193,0.9))", zIndex:10 }} />
+            <div style={{ position:"absolute", left:0, right:0, top:"50%", height:2, background:"linear-gradient(90deg,transparent,rgba(190,38,193,0.6),transparent)", transform:"translateY(-50%)", zIndex:5 }} />
+            <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", maxWidth:"85vw" }} />
+          </div>
+          {/* The manual spin button is HOST-ONLY. Passive surfaces (player handsets
+              and the venue display) pass allowManualSpin={false} and drive the wheel
+              purely via autoSpin/forceResultIndex, so only the host can start the
+              Hard Deck team-selection spin. */}
+          {allowManualSpin && !autoSpin && (
+            <button onClick={spin} disabled={spinning} style={{ padding:"14px 52px", background:spinning?"#1a1a2e":"linear-gradient(180deg,#D94FDC,#8A1B8D)", color:"#fff", border: spinning ? "1px solid #2E1A52" : "1px solid #D94FDC", borderRadius:50, fontSize:16, fontWeight:800, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor:spinning?"not-allowed":"pointer", boxShadow:spinning?"none":"0 0 24px rgba(190,38,193,0.5)", opacity:spinning?0.4:1, transition:"all 0.2s" }}>
+              {spinning ? "Spinning..." : "Spin The Wheel"}
+            </button>
+          )}
+        </div>
+        {renderBulbRow()}
+      </div>
     </div>
   );
 }

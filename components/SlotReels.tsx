@@ -51,7 +51,28 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
 
   const INITIAL_CENTRE = Math.floor(STRIP_LEN / 2);
   const INITIAL_TOP = -(INITIAL_CENTRE - 1) * SEG_H;
-  const REEL_H = size === "compact" ? 160 : 480;
+  // The full-size machine used to be a fixed 480px tall regardless of the
+  // viewport, while its OUTER wrapper (.qi-display-spin-machine in
+  // globals.css) was capped to fit within the display's available height
+  // (min(90vw,60vh,1100px) width, max-height:58vh). On a shorter/wider
+  // screen the wrapper shrank in WIDTH to respect that budget, but the reel
+  // columns kept their fixed 480px height regardless - so the machine no
+  // longer matched the space it was meant to fit, reading as "too small"
+  // relative to the display and, on some aspect ratios, clipped by the
+  // wrapper's max-height (which crops top/bottom rather than scaling).
+  // Sizing the reel height directly off the viewport keeps the whole
+  // cabinet - not just its width - responsive to the actual screen.
+  const [reelH, setReelH] = useState(() => size === "compact" ? 160 : 480);
+  useEffect(() => {
+    if (size === "compact") return;
+    function fit() {
+      setReelH(Math.max(220, Math.min(480, Math.round(window.innerHeight * 0.34))));
+    }
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [size]);
+  const REEL_H = reelH;
 
   useEffect(() => {
     reelTops.current = [INITIAL_TOP, INITIAL_TOP, INITIAL_TOP];

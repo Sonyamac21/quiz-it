@@ -1110,6 +1110,13 @@ button, input, select, textarea { font: inherit; }
 .qi-display-lobby .lb-pcard-rule { font-size: clamp(18px, 2vw, 31px); }
 .qi-display-lobby .lb-pcard-meta { font-size: clamp(15px, 1.35vw, 21px); font-weight: 750; letter-spacing: .08em; color: #fff; }
 .qi-display-lobby .lb-foot { min-height: 7vh; }
+/* .lb-foot is a full-width bar pinned to bottom:0, with its own right-aligned
+   text (lb-tease). The generic .badge signature is ALSO absolutely
+   positioned bottom-right (bottom:1.4%, right:1.6%) independently of it, so
+   on the lobby screen the two sat in the same corner and their text
+   overlapped. Lifting the badge above the footer bar's height keeps both
+   readable. */
+.qi-display-lobby .badge { bottom: calc(7vh + 1.6%); }
 
 /* Shared show states */
 .qi-display-state { gap: clamp(22px, 4vh, 52px); padding: var(--qi-display-safe-y) var(--qi-display-safe-x); }

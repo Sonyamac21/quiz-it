@@ -704,6 +704,17 @@ function DisplayScreenInner() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams", filter: "session_pin=eq." + pinInput }, (payload) => {
         setTeams(prev => [...prev, payload.new as { team_name: string }]);
       })
+      // A team's photo is usually approved by the host well AFTER they've
+      // joined (mid-quiz, from the Photo approval queue) - the local `teams`
+      // cache above was only ever appended to on INSERT, so that later
+      // photo_approved flip never reached the Display. The winner reveal's
+      // photo gate (below) reads straight from this cache, so an approved
+      // photo would never show for whoever answered fastest until the whole
+      // page reconnected. Merging UPDATE events keeps every team row current.
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "teams", filter: "session_pin=eq." + pinInput }, (payload) => {
+        const updated = payload.new as { team_name: string };
+        setTeams(prev => prev.map(t => t.team_name === updated.team_name ? { ...t, ...updated } : t));
+      })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + pinInput }, (payload) => {
         const c = payload.new as { id?: string|number; team_name: string; card_type: string; played_at?: string; round_number?: number|null };
         const dedupKey = c.id != null ? String(c.id) : c.team_name + "|" + c.card_type + "|" + c.played_at;
@@ -779,6 +790,10 @@ function DisplayScreenInner() {
           })
           .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams", filter: "session_pin=eq." + pinFromUrl }, (payload) => {
             setTeams(prev => [...prev, payload.new as { team_name: string }]);
+          })
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "teams", filter: "session_pin=eq." + pinFromUrl }, (payload) => {
+            const updated = payload.new as { team_name: string };
+            setTeams(prev => prev.map(t => t.team_name === updated.team_name ? { ...t, ...updated } : t));
           })
           .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + pinFromUrl }, (payload) => {
             const c = payload.new as { id?: string|number; team_name: string; card_type: string; played_at?: string; round_number?: number|null };

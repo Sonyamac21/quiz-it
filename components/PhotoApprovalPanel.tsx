@@ -18,7 +18,10 @@ type Props = {
   sessionPin: string;
 };
 
-const POLL_MS = 4000;
+// Was 4000ms - during a live show, a customer uploading mid-quiz shouldn't
+// sit waiting up to 4 seconds before the host even sees it land in the
+// queue. Cheap to poll faster; this is a small per-session table.
+const POLL_MS = 1200;
 
 export function PhotoApprovalPanel({ sessionId, sessionPin }: Props) {
   const [supabase] = useState(() => createSupabaseBrowserClient());

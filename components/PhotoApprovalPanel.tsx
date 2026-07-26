@@ -50,8 +50,15 @@ export function PhotoApprovalPanel({ sessionId, sessionPin }: Props) {
     setError(null);
     const table = photo.kind === "team" ? "teams" : "session_photos";
     const patch = photo.kind === "team" ? { photo_approved: true } : { approved: true, moderated_at: new Date().toISOString() };
-    const { error: updateError } = await supabase.from(table).update(patch).eq("id", photo.id);
+    // .select() after the update, and check the returned rows, rather than
+    // trusting an absent error - an RLS policy that silently matches zero
+    // rows returns success with nothing changed, which otherwise looked like
+    // approval worked (removed here, optimistically) right up until the next
+    // poll re-fetched the still-unapproved row from the database and it
+    // reappeared, unapprovable, forever.
+    const { data: updated, error: updateError } = await supabase.from(table).update(patch).eq("id", photo.id).select("id");
     if (updateError) { setError("Could not approve: " + updateError.message); setBusyId(null); return; }
+    if (!updated || updated.length === 0) { setError("Approve didn't take - the update matched no rows (likely a permissions issue). Nothing changed."); setBusyId(null); return; }
     setPending(prev => prev.filter(p => p.id !== photo.id));
     setBusyId(null);
   }
@@ -63,10 +70,11 @@ export function PhotoApprovalPanel({ sessionId, sessionPin }: Props) {
     // initials badge instead, same as never having uploaded one. A rejected
     // quiz-night upload is flagged rejected rather than deleted, so it can't
     // be resubmitted or approved by accident later.
-    const { error: updateError } = photo.kind === "team"
-      ? await supabase.from("teams").update({ photo_url: null, photo_approved: false }).eq("id", photo.id)
-      : await supabase.from("session_photos").update({ rejected: true, moderated_at: new Date().toISOString() }).eq("id", photo.id);
+    const { data: updated, error: updateError } = photo.kind === "team"
+      ? await supabase.from("teams").update({ photo_url: null, photo_approved: false }).eq("id", photo.id).select("id")
+      : await supabase.from("session_photos").update({ rejected: true, moderated_at: new Date().toISOString() }).eq("id", photo.id).select("id");
     if (updateError) { setError("Could not reject: " + updateError.message); setBusyId(null); return; }
+    if (!updated || updated.length === 0) { setError("Reject didn't take - the update matched no rows (likely a permissions issue). Nothing changed."); setBusyId(null); return; }
     setPending(prev => prev.filter(p => p.id !== photo.id));
     setBusyId(null);
   }

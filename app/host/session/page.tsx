@@ -36,6 +36,7 @@ export default function SessionPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [restoringHost, setRestoringHost] = useState(true);
   const [intermissionOffers, setIntermissionOffers] = useState("");
+  const [intermissionPhotos, setIntermissionPhotos] = useState<string[]>([]);
   const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
   const [savingIntermission, setSavingIntermission] = useState(false);
@@ -91,6 +92,7 @@ export default function SessionPage() {
           setIntermissionOffers(data.intermission_offers || "");
           setIntermissionWhatsapp(data.intermission_whatsapp || "");
           setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
+          setIntermissionPhotos(data.intermission_photos || []);
           setVenueName(data.venue_name || "");
           setVenueLogoUrl(data.venue_logo_url || null);
           setSelectedQuizId(data.quiz_id || "");
@@ -203,6 +205,7 @@ export default function SessionPage() {
       setIntermissionOffers(data.intermission_offers || "");
       setIntermissionWhatsapp(data.intermission_whatsapp || "");
       setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
+      setIntermissionPhotos(data.intermission_photos || []);
       setVenueName(data.venue_name || "");
       setVenueLogoUrl(data.venue_logo_url || null);
       setSessionQuizName(quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "");

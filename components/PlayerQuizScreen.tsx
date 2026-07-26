@@ -815,6 +815,28 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
   if (phase === "spin_to_win") {
     const isWinner = fastestTeamName === teamName;
+    // The host now moves the session into this phase as soon as they click
+    // "Offer Spin to Win" - before the winning team has actually chosen
+    // Spin or Pass (see doOfferSpinToWin in app/host/quiz/page.tsx). This
+    // used to be handled entirely under phase "celebration", where the
+    // isWinner/spinOffered/!spinChoice block below the celebration screen
+    // rendered the Spin/Pass choice - but that phase never lands anymore
+    // while a spin is offered, so the winning team's phone jumped straight
+    // to the (choice-less) spinning-wheel view with no way to actually pick
+    // Spin or Pass. Show the same choice UI here instead, gated on there
+    // being no choice yet and no result yet (spinTargetIdx still null).
+    if (isWinner && !spinChoice && spinTargetIdx === null) {
+      return (
+        <div className="qi-player-state qi-player-spin-choice" style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24, textAlign: "center" as const }}>
+          <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 24, letterSpacing: ".12em", textShadow: "0 0 24px rgba(190,38,193,.6)" }}><span style={{ color: "#BE26C1" }}>SPIN</span> TO WIN</div>
+          {error && (
+            <div style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,59,78,0.12)", border: "1px solid rgba(255,59,78,0.5)", color: "#FF3B4E", font: "600 13px 'Inter'", textAlign: "center" as const }}>{error}</div>
+          )}
+          <button onClick={chooseSpin} style={{ width: "min(64vw,260px)", aspectRatio: "1", borderRadius: "50%", background: "radial-gradient(circle at 50% 40%, rgba(217,79,220,0.35), #150A2E 72%)", border: "2px solid #D94FDC", color: "#fff", font: "800 34px 'Inter'", letterSpacing: ".2em", cursor: "pointer", boxShadow: "0 0 46px rgba(190,38,193,0.5)" }}>SPIN</button>
+          <button onClick={choosePass} style={{ width: "100%", maxWidth: 320, minHeight: 64, borderRadius: 16, background: "#150A2E", border: "1px solid #2E1A52", color: "#B9A8D9", font: "700 18px 'Inter'", letterSpacing: ".2em", cursor: "pointer" }}>PASS</button>
+        </div>
+      );
+    }
     return (
       <div className="qi-player-state qi-player-spin" style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16, gap: 12, textAlign: "center" as const }}>
         {!isWinner && (

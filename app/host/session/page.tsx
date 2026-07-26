@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import Image from "next/image";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HostShell, HostButton, HostInput, HostLabel, HostFrame, HostBody, HostPad, HostCrest, HostLoading, TopSpacer, Pill } from "@/components/fable/HostConsole";
+import { ImageUploader } from "@/components/ImageUploader";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
@@ -220,6 +222,7 @@ export default function SessionPage() {
     const supabase = createSupabaseBrowserClient();
     await supabase.from("sessions").update({
       intermission_offers: intermissionOffers,
+      intermission_photos: intermissionPhotos,
       intermission_whatsapp: intermissionWhatsapp,
       intermission_other_quizzes: intermissionOtherQuizzes,
       venue_name: venueName,
@@ -426,6 +429,23 @@ export default function SessionPage() {
                   <textarea value={intermissionOffers} onChange={e => setIntermissionOffers(e.target.value)} placeholder="Venue offers…" rows={2} style={textareaStyle} />
                   <input value={intermissionWhatsapp} onChange={e => setIntermissionWhatsapp(e.target.value)} placeholder="WhatsApp number or link" style={{ ...textareaStyle, resize: undefined }} />
                   <textarea value={intermissionOtherQuizzes} onChange={e => setIntermissionOtherQuizzes(e.target.value)} placeholder="Other quiz nights…" rows={2} style={textareaStyle} />
+                  <HostLabel>Intermission photos</HostLabel>
+                  <div style={{ font: "400 11px 'Inter'", color: "#6B5A8E", marginBottom: 10 }}>Uploaded here rather than on the venue profile - these are specific to tonight&apos;s session and cycle on the display and phones during breaks.</div>
+                  <ImageUploader currentUrl={null} onUploaded={url => setIntermissionPhotos(prev => [...prev, url])} />
+                  {intermissionPhotos.length > 0 && (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 8, margin: "12px 0" }}>
+                      {intermissionPhotos.map(url => (
+                        <div key={url} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", border: "1px solid #2E1A52" }}>
+                          <Image unoptimized fill sizes="90px" src={url} alt="Intermission" style={{ objectFit: "cover" }} />
+                          <button
+                            onClick={() => setIntermissionPhotos(prev => prev.filter(item => item !== url))}
+                            aria-label="Remove intermission photo"
+                            style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, background: "rgba(5,2,10,0.8)", border: "1px solid #ff3b4e", color: "#ff8290", fontSize: 13, lineHeight: 1, cursor: "pointer" }}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <HostButton variant="pri" onClick={saveIntermission} disabled={savingIntermission}>{savingIntermission ? "SAVING…" : "SAVE INTERMISSION CONTENT"}</HostButton>
                 </>
               )}

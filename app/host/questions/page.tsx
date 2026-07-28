@@ -1385,17 +1385,16 @@ Return ONLY a valid JSON array with 1 item, no markdown:
 
             <details open={rejectedReport.length > 0} style={{ marginBottom:12 }}>
               <summary style={{ cursor:"pointer", color:"#fff", font:"700 17px 'Inter'", padding:"8px 0" }}>Rejected questions ({rejectedReport.length})</summary>
-              <div style={{ display:"grid", gap:10, marginTop:8 }}>
+              <div style={{ display:"grid", gap:6, marginTop:8 }}>
                 {rejectedReport.map((entry, index) => (
-                  <div key={entry.id} style={{ padding:"14px", borderRadius:12, background:"rgba(255,59,78,0.06)", border:"1px solid rgba(255,59,78,0.22)" }}>
-                    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginBottom:7 }}>
-                      <span style={{ color:"#6B5A8E", font:"700 13px 'Inter'" }}>#{index + 1}</span>
-                      <span style={{ color:"#FF7280", font:"700 14px 'Inter'" }}>{entry.category}</span>
-                      <span style={{ color:"#6B5A8E", font:"600 12px 'Inter'" }}>{typeLabel[entry.questionType] || entry.questionType}</span>
-                    </div>
-                    <p style={{ margin:"0 0 7px", color:"#fff", font:"600 16px 'Inter'", lineHeight:1.45 }}>{entry.questionText}</p>
-                    <p style={{ margin:"0 0 10px", color:"#FFB0B8", font:"500 14px 'Inter'", lineHeight:1.45 }}>{entry.reason}</p>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:6 }}>
+                  <details key={entry.id} style={{ padding:"10px 12px", borderRadius:10, background:"rgba(255,59,78,0.06)", border:"1px solid rgba(255,59,78,0.22)" }}>
+                    <summary style={{ cursor:"pointer", display:"flex", gap:8, alignItems:"baseline", flexWrap:"wrap", listStyle:"none" }}>
+                      <span style={{ color:"#6B5A8E", font:"700 12px 'Inter'" }}>#{index + 1}</span>
+                      <span style={{ color:"#FF7280", font:"700 13px 'Inter'" }}>{entry.category}</span>
+                      <span style={{ color:"#fff", font:"500 14px 'Inter'", flex:1, minWidth:200 }}>{entry.questionText}</span>
+                      <span style={{ color:"#FFB0B8", font:"400 12px 'Inter'" }}>{entry.reason}</span>
+                    </summary>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:6, marginTop:10 }}>
                       {(Object.entries(entry.stages) as [ValidationStage, ValidationResult][]).map(([stage, result]) => (
                         <div key={stage} title={result.note} style={{ padding:"7px 9px", borderRadius:8, background:"#100622", border:"1px solid #2E1A52" }}>
                           <div style={{ color:"#B9A8D9", font:"700 11px 'Inter'", textTransform:"uppercase", letterSpacing:".05em" }}>{stageLabel(stage)}</div>
@@ -1412,7 +1411,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </details>
                 ))}
               </div>
             </details>

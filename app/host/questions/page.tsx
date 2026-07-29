@@ -3,7 +3,6 @@ import { useState, useRef, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ImageUploader } from "@/components/ImageUploader";
 import { AudioUploader } from "@/components/AudioUploader";
-import { AudioRecorder } from "@/components/AudioRecorder";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { HostShell, HostButton, HostInput, Chip, TopSpacer } from "@/components/fable/HostConsole";
 
@@ -83,6 +82,7 @@ function stageLabel(stage: ValidationStage): string {
 }
 
 const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife","recent entertainment news (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)"];
+const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","Christmas songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics"];
 
 // Random angle hints injected per question to push variety - without these, the AI
 // tends to default to the single most famous/obvious example for a topic every time
@@ -428,7 +428,9 @@ export default function QuestionsPage() {
     // first-pass quality guidance under the API route's 8,000-character limit.
     if (exclusionNote.length > 2200) exclusionNote = exclusionNote.slice(0, 2200);
     const angle = VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
-    const varietyNote = " IMPORTANT - avoid defaulting to the single most famous, first-thought-of example for this topic (e.g. for 'Disney songs' don't always pick Let It Go or Circle of Life). Where possible, lean toward something " + angle + ". Vary your answer choices across different eras, genres, and sub-topics rather than the most obvious pick.";
+    const varietyNote = type === "audio"
+      ? " IMPORTANT - pick a genuinely well-known, widely recognisable song a pub crowd would clap along to, not a deep cut or obscure track. Vary the decade/genre/artist from recent picks, but recognisability always wins over variety."
+      : " IMPORTANT - avoid defaulting to the single most famous, first-thought-of example for this topic (e.g. for 'Disney songs' don't always pick Let It Go or Circle of Life). Where possible, lean toward something " + angle + ". Vary your answer choices across different eras, genres, and sub-topics rather than the most obvious pick.";
     const prompt = `You are writing questions for a LIVE PUB QUIZ at a bar or restaurant. Your audience is adults aged 25-55 having a social night out. This is entertainment, not education.
 
 BEFORE writing any question, ask yourself: "Would 8 friends sitting in a pub enjoy answering this?" If no, do not write it.
@@ -1024,7 +1026,8 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     let consecutiveCheckFailures = 0;
     while (good.length < count && attempts < maxAttempts) {
       const type = types[i % types.length];
-      const topic = theme || shuffledTopics[(i + good.length) % shuffledTopics.length];
+      const musicTopics = shuffle(MUSIC_TOPICS);
+      const topic = theme || (type === "audio" ? musicTopics[(i + good.length) % musicTopics.length] : shuffledTopics[(i + good.length) % shuffledTopics.length]);
       setStatus("Generating question " + (good.length + 1) + " of " + count + "..." + (consecutiveFailures > 0 ? " (retry " + consecutiveFailures + ")" : ""));
       attempts++;
       lastApiErrorRef.current = "";
@@ -1197,12 +1200,13 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       roundType === "multi_tap" ? ["multi_tap"] :
       ["multiple_choice","text_answer","number","sequence"];
     const topicList = shuffle(TOPICS);
+    const musicTopicList = shuffle(MUSIC_TOPICS);
     const added: Question[] = [];
     let attempts = 0;
     while (added.length < needed && attempts < needed * 6) {
       attempts++;
       const type = types[attempts % types.length];
-      const topic = topicList[attempts % topicList.length];
+      const topic = type === "audio" ? musicTopicList[attempts % musicTopicList.length] : topicList[attempts % topicList.length];
       const q = await generateOne(type, topic);
       if (!q) { reportGeneratedFailure(type); continue; }
       const currentForTopup = [...questions, ...added];
@@ -1473,16 +1477,21 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                 )}
                 {q.question_type==="audio" && (
                   <div style={{ marginBottom:8 }}>
-                    <AudioRecorder
-                      songReference={q.option_a || null}
-                      currentUrl={(q.option_b && q.option_b.includes("blob.vercel-storage.com")) ? q.option_b : null}
-                      onUploaded={(url, fileMeta, clipMeta) => {
-                        setQuestions(prev => prev.map(qq => qq._uid === q._uid ? { ...qq, option_b: url || null } : qq));
-                      }}
-                    />
-                    <a href={"https://www.youtube.com/results?search_query="+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
+                    {(q.option_b && q.option_b.includes("blob.vercel-storage.com")) ? (
+                      <audio controls src={q.option_b} style={{ width:"100%", height:32 }} />
+                    ) : (
+                      <div style={{ padding:"14px", borderRadius:12, background:"rgba(190,38,193,0.08)", border:"1px solid #2E1A52" }}>
+                        <p style={{ margin:"0 0 10px", font:"400 13px 'Inter'", color:"#B9A8D9" }}>
+                          No clip attached yet. Save this round, then open <strong style={{ color:"#fff" }}>Music Prep</strong> to search Deezer and trim the clip — no companion app required.
+                        </p>
+                        <a href="/host/music-prep" style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:14, background:"#150A2E", border:"1px solid #2E1A52", color:"#D94FDC", textDecoration:"none", font:"600 13px 'Inter'" }}>
+                          Open Music Prep →
+                        </a>
+                      </div>
+                    )}
+                    <a href={"https://www.deezer.com/search/"+encodeURIComponent(q.option_a||q.correct_answer)} target="_blank" rel="noopener noreferrer"
                       style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px 16px", borderRadius:14, background:"#150A2E", border:"1px solid #2E1A52", color:"#D94FDC", textDecoration:"none", font:"600 13px 'Inter'", marginTop:10 }}>
-                      Search &ldquo;{q.option_a||q.correct_answer}&rdquo; on YouTube (internal reference — players never see this)
+                      Search &ldquo;{q.option_a||q.correct_answer}&rdquo; on Deezer (internal reference — players never see this)
                     </a>
                     <p style={{ font:"700 16px 'Inter'", color:"#2EE06E", margin:"8px 0 0" }}>Answer: {q.correct_answer}</p>
                   </div>

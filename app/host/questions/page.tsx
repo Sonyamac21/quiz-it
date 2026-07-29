@@ -1018,7 +1018,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     // the generate button.
     const usedLibraryIds = new Set<number>();
     let attempts = 0;
-    const maxAttempts = count * 6;
+    const maxAttempts = count * 12;
     let i = 0;
     let consecutiveFailures = 0;
     let consecutiveCheckFailures = 0;
@@ -1081,7 +1081,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         // list too aggressive, or the moderator prompt rejecting too much), not a
         // one-off blip. Bailing with a clear message beats silently grinding
         // through dozens of slow retries that look identical to "frozen".
-        if (consecutiveCheckFailures >= 10) {
+        if (consecutiveCheckFailures >= 25) {
           setStatus("Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + validation.reason.substring(0,60) + "). Got " + good.length + " of " + count + ". See Generation Report for details.");
           setLoading(false);
           return;
@@ -1374,47 +1374,27 @@ Return ONLY a valid JSON array with 1 item, no markdown:
 
             {rejectedReport.length > 0 && (
               <div style={{ marginBottom:18 }}>
-                <div className="fbh-lbl">Rejections by category</div>
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                  {Object.entries(rejectionCounts).map(([category, total]) => (
-                    <span key={category} style={{ padding:"7px 11px", borderRadius:10, background:"#150A2E", border:"1px solid #2E1A52", color:"#D9CCF2", font:"600 14px 'Inter'" }}>{category}: {total}</span>
-                  ))}
+                <div className="fbh-lbl">Rejections by category ({rejectedReport.length} total)</div>
+                <div style={{ display:"grid", gap:8, marginTop:6 }}>
+                  {Object.entries(rejectionCounts).map(([category, total]) => {
+                    const examples = Array.from(new Set(rejectedReport.filter(e => e.category === category).map(e => e.reason))).slice(0, 3);
+                    return (
+                      <div key={category} style={{ padding:"10px 12px", borderRadius:10, background:"#150A2E", border:"1px solid #2E1A52" }}>
+                        <div style={{ display:"flex", gap:8, alignItems:"baseline", flexWrap:"wrap" }}>
+                          <span style={{ color:"#FF7280", font:"700 14px 'Inter'" }}>{category}</span>
+                          <span style={{ color:"#6B5A8E", font:"600 12px 'Inter'" }}>{total} rejected</span>
+                        </div>
+                        {examples.length > 0 && (
+                          <div style={{ marginTop:4, color:"#8D7AAE", font:"400 12px 'Inter'", lineHeight:1.5 }}>
+                            {examples.map((reason, i) => <div key={i}>&bull; {reason}</div>)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
-
-            <details open={rejectedReport.length > 0} style={{ marginBottom:12 }}>
-              <summary style={{ cursor:"pointer", color:"#fff", font:"700 17px 'Inter'", padding:"8px 0" }}>Rejected questions ({rejectedReport.length})</summary>
-              <div style={{ display:"grid", gap:6, marginTop:8 }}>
-                {rejectedReport.map((entry, index) => (
-                  <details key={entry.id} style={{ padding:"10px 12px", borderRadius:10, background:"rgba(255,59,78,0.06)", border:"1px solid rgba(255,59,78,0.22)" }}>
-                    <summary style={{ cursor:"pointer", display:"flex", gap:8, alignItems:"baseline", flexWrap:"wrap", listStyle:"none" }}>
-                      <span style={{ color:"#6B5A8E", font:"700 12px 'Inter'" }}>#{index + 1}</span>
-                      <span style={{ color:"#FF7280", font:"700 13px 'Inter'" }}>{entry.category}</span>
-                      <span style={{ color:"#fff", font:"500 14px 'Inter'", flex:1, minWidth:200 }}>{entry.questionText}</span>
-                      <span style={{ color:"#FFB0B8", font:"400 12px 'Inter'" }}>{entry.reason}</span>
-                    </summary>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:6, marginTop:10 }}>
-                      {(Object.entries(entry.stages) as [ValidationStage, ValidationResult][]).map(([stage, result]) => (
-                        <div key={stage} title={result.note} style={{ padding:"7px 9px", borderRadius:8, background:"#100622", border:"1px solid #2E1A52" }}>
-                          <div style={{ color:"#B9A8D9", font:"700 11px 'Inter'", textTransform:"uppercase", letterSpacing:".05em" }}>{stageLabel(stage)}</div>
-                          <div style={{ color:result.status === "failed" ? "#FF7280" : result.status === "passed" ? "#2EE06E" : "#6B5A8E", font:"600 12px 'Inter'", marginTop:3 }}>{result.status.replace("_", " ")}</div>
-                          <div style={{ color:"#8D7AAE", font:"400 11px 'Inter'", marginTop:3, lineHeight:1.35 }}>{result.note}</div>
-                          {result.details && (
-                            <div style={{ color:"#8D7AAE", font:"400 11px 'Inter'", marginTop:5, lineHeight:1.35 }}>
-                              <div>Subtopic: {result.details.candidate_subtopic || "None"}</div>
-                              <div>Entity: {result.details.candidate_entity || "None"}</div>
-                              <div>Conflict: {result.details.conflict_index ? `Question ${result.details.conflict_index}` : "None"}</div>
-                              {result.details.rejection_reason && <div>Reason: {result.details.rejection_reason}</div>}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                ))}
-              </div>
-            </details>
 
             <details>
               <summary style={{ cursor:"pointer", color:"#fff", font:"700 17px 'Inter'", padding:"8px 0" }}>Accepted questions ({acceptedReport.length})</summary>

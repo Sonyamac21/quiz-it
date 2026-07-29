@@ -1018,7 +1018,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     // the generate button.
     const usedLibraryIds = new Set<number>();
     let attempts = 0;
-    const maxAttempts = count * 12;
+    const maxAttempts = count * 8;
     let i = 0;
     let consecutiveFailures = 0;
     let consecutiveCheckFailures = 0;
@@ -1081,7 +1081,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         // list too aggressive, or the moderator prompt rejecting too much), not a
         // one-off blip. Bailing with a clear message beats silently grinding
         // through dozens of slow retries that look identical to "frozen".
-        if (consecutiveCheckFailures >= 25) {
+        if (consecutiveCheckFailures >= 15) {
           setStatus("Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + validation.reason.substring(0,60) + "). Got " + good.length + " of " + count + ". See Generation Report for details.");
           setLoading(false);
           return;

@@ -82,7 +82,7 @@ function stageLabel(stage: ValidationStage): string {
   } satisfies Record<ValidationStage, string>)[stage];
 }
 
-const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife"];
+const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife","recent entertainment news (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)"];
 
 // Random angle hints injected per question to push variety - without these, the AI
 // tends to default to the single most famous/obvious example for a topic every time
@@ -459,7 +459,7 @@ STRICT QUALITY RULES (every question must pass all of these):
 4. Wrong answer options must be plausible. Use well-known alternatives someone might genuinely confuse, not obviously wrong fillers.
 5. Every question must be answerable by a reasonably well-informed adult with no specialist training.
 6. UAE venue safe: no alcohol references, no pork, no sexual content, no religion, no LGBTQ+ content, no Iran or Israel political references.
-7. Use one stable, verifiable fact: nothing disputed, subjective, time-sensitive or invented.
+7. Use one stable, verifiable fact: nothing disputed, subjective, or invented. For the "recent entertainment news" and "celebrity and pop culture moments" topics only, you may use well-known entertainment, film/TV, music, sport or celebrity events from roughly the last 1-3 years (award wins, releases, retirements, records, headline pop-culture moments) - never politics, never anything from the last few months, and never anything you are not confident is still accurate.
 8. Wording must allow exactly one defensible, natural answer—not an abbreviation, fragment, trick or technicality.
 9. The question must stand alone without its explanation and test one satisfying piece of knowledge.
 10. Stay on TOPIC but use a genuinely different entity and narrow subtopic from the exclusions.

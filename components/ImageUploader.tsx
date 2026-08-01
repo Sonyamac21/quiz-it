@@ -36,6 +36,38 @@ async function rotateFile(file: File, degrees: number): Promise<File> {
   return new File([blob], file.name, { type: file.type || "image/jpeg" });
 }
 
+// Downscales a large photo client-side (longest edge capped, re-encoded at
+// 85% quality) before it ever leaves the browser. Phone camera photos can
+// easily be 5-15MB - well past what a Vercel serverless function will
+// accept as a request body - so this keeps uploads reliable regardless of
+// how big the original photo is. The server still does its own resize/WEBP
+// conversion; this just makes sure the request is small enough to arrive.
+const MAX_UPLOAD_EDGE = 2000;
+async function downscaleIfNeeded(file: File): Promise<File> {
+  const img = document.createElement("img");
+  const url = URL.createObjectURL(file);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = reject;
+      img.src = url;
+    });
+    if (img.width <= MAX_UPLOAD_EDGE && img.height <= MAX_UPLOAD_EDGE && file.size <= 4 * 1024 * 1024) {
+      return file;
+    }
+    const scale = Math.min(1, MAX_UPLOAD_EDGE / Math.max(img.width, img.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob: Blob = await new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.85));
+    return new File([blob], file.name, { type: "image/jpeg" });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export function ImageUploader({ currentUrl, onUploaded }: Props) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -50,12 +82,13 @@ export function ImageUploader({ currentUrl, onUploaded }: Props) {
     return null;
   }
 
-  function handleFile(file: File) {
+  async function handleFile(file: File) {
     const err = validate(file);
     if (err) { setError(err); return; }
     setError("");
-    setPendingFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    const ready = await downscaleIfNeeded(file);
+    setPendingFile(ready);
+    setPreviewUrl(URL.createObjectURL(ready));
   }
 
   async function handleRotate(degrees: number) {
@@ -74,8 +107,16 @@ export function ImageUploader({ currentUrl, onUploaded }: Props) {
       const formData = new FormData();
       formData.append("file", pendingFile);
       const res = await fetch("/api/upload-image", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok || data.error) {
+      const raw = await res.text();
+      let data: { url?: string; fileName?: string; fileSize?: number; error?: { message?: string } } = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch {
+        // Server (or the platform in front of it) returned a non-JSON body -
+        // e.g. a plain-text 413 "Request Entity Too Large" when a photo is
+        // too big for the request limit. Surface that text directly instead
+        // of crashing with a JSON parse error.
+        throw new Error(!res.ok ? (raw.slice(0, 120) || `Upload failed (status ${res.status})`) : "Upload failed - unexpected server response");
+      }
+      if (!res.ok || data.error || !data.url) {
         throw new Error(data?.error?.message || "Upload failed");
       }
       onUploaded(data.url);
@@ -142,8 +183,8 @@ export function ImageUploader({ currentUrl, onUploaded }: Props) {
 
       {pendingFile && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <button type="button" onClick={() => handleRotate(90)} style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, cursor: "pointer" }}>Rotate \u21bb</button>
-          <button type="button" onClick={() => handleRotate(270)} style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, cursor: "pointer" }}>Rotate \u21ba</button>
+          <button type="button" onClick={() => handleRotate(90)} style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, cursor: "pointer" }}>{"Rotate \u21bb"}</button>
+          <button type="button" onClick={() => handleRotate(270)} style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, cursor: "pointer" }}>{"Rotate \u21ba"}</button>
           <button type="button" onClick={handleUpload} disabled={uploading} style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(34,197,94,0.25)", border: "1px solid #22c55e", color: "#fff", fontSize: 12, fontWeight: 700, cursor: uploading ? "default" : "pointer" }}>
             {uploading ? "Uploading..." : "Save Image"}
           </button>

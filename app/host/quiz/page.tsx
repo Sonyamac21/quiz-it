@@ -187,6 +187,7 @@ function QuizControllerInner() {
   const [buildingReel, setBuildingReel] = useState(false);
   const [reelProgress, setReelProgress] = useState(0);
   const [reelError, setReelError] = useState<string | null>(null);
+  const [reelTip, setReelTip] = useState<string | null>(null);
   const lastDeltasRef = useRef<Record<string, number>>({});
   const roundQuestionsRef = useRef<Question[]>([]);
   // Always-current question index for the realtime answers handler, whose
@@ -682,6 +683,7 @@ function QuizControllerInner() {
       if (venueLogoUrl && !result.venueLogoIncluded) {
         setReelError("Reel downloaded, but the venue logo couldn't be loaded for the closing card - it's still in the file.");
       }
+      setReelTip(`This one used the "${result.variantName}" look. For even more variety: ${result.capcutTip}`);
     } catch (err) {
       setReelError(err instanceof Error ? err.message : "Could not build the reel");
     } finally {
@@ -1441,6 +1443,9 @@ function QuizControllerInner() {
                 </button>
               </div>
               {reelError && <div style={{ fontSize:12, color:"#ff8290", maxWidth:420, margin:"0 auto 12px" }}>{reelError}</div>}
+              {!reelError && reelTip && !buildingReel && (
+                <div style={{ fontSize:12, color:"#d9b3ff", maxWidth:420, margin:"0 auto 8px" }}>{reelTip}</div>
+              )}
               {!reelError && !buildingReel && (
                 <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", maxWidth:420, margin:"0 auto" }}>Built from tonight&apos;s approved photos. No music included - add a track in Instagram before posting.</div>
               )}

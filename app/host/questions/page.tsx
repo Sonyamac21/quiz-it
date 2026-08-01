@@ -462,9 +462,10 @@ STRICT QUALITY RULES (every question must pass all of these):
 5. Every question must be answerable by a reasonably well-informed adult with no specialist training.
 6. UAE venue safe: no alcohol references, no pork, no sexual content, no religion, no LGBTQ+ content, no Iran or Israel political references.
 7. Use one stable, verifiable fact: nothing disputed, subjective, or invented. For the "recent entertainment news" and "celebrity and pop culture moments" topics only, you may use well-known entertainment, film/TV, music, sport or celebrity events from roughly the last 1-3 years (award wins, releases, retirements, records, headline pop-culture moments) - never politics, never anything from the last few months, and never anything you are not confident is still accurate.
-8. Wording must allow exactly one defensible, natural answer—not an abbreviation, fragment, trick or technicality.
-9. The question must stand alone without its explanation and test one satisfying piece of knowledge.
-10. Stay on TOPIC but use a genuinely different entity and narrow subtopic from the exclusions.
+8. Wording must allow exactly one defensible, natural answer-not an abbreviation, fragment, trick or technicality.
+9. If the correct_answer is a person's name and only part of the full name (surname only, or first name only) will be stored as the answer, the question_text itself must explicitly state which part is required (e.g. "What is the SURNAME of the actress who played Katniss Everdeen?" with correct_answer "Lawrence", or "What is the FIRST NAME of the actor who played Iron Man?" with correct_answer "Robert"). Never ask an ambiguous full-name question and store only a partial name as the answer.
+10. The question must stand alone without its explanation and test one satisfying piece of knowledge.
+11. Stay on TOPIC but use a genuinely different entity and narrow subtopic from the exclusions.
 ${varietyNote}${exclusionNote}
 
 Include a 1-2 sentence explanation of the answer in the explanation field.

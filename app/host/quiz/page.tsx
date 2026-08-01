@@ -164,6 +164,12 @@ function QuizControllerInner() {
   const [decisionMade, setDecisionMade] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
+  // Guards doRevealAnswer against firing twice in quick succession (double
+  // click, or a realtime echo re-triggering the handler) - overlapping
+  // autoScore runs were the likely cause of a team's correct/fastest points
+  // silently landing as 0: two runs read the same pre-update score and the
+  // second write clobbered the first's correct total.
+  const revealingRef = useRef(false);
   const tickAudioRef = useRef<AudioContext|null>(null);
   const tickIntervalRef = useRef<ReturnType<typeof setInterval>|null>(null);
   const victorySongRef = useRef<HTMLAudioElement|null>(null);
@@ -996,6 +1002,9 @@ function QuizControllerInner() {
 
   async function doRevealAnswer() {
     if (!currentQ || !sessionId || !sessionPin) return;
+    if (revealingRef.current) return;
+    revealingRef.current = true;
+    setTimeout(() => { revealingRef.current = false; }, 2000);
     if (timerRef.current) clearInterval(timerRef.current);
     stopTickAudio();
     setHostPhase("answer");
@@ -1235,12 +1244,14 @@ function QuizControllerInner() {
     setTimeBonus(r?.max_time_bonus ?? 5);
     if (r?.hide_leaderboard) { setShowScoreboard(false); setShowScoreboardOnHandsets(false); }
     roundQuestionsRef.current = r ? [...r.questions] : [];
+    const isFinalRound = !!r && rounds.length > 0 && r.position === rounds[rounds.length - 1].position;
     if (sessionId) createSupabaseBrowserClient().from("sessions").update({
       round_id: r?.source_round_id || null,
       current_session_round_id: r?.id || null,
       hide_leaderboard: r?.hide_leaderboard ?? false,
       allow_power_cards: r?.allow_power_cards ?? true,
       round_number: (r?.position ?? 0) + 1,
+      is_final_round: isFinalRound,
       ...(r?.hide_leaderboard ? { show_scoreboard: false } : {}),
     }).eq("id", sessionId);
   }

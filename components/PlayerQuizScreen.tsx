@@ -246,6 +246,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [hideLeaderboard, setHideLeaderboard] = useState(false);
   const [allowPowerCards, setAllowPowerCards] = useState(true);
   const [phoneScoreboardData, setPhoneScoreboardData] = useState<{team_name:string; total_points:number}[]>([]);
+  const [isFinalRound, setIsFinalRound] = useState(false);
+  const myRunningPoints = isFinalRound ? undefined : (phoneScoreboardData.find(s => s.team_name === teamName)?.total_points ?? 0);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
@@ -421,7 +423,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data, error: fetchError } = await supabase
         .from("sessions")
-        .select("phase, status, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data")
+        .select("phase, status, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, is_final_round")
         .eq("pin", sessionPin)
         .single();
       if (fetchError) {
@@ -611,6 +613,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setAllowPowerCards(data.allow_power_cards !== false);
     setShowScoreboardOnPhone(!leaderboardHidden && !!data.show_scoreboard);
     setPhoneScoreboardData((data.scoreboard_data as {team_name:string; total_points:number}[]) || []);
+    setIsFinalRound(!!data.is_final_round);
     setSpinTargetIdx((data.spin_target_idx as number) ?? null);
     setSpinNonce((data.spin_nonce as number) ?? null);
     setBlockUntil((data.block_until as string) || null);
@@ -813,7 +816,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   if (connectionLost) {
     return (
       <PlayerShell className="qi-player-recovery">
-        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         <PlayerResultBanner tone="neutral" title="CONNECTION LOST">Close and reopen the keypad to reconnect.</PlayerResultBanner>
         <button className="qi-player-reconnect" onClick={() => window.location.reload()}>RECONNECT</button>
       </PlayerShell>
@@ -839,7 +842,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const sorted = [...phoneScoreboardData].sort((a,b) => b.total_points - a.total_points);
     return (
       <PlayerShell className="qi-player-leaderboard">
-        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 18, color: purple, letterSpacing: ".24em", textAlign: "center" as const, marginBottom: 20, textShadow: "0 0 24px rgba(190,38,193,.5)" }}>LEADERBOARD</div>
         <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
           {sorted.map((s, i) => (
@@ -1196,7 +1199,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       : null;
     return (
       <div className={"fbl fbl-phone qi-player-state qi-player-answer" + (mcVerdict === true ? " is-correct" : mcVerdict === false ? " is-incorrect" : "")} style={{ minHeight: "100vh", display: "flex", flexDirection: "column", padding: 20 }}>
-        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         {mcVerdict === true ? (
           /* The player's whole moment: did I get it? — one dominant answer. */
           <div style={{ position: "relative", zIndex: 2, margin: "auto 0", textAlign: "center" }}>
@@ -1277,7 +1280,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
     return (
       <div className="qi-player-state qi-player-question-screen" style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
-        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         {/* Only this inner area scrolls if content is too tall for the screen -
             the page itself never scrolls, and Power Cards (outside this div)
             always stays visible no matter what. */}
@@ -1411,7 +1414,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   // team name, waiting line + room count. Power-card selector preserved below.
   return (
     <div className="fbl fbl-phone qi-player-state qi-player-waiting" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} />
+      <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 14, textAlign: "center", position: "relative", zIndex: 2 }}>
         <Crest initials={teamInitials(teamName)} size={88} />
         <div style={{ font: "800 clamp(22px,6.6vw,30px) 'Inter'", color: "#fff" }}>{teamName}</div>

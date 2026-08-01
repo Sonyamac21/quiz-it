@@ -7,7 +7,7 @@ export function PlayerShell({ children, className = "" }: { children: ReactNode;
   return <div className={`qi-player-shell ${className}`.trim()}>{children}</div>;
 }
 
-export function PlayerStatusBar({ teamName, roundName, powerCardsEnabled = true, photoUrl }: { teamName: string; roundName?: string; powerCardsEnabled?: boolean; photoUrl?: string | null }) {
+export function PlayerStatusBar({ teamName, roundName, powerCardsEnabled = true, photoUrl, points }: { teamName: string; roundName?: string; powerCardsEnabled?: boolean; photoUrl?: string | null; points?: number }) {
   const [online, setOnline] = useState(true);
   const [photoFailed, setPhotoFailed] = useState(false);
   useEffect(() => {
@@ -37,6 +37,11 @@ export function PlayerStatusBar({ teamName, roundName, powerCardsEnabled = true,
         <img className="qi-player-status__crest qi-player-status__crest--photo" src={photoUrl as string} alt="" aria-hidden="true" onError={() => setPhotoFailed(true)} />
       ) : (
         <span className="qi-player-status__crest" aria-hidden="true">{teamInitials(teamName)}</span>
+      )}
+      {typeof points === "number" && (
+        <span style={{ marginLeft: "auto", padding: "4px 10px", borderRadius: 999, background: "rgba(190,38,193,0.18)", border: "1px solid rgba(190,38,193,0.45)", color: "#fff", fontSize: 13, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+          {points} pts
+        </span>
       )}
       <span className="qi-player-status__identity"><strong>{teamName}</strong>{roundName ? <small>{roundName}</small> : null}</span>
       {powerCardsEnabled ? <span className="qi-player-status__cards" title="Power Cards available">CARDS</span> : null}

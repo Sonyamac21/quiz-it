@@ -21,7 +21,7 @@ function rankLabel(rank: number): string {
   return RANK_LABELS[rank] || String(rank);
 }
 
-const POINTS_LADDER = [5, 10, 20, 40];
+const POINTS_LADDER = [10, 25, 50, 100];
 
 type Props = {
   sessionId: string;

@@ -35,19 +35,41 @@ export default function QuestionBankPage() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-
+  type RoundWithQuestions = { id: string; name: string; questions: BankQuestion[] };
+  type Mismatch = { roundId: string; roundName: string; index: number; question_text: string; correct_answer: string };
+  const [fullRounds, setFullRounds] = useState<RoundWithQuestions[]>([]);
+  const [showTypeFixer, setShowTypeFixer] = useState(false);
   useEffect(() => {
     (async () => {
       const supabase = createSupabaseBrowserClient();
-      const [{ data: qs }, { data: rs }] = await Promise.all([
+      const [{ data: qs }, { data: rs }, { data: frs }] = await Promise.all([
         supabase.from("question_bank").select("*").order("created_at", { ascending: false }),
         supabase.from("rounds").select("id, name").order("created_at", { ascending: false }),
+        supabase.from("rounds").select("id, name, questions").order("created_at", { ascending: false }),
       ]);
       if (qs) setQuestions(qs);
       if (rs) setRounds(rs);
+      if (frs) setFullRounds(frs as RoundWithQuestions[]);
       setLoading(false);
     })();
   }, []);
+  const numberTypeMismatches: Mismatch[] = fullRounds.flatMap(r =>
+    (r.questions || []).map((q, index) => ({ q, index })).filter(({ q }) =>
+      q.question_type !== "number" && /^-?\d+$/.test((q.correct_answer || "").trim())
+    ).map(({ q, index }) => ({ roundId: r.id, roundName: r.name, index, question_text: q.question_text, correct_answer: q.correct_answer }))
+  );
+  async function fixToNumberType(roundId: string, index: number) {
+    const round = fullRounds.find(r => r.id === roundId);
+    if (!round) return;
+    const newQuestions = round.questions.map((q, i) => i === index ? { ...q, question_type: "number", option_a: null, option_b: null, option_c: null, option_d: null } : q);
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.from("rounds").update({ questions: newQuestions }).eq("id", roundId);
+    if (!error) {
+      setFullRounds(prev => prev.map(r => r.id === roundId ? { ...r, questions: newQuestions } : r));
+      setStatus("Fixed - now uses the number keypad.");
+      setTimeout(() => setStatus(""), 2000);
+    }
+  }
 
   async function deleteQuestion(id: string) {
     const supabase = createSupabaseBrowserClient();
@@ -92,8 +114,29 @@ export default function QuestionBankPage() {
           <div><strong>{filtered.length}</strong><span>Matching this view</span></div>
           <div><strong>{rounds.length}</strong><span>Available rounds</span></div>
         </section>
-
         {status && <p style={{ textAlign: "center", color: "#D94FDC", font: "600 13px 'Inter'", marginBottom: 16 }}>{status}</p>}
+        {numberTypeMismatches.length > 0 && (
+          <div className="fbh-panel" style={{ marginBottom: 20, border: "1px solid rgba(250,204,21,0.4)", background: "rgba(250,204,21,0.06)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setShowTypeFixer(v => !v)}>
+              <strong style={{ color: "#facc15" }}>{"\u26A0"} {numberTypeMismatches.length} question{numberTypeMismatches.length === 1 ? "" : "s"} may show the wrong keyboard to players</strong>
+              <span style={{ font: "600 12px 'Inter'", color: "#facc15" }}>{showTypeFixer ? "Hide" : "Review"}</span>
+            </div>
+            {showTypeFixer && (
+              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ font: "400 12px 'Inter'", color: "#B9A8D9" }}>These have a purely numeric answer (like a year) but are not saved as a Number question, so players get the letter keyboard instead of the number pad. Fixing one applies instantly - it does not need regenerating.</div>
+                {numberTypeMismatches.map(m => (
+                  <div key={m.roundId + "-" + m.index} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,0.04)" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ font: "600 13px 'Inter'", color: "#fff" }}>{m.question_text}</div>
+                      <div style={{ font: "400 11px 'Inter'", color: "#6B5A8E" }}>{m.roundName} - Answer: {m.correct_answer}</div>
+                    </div>
+                    <HostButton onClick={() => fixToNumberType(m.roundId, m.index)} style={{ height: 32, padding: "0 12px" }}>Fix to Number</HostButton>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <HostInput
           type="text"

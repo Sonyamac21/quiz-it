@@ -458,30 +458,30 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
 
       <TeamStatus summary={summary} race={race} />
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" as const, justifyContent: "center" }}>
-        {status === "intro" && (
-          <PrimaryButton disabled={pursuitQuestions.length === 0} onClick={nextQuestion} label={`Start Question 1`} />
-        )}
-        {status === "question" && !answersLocked && <PrimaryButton onClick={lockAnswers} label="Lock Answers" />}
-        {status === "question" && answersLocked && <PrimaryButton onClick={revealAnswer} label="Reveal Answer" />}
-        {status === "reveal" && <PrimaryButton onClick={advanceRace} label="Advance Race" />}
-        {status === "advance" && (
-          <>
-            {canAskMore && <PrimaryButton onClick={nextQuestion} label={`Next Question (${qIndex + 2})`} />}
-            <SecondaryButton onClick={finishRound} label="Finish Round" />
-          </>
-        )}
-        {status === "complete" && <PrimaryButton onClick={showResults} label="Show Results" />}
-      </div>
-
-      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", letterSpacing: 1 }}>
-        {status === "intro" ? "SPACE: Start Question 1"
-          : status === "question" ? (answersLocked ? "SPACE: Reveal Answer" : "SPACE: Lock Answers")
-          : status === "reveal" ? "SPACE: Advance Race"
-          : status === "advance" ? (canAskMore ? "SPACE: Next Question" : "SPACE: Finish Round")
-          : status === "complete" ? "SPACE: Show Results" : ""}
-      </div>
-
+      {(() => {
+        const pursuitNextLabel =
+          status === "intro" ? "Start Question 1"
+          : status === "question" ? (answersLocked ? "Reveal Answer" : "Lock Answers")
+          : status === "reveal" ? "Advance Race"
+          : status === "advance" ? (canAskMore ? `Next Question (${qIndex + 2})` : "Finish Round")
+          : status === "complete" ? "Show Results" : "";
+        const pursuitNextHandler =
+          status === "intro" ? nextQuestion
+          : status === "question" ? (answersLocked ? revealAnswer : lockAnswers)
+          : status === "reveal" ? advanceRace
+          : status === "advance" ? (canAskMore ? nextQuestion : finishRound)
+          : status === "complete" ? showResults : undefined;
+        const showTimer = status === "question" && !answersLocked;
+        return pursuitNextLabel ? (
+          <button onClick={pursuitNextHandler} disabled={status === "intro" && pursuitQuestions.length === 0} className={`qi-mc-next${showTimer ? " qi-mc-next--timer" : ""}`}>
+            <span className="qi-mc-next__eyebrow">Next action</span>
+            <span className="qi-mc-next__label">{pursuitNextLabel}</span>
+            {showTimer && <span className={`qi-mc-next__timer${(timeLeft ?? 0) <= 5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft ?? "—"}s</span>}
+            <span className="qi-mc-next__key">Space ↵</span>
+          </button>
+        ) : null;
+      })()}
+      {status === "advance" && canAskMore && <SecondaryButton onClick={finishRound} label="Finish Round Early" />}
       <button onClick={closePanel} style={{ marginTop: 6, padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
     </div>
   );

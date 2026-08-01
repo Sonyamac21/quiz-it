@@ -1421,7 +1421,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                   <span className="fbh-chip">{typeLabel[q.question_type]||q.question_type}</span>
                   <span style={{ font:"400 11px 'Inter'", color:"#6B5A8E" }}>{q.difficulty}</span>
                   <div style={{ flex:1 }} />
-                  <HostButton onClick={(e) => { e.stopPropagation(); removeAndReplace(i); }} onMouseDown={(e) => e.stopPropagation()} style={{ height:30, padding:"0 12px" }}>Remove</HostButton>
+                  <HostButton draggable={false} onDragStart={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); removeAndReplace(i); }} onMouseDown={(e) => e.stopPropagation()} style={{ height:30, padding:"0 12px" }}>Remove</HostButton>
                 </div>
                 <p style={{ font:"700 18px 'Inter'", marginBottom:12, lineHeight:1.5, color:"#fff" }}>{q.question_text}</p>
                 {q.question_type==="multiple_choice" && (

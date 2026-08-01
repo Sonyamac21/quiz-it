@@ -91,7 +91,7 @@ export default function EventCalendarPage() {
   const weekDates=useMemo(()=>{const d=new Date(anchor);d.setDate(d.getDate()-d.getDay());return Array.from({length:7},(_,i)=>{const n=new Date(d);n.setDate(d.getDate()+i);return n;});},[anchor]);
 
   function chooseDate(date:string){setShowQuizOptions(false);setDraft({...blankDraft(date),hostId:currentHost.id,hostName:currentHost.name});window.history.replaceState(null,"",window.location.pathname);}
-  function chooseVenue(id:string){const venue=venues.find(v=>v.id===id);if(!venue)return;setDraft(value=>value?{...value,venueId:id,start:venue.default_start_time?.slice(0,5)||value.start,end:venue.default_end_time?.slice(0,5)||value.end,hostId:currentHost.id,hostName:venue.default_host_name||currentHost.name,quizId:venue.default_quiz_id||"",offers:"",sponsors:""}:value);}
+  function chooseVenue(id:string){const venue=venues.find(v=>v.id===id);if(!venue)return;setDraft(value=>value?{...value,venueId:id,start:venue.default_start_time?.slice(0,5)||value.start,end:venue.default_end_time?.slice(0,5)||value.end,hostId:currentHost.id,hostName:venue.default_host_name||currentHost.name,offers:"",sponsors:""}:value);}
   function editEvent(event:EventRecord){setShowQuizOptions(false);setDraft({id:event.id,venueId:event.venue_record_id||"",date:event.event_date,start:String(event.start_time).slice(0,5),end:String(event.end_time||"").slice(0,5),hostId:event.host_id,hostName:event.host_name||"Host",quizId:event.quiz_definition_id||"",status:event.status||"scheduled",offers:event.special_offers||"",sponsors:(event.sponsors||[]).join(", "),notes:event.notes||"",recurrence:event.recurrence_rule||{frequency:"none",interval:1,end:"occurrences",occurrences:1}});openEventInUrl(event.id);}
 
   async function saveDraft(){

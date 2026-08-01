@@ -21,6 +21,8 @@ export default function QuizBuilderPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [expandedRoundId, setExpandedRoundId] = useState<string | null>(null);
+  const [roundTypeFilter, setRoundTypeFilter] = useState("");
 
   // Guided "Create / Assign Quiz" workflow, arrived at from a Calendar Event
   // that has no Quiz Plan yet (app/host/events/page.tsx). ?forEvent=<id> +
@@ -145,6 +147,17 @@ export default function QuizBuilderPage() {
     await load();
   }
 
+  async function renameRound(round: QuizRound, newName: string) {
+    if (!newName.trim() || newName === round.name) return;
+    await createSupabaseBrowserClient().from("quiz_rounds").update({ name: newName.trim() }).eq("id", round.id);
+    await load();
+  }
+
+  async function updateRoundPoints(round: QuizRound, points: number | null) {
+    await createSupabaseBrowserClient().from("quiz_rounds").update({ points_per_question: points }).eq("id", round.id);
+    await load();
+  }
+
   async function duplicateQuiz(quiz: QuizDefinition) {
     // Guards the whole duplicate operation, not just the subsequent guided
     // assign step - without this a fast double-click could fire two inserts
@@ -201,8 +214,51 @@ export default function QuizBuilderPage() {
       <section className="fbh-panel">{!selected ? <HostEmpty title="Select a Quiz Plan" note="Choose a quiz to arrange its running order." /> : <>
         <HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input" style={{ width: "100%" }} />
         <div style={{ display: "flex", gap: 8, margin: "12px 0 20px", flexWrap: "wrap" }}>{guidedIntent === "duplicate" ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>SAVE QUIZ PLAN</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton onClick={() => deleteQuiz(selected)}>DELETE</HostButton></>}</div>
-        <div className="fbh-lbl">Running Order</div>{selected.quiz_rounds.length ? selected.quiz_rounds.map((round, index) => <div key={round.id} className="fbh-answer-row"><span className="ord">{index + 1}</span><span className="nm">{round.name}</span><span className="ans">{round.questions.length} questions · {round.round_type} · {round.hide_leaderboard ? "Leaderboard hidden" : "Leaderboard shown"} · {round.allow_power_cards ? "Cards allowed" : "Cards paused"}</span><HostButton onClick={() => moveRound(index, -1)} disabled={index === 0}>↑</HostButton><HostButton onClick={() => moveRound(index, 1)} disabled={index === selected.quiz_rounds.length - 1}>↓</HostButton><HostButton onClick={() => duplicateRound(round)}>COPY</HostButton><HostButton onClick={() => removeRound(round)}>REMOVE</HostButton></div>) : <div style={{ color: "#B9A8D9", padding: 16 }}>Add the first round from the library below.</div>}
-        <div className="fbh-lbl" style={{ marginTop: 20 }}>Add from Round Library</div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 8 }}>{rounds.map(round => <button key={round.id} onClick={() => addRound(round)} className="qi-mc-round-card"><strong>{round.name}</strong><span>{round.round_type} · {round.questions.length} questions</span></button>)}</div>
+        <div className="fbh-lbl">Running Order</div>{selected.quiz_rounds.length ? selected.quiz_rounds.map((round, index) => <div key={round.id} style={{ marginBottom: 8 }}>
+          <div className="fbh-answer-row" style={{ flexWrap: "wrap", gap: 8 }}>
+            <span className="ord">{index + 1}</span>
+            <input
+              defaultValue={round.name}
+              onBlur={e => renameRound(round, e.target.value)}
+              style={{ flex: "1 1 160px", minWidth: 0, background: "transparent", border: "1px solid transparent", borderBottom: "1px solid #2E1A52", color: "#fff", font: "700 14px 'Inter'", padding: "4px 2px" }}
+              onClick={e => e.stopPropagation()}
+            />
+            <span className="ans">{round.questions.length} questions · {round.round_type} · {round.hide_leaderboard ? "Leaderboard hidden" : "Leaderboard shown"} · {round.allow_power_cards ? "Cards allowed" : "Cards paused"}</span>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, font: "400 12px 'Inter'", color: "#B9A8D9" }}>
+              Points
+              <input
+                type="number"
+                defaultValue={round.points_per_question ?? ""}
+                placeholder="default"
+                onBlur={e => updateRoundPoints(round, e.target.value === "" ? null : Number(e.target.value))}
+                onClick={e => e.stopPropagation()}
+                style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff" }}
+              />
+            </label>
+            <HostButton onClick={() => setExpandedRoundId(id => id === round.id ? null : round.id)}>{expandedRoundId === round.id ? "HIDE" : "PREVIEW"}</HostButton>
+            <HostButton onClick={() => moveRound(index, -1)} disabled={index === 0}>↑</HostButton>
+            <HostButton onClick={() => moveRound(index, 1)} disabled={index === selected.quiz_rounds.length - 1}>↓</HostButton>
+            <HostButton onClick={() => duplicateRound(round)}>COPY</HostButton>
+            <HostButton onClick={() => removeRound(round)}>REMOVE</HostButton>
+          </div>
+          {expandedRoundId === round.id && (
+            <div style={{ padding: "10px 14px", marginTop: 4, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52", display: "grid", gap: 8 }}>
+              {round.questions.length === 0 && <p style={{ color: "#6B5A8E", font: "400 12px 'Inter'", margin: 0 }}>No questions in this round.</p>}
+              {round.questions.map((q, qi) => (
+                <div key={qi} style={{ font: "400 13px 'Inter'", color: "#D9CCF2", lineHeight: 1.5 }}>
+                  <strong style={{ color: "#6B5A8E" }}>{qi + 1}.</strong> {String((q as Record<string, unknown>).question_text ?? "")}
+                  {" "}<span style={{ color: "#2EE06E" }}>— {String((q as Record<string, unknown>).correct_answer ?? "")}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>) : <div style={{ color: "#B9A8D9", padding: 16 }}>Add the first round from the library below.</div>}
+        <div className="fbh-lbl" style={{ marginTop: 20 }}>Add from Round Library</div>
+        <select value={roundTypeFilter} onChange={e => setRoundTypeFilter(e.target.value)} style={{ marginBottom: 10, minHeight: 44, padding: "0 12px", borderRadius: 10, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", font: "500 13px 'Inter'" }}>
+          <option value="">All round types</option>
+          {Array.from(new Set(rounds.map(r => r.round_type))).sort().map(rt => <option key={rt} value={rt}>{rt}</option>)}
+        </select>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 8 }}>{rounds.filter(r => !roundTypeFilter || r.round_type === roundTypeFilter).map(round => <button key={round.id} onClick={() => addRound(round)} className="qi-mc-round-card"><strong>{round.name}</strong><span>{round.round_type} · {round.questions.length} questions</span></button>)}</div>
       </>}</section>
     </div>}
   </main></HostShell>;

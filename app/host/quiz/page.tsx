@@ -37,7 +37,7 @@ type Question = {
   fade_in?: boolean;
   fade_out?: boolean;
 };
-type Round = { id: string; name: string; questions: Question[]; round_type?: string; hide_leaderboard?: boolean; allow_power_cards?: boolean; points_per_question?: number | null; position?: number; completed_at?: string | null; source_round_id?: string | null; danger_zone_enabled?: boolean; danger_zone_penalty?: number; };
+type Round = { id: string; name: string; questions: Question[]; round_type?: string; hide_leaderboard?: boolean; allow_power_cards?: boolean; points_per_question?: number | null; position?: number; completed_at?: string | null; source_round_id?: string | null; danger_zone_enabled?: boolean; danger_zone_penalty?: number; max_time_bonus?: number; };
 type Team = { id: string; team_name: string; victory_song: string; session_pin: string; };
 const DEFAULT_POINTS_PER_QUESTION = 10;
 type Answer = { session_pin: string; id: string; team_name: string; question_index: number; answer_text: string; submitted_at: string; };
@@ -282,7 +282,7 @@ function QuizControllerInner() {
 
   async function loadRounds(liveSessionId: string) {
     const supabase = createSupabaseBrowserClient();
-    const { data, error } = await supabase.from("session_rounds").select("id,name,questions,round_type,hide_leaderboard,allow_power_cards,points_per_question,position,completed_at,source_round_id,danger_zone_enabled,danger_zone_penalty").eq("session_id", liveSessionId).order("position");
+    const { data, error } = await supabase.from("session_rounds").select("id,name,questions,round_type,hide_leaderboard,allow_power_cards,points_per_question,position,completed_at,source_round_id,danger_zone_enabled,danger_zone_penalty,max_time_bonus").eq("session_id", liveSessionId).order("position");
     if (error) platformLogger.error("host", "Live quiz order unavailable", { error });
     setRounds((data ?? []) as Round[]);
   }
@@ -1224,6 +1224,10 @@ function QuizControllerInner() {
     // to the round controls still override this for tonight only.
     setDangerZone(r?.danger_zone_enabled ?? false);
     setDangerPenalty(r?.danger_zone_penalty ?? 5);
+    // Speed bonus is also a saved-per-round setting now, same as points and
+    // Danger Zone - the "Max time bonus" input next to the round controls
+    // still overrides this for tonight only.
+    setTimeBonus(r?.max_time_bonus ?? 5);
     if (r?.hide_leaderboard) { setShowScoreboard(false); setShowScoreboardOnHandsets(false); }
     roundQuestionsRef.current = r ? [...r.questions] : [];
     if (sessionId) createSupabaseBrowserClient().from("sessions").update({

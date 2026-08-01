@@ -9,6 +9,7 @@ export type LibraryRound = {
   points_per_question: number | null;
   danger_zone_enabled: boolean;
   danger_zone_penalty: number;
+  max_time_bonus: number;
 };
 
 export type QuizRound = LibraryRound & {

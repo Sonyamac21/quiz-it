@@ -43,7 +43,7 @@ export default function QuizBuilderPage() {
     const supabase = createSupabaseBrowserClient();
     const [{ data: quizData, error: quizError }, { data: roundData }] = await Promise.all([
       supabase.from("quizzes").select("*, quiz_rounds(*)").order("updated_at", { ascending: false }),
-      supabase.from("rounds").select("id,name,round_type,difficulty,questions,hide_leaderboard,allow_power_cards,points_per_question,danger_zone_enabled,danger_zone_penalty").order("created_at", { ascending: false }),
+      supabase.from("rounds").select("id,name,round_type,difficulty,questions,hide_leaderboard,allow_power_cards,points_per_question,danger_zone_enabled,danger_zone_penalty,max_time_bonus").order("created_at", { ascending: false }),
     ]);
     if (quizError) setError("Quiz Plan Builder migration is required. " + quizError.message);
     const normalized = ((quizData ?? []) as QuizDefinition[]).map(q => ({ ...q, quiz_rounds: [...(q.quiz_rounds ?? [])].sort((a, b) => a.position - b.position) }));
@@ -112,7 +112,7 @@ export default function QuizBuilderPage() {
 
   async function addRound(round: LibraryRound) {
     if (!selected) return;
-    const { error: saveError } = await createSupabaseBrowserClient().from("quiz_rounds").insert({ quiz_id: selected.id, source_round_id: round.id, position: selected.quiz_rounds.length, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard ?? false, allow_power_cards: round.allow_power_cards ?? true, points_per_question: round.points_per_question ?? null, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5 });
+    const { error: saveError } = await createSupabaseBrowserClient().from("quiz_rounds").insert({ quiz_id: selected.id, source_round_id: round.id, position: selected.quiz_rounds.length, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard ?? false, allow_power_cards: round.allow_power_cards ?? true, points_per_question: round.points_per_question ?? null, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5, max_time_bonus: round.max_time_bonus ?? 5 });
     if (saveError) setError(saveError.message); else await load();
   }
 
@@ -178,6 +178,11 @@ export default function QuizBuilderPage() {
     await load();
   }
 
+  async function updateRoundMaxTimeBonus(round: QuizRound, maxTimeBonus: number) {
+    await createSupabaseBrowserClient().from("quiz_rounds").update({ max_time_bonus: maxTimeBonus }).eq("id", round.id);
+    await load();
+  }
+
   async function duplicateQuiz(quiz: QuizDefinition) {
     // Guards the whole duplicate operation, not just the subsequent guided
     // assign step - without this a fast double-click could fire two inserts
@@ -187,7 +192,7 @@ export default function QuizBuilderPage() {
     const supabase = createSupabaseBrowserClient();
     const { data, error: copyError } = await supabase.from("quizzes").insert({ name: quiz.name + " (Copy)", description: quiz.description, venue_id: quiz.venue_id, host_id: quiz.host_id }).select().single();
     if (copyError || !data) { setError(copyError?.message || "Could not duplicate quiz"); setDuplicating(false); return; }
-    if (quiz.quiz_rounds.length) await supabase.from("quiz_rounds").insert(quiz.quiz_rounds.map(round => ({ quiz_id: data.id, source_round_id: round.source_round_id, position: round.position, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard, allow_power_cards: round.allow_power_cards, points_per_question: round.points_per_question ?? null, notes: round.notes, sponsor: round.sponsor, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5 })));
+    if (quiz.quiz_rounds.length) await supabase.from("quiz_rounds").insert(quiz.quiz_rounds.map(round => ({ quiz_id: data.id, source_round_id: round.source_round_id, position: round.position, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard, allow_power_cards: round.allow_power_cards, points_per_question: round.points_per_question ?? null, notes: round.notes, sponsor: round.sponsor, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5, max_time_bonus: round.max_time_bonus ?? 5 })));
     if (guidedIntent === "duplicate" && guidedEvent) { await assignQuizToEvent(data.id); setDuplicating(false); return; }
     await load(); setSelectedId(data.id);
     setDuplicating(false);
@@ -281,6 +286,16 @@ export default function QuizBuilderPage() {
                 />
               </label>
             )}
+            <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+              Max time bonus
+              <input
+                type="number"
+                defaultValue={round.max_time_bonus ?? 5}
+                onBlur={e => updateRoundMaxTimeBonus(round, Number(e.target.value) || 0)}
+                onClick={e => e.stopPropagation()}
+                style={{ width: 56, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff" }}
+              />
+            </label>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <HostButton onClick={() => setExpandedRoundId(id => id === round.id ? null : round.id)}>{expandedRoundId === round.id ? "HIDE" : "PREVIEW"}</HostButton>

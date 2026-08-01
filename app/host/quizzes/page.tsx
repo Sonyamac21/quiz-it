@@ -43,7 +43,7 @@ export default function QuizBuilderPage() {
     const supabase = createSupabaseBrowserClient();
     const [{ data: quizData, error: quizError }, { data: roundData }] = await Promise.all([
       supabase.from("quizzes").select("*, quiz_rounds(*)").order("updated_at", { ascending: false }),
-      supabase.from("rounds").select("id,name,round_type,difficulty,questions,hide_leaderboard,allow_power_cards").order("created_at", { ascending: false }),
+      supabase.from("rounds").select("id,name,round_type,difficulty,questions,hide_leaderboard,allow_power_cards,points_per_question,danger_zone_enabled,danger_zone_penalty").order("created_at", { ascending: false }),
     ]);
     if (quizError) setError("Quiz Plan Builder migration is required. " + quizError.message);
     const normalized = ((quizData ?? []) as QuizDefinition[]).map(q => ({ ...q, quiz_rounds: [...(q.quiz_rounds ?? [])].sort((a, b) => a.position - b.position) }));
@@ -112,7 +112,7 @@ export default function QuizBuilderPage() {
 
   async function addRound(round: LibraryRound) {
     if (!selected) return;
-    const { error: saveError } = await createSupabaseBrowserClient().from("quiz_rounds").insert({ quiz_id: selected.id, source_round_id: round.id, position: selected.quiz_rounds.length, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard ?? false, allow_power_cards: round.allow_power_cards ?? true, points_per_question: round.points_per_question ?? null });
+    const { error: saveError } = await createSupabaseBrowserClient().from("quiz_rounds").insert({ quiz_id: selected.id, source_round_id: round.id, position: selected.quiz_rounds.length, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard ?? false, allow_power_cards: round.allow_power_cards ?? true, points_per_question: round.points_per_question ?? null, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5 });
     if (saveError) setError(saveError.message); else await load();
   }
 
@@ -168,6 +168,16 @@ export default function QuizBuilderPage() {
     await load();
   }
 
+  async function updateRoundDangerZone(round: QuizRound, enabled: boolean) {
+    await createSupabaseBrowserClient().from("quiz_rounds").update({ danger_zone_enabled: enabled }).eq("id", round.id);
+    await load();
+  }
+
+  async function updateRoundDangerPenalty(round: QuizRound, penalty: number) {
+    await createSupabaseBrowserClient().from("quiz_rounds").update({ danger_zone_penalty: penalty }).eq("id", round.id);
+    await load();
+  }
+
   async function duplicateQuiz(quiz: QuizDefinition) {
     // Guards the whole duplicate operation, not just the subsequent guided
     // assign step - without this a fast double-click could fire two inserts
@@ -177,7 +187,7 @@ export default function QuizBuilderPage() {
     const supabase = createSupabaseBrowserClient();
     const { data, error: copyError } = await supabase.from("quizzes").insert({ name: quiz.name + " (Copy)", description: quiz.description, venue_id: quiz.venue_id, host_id: quiz.host_id }).select().single();
     if (copyError || !data) { setError(copyError?.message || "Could not duplicate quiz"); setDuplicating(false); return; }
-    if (quiz.quiz_rounds.length) await supabase.from("quiz_rounds").insert(quiz.quiz_rounds.map(round => ({ quiz_id: data.id, source_round_id: round.source_round_id, position: round.position, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard, allow_power_cards: round.allow_power_cards, points_per_question: round.points_per_question ?? null, notes: round.notes, sponsor: round.sponsor })));
+    if (quiz.quiz_rounds.length) await supabase.from("quiz_rounds").insert(quiz.quiz_rounds.map(round => ({ quiz_id: data.id, source_round_id: round.source_round_id, position: round.position, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard, allow_power_cards: round.allow_power_cards, points_per_question: round.points_per_question ?? null, notes: round.notes, sponsor: round.sponsor, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5 })));
     if (guidedIntent === "duplicate" && guidedEvent) { await assignQuizToEvent(data.id); setDuplicating(false); return; }
     await load(); setSelectedId(data.id);
     setDuplicating(false);
@@ -255,6 +265,22 @@ export default function QuizBuilderPage() {
               Power cards
               <Toggle on={round.allow_power_cards} onClick={() => updateRoundCards(round, !round.allow_power_cards)} />
             </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+              Danger Zone
+              <Toggle on={round.danger_zone_enabled} onClick={() => updateRoundDangerZone(round, !round.danger_zone_enabled)} />
+            </label>
+            {round.danger_zone_enabled && (
+              <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                Penalty
+                <input
+                  type="number"
+                  defaultValue={round.danger_zone_penalty ?? 5}
+                  onBlur={e => updateRoundDangerPenalty(round, Number(e.target.value) || 0)}
+                  onClick={e => e.stopPropagation()}
+                  style={{ width: 56, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff" }}
+                />
+              </label>
+            )}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <HostButton onClick={() => setExpandedRoundId(id => id === round.id ? null : round.id)}>{expandedRoundId === round.id ? "HIDE" : "PREVIEW"}</HostButton>

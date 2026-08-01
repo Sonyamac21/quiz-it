@@ -37,7 +37,7 @@ type Question = {
   fade_in?: boolean;
   fade_out?: boolean;
 };
-type Round = { id: string; name: string; questions: Question[]; round_type?: string; hide_leaderboard?: boolean; allow_power_cards?: boolean; points_per_question?: number | null; position?: number; completed_at?: string | null; source_round_id?: string | null; };
+type Round = { id: string; name: string; questions: Question[]; round_type?: string; hide_leaderboard?: boolean; allow_power_cards?: boolean; points_per_question?: number | null; position?: number; completed_at?: string | null; source_round_id?: string | null; danger_zone_enabled?: boolean; danger_zone_penalty?: number; };
 type Team = { id: string; team_name: string; victory_song: string; session_pin: string; };
 const DEFAULT_POINTS_PER_QUESTION = 10;
 type Answer = { session_pin: string; id: string; team_name: string; question_index: number; answer_text: string; submitted_at: string; };
@@ -282,7 +282,7 @@ function QuizControllerInner() {
 
   async function loadRounds(liveSessionId: string) {
     const supabase = createSupabaseBrowserClient();
-    const { data, error } = await supabase.from("session_rounds").select("id,name,questions,round_type,hide_leaderboard,allow_power_cards,points_per_question,position,completed_at,source_round_id").eq("session_id", liveSessionId).order("position");
+    const { data, error } = await supabase.from("session_rounds").select("id,name,questions,round_type,hide_leaderboard,allow_power_cards,points_per_question,position,completed_at,source_round_id,danger_zone_enabled,danger_zone_penalty").eq("session_id", liveSessionId).order("position");
     if (error) platformLogger.error("host", "Live quiz order unavailable", { error });
     setRounds((data ?? []) as Round[]);
   }
@@ -1218,6 +1218,12 @@ function QuizControllerInner() {
     // next to the round controls is unchanged and still overrides this for
     // tonight only, per round, same as before.
     setPointsPerQ(r?.points_per_question ?? DEFAULT_POINTS_PER_QUESTION);
+    // Same idea as points-per-question above: load this round's saved Danger
+    // Zone setting (set in Quiz Library) instead of leaving whatever the
+    // previous round left in place. The ON/OFF button and penalty input next
+    // to the round controls still override this for tonight only.
+    setDangerZone(r?.danger_zone_enabled ?? false);
+    setDangerPenalty(r?.danger_zone_penalty ?? 5);
     if (r?.hide_leaderboard) { setShowScoreboard(false); setShowScoreboardOnHandsets(false); }
     roundQuestionsRef.current = r ? [...r.questions] : [];
     if (sessionId) createSupabaseBrowserClient().from("sessions").update({

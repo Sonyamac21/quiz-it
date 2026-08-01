@@ -7,6 +7,8 @@ export type LibraryRound = {
   hide_leaderboard: boolean;
   allow_power_cards: boolean;
   points_per_question: number | null;
+  danger_zone_enabled: boolean;
+  danger_zone_penalty: number;
 };
 
 export type QuizRound = LibraryRound & {

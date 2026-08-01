@@ -86,13 +86,13 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
       const segCY = CY + (i - frac) * SH;
       if (segCY < dy - SH || segCY > dy + DH + SH) continue;
       const norm = Math.min(Math.abs(segCY - CY) / (DH/2), 1);
-      const shade = 1 - norm * 0.45;
+      const shade = 1 - norm * 0.22;
       const segTop = segCY - SH/2, segBot = segCY + SH/2;
       const cTop = Math.max(segTop, dy), cBot = Math.min(segBot, dy+DH);
       if (cTop >= cBot) continue;
       ctx.save();
       ctx.beginPath(); ctx.rect(CX-DW/2, cTop, DW, cBot-cTop); ctx.clip();
-      ctx.globalAlpha = shade * 0.88 + 0.12;
+      ctx.globalAlpha = shade * 0.7 + 0.3;
       ctx.fillStyle = seg.bg; ctx.fillRect(CX-DW/2, cTop, DW, cBot-cTop);
       const shine = ctx.createLinearGradient(CX-DW/2, 0, CX+DW/2, 0);
       shine.addColorStop(0, "rgba(0,0,0,0.5)");
@@ -108,7 +108,7 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
       ctx.font = "900 " + fs + "px sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillStyle = seg.text;
-      if (shade > 0.65) { ctx.shadowColor = seg.accent; ctx.shadowBlur = 14 * shade; }
+      if (shade > 0.45) { ctx.shadowColor = seg.accent; ctx.shadowBlur = 22 * shade; }
       ctx.fillText(seg.label, CX, segCY);
       ctx.shadowBlur = 0; ctx.restore();
     }

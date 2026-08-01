@@ -280,7 +280,16 @@ export default function QuizBuilderPage() {
           <option value="">All round types</option>
           {Array.from(new Set(rounds.map(r => r.round_type))).sort().map(rt => <option key={rt} value={rt}>{rt}</option>)}
         </select>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 8 }}>{rounds.filter(r => !roundTypeFilter || r.round_type === roundTypeFilter).map(round => <button key={round.id} onClick={() => addRound(round)} className="qi-mc-round-card"><strong>{round.name}</strong><span>{round.round_type} · {round.questions.length} questions</span></button>)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 8 }}>{rounds
+          .filter(r => !roundTypeFilter || r.round_type === roundTypeFilter)
+          .map(round => ({ round, added: selected.quiz_rounds.some(qr => qr.source_round_id === round.id) }))
+          .sort((a, b) => Number(a.added) - Number(b.added))
+          .map(({ round, added }) => (
+            <button key={round.id} onClick={() => addRound(round)} className="qi-mc-round-card" style={added ? { borderColor: "#2EE06E", background: "rgba(46,224,110,0.08)", opacity: 0.6 } : undefined}>
+              <strong>{added ? "✓ " : ""}{round.name}</strong>
+              <span>{added ? "Already added · " : ""}{round.round_type} · {round.questions.length} questions</span>
+            </button>
+          ))}</div>
       </>}</section>
     </div>}
   </main></HostShell>;

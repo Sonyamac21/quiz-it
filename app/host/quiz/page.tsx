@@ -508,7 +508,10 @@ function QuizControllerInner() {
       const correctKeys = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
       const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
       const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
-      return correctTaps.length === correctKeys.length && correctKeys.length > 0;
+      const wrongTaps = tappedKeys.filter(k => !correctKeys.includes(k));
+      // Exact match required both ways: every correct key tapped, AND no extra wrong taps -
+      // previously a team could tap every correct answer PLUS a wrong one and still be marked correct.
+      return correctTaps.length === correctKeys.length && wrongTaps.length === 0 && correctKeys.length > 0;
     }
     return isFuzzyMatch(ans.answer_text, getCorrectAnswerText(q), q);
   }

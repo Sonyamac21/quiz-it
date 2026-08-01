@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LibraryRound, QuizDefinition, QuizRound } from "@/lib/quiz-builder/types";
-import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell } from "@/components/fable/HostConsole";
+import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell, Toggle } from "@/components/fable/HostConsole";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
@@ -158,6 +158,16 @@ export default function QuizBuilderPage() {
     await load();
   }
 
+  async function updateRoundVisibility(round: QuizRound, hideLeaderboard: boolean) {
+    await createSupabaseBrowserClient().from("quiz_rounds").update({ hide_leaderboard: hideLeaderboard }).eq("id", round.id);
+    await load();
+  }
+
+  async function updateRoundCards(round: QuizRound, allowPowerCards: boolean) {
+    await createSupabaseBrowserClient().from("quiz_rounds").update({ allow_power_cards: allowPowerCards }).eq("id", round.id);
+    await load();
+  }
+
   async function duplicateQuiz(quiz: QuizDefinition) {
     // Guards the whole duplicate operation, not just the subsequent guided
     // assign step - without this a fast double-click could fire two inserts
@@ -214,17 +224,19 @@ export default function QuizBuilderPage() {
       <section className="fbh-panel">{!selected ? <HostEmpty title="Select a Quiz Plan" note="Choose a quiz to arrange its running order." /> : <>
         <HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input" style={{ width: "100%" }} />
         <div style={{ display: "flex", gap: 8, margin: "12px 0 20px", flexWrap: "wrap" }}>{guidedIntent === "duplicate" ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>SAVE QUIZ PLAN</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton onClick={() => deleteQuiz(selected)}>DELETE</HostButton></>}</div>
-        <div className="fbh-lbl">Running Order</div>{selected.quiz_rounds.length ? selected.quiz_rounds.map((round, index) => <div key={round.id} style={{ marginBottom: 8 }}>
-          <div className="fbh-answer-row" style={{ flexWrap: "wrap", gap: 8 }}>
+        <div className="fbh-lbl">Running Order</div>{selected.quiz_rounds.length ? selected.quiz_rounds.map((round, index) => <div key={round.id} className="fbh-panel" style={{ marginBottom: 10, padding: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
             <span className="ord">{index + 1}</span>
             <input
               defaultValue={round.name}
               onBlur={e => renameRound(round, e.target.value)}
-              style={{ flex: "1 1 160px", minWidth: 0, background: "transparent", border: "1px solid transparent", borderBottom: "1px solid #2E1A52", color: "#fff", font: "700 14px 'Inter'", padding: "4px 2px" }}
+              style={{ flex: 1, minWidth: 0, background: "transparent", border: "1px solid transparent", borderBottom: "1px solid #2E1A52", color: "#fff", font: "700 16px 'Inter'", padding: "4px 2px" }}
               onClick={e => e.stopPropagation()}
             />
-            <span className="ans">{round.questions.length} questions · {round.round_type} · {round.hide_leaderboard ? "Leaderboard hidden" : "Leaderboard shown"} · {round.allow_power_cards ? "Cards allowed" : "Cards paused"}</span>
-            <label style={{ display: "flex", alignItems: "center", gap: 4, font: "400 12px 'Inter'", color: "#B9A8D9" }}>
+          </div>
+          <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 12 }}>{round.questions.length} questions · {round.round_type}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginBottom: 12 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
               Points
               <input
                 type="number"
@@ -232,9 +244,19 @@ export default function QuizBuilderPage() {
                 placeholder="default"
                 onBlur={e => updateRoundPoints(round, e.target.value === "" ? null : Number(e.target.value))}
                 onClick={e => e.stopPropagation()}
-                style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff" }}
+                style={{ width: 72, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff" }}
               />
             </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+              Show leaderboard
+              <Toggle on={!round.hide_leaderboard} onClick={() => updateRoundVisibility(round, !round.hide_leaderboard)} />
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+              Power cards
+              <Toggle on={round.allow_power_cards} onClick={() => updateRoundCards(round, !round.allow_power_cards)} />
+            </label>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <HostButton onClick={() => setExpandedRoundId(id => id === round.id ? null : round.id)}>{expandedRoundId === round.id ? "HIDE" : "PREVIEW"}</HostButton>
             <HostButton onClick={() => moveRound(index, -1)} disabled={index === 0}>↑</HostButton>
             <HostButton onClick={() => moveRound(index, 1)} disabled={index === selected.quiz_rounds.length - 1}>↓</HostButton>

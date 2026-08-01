@@ -329,6 +329,9 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
   function finishRound() {
     setStatus("complete");
     pushState({ pursuit_status: "complete" });
+    if (chosenRound?.id) {
+      supabase.from("session_rounds").update({ completed_at: new Date().toISOString() }).eq("id", chosenRound.id).then(() => onScoreChange?.());
+    }
   }
 
   function showResults() {
@@ -483,17 +486,11 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     </div>
   );
 
-  // The launch button ALWAYS renders inline in the header, so nothing — a stale
-  // pursuit_status, refresh recovery, or the overlay's portal — can hide it. The
-  // full-screen overlay renders in addition, via a portal to <body>, only while open.
-  return (
-    <>
-      <button onClick={startPursuit} style={{ padding: "6px 14px", borderRadius: 10, background: "rgba(56,189,248,0.25)", border: "1px solid #38bdf8", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}>
-        Start The Pursuit
-      </button>
-      {open && typeof document !== "undefined" ? createPortal(overlay, document.body) : null}
-    </>
-  );
+  // Pursuit now starts the same way every other round does: selecting it from
+  // the main running-order list, which drives autoStartRoundId -> startPursuit().
+  // The standalone always-on-screen button was removed as a redundant second
+  // way to start it that lived outside the normal round-selection flow.
+  return open && typeof document !== "undefined" ? createPortal(overlay, document.body) : null;
 }
 
 function PrimaryButton({ onClick, label, disabled }: { onClick: () => void; label: string; disabled?: boolean }) {

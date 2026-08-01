@@ -208,7 +208,7 @@ export default function QuizBuilderPage() {
   }
 
   return <HostShell><main className="qi-bo-page" style={{ minHeight: "100vh", background: BG, color: "#fff" }}>
-    <header className="qi-bo-pagehead"><div><p>Programme planning</p><h1>Quiz Library</h1><span>Build reusable running orders before they reach the Calendar.</span></div><div className="qi-bo-page-actions"><Link className="fbh-btn" href="/host/rounds">Round Library</Link><Link className="fbh-btn pri" href="/host/session">Open Live Session</Link></div></header>
+    <header className="qi-bo-pagehead"><div><p>Programme planning</p><h1>Quiz Library</h1><span>A Quiz Plan is the running order for one night: pick rounds from the Round Library, put them in order, then assign the plan to a date on the Calendar.</span></div><div className="qi-bo-page-actions"><Link className="fbh-btn" href="/host/rounds">Round Library</Link><Link className="fbh-btn pri" href="/host/session">Open Live Session</Link></div></header>
     {guidedIntent&&guidedEvent&&<section className="fbh-panel" role="status" style={{marginBottom:16,borderColor:"#BE26C1"}}>
       <strong style={{display:"block",marginBottom:4}}>
         {guidedIntent==="create"&&"Create a new Quiz Plan for this event"}

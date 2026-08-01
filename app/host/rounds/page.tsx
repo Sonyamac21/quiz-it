@@ -151,6 +151,9 @@ export default function RoundsPage() {
           <a className="fbh-btn pri" href="/host/questions">+ New Round</a>
         </div>
 
+        <p style={{ font: "400 13px 'Inter'", color: "#8D7AAE", marginBottom: 18, lineHeight: 1.5 }}>
+          Individual rounds live here. To build a full night's running order (and assign it to a date), combine rounds into a <a href="/host/quizzes" style={{ color: "#D94FDC" }}>Quiz Plan</a>.
+        </p>
         {status && <p style={{ textAlign: "center", color: "#D94FDC", font: "600 13px 'Inter'", marginBottom: 16 }}>{status}</p>}
         {loading && <HostLoading title="Round Library" note="Loading your rounds…" />}
         {!loading && rounds.length === 0 && (

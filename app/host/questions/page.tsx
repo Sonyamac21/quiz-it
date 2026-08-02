@@ -437,7 +437,7 @@ export default function QuestionsPage() {
     if (exclusionNote.length > 2200) exclusionNote = exclusionNote.slice(0, 2200);
     const angle = VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
     const varietyNote = type === "audio"
-      ? " IMPORTANT - pick a genuinely well-known, widely recognisable song a pub crowd would clap along to, not a deep cut or obscure track. Vary the decade/genre/artist from recent picks, but recognisability always wins over variety."
+      ? " IMPORTANT - pick a well-known song: either a genuinely famous track a pub crowd would clap along to, OR any other song (even a deeper cut, B-side, or later single) by a genuinely famous, widely recognised artist/band - the artist being well-known is enough on its own, the specific song does not also have to be their single most famous hit. Not obscure/unknown artists either way. Vary the decade/genre/artist from recent picks."
       : " IMPORTANT - avoid defaulting to the single most famous, first-thought-of example for this topic (e.g. for 'Disney songs' don't always pick Let It Go or Circle of Life). Where possible, lean toward something " + angle + ". Vary your answer choices across different eras, genres, and sub-topics rather than the most obvious pick.";
     const prompt = `You are writing questions for a LIVE PUB QUIZ at a bar or restaurant. Your audience is adults aged 25-55 having a social night out. This is entertainment, not education.
 
@@ -1113,6 +1113,17 @@ Return ONLY a valid JSON array with 1 item, no markdown:
   // in place (the round never ends short because of a failed replacement).
   const MAX_REPLACE_ATTEMPTS = 20;
 
+  // Removes a question immediately - no AI regeneration in the loop, so it
+  // can never look "stuck" or silently fail if a replacement can't be
+  // generated. The round is simply one question short afterwards; use
+  // "Top Up" to fill it back in on your own schedule.
+  function removeQuestion(i: number) {
+    const removed = questions[i];
+    if (!removed) return;
+    blacklistRejected(removed);
+    setQuestions(prev => prev.filter((_, idx) => idx !== i));
+  }
+
   async function removeAndReplace(i: number) {
     const removed = questions[i];
     if (!removed) return;
@@ -1429,7 +1440,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                   <span className="fbh-chip">{typeLabel[q.question_type]||q.question_type}</span>
                   <span style={{ font:"400 11px 'Inter'", color:"#6B5A8E" }}>{q.difficulty}</span>
                   <div style={{ flex:1 }} />
-                  <HostButton draggable={false} onDragStart={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); removeAndReplace(i); }} onMouseDown={(e) => e.stopPropagation()} style={{ height:30, padding:"0 12px" }}>Remove</HostButton>
+                  <HostButton draggable={false} onDragStart={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); removeQuestion(i); }} onMouseDown={(e) => e.stopPropagation()} style={{ height:30, padding:"0 12px" }}>Remove</HostButton>
                 </div>
                 <p style={{ font:"700 18px 'Inter'", marginBottom:12, lineHeight:1.5, color:"#fff" }}>{q.question_text}</p>
                 {q.question_type==="multiple_choice" && (

@@ -227,16 +227,17 @@ export default function QuestionsPage() {
 
   async function loadUsedQuestions() {
     const supabase = createSupabaseBrowserClient();
-    // Only the last 75 days count as "already used" for duplicate-checking.
-    // Comparing against a host's ENTIRE all-time library (which only grows)
-    // was making well-known-song-required topics like Music impossible to
-    // generate once enough classics had ever been used once - a real pub
-    // quiz reuses a well-known song again after a few months without anyone
-    // minding, so the check now mirrors that instead of a permanent ban.
-    const cutoffIso = new Date(Date.now() - 75 * 24 * 60 * 60 * 1000).toISOString();
+    // Reverted: this must stay a permanent, all-time duplicate check with no
+    // time cutoff. A time-windowed version was tried to unblock Music
+    // generation, but it let genuinely-repeated questions (e.g. the same
+    // Lacoste/crocodile-logo question, the same Apprentice/Alan Sugar
+    // question) resurface once they aged past the window - never acceptable.
+    // The Music generation stall needs a different fix (e.g. relaxing the
+    // "must be well-known" bar once the well-known pool is exhausted), not
+    // a weaker duplicate check.
     const [{ data: rounds }, { data: bank }] = await Promise.all([
-      supabase.from("rounds").select("questions").gte("created_at", cutoffIso),
-      supabase.from("question_bank").select("question_text").gte("created_at", cutoffIso),
+      supabase.from("rounds").select("questions"),
+      supabase.from("question_bank").select("question_text"),
     ]);
     const used: string[] = [];
     if (rounds) rounds.forEach((r: {questions: {question_text:string}[]}) => r.questions?.forEach((q) => used.push(q.question_text)));

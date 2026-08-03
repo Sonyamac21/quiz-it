@@ -54,6 +54,11 @@ type GenerationReportEntry = {
   reason: string;
   stages: ValidationResults;
 };
+type CandidateReport = Omit<GenerationReportEntry, "id" | "outcome" | "category" | "reason">;
+type GenerationContext = {
+  error: string;
+  report: CandidateReport;
+};
 
 function emptyValidationResults(hasTheme: boolean, isMedia: boolean): ValidationResults {
   return {
@@ -66,6 +71,17 @@ function emptyValidationResults(hasTheme: boolean, isMedia: boolean): Validation
     memory: { status: "not_run", note: "Not run" },
     quality: { status: "not_run", note: "Not run" },
     media: isMedia ? { status: "not_run", note: "Not run" } : { status: "not_applicable", note: "Not a media question" },
+  };
+}
+
+function createGenerationContext(type: string, hasTheme: boolean): GenerationContext {
+  return {
+    error: "",
+    report: {
+      questionText: "",
+      questionType: type,
+      stages: emptyValidationResults(hasTheme, type === "picture" || type === "audio"),
+    },
   };
 }
 
@@ -192,8 +208,6 @@ export default function QuestionsPage() {
   // every retry, top-up and replace within the session; reset when a brand-new
   // Generate run starts.
   const rejectedRef = useRef<Set<string>>(new Set());
-  const lastApiErrorRef = useRef<string>("");
-  const lastCandidateReportRef = useRef<Omit<GenerationReportEntry, "id" | "outcome" | "category" | "reason"> | null>(null);
   const dragIdx = useRef<number|null>(null);
 
   // Record a produced-but-rejected question so it is never regenerated/accepted
@@ -207,12 +221,11 @@ export default function QuestionsPage() {
     setGenerationReport(prev => [...prev, { ...entry, id: genUid() }]);
   }
 
-  function reportGeneratedFailure(fallbackType: string) {
-    const candidate = lastCandidateReportRef.current;
-    if (!candidate) return;
+  function reportGeneratedFailure(context: GenerationContext, fallbackType: string) {
+    const candidate = context.report;
     const failedStage = (Object.entries(candidate.stages) as [ValidationStage, ValidationResult][]).find(([, result]) => result.status === "failed");
     const category = failedStage ? stageLabel(failedStage[0]) : "Generation format";
-    const reason = failedStage?.[1].note || lastApiErrorRef.current || "The generator did not return a usable candidate";
+    const reason = failedStage?.[1].note || context.error || "The generator did not return a usable candidate";
     addReportEntry({
       outcome: "rejected",
       questionText: candidate.questionText || "Candidate unavailable",
@@ -402,9 +415,9 @@ export default function QuestionsPage() {
     }
   }
 
-  async function generateOne(type: string, topic: string): Promise<Question|null> {
-    // (lastApiError set inside try/catch below, surfaced by callers)
-    lastCandidateReportRef.current = {
+  async function generateOne(type: string, topic: string, context: GenerationContext): Promise<Question|null> {
+    context.error = "";
+    context.report = {
       questionText: "",
       questionType: type,
       stages: emptyValidationResults(Boolean(theme.trim()), type === "picture" || type === "audio"),
@@ -491,8 +504,8 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         throw new Error("JSON parse failed. Raw text (first 500 chars): " + text.slice(0, 500));
       }
       if (q) { q.question_type = type; }
-      if (q && lastCandidateReportRef.current) {
-        lastCandidateReportRef.current.questionText = q.question_text || "Untitled candidate";
+      if (q) {
+        context.report.questionText = q.question_text || "Untitled candidate";
       }
       // THEME RELEVANCE: if the host supplied a theme, every question (of ANY
       // type) must genuinely require knowledge of that theme. Checked here -
@@ -501,11 +514,9 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       // lookup. When no theme is supplied, behaviour is unchanged.
       if (q && theme && theme.trim()) {
         const themeCheck = await checkThemeRelevance(q, theme.trim());
-        if (lastCandidateReportRef.current) {
-          lastCandidateReportRef.current.stages.theme = { status: themeCheck.ok ? "passed" : "failed", note: themeCheck.note };
-        }
+        context.report.stages.theme = { status: themeCheck.ok ? "passed" : "failed", note: themeCheck.note };
         if (!themeCheck.ok) {
-          lastApiErrorRef.current = "Off-theme for '" + theme.trim() + "' (" + themeCheck.note + ") - retrying";
+          context.error = "Off-theme for '" + theme.trim() + "' (" + themeCheck.note + ") - retrying";
           return null;
         }
       }
@@ -520,13 +531,13 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           const videoId = ytData?.items?.[0]?.id?.videoId;
           if (videoId) {
             q.option_b = "https://www.youtube.com/watch?v=" + videoId;
-            if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "passed", note: "YouTube media found" };
+            context.report.stages.media = { status: "passed", note: "YouTube media found" };
           } else {
-            if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "failed", note: "No YouTube result found" };
+            context.report.stages.media = { status: "failed", note: "No YouTube result found" };
             return null;
           }
         } catch {
-          if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "failed", note: "YouTube lookup failed" };
+          context.report.stages.media = { status: "failed", note: "YouTube lookup failed" };
           return null;
         }
       }
@@ -538,7 +549,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         // than shipped with a guaranteed-wrong image.
         const brandCheck = (q.question_text + " " + q.option_a).toLowerCase();
         if (/\blogo\b|\bbrand\b|\btrademark\b/.test(brandCheck)) {
-          if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "failed", note: "Picture subject requested a logo, brand or trademark" };
+          context.report.stages.media = { status: "failed", note: "Picture subject requested a logo, brand or trademark" };
           return null;
         }
         try {
@@ -552,13 +563,13 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           const hit = pixData?.hits?.[0];
           if (hit) {
             q.option_b = hit.webformatURL || hit.largeImageURL;
-            if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "passed", note: "Pixabay image found" };
+            context.report.stages.media = { status: "passed", note: "Pixabay image found" };
           } else {
-            if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "failed", note: "No Pixabay image found" };
+            context.report.stages.media = { status: "failed", note: "No Pixabay image found" };
             return null;
           }
         } catch {
-          if (lastCandidateReportRef.current) lastCandidateReportRef.current.stages.media = { status: "failed", note: "Pixabay lookup failed" };
+          context.report.stages.media = { status: "failed", note: "Pixabay lookup failed" };
           return null;
         }
       }
@@ -622,7 +633,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           return opt !== null && opt !== undefined && opt !== "";
         });
         if (!keyValid) {
-          lastApiErrorRef.current = "Multi Tap answer key invalid ('" + (q.correct_answer || "") + "') - retrying";
+          context.error = "Multi Tap answer key invalid ('" + (q.correct_answer || "") + "') - retrying";
           return null;
         }
       }
@@ -642,7 +653,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           /\band\b/i.test(ans) ||                      // the word "and" as a joiner
           /[A-Za-z]+-[A-Z][a-zA-Z]*/.test(ans);        // hyphen joining multiple names (e.g. Lennon-McCartney)
         if (invalid) {
-          lastApiErrorRef.current = "Text Answer must be a single word (got '" + ans + "') - retrying";
+          context.error = "Text Answer must be a single word (got '" + ans + "') - retrying";
           return null;
         }
       }
@@ -657,7 +668,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       q._uid = genUid();
       return q;
     } catch (e) {
-      lastApiErrorRef.current = e instanceof Error ? e.message : "Unknown error";
+      context.error = e instanceof Error ? e.message : "Unknown error";
       return null;
     }
   }
@@ -872,14 +883,12 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     }
   }
 
-  async function validateCandidate(q: Question, currentRound: Question[]): Promise<{
+  async function validateCandidate(q: Question, currentRound: Question[], stages: ValidationResults): Promise<{
     ok: boolean;
     category: string;
     reason: string;
     stages: ValidationResults;
   }> {
-    const stages = lastCandidateReportRef.current?.stages || emptyValidationResults(Boolean(theme.trim()), q.question_type === "picture" || q.question_type === "audio");
-
     // These validators are logically independent: none mutates the candidate or
     // depends on another validator's result. Running them one after another made
     // every question pay for three model round-trips plus the database lookup in
@@ -1040,6 +1049,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       ]);
     }
     const shuffledTopics = shuffle(TOPICS);
+    const shuffledMusicTopics = shuffle(MUSIC_TOPICS);
     const good: Question[] = [];
     // Always generate fresh AI questions - the Phase 1 library-first selection
     // was silently recycling all backfilled historical questions (including ones
@@ -1056,36 +1066,57 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     let i = 0;
     let consecutiveFailures = 0;
     let consecutiveCheckFailures = 0;
-    while (good.length < count && attempts < maxAttempts) {
-      const type = types[i % types.length];
-      const musicTopics = shuffle(MUSIC_TOPICS);
-      const topic = theme || (type === "audio" ? musicTopics[(i + good.length) % musicTopics.length] : shuffledTopics[(i + good.length) % shuffledTopics.length]);
-      setStatus("Generating question " + (good.length + 1) + " of " + count + "..." + (consecutiveFailures > 0 ? " (retry " + consecutiveFailures + ")" : ""));
+    type PendingCandidate = {
+      type: string;
+      context: GenerationContext;
+      promise: Promise<Question | null>;
+    };
+    const pending: PendingCandidate[] = [];
+    const launchCandidate = () => {
+      const launchIndex = i++;
+      const type = types[launchIndex % types.length];
+      const topic = theme || (type === "audio"
+        ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
+        : shuffledTopics[launchIndex % shuffledTopics.length]);
+      const context = createGenerationContext(type, Boolean(theme.trim()));
       attempts++;
-      lastApiErrorRef.current = "";
-      const q = await generateOne(type, topic);
+      pending.push({ type, context, promise: generateOne(type, topic, context) });
+    };
+    const refillPipeline = () => {
+      while (pending.length < 2 && attempts < maxAttempts && good.length + pending.length < count) {
+        launchCandidate();
+      }
+    };
+
+    refillPipeline();
+    while (good.length < count && pending.length > 0) {
+      setStatus("Generating and checking question " + (good.length + 1) + " of " + count + "..." + (consecutiveFailures > 0 ? " (retry " + consecutiveFailures + ")" : ""));
+      const current = pending.shift()!;
+      const { type, context } = current;
+      const q = await current.promise;
       if (!q) {
-        reportGeneratedFailure(type);
+        reportGeneratedFailure(context, type);
         consecutiveFailures++;
         // Bail for errors retrying genuinely can't fix (bad key, not logged in,
         // rate limited) - OR after 6 failures in a row regardless of the reason,
         // since that many consecutive failures means something systemic is wrong,
         // not just a one-off blip, and silently grinding through 60+ attempts
         // with zero visible feedback just looks frozen.
-        const err = lastApiErrorRef.current.toLowerCase();
+        const err = context.error.toLowerCase();
         const isPersistent = err.includes("api_key") || err.includes("api key") || err.includes("unauthorized")
           || err.includes("not logged in") || err.includes("authentication") || err.includes("rate limit")
           || err.includes("too many requests") || consecutiveFailures >= 6;
         if (isPersistent) {
-          setStatus("Generation failed after " + consecutiveFailures + " attempts: " + (lastApiErrorRef.current || "unknown error"));
+          setStatus("Generation failed after " + consecutiveFailures + " attempts: " + (context.error || "unknown error"));
           setLoading(false);
           return;
         }
-        i++; continue;
+        refillPipeline();
+        continue;
       }
       consecutiveFailures = 0;
       setStatus("Checking question " + (good.length + 1) + " of " + count + "...");
-      const validation = await validateCandidate(q, good);
+      const validation = await validateCandidate(q, good, context.report.stages);
       // Gate order: moderation -> in-round duplicate detection -> Round Balance
       // (unthemed rounds only) -> permanent Question Memory (cross-session) ->
       // FINAL quiz quality check. Each stage is short-circuited so the expensive
@@ -1122,7 +1153,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           return;
         }
       }
-      i++;
+      refillPipeline();
     }
     setLoading(false);
     if (good.length === count) {
@@ -1166,6 +1197,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     setStatus("Finding replacement...");
     const topicList = shuffle(TOPICS);
     let newQ: Question | null = null;
+    let lastReplacementError = "";
 
     // Keep requesting genuinely new questions through every rejection reason
     // (AI produced nothing/invalid, moderation reject, duplicate reject) until we
@@ -1173,13 +1205,18 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     for (let attempt = 0; attempt < MAX_REPLACE_ATTEMPTS && !newQ; attempt++) {
       setStatus("Finding replacement... (attempt " + (attempt + 1) + " of " + MAX_REPLACE_ATTEMPTS + ")");
       const replaceTopic = theme || topicList[attempt % topicList.length];
-      const candidate = await generateOne(removed.question_type, replaceTopic);
-      if (!candidate) { reportGeneratedFailure(removed.question_type); continue; } // AI produced nothing/invalid - try again
+      const context = createGenerationContext(removed.question_type, Boolean(theme.trim()));
+      const candidate = await generateOne(removed.question_type, replaceTopic, context);
+      if (!candidate) {
+        lastReplacementError = context.error;
+        reportGeneratedFailure(context, removed.question_type);
+        continue;
+      } // AI produced nothing/invalid - try again
       // Compare against every OTHER question currently in the round (excluding the
       // one being replaced) so the replacement isn't rejected for matching the
       // very item it is swapping out.
       const currentRound = questions.filter(x => x._uid !== removedUid);
-      const validation = await validateCandidate(candidate, currentRound);
+      const validation = await validateCandidate(candidate, currentRound, context.report.stages);
       if (validation.ok) {
         newQ = candidate;
         addReportEntry({ outcome: "accepted", questionText: candidate.question_text, questionType: candidate.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
@@ -1193,7 +1230,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       // Every attempt failed: leave the ORIGINAL question exactly where it is so
       // the round keeps its full count, and report a proper error.
       setStatus("Couldn't generate a replacement after " + MAX_REPLACE_ATTEMPTS + " tries - the original question is kept. Try Remove again."
-        + (lastApiErrorRef.current ? " (last error: " + lastApiErrorRef.current + ")" : ""));
+        + (lastReplacementError ? " (last error: " + lastReplacementError + ")" : ""));
       return;
     }
 
@@ -1250,10 +1287,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       attempts++;
       const type = types[attempts % types.length];
       const topic = type === "audio" ? musicTopicList[attempts % musicTopicList.length] : topicList[attempts % topicList.length];
-      const q = await generateOne(type, topic);
-      if (!q) { reportGeneratedFailure(type); continue; }
+      const context = createGenerationContext(type, Boolean(theme.trim()));
+      const q = await generateOne(type, topic, context);
+      if (!q) { reportGeneratedFailure(context, type); continue; }
       const currentForTopup = [...questions, ...added];
-      const validation = await validateCandidate(q, currentForTopup);
+      const validation = await validateCandidate(q, currentForTopup, context.report.stages);
       if (validation.ok) {
         await commitToMemory(q); // accepted -> becomes part of permanent memory
         registerAccepted(q);

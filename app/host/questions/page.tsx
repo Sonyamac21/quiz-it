@@ -134,6 +134,31 @@ function normalizeQuestionText(s: string): string {
   return (s || "").toLowerCase().trim().replace(/\s+/g, " ");
 }
 
+// Generic stems such as "Name this song" and "Which of these are..." are not
+// question identities. The playable payload (answer/options/media subject) is
+// what distinguishes them. Canonicalise option order so shuffled choices still
+// count as the same underlying question.
+function questionFingerprint(q: Question): string {
+  const type = q.question_type || "unknown";
+  const text = normalizeQuestionText(q.question_text);
+  const rawOptions = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f];
+  const answerKeys = normalizeQuestionText(q.correct_answer).split(",").map(key => key.trim());
+  const keyedTypes = ["multiple_choice", "multi_tap", "sequence"];
+  const resolvedAnswers = keyedTypes.includes(type)
+    ? answerKeys.map(key => rawOptions["abcdef".indexOf(key)]).filter((value): value is string => Boolean(value)).map(normalizeQuestionText)
+    : [normalizeQuestionText(q.correct_answer)];
+  if (type === "multiple_choice" || type === "multi_tap") resolvedAnswers.sort();
+  const answer = resolvedAnswers.join(",");
+  if (type === "audio" || type === "picture") {
+    return [type, text, answer].join("|");
+  }
+  const options = rawOptions
+    .filter((value): value is string => Boolean(value))
+    .map(normalizeQuestionText)
+    .sort();
+  return [type, text, answer, ...options].join("|");
+}
+
 // Stable unique id for a question list item (client-side only).
 let uidCounter = 0;
 function genUid(): string {
@@ -195,6 +220,7 @@ export default function QuestionsPage() {
   const [saving, setSaving] = useState(false);
   const [roundName, setRoundName] = useState("");
   const usedRef = useRef<string[]>([]);
+  const usedFingerprintsRef = useRef<Set<string>>(new Set());
   // Tracks correct_answer values seen this session (normalised, lowercase).
   // Prevents two questions with the same answer from appearing in the same round
   // even when their question text is completely different - the root cause of
@@ -208,13 +234,16 @@ export default function QuestionsPage() {
   // every retry, top-up and replace within the session; reset when a brand-new
   // Generate run starts.
   const rejectedRef = useRef<Set<string>>(new Set());
+  const rejectedTextsRef = useRef<Set<string>>(new Set());
   const dragIdx = useRef<number|null>(null);
 
   // Record a produced-but-rejected question so it is never regenerated/accepted
   // again this session.
   function blacklistRejected(q: Question) {
-    const norm = normalizeQuestionText(q.question_text);
-    if (norm) rejectedRef.current.add(norm);
+    const fingerprint = questionFingerprint(q);
+    if (fingerprint) rejectedRef.current.add(fingerprint);
+    const text = normalizeQuestionText(q.question_text);
+    if (text) rejectedTextsRef.current.add(text);
   }
 
   function addReportEntry(entry: Omit<GenerationReportEntry, "id">) {
@@ -248,14 +277,22 @@ export default function QuestionsPage() {
     // The Music generation stall needs a different fix (e.g. relaxing the
     // "must be well-known" bar once the well-known pool is exhausted), not
     // a weaker duplicate check.
-    const [{ data: rounds }, { data: bank }] = await Promise.all([
+    const [{ data: rounds }, { data: bank }, { data: library }] = await Promise.all([
       supabase.from("rounds").select("questions"),
-      supabase.from("question_bank").select("question_text"),
+      supabase.from("question_bank").select("question_text,question_type,option_a,option_b,option_c,option_d,option_e,option_f,correct_answer"),
+      supabase.from("questions").select("question_text,question_type,option_a,option_b,option_c,option_d,option_e,option_f,correct_answer"),
     ]);
     const used: string[] = [];
-    if (rounds) rounds.forEach((r: {questions: {question_text:string}[]}) => r.questions?.forEach((q) => used.push(q.question_text)));
-    if (bank) bank.forEach((q: {question_text:string}) => used.push(q.question_text));
+    const fingerprints = new Set<string>();
+    const remember = (q: Question) => {
+      if (q.question_text) used.push(q.question_text);
+      fingerprints.add(questionFingerprint(q));
+    };
+    if (rounds) rounds.forEach((r: {questions: Question[]}) => r.questions?.forEach(remember));
+    if (bank) bank.forEach((q) => remember(q as Question));
+    if (library) library.forEach((q) => remember(q as Question));
     usedRef.current = used;
+    usedFingerprintsRef.current = fingerprints;
   }
 
   async function callAPI(prompt: string, maxTokens: number = 8000) {
@@ -437,7 +474,7 @@ export default function QuestionsPage() {
     // Questions rejected during THIS session are listed first so they survive the
     // truncation cap - the AI must be told not to reproduce them (the blacklist in
     // isAcceptable is the hard guard; this just stops wasted retries).
-    const rejectedList = Array.from(rejectedRef.current);
+    const rejectedList = Array.from(rejectedTextsRef.current);
     let exclusions = [...rejectedList, ...usedRef.current.slice(-40)].map((q,i) => (i+1)+". "+q).join("; ");
     if (exclusions.length > 3000) exclusions = exclusions.slice(0, 3000);
     const usedAnswersList = usedAnswersRef.current.slice(-30).filter(Boolean).join(", ");
@@ -746,15 +783,16 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     const ignore = new Set<string>([...COMMON, ...themeTokens]);
     const sigWords = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
 
-    const normText = normalizeQuestionText(q.question_text);
     const normAnswer = (q.correct_answer || "").toLowerCase().trim();
+    const fingerprint = questionFingerprint(q);
 
     // a0) Blacklisted earlier this session - never allow the exact same question back.
-    if (rejectedRef.current.has(normText)) return "blacklist";
+    if (rejectedRef.current.has(fingerprint)) return "blacklist";
 
-    // a) Exact text duplicate - verbatim match against this round or history.
-    if (usedRef.current.some(t => normalizeQuestionText(t) === normText)) return "exact-text:used-or-history";
-    if (currentRound.some(g => normalizeQuestionText(g.question_text) === normText)) return "exact-text:current-round";
+    // a) Exact playable-question duplicate. Generic stems are intentionally not
+    // identities on their own; options/answer/media subject form the fingerprint.
+    if (usedFingerprintsRef.current.has(fingerprint)) return "exact-question:used-or-history";
+    if (currentRound.some(g => questionFingerprint(g) === fingerprint)) return "exact-question:current-round";
 
     // b) Same answer already used IN THE CURRENT ROUND (genuinely repetitive).
     //    Deliberately scoped to the current round only - NOT to usedAnswersRef,
@@ -868,6 +906,13 @@ Return ONLY a valid JSON array with 1 item, no markdown:
   // Fails OPEN (returns false) if the RPC/migration isn't available yet, so
   // generation is never hard-blocked by a missing memory backend.
   async function isDuplicateInMemory(q: Question): Promise<boolean> {
+    // For structured/media questions the full payload is the identity. The
+    // legacy RPC compares question_text only, which makes every "Name this song"
+    // or "Which of these..." candidate look identical. loadUsedQuestions has
+    // already loaded the permanent questions table into this fingerprint set.
+    if (["multiple_choice", "multi_tap", "sequence", "picture", "audio"].includes(q.question_type)) {
+      return usedFingerprintsRef.current.has(questionFingerprint(q));
+    }
     try {
       const supabase = createSupabaseBrowserClient();
       const { data, error } = await supabase.rpc("check_question_memory", {
@@ -980,6 +1025,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
 
   function registerAccepted(q: Question) {
     usedRef.current = [...usedRef.current, q.question_text];
+    usedFingerprintsRef.current.add(questionFingerprint(q));
     const normAnswer = (q.correct_answer || "").toLowerCase().trim();
     if (normAnswer) usedAnswersRef.current = [...usedAnswersRef.current, normAnswer];
   }
@@ -1014,6 +1060,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     // only reflects questions rejected during this run (it then persists across
     // every retry, top-up and replace until the next Generate).
     rejectedRef.current = new Set();
+    rejectedTextsRef.current = new Set();
     let types: string[];
     if (roundType === "music") {
       types = Array(count).fill("audio");

@@ -135,6 +135,21 @@ function wait(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function parseModelJson<T>(text: string, container: "object" | "array"): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch (originalError) {
+    const open = container === "array" ? "[" : "{";
+    const close = container === "array" ? "]" : "}";
+    const start = text.indexOf(open);
+    const end = text.lastIndexOf(close);
+    if (start !== -1 && end > start) {
+      return JSON.parse(text.slice(start, end + 1)) as T;
+    }
+    throw originalError;
+  }
+}
+
 // array.sort(() => Math.random() - 0.5) is a well-known broken shuffle - V8's sort
 // is stable/insertion-sort-based for small arrays, so a random comparator barely
 // moves elements and tends to leave them close to their original order. This was
@@ -394,7 +409,7 @@ export default function QuestionsPage() {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const text = await callAPI(prompt, 300);
-        return JSON.parse(text);
+        return parseModelJson<{ok: boolean; note: string}>(text, "object");
       } catch (error) {
         const reason = error instanceof Error ? error.message : "Unknown moderation error";
         if (attempt === 0) {
@@ -436,7 +451,7 @@ export default function QuestionsPage() {
       (subject ? " | Media subject (internal search query, not shown to players): " + subject : "");
     try {
       const text = await callAPI(prompt, 300);
-      return JSON.parse(text);
+      return parseModelJson<{ok: boolean; note: string}>(text, "object");
     } catch {
       // Fail open - never let a verification hiccup stall a themed round.
       return { ok: true, note: "theme-check-unavailable" };
@@ -483,7 +498,7 @@ export default function QuestionsPage() {
       (subject ? " | Image/Audio subject (internal search query, not shown to players): " + subject : "");
     try {
       const text = await callAPI(prompt, 300);
-      return JSON.parse(text);
+      return parseModelJson<{ok: boolean; note: string}>(text, "object");
     } catch {
       // Fail open - never let a verification hiccup stall generation.
       return { ok: true, note: "quality-check-unavailable" };
@@ -572,7 +587,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       const text = await callAPI(prompt);
       let q;
       try {
-        q = JSON.parse(text)[0];
+        q = parseModelJson<Array<Question & Record<string, unknown>>>(text, "array")[0];
       } catch {
         // TEMPORARY DIAGNOSTIC - surface the actual raw text that failed to parse
         // so we can see exactly what Claude returned instead of guessing blind.
@@ -905,7 +920,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       "Reply ONLY with JSON {\"ok\":true,\"note\":\"No high-confidence round-balance conflict\",\"confidence\":\"low|medium|high\",\"candidate_subtopic\":\"short label or null\",\"candidate_entity\":\"primary entity or null\",\"conflict_index\":null,\"rejection_reason\":\"\"} or {\"ok\":false,\"note\":\"short reason\",\"confidence\":\"high\",\"candidate_subtopic\":\"short label\",\"candidate_entity\":\"primary entity or null\",\"conflict_index\":1,\"rejection_reason\":\"specific repeated subject\"}. " +
       "Candidate: " + JSON.stringify(candidate) + " | Accepted questions: " + JSON.stringify(accepted);
     try {
-      const parsed = JSON.parse(await callAPI(prompt, 350)) as {
+      const parsed = parseModelJson<{
         ok?: boolean;
         note?: string;
         confidence?: string;
@@ -913,7 +928,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         candidate_entity?: string | null;
         conflict_index?: number | null;
         rejection_reason?: string;
-      };
+      }>(await callAPI(prompt, 350), "object");
       const conflictIndex = Number.isInteger(parsed.conflict_index) && (parsed.conflict_index as number) >= 1 && (parsed.conflict_index as number) <= currentRound.length
         ? parsed.conflict_index as number
         : null;

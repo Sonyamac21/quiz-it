@@ -880,34 +880,50 @@ Return ONLY a valid JSON array with 1 item, no markdown:
   }> {
     const stages = lastCandidateReportRef.current?.stages || emptyValidationResults(Boolean(theme.trim()), q.question_type === "picture" || q.question_type === "audio");
 
-    const moderation = await checkQuestion(q);
-    stages.moderation = { status: moderation.ok ? "passed" : "failed", note: moderation.note };
-    if (!moderation.ok) return { ok: false, category: "Moderation", reason: moderation.note, stages };
+    // These validators are logically independent: none mutates the candidate or
+    // depends on another validator's result. Running them one after another made
+    // every question pay for three model round-trips plus the database lookup in
+    // series. Start them together, then apply their results in the established
+    // gate order below so acceptance behaviour and rejection priority do not
+    // change. The local duplicate check remains synchronous and authoritative.
+    const activeTheme = (theme || "").trim();
+    const moderationPromise = checkQuestion(q);
+    const balancePromise = activeTheme
+      ? Promise.resolve<Awaited<ReturnType<typeof checkRoundBalance>> | null>(null)
+      : checkRoundBalance(q, currentRound);
+    const memoryPromise = isDuplicateInMemory(q);
+    const qualityPromise = finalQualityCheck(q);
 
+    const [moderation, balance, memoryDuplicate, quality] = await Promise.all([
+      moderationPromise,
+      balancePromise,
+      memoryPromise,
+      qualityPromise,
+    ]);
+    stages.moderation = { status: moderation.ok ? "passed" : "failed", note: moderation.note };
     const duplicateReason = duplicateRejectionReason(q, currentRound);
     stages.duplicate = duplicateReason
       ? { status: "failed", note: duplicateReason }
       : { status: "passed", note: "No session or round duplicate" };
-    if (duplicateReason) return { ok: false, category: "Duplicate", reason: duplicateReason, stages };
-
-    if (!(theme || "").trim()) {
-      const balance = await checkRoundBalance(q, currentRound);
+    if (!activeTheme) {
+      if (!balance) throw new Error("Round Balance result was unavailable");
       stages.balance = {
         status: balance.ok ? "passed" : "failed",
         note: balance.note,
         details: balance.details,
       };
-      if (!balance.ok) return { ok: false, category: "Round balance", reason: balance.note, stages };
     }
-
-    const memoryDuplicate = await isDuplicateInMemory(q);
     stages.memory = memoryDuplicate
       ? { status: "failed", note: "Matched permanent Question Memory" }
       : { status: "passed", note: "No permanent-memory match" };
-    if (memoryDuplicate) return { ok: false, category: "Permanent memory", reason: stages.memory.note, stages };
-
-    const quality = await finalQualityCheck(q);
     stages.quality = { status: quality.ok ? "passed" : "failed", note: quality.note };
+
+    // Preserve the established rejection priority even though the independent
+    // work above completes concurrently.
+    if (!moderation.ok) return { ok: false, category: "Moderation", reason: moderation.note, stages };
+    if (duplicateReason) return { ok: false, category: "Duplicate", reason: duplicateReason, stages };
+    if (balance && !balance.ok) return { ok: false, category: "Round balance", reason: balance.note, stages };
+    if (memoryDuplicate) return { ok: false, category: "Permanent memory", reason: stages.memory.note, stages };
     if (!quality.ok) return { ok: false, category: "Final quality", reason: quality.note, stages };
 
     return { ok: true, category: "Accepted", reason: "Passed every applicable validation stage", stages };

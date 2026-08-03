@@ -111,6 +111,30 @@ const VARIETY_ANGLES = [
 ];
 const typeLabel: Record<string,string> = { multi_tap:"Multi Tap", multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune" };
 
+// Candidate generation and independent validators may overlap, but sending every
+// request at once can exhaust both Anthropic's concurrency allowance and our own
+// per-host API rate limit. Keep a small shared client-side queue across the page.
+const MAX_AI_CONCURRENCY = 3;
+let activeAiRequests = 0;
+const aiRequestQueue: Array<() => void> = [];
+
+async function withAiRequestSlot<T>(task: () => Promise<T>): Promise<T> {
+  if (activeAiRequests >= MAX_AI_CONCURRENCY) {
+    await new Promise<void>(resolve => aiRequestQueue.push(resolve));
+  }
+  activeAiRequests++;
+  try {
+    return await task();
+  } finally {
+    activeAiRequests--;
+    aiRequestQueue.shift()?.();
+  }
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // array.sort(() => Math.random() - 0.5) is a well-known broken shuffle - V8's sort
 // is stable/insertion-sort-based for small arrays, so a random comparator barely
 // moves elements and tends to leave them close to their original order. This was
@@ -296,11 +320,11 @@ export default function QuestionsPage() {
   }
 
   async function callAPI(prompt: string, maxTokens: number = 8000) {
-    const res = await fetch("/api/generate-questions", {
+    const res = await withAiRequestSlot(() => fetch("/api/generate-questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, maxTokens }),
-    });
+    }));
     // TEMPORARY DIAGNOSTIC - read as text first so we can see exactly what our own
     // API route actually returned, instead of res.json() crashing blind on an
     // empty/malformed body with no visibility into why.
@@ -322,7 +346,7 @@ export default function QuestionsPage() {
     return text.replace(/```json/g,"").replace(/```/g,"").trim();
   }
 
-  async function checkQuestion(q: Question): Promise<{ok: boolean; note: string}> {
+  async function checkQuestion(q: Question): Promise<{ok: boolean; note: string; unavailable?: boolean}> {
     // Include ALL six options (a–f), not just a–d. Multi Tap questions carry
     // correct_answer as a comma-separated letter key that can reference option_e
     // or option_f (e.g. "b,e"). Previously those two options were omitted here,
@@ -366,12 +390,26 @@ export default function QuestionsPage() {
       "Also verify that the Answer is factually correct for the Question, using the literal reference metadata when needed. " +
       "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"short reason based only on presented content\"}. " +
       "Labelled fields: " + JSON.stringify(labelledContent);
-    try {
-      const text = await callAPI(prompt, 300);
-      return JSON.parse(text);
-    } catch {
-      return { ok: false, note: "Could not verify" };
+    let firstError = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const text = await callAPI(prompt, 300);
+        return JSON.parse(text);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "Unknown moderation error";
+        if (attempt === 0) {
+          firstError = reason;
+          await wait(750);
+          continue;
+        }
+        return {
+          ok: false,
+          unavailable: true,
+          note: "Moderation service unavailable: " + reason + (reason === firstError ? "" : " (first attempt: " + firstError + ")"),
+        };
+      }
     }
+    return { ok: false, unavailable: true, note: "Moderation service unavailable" };
   }
 
   // Theme Relevance Validator. Runs only when the host supplied a theme/topic.
@@ -974,7 +1012,12 @@ Return ONLY a valid JSON array with 1 item, no markdown:
 
     // Preserve the established rejection priority even though the independent
     // work above completes concurrently.
-    if (!moderation.ok) return { ok: false, category: "Moderation", reason: moderation.note, stages };
+    if (!moderation.ok) return {
+      ok: false,
+      category: moderation.unavailable ? "Moderation unavailable" : "Moderation",
+      reason: moderation.note,
+      stages,
+    };
     if (duplicateReason) return { ok: false, category: "Duplicate", reason: duplicateReason, stages };
     if (balance && !balance.ok) return { ok: false, category: "Round balance", reason: balance.note, stages };
     if (memoryDuplicate) return { ok: false, category: "Permanent memory", reason: stages.memory.note, stages };
@@ -1182,6 +1225,12 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         addReportEntry({ outcome: "accepted", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
         consecutiveCheckFailures = 0;
       } else {
+        if (validation.category === "Moderation unavailable") {
+          addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
+          setStatus("Generation stopped because moderation could not be reached. " + validation.reason);
+          setLoading(false);
+          return;
+        }
         // Permanently blacklist this exact question for the rest of the session
         // so the retry can never reproduce it (and the AI is told to avoid it).
         blacklistRejected(q);
@@ -1268,6 +1317,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         newQ = candidate;
         addReportEntry({ outcome: "accepted", questionText: candidate.question_text, questionType: candidate.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       } else {
+        if (validation.category === "Moderation unavailable") {
+          addReportEntry({ outcome: "rejected", questionText: candidate.question_text, questionType: candidate.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
+          setStatus("Replacement stopped because moderation could not be reached. " + validation.reason);
+          return;
+        }
         addReportEntry({ outcome: "rejected", questionText: candidate.question_text, questionType: candidate.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
         blacklistRejected(candidate); // in-round/memory duplicate or final-quality reject - keep trying
       }
@@ -1346,6 +1400,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         setQuestions(prev => [...prev, q]);
         addReportEntry({ outcome: "accepted", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       } else {
+        if (validation.category === "Moderation unavailable") {
+          addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
+          setStatus("Top Up stopped because moderation could not be reached. " + validation.reason);
+          return;
+        }
         addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
         blacklistRejected(q);
       }

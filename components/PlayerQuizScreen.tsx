@@ -13,6 +13,7 @@ import { PlayerShell, PlayerStatusBar, PlayerResultBanner } from "@/components/p
 import { TeamPhotoUpload } from "@/components/player/TeamPhotoUpload";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { platformLogger } from "@/lib/platform/logger";
+import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 
 type Question = {
   question_text: string;
@@ -26,7 +27,7 @@ type Question = {
   correct_answer: string;
 };
 
-type Phase = "waiting" | "question" | "answer" | "celebration" | "hard_deck" | "intermission" | "spin_to_win" | "quiz_end" | "pursuit";
+type Phase = "waiting" | "question" | "hot_seat" | "answer" | "celebration" | "hard_deck" | "intermission" | "spin_to_win" | "quiz_end" | "pursuit";
 type UpcomingQuiz = { venue_name: string; event_date: string; start_time: string };
 
 function formatUpcomingDate(value: string): string {
@@ -239,6 +240,10 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [answerText, setAnswerText] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [hotSeatStatus, setHotSeatStatus] = useState<HotSeatStatus>("idle");
+  const [hotSeatTeam, setHotSeatTeam] = useState<string | null>(null);
+  const [hotSeatLockedTeams, setHotSeatLockedTeams] = useState<string[]>([]);
+  const [buzzing, setBuzzing] = useState(false);
   const [fastestTeamName, setFastestTeamName] = useState<string | null>(null);
   const [fastestSongName, setFastestSongName] = useState<string | null>(null);
   const [fastestPoints, setFastestPoints] = useState(0);
@@ -423,7 +428,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data, error: fetchError } = await supabase
         .from("sessions")
-        .select("phase, status, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, is_final_round")
+        .select("phase, status, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
         .eq("pin", sessionPin)
         .single();
       if (fetchError) {
@@ -611,6 +616,18 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const leaderboardHidden = !!data.hide_leaderboard;
     setHideLeaderboard(leaderboardHidden);
     setAllowPowerCards(data.allow_power_cards !== false);
+    const hotSeat = readHotSeatState(data);
+    setHotSeatStatus(hotSeat.status);
+    setHotSeatTeam(hotSeat.team);
+    setHotSeatLockedTeams(hotSeat.lockedTeams);
+    setBuzzing(false);
+    if (newPhase === "hot_seat" && hotSeat.status === "claimed" && hotSeat.team === teamName && hotSeat.answerStartedAt) {
+      const elapsed = Math.floor((Date.now() - new Date(hotSeat.answerStartedAt).getTime()) / 1000);
+      startCountdown(Math.max(0, hotSeat.answerDuration - elapsed));
+    } else if (newPhase === "hot_seat" && hotSeat.status === "open") {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setTimeLeft(null);
+    }
     setShowScoreboardOnPhone(!leaderboardHidden && !!data.show_scoreboard);
     setPhoneScoreboardData((data.scoreboard_data as {team_name:string; total_points:number}[]) || []);
     setIsFinalRound(!!data.is_final_round);
@@ -650,7 +667,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     // as an effective "question" phase so answer state resets between race questions.
     const inPursuitQuestion = newPhase === "pursuit" && newPursuitStatus === "question";
     const effPhase = inPursuitQuestion ? "question" : newPhase;
-    if (effPhase === "question" && (newIdx !== lastQIndexRef.current || lastPhaseRef.current !== "question" || newQText !== lastQTextRef.current)) {
+    if ((effPhase === "question" || newPhase === "hot_seat") && (newIdx !== lastQIndexRef.current || lastPhaseRef.current !== effPhase || newQText !== lastQTextRef.current)) {
       lastQIndexRef.current = newIdx;
       lastQTextRef.current = newQText;
       setQuestionIndex(newIdx);
@@ -660,9 +677,13 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       setTappedItems([]);
       setMySubmittedDisplay("");
     }
+    if (newPhase === "hot_seat" && hotSeat.status === "submitted" && hotSeat.team === teamName) {
+      setSubmitted(true);
+      setMySubmittedDisplay("Answer submitted");
+    }
     lastPhaseRef.current = effPhase;
 
-    if (data.timer_started_at && data.timer_duration) {
+    if (newPhase !== "hot_seat" && data.timer_started_at && data.timer_duration) {
       const started = new Date(data.timer_started_at as string).getTime();
       const duration = data.timer_duration as number;
       const elapsed = Math.floor((Date.now() - started) / 1000);
@@ -685,6 +706,10 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
   async function submitAnswer(answer: string, retryCount = 0) {
     if (submitted || !answer.trim()) return;
+    if (phase === "hot_seat" && hotSeatTeam !== teamName) {
+      setError("Only the team in the Hot Seat can answer.");
+      return;
+    }
     if (phase === "pursuit" && pursuitRace[teamName]?.status !== "active") {
       setError("Your Pursuit run is complete. You can watch the race from here.");
       return;
@@ -703,19 +728,24 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     // requires a Supabase policy change, which is out of scope for this pass.)
     if (retryCount === 0) {
       const { data: live } = await supabase.from("sessions")
-        .select("phase, current_question_index, timer_started_at, timer_duration")
+        .select("phase, current_question_index, timer_started_at, timer_duration, hot_seat_team, hot_seat_answer_started_at, hot_seat_answer_duration")
         .eq("pin", sessionPin).maybeSingle();
       if (live) {
         const phase = live.phase as string;
-        const answering = phase === "question" || phase === "timer" || phase === "pursuit";
-        const movedOn = (phase === "question" || phase === "timer")
+        const answering = phase === "question" || phase === "timer" || phase === "pursuit" || phase === "hot_seat";
+        const movedOn = (phase === "question" || phase === "timer" || phase === "hot_seat")
           && typeof live.current_question_index === "number"
           && live.current_question_index !== questionIndex;
         const started = live.timer_started_at ? new Date(live.timer_started_at as string).getTime() : null;
         const dur = typeof live.timer_duration === "number" ? live.timer_duration : null;
         // 1.5s network grace, matching the existing client-side allowance.
-        const expired = started !== null && dur !== null && Date.now() > started + dur * 1000 + 1500;
-        if (!answering || movedOn || expired) {
+        const hotSeatStarted = live.hot_seat_answer_started_at ? new Date(live.hot_seat_answer_started_at as string).getTime() : null;
+        const hotSeatDuration = typeof live.hot_seat_answer_duration === "number" ? live.hot_seat_answer_duration : HOT_SEAT_ANSWER_SECONDS;
+        const expired = phase === "hot_seat"
+          ? hotSeatStarted !== null && Date.now() > hotSeatStarted + hotSeatDuration * 1000 + 1500
+          : started !== null && dur !== null && Date.now() > started + dur * 1000 + 1500;
+        const wrongHotSeatTeam = phase === "hot_seat" && live.hot_seat_team !== teamName;
+        if (!answering || movedOn || expired || wrongHotSeatTeam) {
           setError("Time's up! No more answers accepted for this question.");
           setTimeout(() => setError(""), 2500);
           return;
@@ -754,6 +784,27 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         setError("Connection lost. Close and reopen the keypad to reconnect.");
       }
     }
+  }
+
+  async function claimHotSeat() {
+    if (buzzing || hotSeatStatus !== "open" || hotSeatLockedTeams.includes(teamName)) return;
+    setBuzzing(true);
+    const supabase = createSupabaseBrowserClient();
+    const { data, error } = await supabase.rpc("claim_hot_seat", {
+      p_session_pin: sessionPin,
+      p_team_name: teamName,
+    });
+    if (error) {
+      setError("Buzz could not be registered. Tap again.");
+      setBuzzing(false);
+      return;
+    }
+    const result = data as { claimed?: boolean } | null;
+    if (!result?.claimed) {
+      setError("Another team got there first.");
+      setTimeout(() => setError(""), 1800);
+    }
+    setBuzzing(false);
   }
 
   async function submitHardDeckGuess(guess: "higher" | "lower") {
@@ -1188,6 +1239,38 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     );
   }
 
+  if (phase === "hot_seat" && question && hotSeatTeam === teamName && !submitted && timeLeft !== null && timeLeft <= 0) {
+    return (
+      <div className="qi-player-state qi-player-hot-seat">
+        <PlayerStatusBar teamName={teamName} roundName={roundName || "Hot Seat"} powerCardsEnabled={false} photoUrl={teamPhotoUrl} />
+        <div className="qi-player-hot-seat__state is-locked"><strong>TIME&apos;S UP</strong><span>The host will reopen the buzz.</span></div>
+      </div>
+    );
+  }
+
+  if (phase === "hot_seat" && question && hotSeatTeam !== teamName) {
+    const lockedOut = hotSeatLockedTeams.includes(teamName);
+    const buzzOpen = hotSeatStatus === "open" && !lockedOut;
+    return (
+      <div className="qi-player-state qi-player-hot-seat">
+        <PlayerStatusBar teamName={teamName} roundName={roundName || "Hot Seat"} powerCardsEnabled={false} photoUrl={teamPhotoUrl} />
+        <div className="qi-player-hot-seat__question">{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+        {buzzOpen ? (
+          <button type="button" className="qi-player-hot-seat__buzz" onClick={claimHotSeat} disabled={buzzing}>
+            {buzzing ? "BUZZING…" : "BUZZ"}
+          </button>
+        ) : lockedOut ? (
+          <div className="qi-player-hot-seat__state is-locked"><strong>LOCKED OUT</strong><span>Another team can still take the Hot Seat.</span></div>
+        ) : hotSeatTeam ? (
+          <div className="qi-player-hot-seat__state"><strong>{hotSeatTeam}</strong><span>TAKES THE HOT SEAT</span></div>
+        ) : (
+          <div className="qi-player-hot-seat__state"><strong>BUZZERS CLOSED</strong><span>Eyes on the host.</span></div>
+        )}
+        {error && <div className="qi-player-hot-seat__error" role="alert">{error}</div>}
+      </div>
+    );
+  }
+
   if ((phase === "answer" || (phase === "pursuit" && pursuitStatus === "reveal")) && question) {
     const correctText = getCorrectAnswerText(question);
     // Authoritative verdict only for multiple choice, where the picked key vs the
@@ -1225,7 +1308,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     );
   }
 
-  if ((phase === "question" || (phase === "pursuit" && pursuitStatus === "question")) && question) {
+  if ((phase === "question" || (phase === "hot_seat" && hotSeatTeam === teamName) || (phase === "pursuit" && pursuitStatus === "question")) && question) {
     const isPicture = question.question_type === "picture";
     const isMultiChoice = question.question_type === "multiple_choice";
     const isSequence = question.question_type === "sequence";
@@ -1364,7 +1447,11 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           <PlayerResultBanner tone="locked" title="LOCKED IN ✓">{mySubmittedDisplay || "Waiting for the reveal"}</PlayerResultBanner>
         )}
         </div>
-        <PowerCards />
+        {phase === "hot_seat" ? <div className="qi-player-cards-paused">You are in the Hot Seat</div> : allowPowerCards ? (
+          <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
+            <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
+          </div>
+        ) : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
       </div>
     );
   }

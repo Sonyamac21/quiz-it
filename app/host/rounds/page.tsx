@@ -38,6 +38,7 @@ const ROUND_LAUNCHER_TYPES: { key: string; label: string }[] = [
   { key: "music",     label: "Music" },
   { key: "multi_tap", label: "TapType" },
   { key: "pursuit",   label: "The Pursuit" },
+  { key: "hot_seat",  label: "Hot Seat" },
 ];
 
 const selectStyle: React.CSSProperties = { flex: 1, padding: "9px 12px", borderRadius: 14, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", fontSize: 13, fontFamily: "'Inter',sans-serif", minWidth: 0, outline: "none" };

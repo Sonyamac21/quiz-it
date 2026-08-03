@@ -1000,6 +1000,13 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       types = shuffle(Array.from({ length: count }, (_, i) =>
         ["multiple_choice", "text_answer", "number", "sequence"][i % 4]
       ));
+    } else if (roundType === "hot_seat") {
+      // Every Hot Seat candidate must be completely answerable from the shared
+      // question and the winning handset; media rounds retain their dedicated
+      // display/playback workflows.
+      types = shuffle(Array.from({ length: count }, (_, i) =>
+        ["multiple_choice", "text_answer", "number", "sequence"][i % 4]
+      ));
     } else {
       const mcCount = Math.round(count * 0.25);
       const taCount = Math.round(count * 0.20);
@@ -1305,6 +1312,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                 <option value="music">Music round</option>
                 <option value="multi_tap">Multi Tap round</option>
                 <option value="pursuit">The Pursuit</option>
+                <option value="hot_seat">Hot Seat</option>
               </select>
             </div>
             <div>
@@ -1333,6 +1341,16 @@ Return ONLY a valid JSON array with 1 item, no markdown:
                 <li>Every team races through all seven questions at once — each correct answer moves your runner one gate forward.</li>
                 <li>One wrong answer and you&rsquo;re out of the pursuit (you stay on the board, frozen). Multiple teams can finish.</li>
                 <li>Scoring climbs 10, 20, 30&hellip; up to a 100-point payout for clearing all seven.</li>
+              </ul>
+            </div>
+          )}
+          {roundType === "hot_seat" && (
+            <div style={{ marginBottom:16, padding:"12px 16px", borderRadius:14, background:"rgba(255,83,101,0.08)", border:"1px solid rgba(255,83,101,0.5)" }}>
+              <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:14, color:"#ff8290", letterSpacing:".14em", marginBottom:8 }}>HOT SEAT</div>
+              <ul style={{ margin:0, paddingLeft:18, font:"400 13px 'Inter'", lineHeight:1.6, color:"#B9A8D9" }}>
+                <li>First team to buzz gets 15 seconds to answer on its handset.</li>
+                <li>A wrong answer or timeout locks that team out and reopens the buzz.</li>
+                <li>The first correct team earns the full question points.</li>
               </ul>
             </div>
           )}

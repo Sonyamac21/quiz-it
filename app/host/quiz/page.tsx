@@ -17,6 +17,7 @@ import { diagnosticTimestamp } from "@/lib/diagnostics/time";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { FEATURE_FLAGS } from "@/lib/platform/featureFlags";
 import { platformLogger } from "@/lib/platform/logger";
+import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
 
@@ -87,9 +88,15 @@ const RULES = {
     "One wrong answer and you're out of the pursuit (you stay on the board, frozen). Multiple teams can finish.",
     "Scoring climbs 10, 20, 30\u2026 up to a 100-point payout for clearing all seven.",
   ],
+  hot_seat: [
+    "Every team starts with one large buzz button.",
+    "The first team to buzz takes the Hot Seat and has 15 seconds to answer on its handset.",
+    "A wrong answer or timeout locks that team out and reopens the buzz to the remaining teams.",
+    "A correct answer earns the full question points and ends the question.",
+  ],
 };
 
-const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "TapType", music: "Music Round" };
+const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "TapType", music: "Music Round", hot_seat: "Hot Seat" };
 
 // Per-question-type timer defaults, confirmed by host: Multiple Choice,
 // Sequence, Multi Tap, and Number need less thinking time than written
@@ -109,7 +116,7 @@ function getTimerForQuestion(q: { question_type?: string } | null | undefined, f
 }
 
 
-type HostPhase = "waiting" | "round_start" | "preview" | "question" | "timer" | "answer" | "celebration" | "round_end" | "quiz_end";
+type HostPhase = "waiting" | "round_start" | "preview" | "question" | "timer" | "hot_seat" | "answer" | "celebration" | "round_end" | "quiz_end";
 
 function playSound(file: string, volume = 1.0) {
   return playShowAudio(file, { channel: file.includes("countdown") ? "timer" : "cue", volume });
@@ -144,6 +151,11 @@ function QuizControllerInner() {
   const [showScoreboardOnHandsets, setShowScoreboardOnHandsets] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [timeLeft, setTimeLeft] = useState(30);
+  const [hotSeatStatus, setHotSeatStatus] = useState<HotSeatStatus>("idle");
+  const [hotSeatTeam, setHotSeatTeam] = useState<string | null>(null);
+  const [hotSeatLockedTeams, setHotSeatLockedTeams] = useState<string[]>([]);
+  const [hotSeatAnswerStartedAt, setHotSeatAnswerStartedAt] = useState<string | null>(null);
+  const [hotSeatAnswerDuration, setHotSeatAnswerDuration] = useState(HOT_SEAT_ANSWER_SECONDS);
   const [fastestTeam, setFastestTeam] = useState<string|null>(null);
   const fastestTeamRef = useRef<string | null>(null);
   // sessionIdRef: always current sessionId without stale closure risk,
@@ -278,6 +290,11 @@ function QuizControllerInner() {
       }
     }
     else if (hostPhase === "timer") { doRevealAnswer(); }
+    else if (hostPhase === "hot_seat") {
+      if (hotSeatCurrentAnswer && currentQ && isAnswerCorrect(hotSeatCurrentAnswer, currentQ)) resolveHotSeatCorrect();
+      else if (hotSeatCurrentAnswer || (hotSeatStatus === "claimed" && timeLeft <= 0)) reopenHotSeat();
+      else if (hotSeatStatus === "idle" || teams.length - hotSeatLockedTeams.length <= 0) doRevealAnswer();
+    }
     else if (hostPhase === "answer") { doCelebrate(); }
     else if (hostPhase === "celebration") {
       if (isLastQ) { doEndRound(); }
@@ -315,6 +332,16 @@ function QuizControllerInner() {
     if (typeof data.round_number === "number") setRoundNumber(data.round_number);
     if (data.fastest_team) { setFastestTeam(data.fastest_team as string); fastestTeamRef.current = data.fastest_team as string; }
     if (data.fastest_song) setFastestSong(data.fastest_song as string);
+    const hotSeat = readHotSeatState(data);
+    setHotSeatStatus(hotSeat.status);
+    setHotSeatTeam(hotSeat.team);
+    setHotSeatLockedTeams(hotSeat.lockedTeams);
+    setHotSeatAnswerStartedAt(hotSeat.answerStartedAt);
+    setHotSeatAnswerDuration(hotSeat.answerDuration);
+    if (hotSeat.status === "claimed" && hotSeat.answerStartedAt) {
+      const elapsed = (diagnosticTimestamp() - new Date(hotSeat.answerStartedAt).getTime()) / 1000;
+      setTimeLeft(Math.max(0, Math.ceil(hotSeat.answerDuration - elapsed)));
+    }
     let restoredPhase = (data.phase as string) || "waiting";
     // "spin_to_win" only exists as a Display/handset screen - the host's own
     // console still shows its celebration panel (with the spin controls) the
@@ -343,6 +370,16 @@ function QuizControllerInner() {
       }
     }
   }
+
+  useEffect(() => {
+    if (hostPhase !== "hot_seat" || hotSeatStatus !== "claimed" || !hotSeatAnswerStartedAt) return;
+    const updateRemaining = () => {
+      const elapsed = (Date.now() - new Date(hotSeatAnswerStartedAt).getTime()) / 1000;
+      setTimeLeft(Math.max(0, Math.ceil(hotSeatAnswerDuration - elapsed)));
+    };
+    const interval = setInterval(updateRemaining, PLATFORM_CONFIG.timers.tickMilliseconds);
+    return () => clearInterval(interval);
+  }, [hostPhase, hotSeatStatus, hotSeatAnswerStartedAt, hotSeatAnswerDuration]);
 
   async function connectWithPin(p: string) {
     const supabase = createSupabaseBrowserClient();
@@ -418,7 +455,7 @@ function QuizControllerInner() {
   // host screen, since the poll only ever ran before the timer started or after
   // it had already ended.
   useEffect(() => {
-    if (!sessionPin || !["question", "timer", "answer"].includes(hostPhase)) return;
+    if (!sessionPin || !["question", "timer", "hot_seat", "answer"].includes(hostPhase)) return;
     const interval = setInterval(() => { loadAnswers(sessionPin, qIdx); }, PLATFORM_CONFIG.polling.hostAnswerSafetyMilliseconds);
     return () => clearInterval(interval);
   }, [sessionPin, qIdx, hostPhase]);
@@ -553,7 +590,7 @@ function QuizControllerInner() {
 
     const rankBonus: Record<string, number> = {};
     correctEntries.forEach((entry, idx) => {
-      rankBonus[entry.teamName] = Math.max(0, timeBonus - idx);
+      rankBonus[entry.teamName] = selectedRound?.round_type === "hot_seat" ? 0 : Math.max(0, timeBonus - idx);
     });
 
     for (const team of teamList) {
@@ -589,7 +626,7 @@ function QuizControllerInner() {
       if (!isCorrect && !(isWrong && dangerZone)) continue;
       const timeBonusPts = rankBonus[team.team_name] ?? 0;
       const basePts = isCorrect ? pointsPerQ : 0;
-      const penalty = isWrong && dangerZone ? -dangerPenalty : 0;
+      const penalty = isWrong && dangerZone && selectedRound?.round_type !== "hot_seat" ? -dangerPenalty : 0;
       const delta = (basePts + timeBonusPts) * (hasBoost(team.team_name) ? 2 : 1) + penalty;
       lastDeltasRef.current[team.team_name] = delta;
       if (delta === 0) continue;
@@ -777,6 +814,12 @@ function QuizControllerInner() {
         if (a.session_pin === pin && a.question_index === qIdxRef.current) {
           setRealtimeLastSync(diagnosticTimestamp());
           setAnswers(prev => prev.some(x => x.id === a.id) ? prev : [...prev, a]);
+          createSupabaseBrowserClient().from("sessions")
+            .update({ hot_seat_status: "submitted" })
+            .eq("pin", pin)
+            .eq("phase", "hot_seat")
+            .eq("hot_seat_team", a.team_name)
+            .then(({ error }) => { if (error) console.error("SESSION UPDATE FAILED [hotSeatSubmitted]:", error); });
         }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams" }, (payload) => {
@@ -807,6 +850,16 @@ function QuizControllerInner() {
         const s = payload.new as Record<string, unknown>;
         if (s.pin !== pin) return;
         setRealtimeLastSync(diagnosticTimestamp());
+        const hotSeat = readHotSeatState(s);
+        setHotSeatStatus(hotSeat.status);
+        setHotSeatTeam(hotSeat.team);
+        setHotSeatLockedTeams(hotSeat.lockedTeams);
+        setHotSeatAnswerStartedAt(hotSeat.answerStartedAt);
+        setHotSeatAnswerDuration(hotSeat.answerDuration);
+        if (hotSeat.status === "claimed" && hotSeat.answerStartedAt) {
+          const elapsed = (diagnosticTimestamp() - new Date(hotSeat.answerStartedAt).getTime()) / 1000;
+          setTimeLeft(Math.max(0, Math.ceil(hotSeat.answerDuration - elapsed)));
+        }
         const choice = (s.spin_choice as string) || null;
         setSpinChoice(choice);
         setSpinTargetIdx((s.spin_target_idx as number) ?? null);
@@ -897,6 +950,10 @@ function QuizControllerInner() {
     setAnswers([]);
     setFastestTeam(null); fastestTeamRef.current = null;
     setFastestSong(null);
+    setHotSeatStatus("idle");
+    setHotSeatTeam(null);
+    setHotSeatLockedTeams([]);
+    setHotSeatAnswerStartedAt(null);
     setTimeLeft(getTimerForQuestion(selectedRound.questions[0], timerDuration));
     setHostPhase("round_start");
     roundStartedRef.current = Date.now();
@@ -910,6 +967,10 @@ function QuizControllerInner() {
       fastest_song: null,
       hide_leaderboard: selectedRound.hide_leaderboard ?? false,
       allow_power_cards: selectedRound.allow_power_cards ?? true,
+      hot_seat_status: "idle",
+      hot_seat_team: null,
+      hot_seat_locked_teams: [],
+      hot_seat_answer_started_at: null,
       ...(selectedRound.hide_leaderboard ? { show_scoreboard: false } : {}),
     }).eq("id", sessionId);
     // Reset round_points for the new round - previously this only happened if the
@@ -932,7 +993,7 @@ function QuizControllerInner() {
     // push phase: "waiting" to Supabase so player handsets reset off the
     // celebration screen back to the Quiz-It idle/logo screen during preview.
     const supabase = createSupabaseBrowserClient();
-    const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", fastest_team: null, fastest_song: null, spin_offered: false, spin_nonce: null, spin_target_idx: null, spin_choice: null }).eq("id", sessionId);
+    const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", fastest_team: null, fastest_song: null, spin_offered: false, spin_nonce: null, spin_target_idx: null, spin_choice: null, hot_seat_status: "idle", hot_seat_team: null, hot_seat_locked_teams: [], hot_seat_answer_started_at: null }).eq("id", sessionId);
     if (prevErr) console.error("SESSION UPDATE FAILED [doPreviewQuestion]:", prevErr);
     if (sessionPin) loadAnswers(sessionPin, idx);
   }
@@ -940,10 +1001,30 @@ function QuizControllerInner() {
   async function doSendQuestion() {
     if (!selectedRound || !sessionId) return;
     const q = selectedRound.questions[qIdx];
-    setHostPhase("question");
+    const isHotSeat = selectedRound.round_type === "hot_seat";
+    setHostPhase(isHotSeat ? "hot_seat" : "question");
+    if (isHotSeat) {
+      setHotSeatStatus("open");
+      setHotSeatTeam(null);
+      setHotSeatLockedTeams([]);
+      setHotSeatAnswerStartedAt(null);
+      setTimeLeft(HOT_SEAT_ANSWER_SECONDS);
+    }
     const isPicture = q.question_type === "picture";
     const supabase = createSupabaseBrowserClient();
-    const { error: sendErr } = await supabase.from("sessions").update({ phase: "question", current_question: q, current_question_index: qIdx, fastest_team: null, fastest_song: null, picture_sub_phase: isPicture ? "image_only" : null }).eq("id", sessionId);
+    const { error: sendErr } = await supabase.from("sessions").update({
+      phase: isHotSeat ? "hot_seat" : "question",
+      current_question: q,
+      current_question_index: qIdx,
+      fastest_team: null,
+      fastest_song: null,
+      picture_sub_phase: isPicture ? "image_only" : null,
+      hot_seat_status: isHotSeat ? "open" : "idle",
+      hot_seat_team: null,
+      hot_seat_locked_teams: [],
+      hot_seat_answer_started_at: null,
+      hot_seat_answer_duration: HOT_SEAT_ANSWER_SECONDS,
+    }).eq("id", sessionId);
     if (sendErr) console.error("SESSION UPDATE FAILED [doSendQuestion]:", sendErr);
     // Record actual play-time usage for repeat-prevention - this only fires for
     // questions that came from (or were saved into) the library, i.e. have an id.
@@ -998,6 +1079,36 @@ function QuizControllerInner() {
         return prev - 1;
       });
     }, PLATFORM_CONFIG.timers.tickMilliseconds);
+  }
+
+  async function reopenHotSeat() {
+    if (!sessionId || !hotSeatTeam) return;
+    const lockedTeams = Array.from(new Set([...hotSeatLockedTeams, hotSeatTeam]));
+    const remainingTeams = teams.filter(team => !lockedTeams.includes(team.team_name));
+    const supabase = createSupabaseBrowserClient();
+    const nextStatus: HotSeatStatus = remainingTeams.length > 0 ? "open" : "idle";
+    const { error } = await supabase.from("sessions").update({
+      hot_seat_status: nextStatus,
+      hot_seat_team: null,
+      hot_seat_locked_teams: lockedTeams,
+      hot_seat_answer_started_at: null,
+    }).eq("id", sessionId);
+    if (error) {
+      alert("Hot Seat could not reopen. Check the connection and try again.");
+      return;
+    }
+    setHotSeatStatus(nextStatus);
+    setHotSeatTeam(null);
+    setHotSeatLockedTeams(lockedTeams);
+    setHotSeatAnswerStartedAt(null);
+    setTimeLeft(HOT_SEAT_ANSWER_SECONDS);
+  }
+
+  async function resolveHotSeatCorrect() {
+    if (!hotSeatTeam || !currentQ) return;
+    const answer = answers.find(item => item.team_name === hotSeatTeam);
+    if (!answer || !isAnswerCorrect(answer, currentQ)) return;
+    await doRevealAnswer();
   }
 
   async function doRevealAnswer() {
@@ -1206,6 +1317,8 @@ function QuizControllerInner() {
   const orderedAnswers = [...answers].sort((a, b) => (a.submitted_at || "").localeCompare(b.submitted_at || ""));
   const submissionOrder = (teamName: string) => { const i = orderedAnswers.findIndex(a => a.team_name === teamName); return i >= 0 ? i + 1 : null; };
   const teamAnswerObj = (teamName: string) => answers.find(a => a.team_name === teamName) || null;
+  const hotSeatCurrentAnswer = hotSeatTeam ? teamAnswerObj(hotSeatTeam) : null;
+  const hotSeatAnswerIsCorrect = !!(hotSeatCurrentAnswer && currentQ && isAnswerCorrect(hotSeatCurrentAnswer, currentQ));
   const answersRevealed = hostPhase === "answer" || hostPhase === "celebration";
   const PowerCardDots = ({ teamName }: { teamName: string }) => {
     const used = teamCardsUsed(teamName);
@@ -1263,6 +1376,10 @@ function QuizControllerInner() {
     hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "SPACE: Reveal Question Text" :
     hostPhase === "question" ? "SPACE: Start Timer" :
     hostPhase === "timer" ? "SPACE: Reveal Answer" :
+    hostPhase === "hot_seat" && hotSeatAnswerIsCorrect ? "SPACE: Award Points & Reveal" :
+    hostPhase === "hot_seat" && (hotSeatCurrentAnswer || (hotSeatStatus === "claimed" && timeLeft <= 0)) ? "SPACE: Lock Out & Reopen Buzz" :
+    hostPhase === "hot_seat" && (hotSeatStatus === "idle" || teams.length - hotSeatLockedTeams.length <= 0) ? "SPACE: Reveal Answer" :
+    hostPhase === "hot_seat" ? "Waiting for the buzz" :
     hostPhase === "answer" ? "SPACE: Celebrate Fastest Team" :
     hostPhase === "celebration" ? (isLastQ ? "SPACE: End Round" : "SPACE: Preview Next Question") :
     hostPhase === "round_end" ? "SPACE: Load Next Round" :
@@ -1277,6 +1394,9 @@ function QuizControllerInner() {
     hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "Reveal Question Text" :
     hostPhase === "question" ? "Start Timer" :
     hostPhase === "timer" ? "Reveal Answer" :
+    hostPhase === "hot_seat" && hotSeatAnswerIsCorrect ? "Award Points & Reveal" :
+    hostPhase === "hot_seat" && (hotSeatCurrentAnswer || (hotSeatStatus === "claimed" && timeLeft <= 0)) ? "Lock Out & Reopen Buzz" :
+    hostPhase === "hot_seat" && (hotSeatStatus === "idle" || teams.length - hotSeatLockedTeams.length <= 0) ? "Reveal Answer" :
     hostPhase === "answer" ? "Celebrate Fastest Team" :
     hostPhase === "celebration" ? (isLastQ ? "End Round" : "Next Question") :
     hostPhase === "round_end" ? "Load Next Round" : "";
@@ -1426,7 +1546,7 @@ function QuizControllerInner() {
                       className="qi-mc-round-card"
                     >
                       <strong>{(r.position ?? 0) + 1}. {r.name}</strong>
-                      <span>{r.completed_at ? "✓ Completed" : "Upcoming"} · {r.round_type === "pursuit" ? "The Pursuit" : `${r.questions?.length || 0} questions${r.round_type && r.round_type !== "regular" ? " · " + r.round_type : ""}`}</span>
+                      <span>{r.completed_at ? "✓ Completed" : "Upcoming"} · {r.round_type === "pursuit" ? "The Pursuit" : r.round_type === "hot_seat" ? `Hot Seat · ${r.questions?.length || 0} questions` : `${r.questions?.length || 0} questions${r.round_type && r.round_type !== "regular" ? " · " + r.round_type : ""}`}</span>
                     </button>
                   ))}
                 </div>
@@ -1526,6 +1646,22 @@ function QuizControllerInner() {
               </div>
 
               <h1 className="qi-mc-question__title">{currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</h1>
+
+              {hostPhase === "hot_seat" && (
+                <div className="qi-hot-seat-host" role="status" aria-live="polite">
+                  <div className="qi-hot-seat-host__label">HOT SEAT</div>
+                  {hotSeatStatus === "open" ? (
+                    <><strong>Buzzers open</strong><span>{teams.length - hotSeatLockedTeams.length} teams eligible</span></>
+                  ) : hotSeatTeam ? (
+                    <>
+                      <strong>{hotSeatTeam} takes the Hot Seat</strong>
+                      <span>{hotSeatCurrentAnswer ? `Answer: ${hotSeatCurrentAnswer.answer_text}` : `${timeLeft}s to answer`}</span>
+                    </>
+                  ) : (
+                    <><strong>No teams remaining</strong><span>Reveal the answer or move to the next question.</span></>
+                  )}
+                </div>
+              )}
 
               {currentQ.question_type==="multiple_choice" && (
               <div className="qi-mc-options">

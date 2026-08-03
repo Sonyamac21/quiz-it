@@ -12,6 +12,7 @@ import { teamInitials } from "@/components/TeamBadge";
 import { RoundStart, RoundEnd, Intermission, IntermissionGallery, WaitingForHost } from "@/components/fable/DisplayStates";
 import { playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
+import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 
 type Question = {
   question_text: string;
@@ -28,7 +29,7 @@ type Question = {
   fade_out?: boolean;
 };
 type Score = { team_name: string; total_points: number; };
-type Phase = "waiting" | "round_start" | "question" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission" | "spin_to_win" | "pursuit";
+type Phase = "waiting" | "round_start" | "question" | "hot_seat" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission" | "spin_to_win" | "pursuit";
 
 // Real, automatic audio playback for "audio" question types - this replaces
 // what used to be the host manually alt-tabbing to YouTube on their own laptop.
@@ -228,6 +229,9 @@ function DisplayScreenInner() {
     return () => stopAllShowAudio();
   }, []);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [hotSeatStatus, setHotSeatStatus] = useState<HotSeatStatus>("idle");
+  const [hotSeatTeam, setHotSeatTeam] = useState<string | null>(null);
+  const [hotSeatLockedTeams, setHotSeatLockedTeams] = useState<string[]>([]);
   const [pinInput, setPinInput] = useState("");
   const [connected, setConnected] = useState(false);
   const [sessionPin, setSessionPin] = useState("");
@@ -461,6 +465,17 @@ function DisplayScreenInner() {
     setVenueName((data.venue_name as string) || null);
     setHideLeaderboard(!!data.hide_leaderboard);
     setAllowPowerCards(data.allow_power_cards !== false);
+    const hotSeat = readHotSeatState(data);
+    setHotSeatStatus(hotSeat.status);
+    setHotSeatTeam(hotSeat.team);
+    setHotSeatLockedTeams(hotSeat.lockedTeams);
+    if (newPhase === "hot_seat" && hotSeat.status === "claimed" && hotSeat.answerStartedAt) {
+      const elapsed = Math.floor((Date.now() - new Date(hotSeat.answerStartedAt).getTime()) / 1000);
+      startCountdown(Math.max(0, hotSeat.answerDuration - elapsed));
+    } else if (newPhase === "hot_seat" && hotSeat.status === "open") {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setTimeLeft(null);
+    }
     const ft = (data.fastest_team as string) || null;
     const fs = (data.fastest_song as string) || null;
     setFastestTeam(ft);
@@ -647,7 +662,7 @@ function DisplayScreenInner() {
         stopShowAudio("music");
       }
     }
-    if (data.timer_started_at && data.timer_duration) {
+    if (newPhase !== "hot_seat" && data.timer_started_at && data.timer_duration) {
       const started = new Date(data.timer_started_at as string).getTime();
       const duration = data.timer_duration as number;
       timerTotalRef.current = duration;
@@ -1285,6 +1300,32 @@ function DisplayScreenInner() {
           </div>
         </div>
         <div style={{ position:"absolute", bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,rgba(34,197,94,0.6),transparent)` }} />
+      </div>
+    );
+  }
+
+  if (phase === "hot_seat" && question) {
+    const eligibleTeams = Math.max(0, teams.length - hotSeatLockedTeams.length);
+    return (
+      <div className="qi-display-hot-seat" aria-live="polite">
+        <div className="qi-display-hot-seat__meta">HOT SEAT · QUESTION {questionIndex + 1}</div>
+        <h1>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</h1>
+        {hotSeatStatus === "open" ? (
+          <div className="qi-display-hot-seat__call">
+            <span>BUZZERS OPEN</span>
+            <strong>WHO KNOWS IT?</strong>
+            <small>{eligibleTeams} team{eligibleTeams === 1 ? "" : "s"} eligible</small>
+          </div>
+        ) : hotSeatTeam ? (
+          <div className="qi-display-hot-seat__claim">
+            <span>{hotSeatTeam}</span>
+            <strong>TAKES THE HOT SEAT</strong>
+            {hotSeatStatus === "submitted" ? <small>ANSWER LOCKED IN</small> : <div className="qi-display-hot-seat__timer">{timeLeft ?? HOT_SEAT_ANSWER_SECONDS}</div>}
+          </div>
+        ) : (
+          <div className="qi-display-hot-seat__call"><strong>NO TEAMS REMAINING</strong><small>Eyes on the host</small></div>
+        )}
+        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
       </div>
     );
   }

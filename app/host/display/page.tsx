@@ -105,7 +105,7 @@ function LiveAudioPlayer({ question }: { question: Question }) {
   );
 }
 
-const PRELOAD_SOUNDS = ["airhorn.mp3", "sad-trombone.mp3", "round-start.mp3", "clapping-scores.mp3"];
+const PRELOAD_SOUNDS = ["airhorn.mp3", "sad-trombone.mp3", "round-start.mp3", "clapping-scores.mp3", "countdown-urgent.mp3", "lock.mp3", "crowd-cheer.mp3"];
 
 // Lobby Power-Card rules rotation. Rules mirror the real cards in
 // components/UnoCards.tsx; colours are the locked feature tokens
@@ -232,6 +232,25 @@ function DisplayScreenInner() {
   const [hotSeatStatus, setHotSeatStatus] = useState<HotSeatStatus>("idle");
   const [hotSeatTeam, setHotSeatTeam] = useState<string | null>(null);
   const [hotSeatLockedTeams, setHotSeatLockedTeams] = useState<string[]>([]);
+  const prevHotSeatStatusRef = useRef<HotSeatStatus>("idle");
+  const prevHotSeatPhaseRef = useRef<Phase>("waiting");
+  const hotSeatUrgentPlayedRef = useRef<string | null>(null);
+  const hotSeatLockPlayedRef = useRef<string | null>(null);
+  // Hot Seat uses the same final-five countdown and lock cues as other timed
+  // gameplay. The question/team key prevents realtime echoes and safety polls
+  // from replaying either sound.
+  useEffect(() => {
+    if (phase !== "hot_seat" || hotSeatStatus !== "claimed" || !hotSeatTeam || timeLeft === null) return;
+    const attemptKey = `${questionIndex}:${hotSeatTeam}`;
+    if (timeLeft === 5 && hotSeatUrgentPlayedRef.current !== attemptKey) {
+      hotSeatUrgentPlayedRef.current = attemptKey;
+      playSound("countdown-urgent.mp3", 0.35);
+    }
+    if (timeLeft === 0 && hotSeatLockPlayedRef.current !== attemptKey) {
+      hotSeatLockPlayedRef.current = attemptKey;
+      playSound("lock.mp3", 0.5);
+    }
+  }, [phase, hotSeatStatus, hotSeatTeam, timeLeft, questionIndex]);
   const [pinInput, setPinInput] = useState("");
   const [connected, setConnected] = useState(false);
   const [sessionPin, setSessionPin] = useState("");
@@ -469,6 +488,21 @@ function DisplayScreenInner() {
     setHotSeatStatus(hotSeat.status);
     setHotSeatTeam(hotSeat.team);
     setHotSeatLockedTeams(hotSeat.lockedTeams);
+    const previousHotSeatStatus = prevHotSeatStatusRef.current;
+    const previousHotSeatPhase = prevHotSeatPhaseRef.current;
+    if (newPhase === "hot_seat" && hotSeat.status === "open" && (previousHotSeatStatus === "claimed" || previousHotSeatStatus === "submitted")) {
+      // A claimed team returning to an open buzzer means its answer was wrong
+      // or its clock expired. One deliberate failure cue replaces dead air.
+      playSound("sad-trombone.mp3", 0.75);
+    } else if (newPhase === "answer" && previousHotSeatPhase === "hot_seat" && hotSeat.team) {
+      // The host only enters answer reveal directly from Hot Seat when the
+      // seated team is correct (or every team has been exhausted). A retained
+      // team identifies the successful path; the normal celebration phase will
+      // then play that team's configured victory song as before.
+      playSound("crowd-cheer.mp3", 0.65);
+    }
+    prevHotSeatStatusRef.current = hotSeat.status;
+    prevHotSeatPhaseRef.current = newPhase;
     if (newPhase === "hot_seat" && hotSeat.status === "claimed" && hotSeat.answerStartedAt) {
       const elapsed = Math.floor((Date.now() - new Date(hotSeat.answerStartedAt).getTime()) / 1000);
       startCountdown(Math.max(0, hotSeat.answerDuration - elapsed));

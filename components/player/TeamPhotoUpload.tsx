@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { prepareParticipantPhoto } from "@/lib/images/prepareParticipantPhoto";
 
 // Lets a team snap/upload a photo taken during the quiz night, separate from
 // the one photo they set at join. Every upload lands in session_photos with
@@ -21,11 +22,14 @@ export function TeamPhotoUpload({ sessionPin, teamName }: Props) {
     setError("");
     const supabase = createSupabaseBrowserClient();
     try {
+      const preparedPhoto = await prepareParticipantPhoto(file);
       const { data: session } = await supabase.from("sessions").select("id").eq("pin", sessionPin).maybeSingle();
       if (!session?.id) throw new Error("Could not find this session");
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = sessionPin + "-" + teamName.trim().replace(/\s+/g, "-").toLowerCase() + "-" + Date.now() + "." + ext;
-      const { error: uploadError } = await supabase.storage.from("session-photos").upload(path, file);
+      const path = sessionPin + "-" + teamName.trim().replace(/\s+/g, "-").toLowerCase() + "-" + Date.now() + ".jpg";
+      const { error: uploadError } = await supabase.storage.from("session-photos").upload(path, preparedPhoto, {
+        contentType: "image/jpeg",
+        cacheControl: "3600",
+      });
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from("session-photos").getPublicUrl(path);
       const { error: insertError } = await supabase.from("session_photos").insert({

@@ -324,8 +324,10 @@ function QuizControllerInner() {
         ? await supabase.from("session_rounds").select("*").eq("id", data.current_session_round_id as string).maybeSingle()
         : await supabase.from("rounds").select("*").eq("id", data.round_id as string).maybeSingle();
       if (roundData) {
-        setSelectedRound(roundData as Round);
-        roundQuestionsRef.current = [...(roundData as Round).questions];
+        const restoredRound = roundData as Round;
+        setSelectedRound(restoredRound);
+        applyRoundConfiguration(restoredRound);
+        roundQuestionsRef.current = [...restoredRound.questions];
       }
     }
     if (typeof data.current_question_index === "number") setQIdx(data.current_question_index);
@@ -1337,24 +1339,25 @@ function QuizControllerInner() {
 
   // Single place to choose tonight's round (used by the header dropdown and the
   // big desk picker). Behaviour identical to the original inline handler.
+  function applyRoundConfiguration(round: Round | null) {
+    setPointsPerQ(round?.points_per_question ?? DEFAULT_POINTS_PER_QUESTION);
+    setDangerZone(round?.danger_zone_enabled ?? false);
+    setDangerPenalty(round?.danger_zone_penalty ?? 5);
+    setTimeBonus(round?.max_time_bonus ?? 5);
+  }
+
   function chooseRound(r: (typeof rounds)[number] | null) {
     setSelectedRound(r || null); setQIdx(0); setAnswers([]); setHostPhase("waiting");
     setRoundNumber((r?.position ?? 0) + 1);
-    // Auto-load this round's saved points-per-question (set in Round Builder)
-    // instead of always starting from the flat session default - the input
-    // next to the round controls is unchanged and still overrides this for
-    // tonight only, per round, same as before.
-    setPointsPerQ(r?.points_per_question ?? DEFAULT_POINTS_PER_QUESTION);
-    // Same idea as points-per-question above: load this round's saved Danger
-    // Zone setting (set in Quiz Library) instead of leaving whatever the
-    // previous round left in place. The ON/OFF button and penalty input next
-    // to the round controls still override this for tonight only.
-    setDangerZone(r?.danger_zone_enabled ?? false);
-    setDangerPenalty(r?.danger_zone_penalty ?? 5);
-    // Speed bonus is also a saved-per-round setting now, same as points and
-    // Danger Zone - the "Max time bonus" input next to the round controls
-    // still overrides this for tonight only.
-    setTimeBonus(r?.max_time_bonus ?? 5);
+    // Use the immutable session-round snapshot for both a normal selection and
+    // host recovery, so a refresh cannot silently revert planned scoring to
+    // platform defaults midway through a live quiz.
+    applyRoundConfiguration(r);
+    // All routes into the running order must launch specialist rounds through
+    // their own controller. Previously only clicking a Pursuit card did this;
+    // advancing automatically from the previous round loaded its questions in
+    // the standard host UI and never showed the Pursuit race graphic.
+    setPursuitAutoStartId(r?.round_type === "pursuit" ? r.id : null);
     if (r?.hide_leaderboard) { setShowScoreboard(false); setShowScoreboardOnHandsets(false); }
     roundQuestionsRef.current = r ? [...r.questions] : [];
     const isFinalRound = !!r && rounds.length > 0 && r.position === rounds[rounds.length - 1].position;
@@ -1542,7 +1545,7 @@ function QuizControllerInner() {
                   {rounds.map(r => (
                     <button
                       key={r.id}
-                      onClick={() => r.round_type === "pursuit" ? setPursuitAutoStartId(r.id) : chooseRound(r)}
+                      onClick={() => chooseRound(r)}
                       className="qi-mc-round-card"
                     >
                       <strong>{(r.position ?? 0) + 1}. {r.name}</strong>
@@ -1627,7 +1630,7 @@ function QuizControllerInner() {
                   )}
                 </>
               ) : (
-                <div style={{ fontSize:24, color:"rgba(255,255,255,0.4)", marginBottom:32 }}>{currentQ?.question_type === "multi_tap" ? "Nobody got all answers correct." : "No correct answers this round"}</div>
+                <div style={{ fontSize:24, color:"rgba(255,255,255,0.4)", marginBottom:32 }}>{currentQ?.question_type === "multi_tap" ? "Nobody got all answers correct." : "No correct answers for this question"}</div>
               )}
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>{isLastQ ? "SPACE: End Round" : "SPACE: Preview Next Question"}</div>
             </div>

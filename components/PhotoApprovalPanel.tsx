@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -18,6 +18,28 @@ type Props = {
   sessionPin: string;
 };
 
+function PhotoPreview({ src }: { src: string }) {
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  return (
+    <div style={{ position: "relative", width: "100%", aspectRatio: "1", background: "#100622", display: "grid", placeItems: "center", overflow: "hidden" }}>
+      {state !== "ready" && (
+        <div style={{ color: state === "error" ? "#ff8290" : "#8F7AAF", font: "600 12px 'Inter'" }}>
+          {state === "error" ? "Photo could not load" : "Loading photo…"}
+        </div>
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt="Submitted team photo"
+        decoding="async"
+        onLoad={() => setState("ready")}
+        onError={() => setState("error")}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: state === "ready" ? 1 : 0, transition: "opacity 160ms ease" }}
+      />
+    </div>
+  );
+}
+
 // Was 4000ms - during a live show, a customer uploading mid-quiz shouldn't
 // sit waiting up to 4 seconds before the host even sees it land in the
 // queue. Cheap to poll faster; this is a small per-session table.
@@ -29,6 +51,7 @@ export function PhotoApprovalPanel({ sessionId, sessionPin }: Props) {
   const [pending, setPending] = useState<PendingPhoto[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const preloadedUrls = useRef(new Set<string>());
 
   useEffect(() => {
     if (!sessionId || !sessionPin) return;
@@ -47,6 +70,17 @@ export function PhotoApprovalPanel({ sessionId, sessionPin }: Props) {
     const interval = window.setInterval(load, POLL_MS);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [sessionId, sessionPin, supabase]);
+
+  // Begin downloading as soon as a submission reaches the queue, rather than
+  // waiting for the host to open the modal during a live question.
+  useEffect(() => {
+    pending.forEach(photo => {
+      if (preloadedUrls.current.has(photo.photo_url)) return;
+      preloadedUrls.current.add(photo.photo_url);
+      const image = new Image();
+      image.src = photo.photo_url;
+    });
+  }, [pending]);
 
   async function approve(photo: PendingPhoto) {
     setBusyId(photo.id);
@@ -113,8 +147,7 @@ export function PhotoApprovalPanel({ sessionId, sessionPin }: Props) {
             <div style={{ width: "100%", maxWidth: 720, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
               {pending.map(photo => (
                 <div key={photo.kind + photo.id} style={{ borderRadius: 16, background: "#150A2E", border: "1px solid #2E1A52", overflow: "hidden" }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={photo.photo_url} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} />
+                  <PhotoPreview src={photo.photo_url} />
                   <div style={{ padding: 12 }}>
                     <div style={{ font: "700 14px 'Inter'", color: "#fff", marginBottom: 2 }}>{photo.team_name}</div>
                     <div style={{ font: "500 11px 'Inter'", color: "#6B5A8E", marginBottom: 10, letterSpacing: 1, textTransform: "uppercase" as const }}>{photo.kind === "team" ? "Join photo" : "Quiz-night upload"}</div>

@@ -386,6 +386,60 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-team-card__answer { display: flex; align-items: center; gap: var(--qi-space-2); min-height: 34px; margin-top: var(--qi-space-2); padding-left: 3.25rem; }
 .qi-mc-team-card__answer > span { font-size: var(--qi-type-sm) !important; }
 
+/* Keep the live host console inside a laptop/venue-control viewport. Width-only
+   scaling made long questions oversized on widescreen displays and pushed the
+   answers below the fold. The rail remains independently scrollable for large
+   team counts, while the primary question workflow stays visible at a glance. */
+@media (min-width: 861px) and (max-height: 1100px) {
+  .qi-mc-header {
+    grid-template-columns: minmax(170px, auto) minmax(280px, 0.8fr) auto;
+    gap: var(--qi-space-3);
+    padding-block: var(--qi-space-2);
+  }
+  .qi-mc-brand { gap: var(--qi-space-2); }
+  .qi-mc-brand__mark { width: 38px; height: 38px; }
+  .qi-mc-brand__section,
+  .qi-mc-brand .qi-brand__producer { display: none; }
+  .qi-mc-session { gap: var(--qi-space-2); }
+  .qi-mc-session > div { min-width: 76px; padding: 0.35rem var(--qi-space-2); }
+  .qi-mc-nav .qi-button { min-height: 40px; padding-inline: var(--qi-space-3); }
+  .qi-mc-round-select { min-height: 40px; }
+
+  .qi-mc-toolbar { gap: var(--qi-space-2); padding-block: var(--qi-space-2); }
+  .qi-mc-toolbar .qi-button { min-height: 40px; }
+  .qi-mc-toolbar__label { min-width: 150px; }
+
+  .qi-mc-next {
+    min-height: 68px;
+    padding-block: var(--qi-space-2);
+  }
+  .qi-mc-next__label { font-size: clamp(1.5rem, 1.1rem + 1.25vw, 2.35rem); }
+  .qi-mc-next__timer { font-size: clamp(2rem, 1.6rem + 1.5vw, 3.25rem); }
+
+  .qi-mc-desk { padding: clamp(0.85rem, 1.6vw, 1.5rem); }
+  .qi-mc-question__meta { margin-bottom: var(--qi-space-3); }
+  .qi-mc-question__title {
+    margin-bottom: var(--qi-space-4);
+    font-size: clamp(1.85rem, min(3.15vw, 5vh), 3.35rem);
+    line-height: 1.12;
+  }
+  .qi-mc-options { gap: var(--qi-space-2); margin-bottom: var(--qi-space-3); }
+  .qi-mc-option { min-height: 52px; padding-block: var(--qi-space-2); }
+  .qi-mc-manual { margin-top: var(--qi-space-3); padding-top: var(--qi-space-3); }
+
+  .qi-mc-settings { padding: var(--qi-space-3) var(--qi-space-4); }
+  .qi-mc-teams { padding: var(--qi-space-3) var(--qi-space-4); }
+  .qi-mc-teams__header {
+    top: calc(var(--qi-space-3) * -1);
+    margin: calc(var(--qi-space-3) * -1) calc(var(--qi-space-4) * -1) var(--qi-space-3);
+    padding: var(--qi-space-3) var(--qi-space-4);
+  }
+  .qi-mc-team-card { margin-bottom: var(--qi-space-2); padding: var(--qi-space-2) var(--qi-space-3); }
+  .qi-mc-team-card__summary,
+  .qi-mc-team-card__answer { min-height: 30px; }
+  .qi-mc-team-card__answer { margin-top: var(--qi-space-1); }
+}
+
 @media (max-width: 1180px) {
   .qi-mc-header { grid-template-columns: 1fr auto; }
   .qi-mc-session { justify-content: flex-end; }

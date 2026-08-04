@@ -3,6 +3,7 @@ import { PlayerQuizScreen } from "@/components/PlayerQuizScreen";
 import { useState, useEffect, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
+import { prepareParticipantPhoto } from "@/lib/images/prepareParticipantPhoto";
 
 const STORAGE_KEY = "quizit_player_session";
 
@@ -243,9 +244,12 @@ export function JoinForm() {
       }
       let photoUrl: string | null = null;
       if (photoFile) {
-        const ext = photoFile.name.split(".").pop() || "jpg";
-        const path = pin + "-" + teamName.trim().replace(/\s+/g, "-").toLowerCase() + "-" + Date.now() + "." + ext;
-        const { error: uploadError } = await supabase.storage.from("team-photos").upload(path, photoFile);
+        const preparedPhoto = await prepareParticipantPhoto(photoFile);
+        const path = pin + "-" + teamName.trim().replace(/\s+/g, "-").toLowerCase() + "-" + Date.now() + ".jpg";
+        const { error: uploadError } = await supabase.storage.from("team-photos").upload(path, preparedPhoto, {
+          contentType: "image/jpeg",
+          cacheControl: "3600",
+        });
         if (!uploadError) {
           const { data: urlData } = supabase.storage.from("team-photos").getPublicUrl(path);
           photoUrl = urlData?.publicUrl || null;
@@ -262,8 +266,8 @@ export function JoinForm() {
       setSessionPin(pin);
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin, savedAt: Date.now() }));
       setDone(true);
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

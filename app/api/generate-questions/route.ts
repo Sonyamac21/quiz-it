@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Validate the prompt.
-    const { prompt, maxTokens } = await req.json();
+    const { prompt, maxTokens, structuredOutput } = await req.json();
     if (!prompt || typeof prompt !== "string") {
       return NextResponse.json({ error: { message: "Missing prompt" } }, { status: 400 });
     }
@@ -84,6 +84,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const requestBody: Record<string, unknown> = {
+      model: "claude-sonnet-4-6",
+      max_tokens: tokenLimit,
+      messages: [{ role: "user", content: prompt }],
+    };
+    if (structuredOutput === true) {
+      requestBody.tools = [{
+        name: "return_validation_result",
+        description: "Return the final quiz validation decision as structured data. Always call this tool exactly once after evaluating the supplied question.",
+        input_schema: {
+          type: "object",
+          properties: {
+            ok: { type: "boolean" },
+            note: { type: "string" },
+            confidence: { type: "string", enum: ["low", "medium", "high"] },
+            candidate_subtopic: { type: ["string", "null"] },
+            candidate_entity: { type: ["string", "null"] },
+            conflict_index: { type: ["integer", "null"] },
+            rejection_reason: { type: "string" },
+          },
+          required: ["ok", "note"],
+          additionalProperties: false,
+        },
+      }];
+      requestBody.tool_choice = { type: "tool", name: "return_validation_result" };
+    }
+
     const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -91,11 +118,7 @@ export async function POST(req: NextRequest) {
         "x-api-key": process.env.ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: tokenLimit,
-        messages: [{ role: "user", content: prompt }],
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const text = await apiRes.text();

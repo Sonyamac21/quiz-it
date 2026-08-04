@@ -334,11 +334,11 @@ export default function QuestionsPage() {
     usedFingerprintsRef.current = fingerprints;
   }
 
-  async function callAPI(prompt: string, maxTokens: number = 8000) {
+  async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false) {
     const res = await withAiRequestSlot(() => fetch("/api/generate-questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, maxTokens }),
+      body: JSON.stringify({ prompt, maxTokens, structuredOutput }),
     }));
     // TEMPORARY DIAGNOSTIC - read as text first so we can see exactly what our own
     // API route actually returned, instead of res.json() crashing blind on an
@@ -357,6 +357,10 @@ export default function QuestionsPage() {
       const reason = data?.error?.message || "Unknown API error";
       throw new Error("API error (status " + res.status + "): " + reason);
     }
+    const toolResult = data.content.find((block: {type: string; name?: string}) =>
+      block.type === "tool_use" && block.name === "return_validation_result"
+    ) as {input?: unknown} | undefined;
+    if (structuredOutput && toolResult?.input) return JSON.stringify(toolResult.input);
     const text = data.content.filter((b:{type:string}) => b.type==="text").map((b:{text:string}) => b.text).join("");
     return text.replace(/```json/g,"").replace(/```/g,"").trim();
   }
@@ -408,7 +412,7 @@ export default function QuestionsPage() {
     let firstError = "";
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const text = await callAPI(prompt, 300);
+        const text = await callAPI(prompt, 300, true);
         return parseModelJson<{ok: boolean; note: string}>(text, "object");
       } catch (error) {
         const reason = error instanceof Error ? error.message : "Unknown moderation error";
@@ -450,7 +454,7 @@ export default function QuestionsPage() {
       (options ? " | Options: " + options : "") +
       (subject ? " | Media subject (internal search query, not shown to players): " + subject : "");
     try {
-      const text = await callAPI(prompt, 300);
+      const text = await callAPI(prompt, 300, true);
       return parseModelJson<{ok: boolean; note: string}>(text, "object");
     } catch {
       // Fail open - never let a verification hiccup stall a themed round.
@@ -497,7 +501,7 @@ export default function QuestionsPage() {
       (options ? " | Options: " + options : "") +
       (subject ? " | Image/Audio subject (internal search query, not shown to players): " + subject : "");
     try {
-      const text = await callAPI(prompt, 300);
+      const text = await callAPI(prompt, 300, true);
       return parseModelJson<{ok: boolean; note: string}>(text, "object");
     } catch {
       // Fail open - never let a verification hiccup stall generation.
@@ -928,7 +932,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         candidate_entity?: string | null;
         conflict_index?: number | null;
         rejection_reason?: string;
-      }>(await callAPI(prompt, 350), "object");
+      }>(await callAPI(prompt, 350, true), "object");
       const conflictIndex = Number.isInteger(parsed.conflict_index) && (parsed.conflict_index as number) >= 1 && (parsed.conflict_index as number) <= currentRound.length
         ? parsed.conflict_index as number
         : null;

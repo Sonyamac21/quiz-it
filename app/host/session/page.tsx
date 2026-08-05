@@ -331,13 +331,11 @@ export default function SessionPage() {
         <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 24 }}>
           <img src="/me-logo.jpg" alt="ME" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} />
           <span className="fbh-wm" style={{ fontSize: 16 }}><span className="q">QUIZ-</span>IT</span>
-          <span className="fbh-bc">Session Creation</span>
+          <span className="fbh-bc">Live Preparation</span>
           <TopSpacer />
           <a className="fbh-btn" href="/host/events">Events</a>
-          <a className="fbh-btn" href="/host/rounds">Rounds</a>
           <a className="fbh-btn" href="/host/quizzes">Quiz Plans</a>
-          <a className="fbh-btn pri" href={"/host/quiz?pin=" + (pin || "")}>Quiz Controller</a>
-          <a className="fbh-btn" href="/host/questions">Questions</a>
+          {pin && <a className="fbh-btn pri" href={"/host/quiz?pin=" + pin}>Mission Control</a>}
           <HostButton onClick={launchDisplay} disabled={!pin}>Launch Display</HostButton>
         </div>
 
@@ -347,13 +345,19 @@ export default function SessionPage() {
             <HostBody>
               <HostPad>
                 <div className="fbh-center" style={{ minHeight: 220 }}>
-                  <div className="fbh-stage-title" style={{ fontSize: 17 }}>No Show Yet</div>
+                  <div className="fbh-stage-title" style={{ fontSize: 17 }}>{preparedEvent ? "Prepare Tonight’s Quiz" : "Prepare A Live Quiz"}</div>
                   <div style={{ font: "400 13px 'Inter'", color: "#B9A8D9", margin: "8px 0 18px", lineHeight: 1.6, maxWidth: 380 }}>
                     {preparedEvent ? `${preparedEvent.event_name} · ${preparedEvent.venue?.venue_name || "Venue not assigned"}` : `Your first quiz night is one decision away. Teams join at ${host}/join`}
                   </div>
-                  <div style={{ width: "100%", maxWidth: 420, marginBottom: 14, textAlign: "left" }}><HostLabel>Quiz Plan</HostLabel><select value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)} disabled={!!preparedEvent} className="fbh-input" style={{ width: "100%", minHeight: 48 }}><option value="">Select a prepared Quiz Plan…</option>{quizzes.map(quiz => <option key={quiz.id} value={quiz.id} disabled={!quiz.quiz_rounds.length}>{quiz.name} ({quiz.quiz_rounds.length} rounds)</option>)}</select></div>
+                  {preparedEvent ? (
+                    <div className="qi-live-prep-summary" aria-label="Live quiz details">
+                      <div><span>Venue</span><strong>{preparedEvent.venue?.venue_name || "Venue not assigned"}</strong></div>
+                      <div><span>Starts</span><strong>{new Date(`${preparedEvent.event_date}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · {preparedEvent.start_time.slice(0, 5)}</strong></div>
+                      <div><span>Quiz Plan</span><strong>{quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "Loading Quiz Plan…"}</strong></div>
+                    </div>
+                  ) : <div style={{ width: "100%", maxWidth: 420, marginBottom: 14, textAlign: "left" }}><HostLabel>Quiz Plan</HostLabel><select value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)} className="fbh-input" style={{ width: "100%", minHeight: 48 }}><option value="">Select a prepared Quiz Plan…</option>{quizzes.map(quiz => <option key={quiz.id} value={quiz.id} disabled={!quiz.quiz_rounds.length}>{quiz.name} ({quiz.quiz_rounds.length} rounds)</option>)}</select></div>}
                   <HostButton variant="pri" big onClick={createSession} disabled={creating || !selectedQuizId}>
-                    {creating ? "CREATING…" : "CREATE A SESSION"}
+                    {creating ? "PREPARING…" : "PREPARE JOIN SCREEN"}
                   </HostButton>
                   {createError && <div role="alert" style={{ color: "#D94FDC", marginTop: 10 }}>{createError}</div>}
                   {!quizzes.length && <a className="fbh-btn" href="/host/quizzes" style={{ marginTop: 12 }}>Build your first quiz</a>}
@@ -481,7 +485,6 @@ export default function SessionPage() {
               {status === "active" && (
                 <HostButton big onClick={endQuiz} style={{ flex: 1 }}>END QUIZ</HostButton>
               )}
-              <HostButton big onClick={createSession}>NEW SESSION</HostButton>
             </div>
           </div>
         )}

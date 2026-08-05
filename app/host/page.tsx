@@ -23,4 +23,8 @@ export default function BackOfficeDashboard(){
   </main>
 }
 
-function EventRow({event}:{event:EventRecord}){return <article className="qi-bo-event"><div className="qi-bo-date"><strong>{new Date(`${event.event_date}T12:00:00`).getDate()}</strong><span>{new Date(`${event.event_date}T12:00:00`).toLocaleDateString("en-GB",{month:"short"})}</span></div><div><strong>{event.venue?.venue_name||event.event_name}</strong><span>{formatEventDate(event.event_date)} · {formatEventTime(event.start_time)} · {event.host_name||"Host"}</span><small>{event.quiz?.name||"Quiz Plan needed"}</small></div><span className={`qi-bo-status ${event.status}`}>{event.status}</span><Link href={`/host/events`}>Open</Link></article>}
+function EventRow({event}:{event:EventRecord}){
+  const actionLabel=event.status==="live"?"Open live":event.quiz?"Prepare":"Finish planning";
+  const href=event.status==="live"?`/host/session?event=${event.id}`:`/host/events?event=${event.id}`;
+  return <article className="qi-bo-event"><div className="qi-bo-date"><strong>{new Date(`${event.event_date}T12:00:00`).getDate()}</strong><span>{new Date(`${event.event_date}T12:00:00`).toLocaleDateString("en-GB",{month:"short"})}</span></div><div><strong>{event.venue?.venue_name||event.event_name}</strong><span>{formatEventDate(event.event_date)} · {formatEventTime(event.start_time)} · {event.host_name||"Host"}</span><small>{event.quiz?.name||"Quiz Plan needed"}</small></div><span className={`qi-bo-status ${event.status}`}>{event.status}</span><Link href={href}>{actionLabel}</Link></article>
+}

@@ -188,6 +188,7 @@ function QuizControllerInner() {
   const advancingRef = useRef(false);
   const spinTriggeredRef = useRef(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [audienceControlsOpen, setAudienceControlsOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [connectedAt, setConnectedAt] = useState<number | null>(null);
   const [sessionEventName, setSessionEventName] = useState<string | null>(null);
@@ -1512,9 +1513,11 @@ function QuizControllerInner() {
 
       {/* SCOREBOARD BUTTONS BAR */}
       <div className="qi-mc-toolbar">
-        <div className="qi-mc-toolbar__label"><span>Audience</span><strong>Scoreboard controls</strong></div>
-        <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handset leaderboard hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
-        <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display leaderboard hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
+        <button type="button" className="qi-mc-toolbar__toggle" aria-expanded={audienceControlsOpen} onClick={() => setAudienceControlsOpen(open => !open)}><span>Audience</span><strong>{selectedRound?.hide_leaderboard ? "Leaderboards hidden for this round" : showScoreboard || showScoreboardOnHandsets ? "Leaderboard showing" : "Leaderboard controls"}</strong><i>{audienceControlsOpen ? "Hide" : "Show"}</i></button>
+        {audienceControlsOpen && <div className="qi-mc-toolbar__controls">
+          <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handsets hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
+          <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
+        </div>}
         {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
         <Button variant="destructive" className="qi-mc-toolbar__end" onClick={doEndOfQuiz}>End quiz</Button>
       </div>

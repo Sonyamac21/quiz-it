@@ -43,6 +43,8 @@ export default function QuizBuilderPage() {
   const [showPlanList, setShowPlanList] = useState(true);
   const [savingRoundId, setSavingRoundId] = useState<string | null>(null);
   const [swappingKey, setSwappingKey] = useState<string | null>(null);
+  const [addRoundOpen, setAddRoundOpen] = useState(false);
+  const [settingsOpenRoundId, setSettingsOpenRoundId] = useState<string | null>(null);
   // Bulk/parallel question generation ("Generate All Rounds"). Lives alongside
   // the existing per-round generator at /host/questions - this does not replace
   // it, it lets a host configure several rounds at once and generate them all
@@ -398,21 +400,38 @@ export default function QuizBuilderPage() {
       ) : <>
         <HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input" style={{ width: "100%" }} />
         <div style={{ display: "flex", gap: 8, margin: "12px 0 20px", flexWrap: "wrap" }}>{guidedIntent === "duplicate" ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>SAVE QUIZ PLAN</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton onClick={() => deleteQuiz(selected)}>DELETE</HostButton></>}</div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-          <div className="fbh-lbl" style={{ margin: 0 }}>Running Order</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {Object.entries(ROUND_TYPE_LABELS).map(([rt, label]) => (
-              <HostButton key={rt} onClick={() => addBlankRoundSlot(rt)}>+ {label}</HostButton>
-            ))}
-            <HostButton variant="pri" onClick={runBulkGenerate} disabled={bulkRunning || !selected.quiz_rounds.some(r => (bulkConfig[r.id] ?? { selected: false }).selected)}>
-              {bulkRunning ? "GENERATING..." : "GENERATE ALL SELECTED"}
-            </HostButton>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div className="fbh-lbl" style={{ margin: 0 }}>Running Order</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <HostButton variant="pri" onClick={() => setAddRoundOpen(v => !v)}>{addRoundOpen ? "CLOSE" : "+ ADD ROUND"}</HostButton>
+              <HostButton onClick={runBulkGenerate} disabled={bulkRunning || !selected.quiz_rounds.some(r => (bulkConfig[r.id] ?? { selected: false }).selected)}>
+                {bulkRunning ? "GENERATING..." : "GENERATE ALL SELECTED"}
+              </HostButton>
+            </div>
           </div>
+          {addRoundOpen && (
+            <div style={{ marginTop: 10, padding: 12, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52", display: "grid", gap: 10 }}>
+              <div>
+                <div style={{ color: "#B9A8D9", font: "600 12px 'Inter'", marginBottom: 6 }}>GENERATE A NEW ROUND WITH AI</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {Object.entries(ROUND_TYPE_LABELS).map(([rt, label]) => (
+                    <HostButton key={rt} onClick={() => { addBlankRoundSlot(rt); setAddRoundOpen(false); }}>{label}</HostButton>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ color: "#B9A8D9", font: "600 12px 'Inter'", marginBottom: 6 }}>OR PICK AN EXISTING ROUND FROM THE LIBRARY</div>
+                <p style={{ color: "#6B5A8E", font: "400 12px 'Inter'", margin: "0 0 6px" }}>Scroll down to "Add from Round Library" below to browse and add a ready-made round.</p>
+              </div>
+            </div>
+          )}
         </div>
         {selected.quiz_rounds.length ? selected.quiz_rounds.map((round, index) => {
           const isGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
           const cfg = bulkConfig[round.id] ?? { selected: false, count: round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (round.questions.length || 10), theme: "", difficulty: "mixed" };
           const progress = bulkProgress[round.id];
+          const settingsOpen = settingsOpenRoundId === round.id;
           return (
         <div key={round.id} className="fbh-panel" style={{ marginBottom: 10, padding: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -425,85 +444,89 @@ export default function QuizBuilderPage() {
             />
           </div>
           <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 12 }}>{round.questions.length} questions - {round.round_type}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginBottom: 12 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-              Points per Q
-              <input
-                type="number"
-                defaultValue={round.points_per_question ?? ""}
-                placeholder="Default"
-                onBlur={e => updateRoundPoints(round, e.target.value === "" ? null : Number(e.target.value))}
-                onClick={e => e.stopPropagation()}
-                style={{ width: 100, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff", fontSize: 13 }}
-              />
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-              Show leaderboard
-              <Toggle on={!round.hide_leaderboard} onClick={() => updateRoundVisibility(round, !round.hide_leaderboard)} />
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-              Power cards
-              <Toggle on={round.allow_power_cards} onClick={() => updateRoundCards(round, !round.allow_power_cards)} />
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-              Danger Zone
-              <Toggle on={round.danger_zone_enabled} onClick={() => updateRoundDangerZone(round, !round.danger_zone_enabled)} />
-            </label>
-            {round.danger_zone_enabled && (
-              <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-                Penalty
-                <input
-                  type="number"
-                  defaultValue={round.danger_zone_penalty ?? 5}
-                  onBlur={e => updateRoundDangerPenalty(round, Number(e.target.value) || 0)}
-                  onClick={e => e.stopPropagation()}
-                  style={{ width: 56, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff" }}
-                />
-              </label>
-            )}
-            <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-              Max time bonus
-              <input
-                type="number"
-                defaultValue={round.max_time_bonus ?? 5}
-                onBlur={e => updateRoundMaxTimeBonus(round, Number(e.target.value) || 0)}
-                onClick={e => e.stopPropagation()}
-                style={{ width: 56, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff" }}
-              />
-            </label>
-          </div>
-          {isGeneratable && (
-            <div style={{ display: "grid", gap: 8, padding: 10, marginBottom: 12, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, font: "600 13px 'Inter'", color: "#fff" }}>
-                <input type="checkbox" checked={cfg.selected} onChange={e => updateBulkConfig(round.id, { selected: e.target.checked })} />
-                Include in Generate All
-              </label>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          {settingsOpen && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginBottom: 12 }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-                  Questions
-                  {round.round_type === "pursuit"
-                    ? <span style={{ color: "#fff" }}>7 (fixed)</span>
-                    : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(round.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
+                  Points per Q
+                  <input
+                    type="number"
+                    defaultValue={round.points_per_question ?? ""}
+                    placeholder="Default"
+                    onBlur={e => updateRoundPoints(round, e.target.value === "" ? null : Number(e.target.value))}
+                    onClick={e => e.stopPropagation()}
+                    style={{ width: 100, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff", fontSize: 13 }}
+                  />
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-                  Theme
-                  <input type="text" value={cfg.theme} onChange={e => updateBulkConfig(round.id, { theme: e.target.value })} placeholder="optional" style={{ width: 140, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />
+                <label style={{ display: "flex", alignItems: "center", gap: 8, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                  Show leaderboard
+                  <Toggle on={!round.hide_leaderboard} onClick={() => updateRoundVisibility(round, !round.hide_leaderboard)} />
                 </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                  Power cards
+                  <Toggle on={round.allow_power_cards} onClick={() => updateRoundCards(round, !round.allow_power_cards)} />
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                  Danger Zone
+                  <Toggle on={round.danger_zone_enabled} onClick={() => updateRoundDangerZone(round, !round.danger_zone_enabled)} />
+                </label>
+                {round.danger_zone_enabled && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                    Penalty
+                    <input
+                      type="number"
+                      defaultValue={round.danger_zone_penalty ?? 5}
+                      onBlur={e => updateRoundDangerPenalty(round, Number(e.target.value) || 0)}
+                      onClick={e => e.stopPropagation()}
+                      style={{ width: 56, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff" }}
+                    />
+                  </label>
+                )}
                 <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-                  Difficulty
-                  <select value={cfg.difficulty} onChange={e => updateBulkConfig(round.id, { difficulty: e.target.value })} style={{ padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}>
-                    <option value="easy">Easy</option>
-                    <option value="mixed">Mixed</option>
-                    <option value="hard">Hard</option>
-                  </select>
+                  Max time bonus
+                  <input
+                    type="number"
+                    defaultValue={round.max_time_bonus ?? 5}
+                    onBlur={e => updateRoundMaxTimeBonus(round, Number(e.target.value) || 0)}
+                    onClick={e => e.stopPropagation()}
+                    style={{ width: 56, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff" }}
+                  />
                 </label>
               </div>
-              {progress && <div style={{ font: "400 12px 'Inter'", color: "#2EE06E" }}>{progress}</div>}
-            </div>
+              {isGeneratable && (
+                <div style={{ display: "grid", gap: 8, padding: 10, marginBottom: 12, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, font: "600 13px 'Inter'", color: "#fff" }}>
+                    <input type="checkbox" checked={cfg.selected} onChange={e => updateBulkConfig(round.id, { selected: e.target.checked })} />
+                    Include in Generate All
+                  </label>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                      Questions
+                      {round.round_type === "pursuit"
+                        ? <span style={{ color: "#fff" }}>7 (fixed)</span>
+                        : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(round.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                      Theme
+                      <input type="text" value={cfg.theme} onChange={e => updateBulkConfig(round.id, { theme: e.target.value })} placeholder="optional" style={{ width: 140, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                      Difficulty
+                      <select value={cfg.difficulty} onChange={e => updateBulkConfig(round.id, { difficulty: e.target.value })} style={{ padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}>
+                        <option value="easy">Easy</option>
+                        <option value="mixed">Mixed</option>
+                        <option value="hard">Hard</option>
+                      </select>
+                    </label>
+                  </div>
+                  {progress && <div style={{ font: "400 12px 'Inter'", color: "#2EE06E" }}>{progress}</div>}
+                </div>
+              )}
+            </>
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <HostButton onClick={() => setExpandedRoundId(id => id === round.id ? null : round.id)}>{expandedRoundId === round.id ? "HIDE" : "PREVIEW"}</HostButton>
-            <HostButton onClick={() => saveRoundQuestions(round)} disabled={savingRoundId === round.id}>{savingRoundId === round.id ? "SAVING..." : "SAVE"}</HostButton>
+            <HostButton onClick={() => setSettingsOpenRoundId(id => id === round.id ? null : round.id)}>{settingsOpen ? "HIDE SETTINGS" : "SETTINGS"}</HostButton>
             <HostButton onClick={() => moveRound(index, -1)} disabled={index === 0}>UP</HostButton>
             <HostButton onClick={() => moveRound(index, 1)} disabled={index === selected.quiz_rounds.length - 1}>DOWN</HostButton>
             <HostButton onClick={() => duplicateRound(round)}>COPY</HostButton>
@@ -532,7 +555,7 @@ export default function QuizBuilderPage() {
           )}
         </div>
           );
-        }) : <div style={{ color: "#B9A8D9", padding: 16 }}>Add the first round using the buttons above.</div>}
+        }) : <div style={{ color: "#B9A8D9", padding: 16 }}>Add the first round using "+ ADD ROUND" above.</div>}
         <div className="fbh-lbl" style={{ marginTop: 20 }}>Add from Round Library</div>
         <select value={roundTypeFilter} onChange={e => setRoundTypeFilter(e.target.value)} style={{ marginBottom: 10, minHeight: 44, padding: "0 12px", borderRadius: 10, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", font: "500 13px 'Inter'" }}>
           <option value="">All round types</option>

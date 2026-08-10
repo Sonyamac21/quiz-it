@@ -318,7 +318,12 @@ export default function QuizBuilderPage() {
   }
 
   return <HostShell><main className="qi-bo-page" style={{ minHeight: "100vh", background: BG, color: "#fff" }}>
-    <header className="qi-bo-pagehead"><div><p>Programme planning</p><h1>Quiz Library</h1><span>A Quiz Plan is the running order for one night: pick rounds from the Round Library, put them in order, then assign the plan to a date on the Calendar.</span></div><div className="qi-bo-page-actions"><Link className="fbh-btn" href="/host/rounds">Round Library</Link><Link className="fbh-btn pri" href="/host/session">Open Live Session</Link></div></header>
+    <header className="qi-bo-pagehead"><div><p>Programme planning</p><h1>Quiz Library</h1><span>A Quiz Plan is the running order for one night: pick rounds from the Round Library, put them in order, then assign the plan to a date on the Calendar.</span></div><div className="qi-bo-page-actions">
+      <select value={selectedId ?? "__new__"} onChange={e => setSelectedId(e.target.value === "__new__" ? null : e.target.value)} style={{ minHeight: 44, padding: "0 12px", borderRadius: 10, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", font: "600 13px 'Inter'" }}>
+        <option value="__new__">+ New Quiz Plan</option>
+        {quizzes.map(q => <option key={q.id} value={q.id}>{q.name}{q.archived ? " (Archived)" : ""} - {q.quiz_rounds.length} rounds</option>)}
+      </select>
+      <Link className="fbh-btn" href="/host/rounds">Round Library</Link><Link className="fbh-btn pri" href="/host/session">Open Live Session</Link></div></header>
     {guidedIntent&&guidedEvent&&<section className="fbh-panel" role="status" style={{marginBottom:16,borderColor:"#BE26C1"}}>
       <strong style={{display:"block",marginBottom:4}}>
         {guidedIntent==="create"&&"Create a new Quiz Plan for this event"}
@@ -339,26 +344,18 @@ export default function QuizBuilderPage() {
       <span style={{color:"#B9A8D9",fontSize:13}}>It may have been deleted or the link may be out of date. You can still create or manage Quiz Plans below, but nothing will be attached automatically.</span>
       <div style={{marginTop:8}}><Link href="/host/events" className="fbh-btn">BACK TO CALENDAR</Link></div>
     </section>}
-    {loading ? <HostLoading title="Quiz Library" note="Loading Quiz Plans and rounds…" /> : error && !quizzes.length ? <section className="qi-bo-setup-state" role="alert"><span>Setup required</span><h2>Quiz Library is not available yet</h2><p>The existing Quiz Builder database migration must be applied before Quiz Plans can be created. No data has been changed.</p><details><summary>Technical detail</summary><code>{error}</code></details></section> : <div className="qi-quiz-builder-grid">
-      <section className="fbh-panel" style={selected && !showPlanList ? { maxWidth: 240 } : undefined}>
-        {selected && !showPlanList ? (
-          <>
-            <HostButton onClick={() => setShowPlanList(true)} style={{ width: "100%" }}>☰ CHANGE QUIZ PLAN</HostButton>
-            <div style={{ marginTop: 12, color: "#fff", font: "700 15px 'Inter'" }}>{selected.name}</div>
-            <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>{selected.quiz_rounds.length} rounds</div>
-          </>
-        ) : (
-          <>
-            {!selected && <><HostLabel>New Quiz Plan</HostLabel><HostInput value={name} onChange={e => setName(e.target.value)} placeholder="Thursday Night Quiz" /><textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" rows={2} className="fbh-input" style={{ width: "100%", marginTop: 8 }} /><HostButton variant="pri" onClick={createQuiz} disabled={!name.trim() || saving || assigning} style={{ width: "100%", marginTop: 10 }}>{guidedIntent === "create" ? "CREATE & ASSIGN TO EVENT" : "CREATE QUIZ PLAN"}</HostButton></>}
-            {selected && <HostButton onClick={() => setSelectedId(null)} style={{ width: "100%", marginBottom: 12 }}>+ NEW QUIZ PLAN</HostButton>}
-            <div className="fbh-lbl" style={{ marginTop: 22 }}>{guidedIntent === "assign" ? "Completed Quiz Plans" : "Your Quiz Plans"}</div>
-            {guidedIntent === "assign"
-              ? (assignableQuizzes.length ? assignableQuizzes.map(q => <button key={q.id} onClick={() => { assignQuizToEvent(q.id); setShowPlanList(false); }} disabled={assigning} className="fbh-answer-row" style={{ width: "100%", cursor: "pointer" }}><span className="nm">{q.name}</span><span className="ans">{q.quiz_rounds.length} rounds</span></button>) : <HostEmpty title="No completed Quiz Plans yet" note="A Quiz Plan needs at least one round before it can be assigned. Create or duplicate one instead." />)
-              : (quizzes.length ? quizzes.map(q => <button key={q.id} onClick={() => { setSelectedId(q.id); setShowPlanList(false); }} className="fbh-answer-row" style={{ width: "100%", cursor: "pointer", borderColor: q.id === selectedId ? "#BE26C1" : undefined, opacity: q.archived ? .55 : 1 }}><span className="nm">{q.name}</span><span className="ans">{q.quiz_rounds.length} rounds{q.archived ? " · Archived" : ""}</span></button>) : <HostEmpty title="No Quiz Plans Yet" note="Create one, then add reusable rounds." />)}
-          </>
-        )}
-      </section>
-      <section className="fbh-panel">{!selected ? <HostEmpty title="Select a Quiz Plan" note="Choose a quiz to arrange its running order." /> : <>
+    {loading ? <HostLoading title="Quiz Library" note="Loading Quiz Plans and rounds…" /> : error && !quizzes.length ? <section className="qi-bo-setup-state" role="alert"><span>Setup required</span><h2>Quiz Library is not available yet</h2><p>The existing Quiz Builder database migration must be applied before Quiz Plans can be created. No data has been changed.</p><details><summary>Technical detail</summary><code>{error}</code></details></section> : <div className="qi-quiz-builder-grid" style={{ display: "block", maxWidth: "none" }}>
+
+      <section className="fbh-panel" style={{ width: "100%" }}>{!selected ? (
+        <div style={{ maxWidth: 480 }}>
+          <HostLabel>New Quiz Plan</HostLabel>
+          <HostInput value={name} onChange={e => setName(e.target.value)} placeholder="Thursday Night Quiz" />
+          <HostLabel>Description</HostLabel>
+          <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" rows={2} className="fbh-input" style={{ width: "100%" }} />
+          <HostButton variant="pri" onClick={createQuiz} disabled={!name.trim() || saving || assigning} style={{ width: "100%", marginTop: 10 }}>{guidedIntent === "create" ? "CREATE & ASSIGN TO EVENT" : "CREATE QUIZ PLAN"}</HostButton>
+          {quizzes.length > 0 && <p style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginTop: 16 }}>Or pick an existing plan from the dropdown above.</p>}
+        </div>
+      ) : <>
         <HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input" style={{ width: "100%" }} />
         <div style={{ display: "flex", gap: 8, margin: "12px 0 20px", flexWrap: "wrap" }}>{guidedIntent === "duplicate" ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>SAVE QUIZ PLAN</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton onClick={() => deleteQuiz(selected)}>DELETE</HostButton></>}</div>
         <div className="fbh-lbl">Running Order</div>{selected.quiz_rounds.length ? selected.quiz_rounds.map((round, index) => <div key={round.id} className="fbh-panel" style={{ marginBottom: 10, padding: 14 }}>

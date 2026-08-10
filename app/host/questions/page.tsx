@@ -975,7 +975,14 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       const { data, error } = await supabase.rpc("check_question_memory", {
         p_text: q.question_text,
         p_type: q.question_type,
-        p_threshold: 0.6,
+        // Raised from 0.6: trigram similarity on raw sentence text (no stopword
+        // stripping) was flagging questions that merely share common phrasing
+        // ("Which...", "What is the...") as near-duplicates, not just questions
+        // that are actually the same content. As the library grew past ~150
+        // saved questions this was causing generation to stall almost entirely.
+        // 0.82 still catches genuinely reworded repeats, just not every question
+        // that happens to start the same way.
+        p_threshold: 0.82,
       });
       if (error) { console.error("Question Memory check unavailable (allowing question):", error.message); return false; }
       return data != null; // a matching id means a same/similar question already exists

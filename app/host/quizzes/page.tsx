@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LibraryRound, QuizDefinition, QuizRound } from "@/lib/quiz-builder/types";
+import { generateAllRounds, type RoundGenerationSpec } from "@/lib/quiz/generateRound";
 import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell, Toggle } from "@/components/fable/HostConsole";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -38,6 +39,61 @@ export default function QuizBuilderPage() {
   const [guidedChecked, setGuidedChecked] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  // Bulk/parallel question generation ("Generate All Rounds"). Lives alongside
+  // the existing per-round generator at /host/questions - this does not replace
+  // it, it lets a host configure several rounds at once and generate them all
+  // in parallel via generateAllRounds() (lib/quiz/generateRound.ts).
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkConfig, setBulkConfig] = useState<Record<string, { selected: boolean; count: number; theme: string; difficulty: string }>>({});
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<Record<string, string>>({});
+  function openBulkGenerate() {
+    if (!selected) return;
+    const initial: Record<string, { selected: boolean; count: number; theme: string; difficulty: string }> = {};
+    selected.quiz_rounds.forEach(r => {
+      initial[r.id] = { selected: false, count: r.questions.length || 10, theme: "", difficulty: "mixed" };
+    });
+    setBulkConfig(initial);
+    setBulkProgress({});
+    setBulkOpen(true);
+  }
+  function updateBulkConfig(roundId: string, patch: Partial<{ selected: boolean; count: number; theme: string; difficulty: string }>) {
+    setBulkConfig(prev => ({ ...prev, [roundId]: { ...prev[roundId], ...patch } }));
+  }
+  async function runBulkGenerate() {
+    if (!selected) return;
+    const targets = selected.quiz_rounds.filter(r => bulkConfig[r.id]?.selected);
+    if (!targets.length) return;
+    setBulkRunning(true);
+    const specs: RoundGenerationSpec[] = targets.map(r => ({
+      roundType: r.round_type,
+      difficulty: bulkConfig[r.id].difficulty,
+      theme: bulkConfig[r.id].theme,
+      count: bulkConfig[r.id].count,
+    }));
+    setBulkProgress(Object.fromEntries(targets.map(r => [r.id, "Queued..."])));
+    const results = await generateAllRounds(specs, (idx, status) => {
+      const round = targets[idx];
+      setBulkProgress(prev => ({ ...prev, [round.id]: status }));
+    });
+    const supabase = createSupabaseBrowserClient();
+    await Promise.all(results.map((result, idx) => {
+      const round = targets[idx];
+      return supabase.from("quiz_rounds").update({ questions: result.questions }).eq("id", round.id);
+    }));
+    setQuizzes(prev => prev.map(q => {
+      if (q.id !== selected.id) return q;
+      return {
+        ...q,
+        quiz_rounds: q.quiz_rounds.map(r => {
+          const idx = targets.findIndex(t => t.id === r.id);
+          if (idx === -1) return r;
+          return { ...r, questions: results[idx].questions };
+        }),
+      };
+    }));
+    setBulkRunning(false);
+  }
 
   const load = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -316,6 +372,58 @@ export default function QuizBuilderPage() {
             </div>
           )}
         </div>) : <div style={{ color: "#B9A8D9", padding: 16 }}>Add the first round from the library below.</div>}
+        {selected.quiz_rounds.length > 0 && (
+          <div className="fbh-panel" style={{ marginTop: 16, marginBottom: 16, padding: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <div className="fbh-lbl" style={{ margin: 0 }}>Generate All Rounds</div>
+              <HostButton onClick={() => bulkOpen ? setBulkOpen(false) : openBulkGenerate()}>{bulkOpen ? "CLOSE" : "OPEN"}</HostButton>
+            </div>
+            {bulkOpen && (
+              <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                <p style={{ color: "#6B5A8E", font: "400 12px 'Inter'", margin: 0 }}>
+                  Pick which rounds need questions, set how many/theme/difficulty for each, then generate them all at once - they run in parallel in the background instead of one at a time.
+                </p>
+                {selected.quiz_rounds.map(round => {
+                  const cfg = bulkConfig[round.id];
+                  if (!cfg) return null;
+                  const progress = bulkProgress[round.id];
+                  return (
+                    <div key={round.id} style={{ display: "grid", gap: 8, padding: 10, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, font: "600 13px 'Inter'", color: "#fff" }}>
+                        <input type="checkbox" checked={cfg.selected} onChange={e => updateBulkConfig(round.id, { selected: e.target.checked })} />
+                        {round.name} <span style={{ color: "#6B5A8E", fontWeight: 400 }}>({round.round_type})</span>
+                      </label>
+                      {cfg.selected && (
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                            Questions
+                            <input type="number" value={cfg.count} onChange={e => updateBulkConfig(round.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />
+                          </label>
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                            Theme
+                            <input type="text" value={cfg.theme} onChange={e => updateBulkConfig(round.id, { theme: e.target.value })} placeholder="optional" style={{ width: 140, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />
+                          </label>
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                            Difficulty
+                            <select value={cfg.difficulty} onChange={e => updateBulkConfig(round.id, { difficulty: e.target.value })} style={{ padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}>
+                              <option value="easy">Easy</option>
+                              <option value="mixed">Mixed</option>
+                              <option value="hard">Hard</option>
+                            </select>
+                          </label>
+                        </div>
+                      )}
+                      {progress && <div style={{ font: "400 12px 'Inter'", color: "#2EE06E" }}>{progress}</div>}
+                    </div>
+                  );
+                })}
+                <HostButton variant="pri" onClick={runBulkGenerate} disabled={bulkRunning || !Object.values(bulkConfig).some(c => c.selected)}>
+                  {bulkRunning ? "GENERATING…" : "GENERATE ALL SELECTED ROUNDS"}
+                </HostButton>
+              </div>
+            )}
+          </div>
+        )}
         <div className="fbh-lbl" style={{ marginTop: 20 }}>Add from Round Library</div>
         <select value={roundTypeFilter} onChange={e => setRoundTypeFilter(e.target.value)} style={{ marginBottom: 10, minHeight: 44, padding: "0 12px", borderRadius: 10, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", font: "500 13px 'Inter'" }}>
           <option value="">All round types</option>

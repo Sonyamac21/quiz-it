@@ -161,44 +161,6 @@ export default function RoundsPage() {
           <HostEmpty title="No Rounds Yet" note="Generate your first round to build tonight's show." actionLabel="+ NEW ROUND" onAction={() => { window.location.href = "/host/questions"; }} />
         )}
 
-        {/* LAUNCHER CARDS (by type) */}
-        {!openRound && rounds.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginBottom: 24 }}>
-            {ROUND_LAUNCHER_TYPES.map(rt => {
-              const roundsOfType = rounds.filter(r => r.round_type === rt.key);
-              const selectedId = cardSelections[rt.key] || "";
-              const selectedRound = roundsOfType.find(r => r.id === selectedId) || null;
-              return (
-                <div key={rt.key} className="fbh-panel" style={{ marginBottom: 0 }}>
-                  <div style={{ font: "800 14px 'Inter'", letterSpacing: "0.02em", marginBottom: 10 }}>{rt.label}</div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <select
-                      value={selectedId}
-                      onChange={e => {
-                        const id = e.target.value;
-                        setCardSelections(prev => ({ ...prev, [rt.key]: id }));
-                        const found = roundsOfType.find(r => r.id === id);
-                        if (found) setOpenRound(found);
-                      }}
-                      style={selectStyle}
-                    >
-                      <option value="">— select round —</option>
-                      {roundsOfType.map(r => (
-                        <option key={r.id} value={r.id}>{r.name} ({r.questions?.length || 0}q)</option>
-                      ))}
-                    </select>
-                    <HostButton onClick={() => selectedRound && duplicateRound(selectedRound)} disabled={!selectedRound} title="Duplicate selected round" style={{ height: 42, padding: "0 12px" }}>Copy</HostButton>
-                    <HostButton onClick={() => selectedRound && deleteRound(selectedRound.id)} disabled={!selectedRound} title="Delete selected round" style={{ height: 42, padding: "0 12px" }}>Del</HostButton>
-                  </div>
-                  {roundsOfType.length === 0 && (
-                    <div style={{ font: "400 11.5px 'Inter'", color: "#6B5A8E", marginTop: 8 }}>No {rt.label.toLowerCase()} rounds saved yet</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
         {/* ALL ROUNDS */}
         {!openRound && rounds.length > 0 && (
           <div style={{ marginTop: 8 }}>

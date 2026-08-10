@@ -421,7 +421,21 @@ export default function QuizBuilderPage() {
               </div>
               <div>
                 <div style={{ color: "#B9A8D9", font: "600 12px 'Inter'", marginBottom: 6 }}>OR PICK AN EXISTING ROUND FROM THE LIBRARY</div>
-                <p style={{ color: "#6B5A8E", font: "400 12px 'Inter'", margin: "0 0 6px" }}>Scroll down to "Add from Round Library" below to browse and add a ready-made round.</p>
+                <select value={roundTypeFilter} onChange={e => setRoundTypeFilter(e.target.value)} style={{ marginBottom: 8, minHeight: 40, padding: "0 10px", borderRadius: 8, background: "#0A0118", color: "#fff", border: "1px solid #2E1A52", font: "500 13px 'Inter'" }}>
+                  <option value="">All round types</option>
+                  {Array.from(new Set(rounds.map(r => r.round_type))).sort().map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                </select>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 8, maxHeight: 260, overflowY: "auto" }}>{rounds
+                  .filter(r => !roundTypeFilter || r.round_type === roundTypeFilter)
+                  .map(round => ({ round, added: selected.quiz_rounds.some(qr => qr.source_round_id === round.id) }))
+                  .sort((a, b) => Number(a.added) - Number(b.added))
+                  .map(({ round, added }) => (
+                    <button key={round.id} onClick={() => { addRound(round); setAddRoundOpen(false); }} className="qi-mc-round-card" style={added ? { borderColor: "#2EE06E", background: "rgba(46,224,110,0.08)", opacity: 0.6 } : undefined}>
+                      <strong>{added ? "Added: " : ""}{round.name}</strong>
+                      <span style={{ display: "block", color: "#6B5A8E", font: "400 11px 'Inter'" }}>{round.questions.length} questions - {round.round_type}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}

@@ -60,6 +60,45 @@ export default function QuizBuilderPage() {
   function updateBulkConfig(roundId: string, patch: Partial<{ selected: boolean; count: number; theme: string; difficulty: string }>) {
     setBulkConfig(prev => ({ ...prev, [roundId]: { ...prev[roundId], ...patch } }));
   }
+  const ROUND_TYPE_LABELS: Record<string, string> = {
+    regular: "Regular",
+    music: "Music",
+    multi_tap: "Multi Tap",
+    pursuit: "The Pursuit",
+    hot_seat: "Hot Seat",
+  };
+  // Adds a brand-new, empty round straight into this Quiz Plan's running order
+  // (no need to first create/save it in the Round Library) and immediately
+  // selects it in the Generate All panel with sensible defaults, so a host can
+  // plan an entire night - Round 1 Regular 10Q, Round 2 Multi Tap 10Q, etc. -
+  // and then hit one Generate button, instead of pre-building each round in
+  // the library first.
+  async function addBlankRoundSlot(roundType: string) {
+    if (!selected) return;
+    const supabase = createSupabaseBrowserClient();
+    const existingOfType = selected.quiz_rounds.filter(r => r.round_type === roundType).length;
+    const name = ROUND_TYPE_LABELS[roundType] + " Round" + (existingOfType ? " " + (existingOfType + 1) : "");
+    const { data, error: insertError } = await supabase.from("quiz_rounds").insert({
+      quiz_id: selected.id,
+      source_round_id: null,
+      position: selected.quiz_rounds.length,
+      name,
+      round_type: roundType,
+      difficulty: "mixed",
+      questions: [],
+      hide_leaderboard: false,
+      allow_power_cards: true,
+      points_per_question: null,
+      danger_zone_enabled: false,
+      danger_zone_penalty: 5,
+      max_time_bonus: 5,
+    }).select("*").single();
+    if (insertError || !data) return;
+    const newRound = data as QuizRound;
+    setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, quiz_rounds: [...q.quiz_rounds, newRound] } : q));
+    setBulkConfig(prev => ({ ...prev, [newRound.id]: { selected: true, count: 10, theme: "", difficulty: "mixed" } }));
+    setBulkOpen(true);
+  }
   async function runBulkGenerate() {
     if (!selected) return;
     const targets = selected.quiz_rounds.filter(r => bulkConfig[r.id]?.selected);
@@ -381,8 +420,13 @@ export default function QuizBuilderPage() {
             {bulkOpen && (
               <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                 <p style={{ color: "#6B5A8E", font: "400 12px 'Inter'", margin: 0 }}>
-                  Pick which rounds need questions, set how many/theme/difficulty for each, then generate them all at once - they run in parallel in the background instead of one at a time.
+                  Build your running order here, then generate every round at once - they run in parallel instead of one at a time. Set each round's points/leaderboard/power cards/Danger Zone/time bonus in its card above once it's added.
                 </p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {Object.entries(ROUND_TYPE_LABELS).map(([rt, label]) => (
+                    <HostButton key={rt} onClick={() => addBlankRoundSlot(rt)}>+ {label}</HostButton>
+                  ))}
+                </div>
                 {selected.quiz_rounds.map(round => {
                   const cfg = bulkConfig[round.id];
                   if (!cfg) return null;

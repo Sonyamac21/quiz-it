@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LibraryRound, QuizDefinition, QuizRound } from "@/lib/quiz-builder/types";
 import { generateAllRounds, type RoundGenerationSpec } from "@/lib/quiz/generateRound";
+import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell, Toggle } from "@/components/fable/HostConsole";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -51,7 +52,7 @@ export default function QuizBuilderPage() {
     if (!selected) return;
     const initial: Record<string, { selected: boolean; count: number; theme: string; difficulty: string }> = {};
     selected.quiz_rounds.forEach(r => {
-      initial[r.id] = { selected: false, count: r.questions.length || 10, theme: "", difficulty: "mixed" };
+      initial[r.id] = { selected: false, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.questions.length || 10), theme: "", difficulty: "mixed" };
     });
     setBulkConfig(initial);
     setBulkProgress({});
@@ -96,7 +97,7 @@ export default function QuizBuilderPage() {
     if (insertError || !data) return;
     const newRound = data as QuizRound;
     setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, quiz_rounds: [...q.quiz_rounds, newRound] } : q));
-    setBulkConfig(prev => ({ ...prev, [newRound.id]: { selected: true, count: 10, theme: "", difficulty: "mixed" } }));
+    setBulkConfig(prev => ({ ...prev, [newRound.id]: { selected: true, count: roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : 10, theme: "", difficulty: "mixed" } }));
     setBulkOpen(true);
   }
   async function runBulkGenerate() {
@@ -442,7 +443,9 @@ export default function QuizBuilderPage() {
                         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Questions
-                            <input type="number" value={cfg.count} onChange={e => updateBulkConfig(round.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />
+                            {round.round_type === "pursuit"
+                              ? <span style={{ color: "#fff" }}>7 (fixed - The Pursuit is always 7 gates)</span>
+                              : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(round.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
                           </label>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Theme

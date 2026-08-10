@@ -766,7 +766,11 @@ export async function generateValidatedRound(
   exclusions: ExclusionState,
   onProgress?: (status: string) => void,
 ): Promise<RoundGenerationResult> {
-  const { roundType, difficulty, theme, count } = spec;
+  const { roundType, difficulty, theme } = spec;
+  // The Pursuit is always exactly 7 gates, never host-configurable - enforce it
+  // here so a bulk-generate request can never override it, matching the
+  // single-round generator's behaviour exactly.
+  const count = roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : spec.count;
   const report: GenerationReportEntry[] = [];
   const addReportEntry = (entry: Omit<GenerationReportEntry, "id">) => { report.push({ ...entry, id: genUid() }); };
   const reportGeneratedFailure = (context: GenerationContext, fallbackType: string) => {

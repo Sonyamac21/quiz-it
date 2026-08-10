@@ -40,6 +40,7 @@ export default function QuizBuilderPage() {
   const [guidedChecked, setGuidedChecked] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [showPlanList, setShowPlanList] = useState(true);
   // Bulk/parallel question generation ("Generate All Rounds"). Lives alongside
   // the existing per-round generator at /host/questions - this does not replace
   // it, it lets a host configure several rounds at once and generate them all
@@ -63,7 +64,6 @@ export default function QuizBuilderPage() {
   }
   const ROUND_TYPE_LABELS: Record<string, string> = {
     regular: "Regular",
-    music: "Music",
     multi_tap: "Multi Tap",
     pursuit: "The Pursuit",
     hot_seat: "Hot Seat",
@@ -340,12 +340,23 @@ export default function QuizBuilderPage() {
       <div style={{marginTop:8}}><Link href="/host/events" className="fbh-btn">BACK TO CALENDAR</Link></div>
     </section>}
     {loading ? <HostLoading title="Quiz Library" note="Loading Quiz Plans and rounds…" /> : error && !quizzes.length ? <section className="qi-bo-setup-state" role="alert"><span>Setup required</span><h2>Quiz Library is not available yet</h2><p>The existing Quiz Builder database migration must be applied before Quiz Plans can be created. No data has been changed.</p><details><summary>Technical detail</summary><code>{error}</code></details></section> : <div className="qi-quiz-builder-grid">
-      <section className="fbh-panel">{!selected && <><HostLabel>New Quiz Plan</HostLabel><HostInput value={name} onChange={e => setName(e.target.value)} placeholder="Thursday Night Quiz" /><textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" rows={2} className="fbh-input" style={{ width: "100%", marginTop: 8 }} /><HostButton variant="pri" onClick={createQuiz} disabled={!name.trim() || saving || assigning} style={{ width: "100%", marginTop: 10 }}>{guidedIntent === "create" ? "CREATE & ASSIGN TO EVENT" : "CREATE QUIZ PLAN"}</HostButton></>}
-        {selected && <HostButton onClick={() => setSelectedId(null)} style={{ width: "100%", marginBottom: 12 }}>+ NEW QUIZ PLAN</HostButton>}
-        <div className="fbh-lbl" style={{ marginTop: 22 }}>{guidedIntent === "assign" ? "Completed Quiz Plans" : "Your Quiz Plans"}</div>
-        {guidedIntent === "assign"
-          ? (assignableQuizzes.length ? assignableQuizzes.map(q => <button key={q.id} onClick={() => assignQuizToEvent(q.id)} disabled={assigning} className="fbh-answer-row" style={{ width: "100%", cursor: "pointer" }}><span className="nm">{q.name}</span><span className="ans">{q.quiz_rounds.length} rounds</span></button>) : <HostEmpty title="No completed Quiz Plans yet" note="A Quiz Plan needs at least one round before it can be assigned. Create or duplicate one instead." />)
-          : (quizzes.length ? quizzes.map(q => <button key={q.id} onClick={() => setSelectedId(q.id)} className="fbh-answer-row" style={{ width: "100%", cursor: "pointer", borderColor: q.id === selectedId ? "#BE26C1" : undefined, opacity: q.archived ? .55 : 1 }}><span className="nm">{q.name}</span><span className="ans">{q.quiz_rounds.length} rounds{q.archived ? " · Archived" : ""}</span></button>) : <HostEmpty title="No Quiz Plans Yet" note="Create one, then add reusable rounds." />)}
+      <section className="fbh-panel" style={selected && !showPlanList ? { maxWidth: 240 } : undefined}>
+        {selected && !showPlanList ? (
+          <>
+            <HostButton onClick={() => setShowPlanList(true)} style={{ width: "100%" }}>☰ CHANGE QUIZ PLAN</HostButton>
+            <div style={{ marginTop: 12, color: "#fff", font: "700 15px 'Inter'" }}>{selected.name}</div>
+            <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>{selected.quiz_rounds.length} rounds</div>
+          </>
+        ) : (
+          <>
+            {!selected && <><HostLabel>New Quiz Plan</HostLabel><HostInput value={name} onChange={e => setName(e.target.value)} placeholder="Thursday Night Quiz" /><textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" rows={2} className="fbh-input" style={{ width: "100%", marginTop: 8 }} /><HostButton variant="pri" onClick={createQuiz} disabled={!name.trim() || saving || assigning} style={{ width: "100%", marginTop: 10 }}>{guidedIntent === "create" ? "CREATE & ASSIGN TO EVENT" : "CREATE QUIZ PLAN"}</HostButton></>}
+            {selected && <HostButton onClick={() => setSelectedId(null)} style={{ width: "100%", marginBottom: 12 }}>+ NEW QUIZ PLAN</HostButton>}
+            <div className="fbh-lbl" style={{ marginTop: 22 }}>{guidedIntent === "assign" ? "Completed Quiz Plans" : "Your Quiz Plans"}</div>
+            {guidedIntent === "assign"
+              ? (assignableQuizzes.length ? assignableQuizzes.map(q => <button key={q.id} onClick={() => { assignQuizToEvent(q.id); setShowPlanList(false); }} disabled={assigning} className="fbh-answer-row" style={{ width: "100%", cursor: "pointer" }}><span className="nm">{q.name}</span><span className="ans">{q.quiz_rounds.length} rounds</span></button>) : <HostEmpty title="No completed Quiz Plans yet" note="A Quiz Plan needs at least one round before it can be assigned. Create or duplicate one instead." />)
+              : (quizzes.length ? quizzes.map(q => <button key={q.id} onClick={() => { setSelectedId(q.id); setShowPlanList(false); }} className="fbh-answer-row" style={{ width: "100%", cursor: "pointer", borderColor: q.id === selectedId ? "#BE26C1" : undefined, opacity: q.archived ? .55 : 1 }}><span className="nm">{q.name}</span><span className="ans">{q.quiz_rounds.length} rounds{q.archived ? " · Archived" : ""}</span></button>) : <HostEmpty title="No Quiz Plans Yet" note="Create one, then add reusable rounds." />)}
+          </>
+        )}
       </section>
       <section className="fbh-panel">{!selected ? <HostEmpty title="Select a Quiz Plan" note="Choose a quiz to arrange its running order." /> : <>
         <HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input" style={{ width: "100%" }} />

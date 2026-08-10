@@ -379,14 +379,14 @@ async function generateOne(
     audio: "audio: this generates a MUSIC ROUND question. There are two SEPARATE pieces of information you must produce - do not mix them: (1) option_a is an internal media search query, NEVER shown to players, used only to help find/reference the source track - a YouTube search query, e.g. \"Bohemian Rhapsody Queen official\". (2) question_text is the actual question shown to players after the clip plays - it must be a short, generic question ABOUT the song, e.g. \"Name this song\", \"Which artist performs this song?\", \"What year was this song released?\", \"Finish the lyric: ...\". question_text must NEVER state the song title or artist directly (that would give away the answer) and must NEVER be unrelated trivia - it must always be something a listener could only answer by having heard the clip. option_b/c/d must be null. correct_answer is the specific answer to question_text (the song title, the artist name, the year, etc - matching whatever question_text actually asks).",
   };
   const rejectedList = Array.from(exclusions.rejectedTexts);
-  let exclusionsText = [...rejectedList, ...exclusions.used.slice(-40)].map((q, i) => (i + 1) + ". " + q).join("; ");
-  if (exclusionsText.length > 3000) exclusionsText = exclusionsText.slice(0, 3000);
-  const usedAnswersList = exclusions.usedAnswers.slice(-30).filter(Boolean).join(", ");
+  let exclusionsText = [...rejectedList, ...exclusions.used.slice(-25)].map((q, i) => (i + 1) + ". " + q).join("; ");
+  if (exclusionsText.length > 1800) exclusionsText = exclusionsText.slice(0, 1800);
+  const usedAnswersList = exclusions.usedAnswers.slice(-20).filter(Boolean).join(", ");
   let exclusionNote = (exclusionsText || usedAnswersList)
     ? " Do NOT generate any of these already-used questions: " + exclusionsText + "."
       + (usedAnswersList ? " Also do NOT use any of these already-used answers (even with different question wording): " + usedAnswersList + "." : "")
     : "";
-  if (exclusionNote.length > 2200) exclusionNote = exclusionNote.slice(0, 2200);
+  if (exclusionNote.length > 1200) exclusionNote = exclusionNote.slice(0, 1200);
   const angle = VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
   const varietyNote = type === "audio"
     ? " IMPORTANT - pick a well-known song: either a genuinely famous track a pub crowd would clap along to, OR any other song (even a deeper cut, B-side, or later single) by a genuinely famous, widely recognised artist/band - the artist being well-known is enough on its own, the specific song does not also have to be their single most famous hit. Not obscure/unknown artists either way. Vary the decade/genre/artist from recent picks."
@@ -424,8 +424,9 @@ Include a 1-2 sentence explanation of the answer in the explanation field.
 Verify strict JSON before responding: one array item, every schema key present, unused options null, exact requested type and answer format, with no markdown or extra text.
 Return ONLY a valid JSON array with 1 item, no markdown:
 [{"question_text":"...","question_type":"${type}","option_a":"...","option_b":"...","option_c":"...","option_d":"...","option_e":"...","option_f":"...","correct_answer":"...","explanation":"...","difficulty":"${difficulty}","round_type":"${roundType}"}]`;
+  const safePrompt = prompt.length > 7500 ? prompt.slice(0, 7500) : prompt;
   try {
-    const text = await callAPI(prompt);
+    const text = await callAPI(safePrompt);
     let q;
     try {
       q = parseModelJson<Array<Question & Record<string, unknown>>>(text, "array")[0];

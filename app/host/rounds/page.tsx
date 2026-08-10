@@ -149,7 +149,7 @@ export default function RoundsPage() {
           <a className="fbh-btn" href="/host/music-prep">Music Prep</a>
           <a className="fbh-btn" href="/host/question-bank">Question Bank</a>
           <a className="fbh-btn" href="/host/quizzes">Quiz Plans</a>
-          <a className="fbh-btn pri" href="/host/questions">+ New Round</a>
+          <a className="fbh-btn pri" href="/host/questions">Generate Questions</a>
         </div>
 
         <p style={{ font: "400 13px 'Inter'", color: "#8D7AAE", marginBottom: 18, lineHeight: 1.5 }}>

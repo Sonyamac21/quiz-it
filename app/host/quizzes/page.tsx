@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LibraryRound, QuizDefinition, QuizRound } from "@/lib/quiz-builder/types";
-import { generateAllRounds, type RoundGenerationSpec } from "@/lib/quiz/generateRound";
+import { generateAllRounds, generateValidatedRound, loadUsedQuestions, type RoundGenerationSpec } from "@/lib/quiz/generateRound";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell, Toggle } from "@/components/fable/HostConsole";
 
@@ -41,6 +41,8 @@ export default function QuizBuilderPage() {
   const [assigning, setAssigning] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [showPlanList, setShowPlanList] = useState(true);
+  const [savingRoundId, setSavingRoundId] = useState<string | null>(null);
+  const [swappingKey, setSwappingKey] = useState<string | null>(null);
   // Bulk/parallel question generation ("Generate All Rounds"). Lives alongside
   // the existing per-round generator at /host/questions - this does not replace
   // it, it lets a host configure several rounds at once and generate them all
@@ -106,6 +108,44 @@ export default function QuizBuilderPage() {
     if (GENERATABLE_ROUND_TYPES.has(roundType)) {
       setBulkConfig(prev => ({ ...prev, [newRound.id]: { selected: true, count: roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : 10, theme: "", difficulty: "mixed" } }));
       setBulkOpen(true);
+    }
+  }
+  async function saveRoundQuestions(round: QuizRound) {
+    setSavingRoundId(round.id);
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("quiz_rounds").update({ questions: round.questions }).eq("id", round.id);
+    setSavingRoundId(null);
+  }
+  async function removeRoundQuestion(round: QuizRound, qIndex: number) {
+    const newQuestions = round.questions.filter((_, i) => i !== qIndex);
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
+    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
+  }
+  async function swapRoundQuestion(round: QuizRound, qIndex: number) {
+    const key = round.id + "-" + qIndex;
+    setSwappingKey(key);
+    try {
+      const cfg = bulkConfig[round.id];
+      const exclusions = await loadUsedQuestions();
+      round.questions.forEach(q => {
+        const text = (q as Record<string, unknown>).question_text as string | undefined;
+        if (text) exclusions.used.push(text);
+      });
+      const result = await generateValidatedRound(
+        { roundType: round.round_type, difficulty: cfg?.difficulty || "mixed", theme: cfg?.theme || "", count: 1 },
+        exclusions,
+      );
+      if (result.questions.length === 0) {
+        window.alert("Couldn't generate a replacement question: " + result.finalStatus);
+        return;
+      }
+      const newQuestions = round.questions.map((q, i) => i === qIndex ? result.questions[0] : q);
+      const supabase = createSupabaseBrowserClient();
+      await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
+      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
+    } finally {
+      setSwappingKey(null);
     }
   }
   async function runBulkGenerate() {
@@ -358,7 +398,23 @@ export default function QuizBuilderPage() {
       ) : <>
         <HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input" style={{ width: "100%" }} />
         <div style={{ display: "flex", gap: 8, margin: "12px 0 20px", flexWrap: "wrap" }}>{guidedIntent === "duplicate" ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>SAVE QUIZ PLAN</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton onClick={() => deleteQuiz(selected)}>DELETE</HostButton></>}</div>
-        <div className="fbh-lbl">Running Order</div>{selected.quiz_rounds.length ? selected.quiz_rounds.map((round, index) => <div key={round.id} className="fbh-panel" style={{ marginBottom: 10, padding: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+          <div className="fbh-lbl" style={{ margin: 0 }}>Running Order</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {Object.entries(ROUND_TYPE_LABELS).map(([rt, label]) => (
+              <HostButton key={rt} onClick={() => addBlankRoundSlot(rt)}>+ {label}</HostButton>
+            ))}
+            <HostButton variant="pri" onClick={runBulkGenerate} disabled={bulkRunning || !selected.quiz_rounds.some(r => (bulkConfig[r.id] ?? { selected: false }).selected)}>
+              {bulkRunning ? "GENERATING..." : "GENERATE ALL SELECTED"}
+            </HostButton>
+          </div>
+        </div>
+        {selected.quiz_rounds.length ? selected.quiz_rounds.map((round, index) => {
+          const isGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
+          const cfg = bulkConfig[round.id] ?? { selected: false, count: round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (round.questions.length || 10), theme: "", difficulty: "mixed" };
+          const progress = bulkProgress[round.id];
+          return (
+        <div key={round.id} className="fbh-panel" style={{ marginBottom: 10, padding: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
             <span className="ord">{index + 1}</span>
             <input
@@ -368,7 +424,7 @@ export default function QuizBuilderPage() {
               onClick={e => e.stopPropagation()}
             />
           </div>
-          <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 12 }}>{round.questions.length} questions · {round.round_type}</div>
+          <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 12 }}>{round.questions.length} questions - {round.round_type}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginBottom: 12 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
               Points per Q
@@ -416,84 +472,67 @@ export default function QuizBuilderPage() {
               />
             </label>
           </div>
+          {isGeneratable && (
+            <div style={{ display: "grid", gap: 8, padding: 10, marginBottom: 12, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, font: "600 13px 'Inter'", color: "#fff" }}>
+                <input type="checkbox" checked={cfg.selected} onChange={e => updateBulkConfig(round.id, { selected: e.target.checked })} />
+                Include in Generate All
+              </label>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                  Questions
+                  {round.round_type === "pursuit"
+                    ? <span style={{ color: "#fff" }}>7 (fixed)</span>
+                    : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(round.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                  Theme
+                  <input type="text" value={cfg.theme} onChange={e => updateBulkConfig(round.id, { theme: e.target.value })} placeholder="optional" style={{ width: 140, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
+                  Difficulty
+                  <select value={cfg.difficulty} onChange={e => updateBulkConfig(round.id, { difficulty: e.target.value })} style={{ padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}>
+                    <option value="easy">Easy</option>
+                    <option value="mixed">Mixed</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </label>
+              </div>
+              {progress && <div style={{ font: "400 12px 'Inter'", color: "#2EE06E" }}>{progress}</div>}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <HostButton onClick={() => setExpandedRoundId(id => id === round.id ? null : round.id)}>{expandedRoundId === round.id ? "HIDE" : "PREVIEW"}</HostButton>
-            <HostButton onClick={() => moveRound(index, -1)} disabled={index === 0}>↑</HostButton>
-            <HostButton onClick={() => moveRound(index, 1)} disabled={index === selected.quiz_rounds.length - 1}>↓</HostButton>
+            <HostButton onClick={() => saveRoundQuestions(round)} disabled={savingRoundId === round.id}>{savingRoundId === round.id ? "SAVING..." : "SAVE"}</HostButton>
+            <HostButton onClick={() => moveRound(index, -1)} disabled={index === 0}>UP</HostButton>
+            <HostButton onClick={() => moveRound(index, 1)} disabled={index === selected.quiz_rounds.length - 1}>DOWN</HostButton>
             <HostButton onClick={() => duplicateRound(round)}>COPY</HostButton>
             <HostButton onClick={() => removeRound(round)}>REMOVE</HostButton>
           </div>
           {expandedRoundId === round.id && (
             <div style={{ padding: "10px 14px", marginTop: 4, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52", display: "grid", gap: 8 }}>
               {round.questions.length === 0 && <p style={{ color: "#6B5A8E", font: "400 12px 'Inter'", margin: 0 }}>No questions in this round.</p>}
-              {round.questions.map((q, qi) => (
-                <div key={qi} style={{ font: "400 13px 'Inter'", color: "#D9CCF2", lineHeight: 1.5 }}>
-                  <strong style={{ color: "#6B5A8E" }}>{qi + 1}.</strong> {String((q as Record<string, unknown>).question_text ?? "")}
-                  {" "}<span style={{ color: "#2EE06E" }}>— {String((q as Record<string, unknown>).correct_answer ?? "")}</span>
+              {round.questions.map((q, qi) => {
+                const swapKey = round.id + "-" + qi;
+                const isSwapping = swappingKey === swapKey;
+                return (
+                <div key={qi} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, font: "400 13px 'Inter'", color: "#D9CCF2", lineHeight: 1.5 }}>
+                  <div>
+                    <strong style={{ color: "#6B5A8E" }}>{qi + 1}.</strong> {String((q as Record<string, unknown>).question_text ?? "")}
+                    {" "}<span style={{ color: "#2EE06E" }}>{"-> "}{String((q as Record<string, unknown>).correct_answer ?? "")}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <HostButton onClick={() => swapRoundQuestion(round, qi)} disabled={isSwapping} style={{ padding: "4px 10px", height: 28, fontSize: 12 }}>{isSwapping ? "SWAPPING..." : "SWAP"}</HostButton>
+                    <HostButton onClick={() => removeRoundQuestion(round, qi)} disabled={isSwapping} style={{ padding: "4px 10px", height: 28, fontSize: 12 }}>REMOVE</HostButton>
+                  </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
-        </div>) : <div style={{ color: "#B9A8D9", padding: 16 }}>Add the first round from the library below.</div>}
-        {(
-          <div className="fbh-panel" style={{ marginTop: 16, marginBottom: 16, padding: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-              <div className="fbh-lbl" style={{ margin: 0 }}>Generate All Rounds</div>
-              <HostButton onClick={() => bulkOpen ? setBulkOpen(false) : openBulkGenerate()}>{bulkOpen ? "CLOSE" : "OPEN"}</HostButton>
-            </div>
-            {bulkOpen && (
-              <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-                <p style={{ color: "#6B5A8E", font: "400 12px 'Inter'", margin: 0 }}>
-                  Build your running order here, then generate every round at once - they run in parallel instead of one at a time. Set each round's points/leaderboard/power cards/Danger Zone/time bonus in its card above once it's added.
-                </p>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {Object.entries(ROUND_TYPE_LABELS).map(([rt, label]) => (
-                    <HostButton key={rt} onClick={() => addBlankRoundSlot(rt)}>+ {label}</HostButton>
-                  ))}
-                </div>
-                {selected.quiz_rounds.filter(round => GENERATABLE_ROUND_TYPES.has(round.round_type)).map(round => {
-                  const cfg = bulkConfig[round.id];
-                  if (!cfg) return null;
-                  const progress = bulkProgress[round.id];
-                  return (
-                    <div key={round.id} style={{ display: "grid", gap: 8, padding: 10, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, font: "600 13px 'Inter'", color: "#fff" }}>
-                        <input type="checkbox" checked={cfg.selected} onChange={e => updateBulkConfig(round.id, { selected: e.target.checked })} />
-                        {round.name} <span style={{ color: "#6B5A8E", fontWeight: 400 }}>({round.round_type})</span>
-                      </label>
-                      {cfg.selected && (
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                          <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-                            Questions
-                            {round.round_type === "pursuit"
-                              ? <span style={{ color: "#fff" }}>7 (fixed - The Pursuit is always 7 gates)</span>
-                              : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(round.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
-                          </label>
-                          <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-                            Theme
-                            <input type="text" value={cfg.theme} onChange={e => updateBulkConfig(round.id, { theme: e.target.value })} placeholder="optional" style={{ width: 140, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />
-                          </label>
-                          <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-                            Difficulty
-                            <select value={cfg.difficulty} onChange={e => updateBulkConfig(round.id, { difficulty: e.target.value })} style={{ padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}>
-                              <option value="easy">Easy</option>
-                              <option value="mixed">Mixed</option>
-                              <option value="hard">Hard</option>
-                            </select>
-                          </label>
-                        </div>
-                      )}
-                      {progress && <div style={{ font: "400 12px 'Inter'", color: "#2EE06E" }}>{progress}</div>}
-                    </div>
-                  );
-                })}
-                <HostButton variant="pri" onClick={runBulkGenerate} disabled={bulkRunning || !Object.values(bulkConfig).some(c => c.selected)}>
-                  {bulkRunning ? "GENERATING…" : "GENERATE ALL SELECTED ROUNDS"}
-                </HostButton>
-              </div>
-            )}
-          </div>
-        )}
+        </div>
+          );
+        }) : <div style={{ color: "#B9A8D9", padding: 16 }}>Add the first round using the buttons above.</div>}
         <div className="fbh-lbl" style={{ marginTop: 20 }}>Add from Round Library</div>
         <select value={roundTypeFilter} onChange={e => setRoundTypeFilter(e.target.value)} style={{ marginBottom: 10, minHeight: 44, padding: "0 12px", borderRadius: 10, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", font: "500 13px 'Inter'" }}>
           <option value="">All round types</option>

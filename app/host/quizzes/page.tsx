@@ -113,6 +113,7 @@ export default function QuizBuilderPage() {
     const targets = selected.quiz_rounds.filter(r => bulkConfig[r.id]?.selected);
     if (!targets.length) return;
     setBulkRunning(true);
+    const supabase = createSupabaseBrowserClient();
     const specs: RoundGenerationSpec[] = targets.map(r => ({
       roundType: r.round_type,
       difficulty: bulkConfig[r.id].difficulty,
@@ -120,27 +121,32 @@ export default function QuizBuilderPage() {
       count: bulkConfig[r.id].count,
     }));
     setBulkProgress(Object.fromEntries(targets.map(r => [r.id, "Queued..."])));
-    const results = await generateAllRounds(specs, (idx, status) => {
-      const round = targets[idx];
-      setBulkProgress(prev => ({ ...prev, [round.id]: status }));
-    });
-    const supabase = createSupabaseBrowserClient();
-    await Promise.all(results.map((result, idx) => {
-      const round = targets[idx];
-      return supabase.from("quiz_rounds").update({ questions: result.questions }).eq("id", round.id);
-    }));
-    setQuizzes(prev => prev.map(q => {
-      if (q.id !== selected.id) return q;
-      return {
-        ...q,
-        quiz_rounds: q.quiz_rounds.map(r => {
-          const idx = targets.findIndex(t => t.id === r.id);
-          if (idx === -1) return r;
-          return { ...r, questions: results[idx].questions };
-        }),
-      };
-    }));
-    setBulkRunning(false);
+    try {
+      await generateAllRounds(
+        specs,
+        (idx, status) => {
+          const round = targets[idx];
+          setBulkProgress(prev => ({ ...prev, [round.id]: status }));
+        },
+        (idx, result) => {
+          // Save THIS round the instant it finishes, independent of every
+          // other round in the batch - a slow, crashed, or failed round
+          // elsewhere can never cause an already-successful round's
+          // questions to go unsaved.
+          const round = targets[idx];
+          supabase.from("quiz_rounds").update({ questions: result.questions }).eq("id", round.id).then(() => {
+            setQuizzes(prev => prev.map(q => {
+              if (q.id !== selected.id) return q;
+              return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: result.questions } : r) };
+            }));
+          });
+        },
+      );
+    } finally {
+      // Always runs, even if something above throws unexpectedly - the
+      // Generate All button can never get stuck disabled again.
+      setBulkRunning(false);
+    }
   }
 
   const load = useCallback(async () => {

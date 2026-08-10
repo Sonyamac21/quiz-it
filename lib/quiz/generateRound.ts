@@ -900,6 +900,7 @@ export async function generateValidatedRound(
 export async function generateAllRounds(
   specs: RoundGenerationSpec[],
   onProgress?: (roundIndex: number, status: string) => void,
+  onRoundComplete?: (roundIndex: number, result: RoundGenerationResult) => void,
 ): Promise<RoundGenerationResult[]> {
   const baseExclusions = await loadUsedQuestions();
   // Give each round its own copy of the shared history so concurrent mutation
@@ -913,8 +914,29 @@ export async function generateAllRounds(
     rejectedTexts: new Set(baseExclusions.rejectedTexts),
   }));
   return Promise.all(
-    specs.map((spec, idx) =>
-      generateValidatedRound(spec, perRoundExclusions[idx], status => onProgress?.(idx, status))
-    )
+    specs.map(async (spec, idx) => {
+      // A single round throwing (network hiccup, unexpected API shape, etc.)
+      // must never reject the whole Promise.all - that would silently discard
+      // every OTHER round's results too, even ones that already succeeded,
+      // and leave the caller's "generating" state stuck forever with nothing
+      // saved. Catch here so this round reports itself as failed while every
+      // other round keeps running and saving independently.
+      try {
+        const result = await generateValidatedRound(spec, perRoundExclusions[idx], status => onProgress?.(idx, status));
+        onRoundComplete?.(idx, result);
+        return result;
+      } catch (e) {
+        const failResult: RoundGenerationResult = {
+          spec,
+          questions: [],
+          report: [],
+          finalStatus: "Generation crashed: " + (e instanceof Error ? e.message : "Unknown error"),
+          stoppedEarly: true,
+        };
+        onProgress?.(idx, failResult.finalStatus);
+        onRoundComplete?.(idx, failResult);
+        return failResult;
+      }
+    })
   );
 }

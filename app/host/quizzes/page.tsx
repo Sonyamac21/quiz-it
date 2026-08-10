@@ -390,7 +390,6 @@ export default function QuizBuilderPage() {
 
       <section className="fbh-panel" style={{ width: "100%" }}>{!selected ? (
         <div style={{ maxWidth: 480 }}>
-          <HostLabel>New Quiz Plan</HostLabel>
           <HostInput value={name} onChange={e => setName(e.target.value)} placeholder="Thursday Night Quiz" />
           <HostLabel>Description</HostLabel>
           <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" rows={2} className="fbh-input" style={{ width: "100%" }} />

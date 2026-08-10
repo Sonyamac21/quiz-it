@@ -67,7 +67,13 @@ export default function QuizBuilderPage() {
     multi_tap: "Multi Tap",
     pursuit: "The Pursuit",
     hot_seat: "Hot Seat",
+    hard_deck: "The Hard Deck",
   };
+  // Round types that are AI-question rounds and can be generated. Hard Deck
+  // (and any future non-question round type) is added to the running order as
+  // a placeholder only - it has its own standalone start button on the live
+  // quiz screen and never needs generated questions.
+  const GENERATABLE_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "pursuit", "hot_seat"]);
   // Adds a brand-new, empty round straight into this Quiz Plan's running order
   // (no need to first create/save it in the Round Library) and immediately
   // selects it in the Generate All panel with sensible defaults, so a host can
@@ -97,8 +103,10 @@ export default function QuizBuilderPage() {
     if (insertError || !data) return;
     const newRound = data as QuizRound;
     setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, quiz_rounds: [...q.quiz_rounds, newRound] } : q));
-    setBulkConfig(prev => ({ ...prev, [newRound.id]: { selected: true, count: roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : 10, theme: "", difficulty: "mixed" } }));
-    setBulkOpen(true);
+    if (GENERATABLE_ROUND_TYPES.has(roundType)) {
+      setBulkConfig(prev => ({ ...prev, [newRound.id]: { selected: true, count: roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : 10, theme: "", difficulty: "mixed" } }));
+      setBulkOpen(true);
+    }
   }
   async function runBulkGenerate() {
     if (!selected) return;
@@ -429,7 +437,7 @@ export default function QuizBuilderPage() {
                     <HostButton key={rt} onClick={() => addBlankRoundSlot(rt)}>+ {label}</HostButton>
                   ))}
                 </div>
-                {selected.quiz_rounds.map(round => {
+                {selected.quiz_rounds.filter(round => GENERATABLE_ROUND_TYPES.has(round.round_type)).map(round => {
                   const cfg = bulkConfig[round.id];
                   if (!cfg) return null;
                   const progress = bulkProgress[round.id];

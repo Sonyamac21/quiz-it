@@ -411,7 +411,7 @@ export default function QuizBuilderPage() {
             </div>
           )}
         </div>) : <div style={{ color: "#B9A8D9", padding: 16 }}>Add the first round from the library below.</div>}
-        {selected.quiz_rounds.length > 0 && (
+        {(
           <div className="fbh-panel" style={{ marginTop: 16, marginBottom: 16, padding: 14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
               <div className="fbh-lbl" style={{ margin: 0 }}>Generate All Rounds</div>

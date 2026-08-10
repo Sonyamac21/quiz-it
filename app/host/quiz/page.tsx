@@ -1374,7 +1374,7 @@ function QuizControllerInner() {
   }
 
   const spacebarHint =
-    hostPhase === "waiting" ? "SPACE: Start Round" :
+    hostPhase === "waiting" ? (roundNumber === 1 ? "SPACE: Start Quiz" : "SPACE: Start Round") :
     hostPhase === "round_start" ? "SPACE: Preview First Question" :
     hostPhase === "preview" ? "SPACE: Send Question Live" :
     hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "SPACE: Reveal Question Text" :
@@ -1386,13 +1386,13 @@ function QuizControllerInner() {
     hostPhase === "hot_seat" ? "Waiting for the buzz" :
     hostPhase === "answer" ? "SPACE: Celebrate Fastest Team" :
     hostPhase === "celebration" ? (isLastQ ? "SPACE: End Round" : "SPACE: Preview Next Question") :
-    hostPhase === "round_end" ? "SPACE: Load Next Round" :
+    hostPhase === "round_end" ? "SPACE: Start Next Round" :
     hostPhase === "quiz_end" ? "Leaderboard reveal active" : "";
 
   // The single next beat, as a plain verb — surfaced as the dominant control so
   // the host never hunts and can drive the whole show from peripheral vision.
   const nextActionLabel =
-    hostPhase === "waiting" ? "Start Round" :
+    hostPhase === "waiting" ? (roundNumber === 1 ? "Start Quiz" : "Start Round") :
     hostPhase === "round_start" ? "Preview First Question" :
     hostPhase === "preview" ? "Send Question Live" :
     hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "Reveal Question Text" :
@@ -1403,7 +1403,14 @@ function QuizControllerInner() {
     hostPhase === "hot_seat" && (hotSeatStatus === "idle" || teams.length - hotSeatLockedTeams.length <= 0) ? "Reveal Answer" :
     hostPhase === "answer" ? "Celebrate Fastest Team" :
     hostPhase === "celebration" ? (isLastQ ? "End Round" : "Next Question") :
-    hostPhase === "round_end" ? "Load Next Round" : "";
+    hostPhase === "round_end" ? "Start Next Round" : "";
+  // The round coming up after this one, if any - shown as a preview on the
+  // Next Action bar during round_end so the host (and, glancing at their
+  // screen, anyone standing behind them) knows what's about to start before
+  // committing to it, instead of finding out only once it loads.
+  const upcomingRound = hostPhase === "round_end"
+    ? rounds.find(r => (r.position ?? 0) === (selectedRound?.position ?? -1) + 1) || null
+    : null;
 
   if (!connected) {
     return (
@@ -1527,7 +1534,7 @@ function QuizControllerInner() {
           glance while talking. Timer phase shows the live countdown instead. */}
       {selectedRound && nextActionLabel && (
         <button onClick={handleSpacebar} className={`qi-mc-next${hostPhase==="timer" ? " qi-mc-next--timer" : ""}`}>
-          <span className="qi-mc-next__eyebrow">Next action</span>
+          <span className="qi-mc-next__eyebrow">{upcomingRound ? `Up next: ${upcomingRound.name} (${upcomingRound.round_type})` : "Next action"}</span>
           <span className="qi-mc-next__label">{nextActionLabel}</span>
           {hostPhase==="timer" && <span className={`qi-mc-next__timer${(timeLeft ?? 0)<=5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft}s</span>}
           <span className="qi-mc-next__key">Space ↵</span>

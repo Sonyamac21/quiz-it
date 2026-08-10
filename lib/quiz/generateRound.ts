@@ -287,7 +287,8 @@ async function checkQuestion(q: Question, theme: string): Promise<{ ok: boolean;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const text = await callAPI(prompt, 300, true);
-      return parseModelJson<{ ok: boolean; note: string }>(text, "object");
+      const parsed = parseModelJson<{ ok: boolean; note?: string }>(text, "object");
+      return { ok: parsed.ok, note: parsed.note ?? (parsed.ok ? "OK" : "No reason given") };
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Unknown moderation error";
       if (attempt === 0) {
@@ -871,10 +872,10 @@ export async function generateValidatedRound(
       blacklistRejected(exclusions, q);
       addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       consecutiveCheckFailures++;
-      const failReason = validation.reason.substring(0, 40);
+      const failReason = (validation.reason || "Unknown reason").substring(0, 40);
       onProgress?.("Question " + (good.length + 1) + " failed check (" + failReason + ") - retrying...");
       if (consecutiveCheckFailures >= 15) {
-        const finalStatus = "Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + validation.reason.substring(0, 60) + "). Got " + good.length + " of " + count + ". See Generation Report for details.";
+        const finalStatus = "Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + (validation.reason || "Unknown reason").substring(0, 60) + "). Got " + good.length + " of " + count + ". See Generation Report for details.";
         onProgress?.(finalStatus);
         return { spec, questions: good, report, finalStatus, stoppedEarly: true };
       }

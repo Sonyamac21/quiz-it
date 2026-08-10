@@ -347,14 +347,14 @@ export default function QuizBuilderPage() {
           <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 12 }}>{round.questions.length} questions · {round.round_type}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginBottom: 12 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
-              Points
+              Points per Q
               <input
                 type="number"
                 defaultValue={round.points_per_question ?? ""}
-                placeholder="default"
+                placeholder="Default"
                 onBlur={e => updateRoundPoints(round, e.target.value === "" ? null : Number(e.target.value))}
                 onClick={e => e.stopPropagation()}
-                style={{ width: 72, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff" }}
+                style={{ width: 100, padding: "6px 8px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#fff", fontSize: 13 }}
               />
             </label>
             <label style={{ display: "flex", alignItems: "center", gap: 8, font: "400 13px 'Inter'", color: "#B9A8D9" }}>

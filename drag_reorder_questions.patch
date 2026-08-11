@@ -1,0 +1,78 @@
+diff --git a/app/host/quizzes/page.tsx b/app/host/quizzes/page.tsx
+index 015b3d5..f30d7ae 100644
+--- a/app/host/quizzes/page.tsx
++++ b/app/host/quizzes/page.tsx
+@@ -55,6 +55,8 @@ export default function QuizBuilderPage() {
+   const [duplicating, setDuplicating] = useState(false);
+   const [showPlanList, setShowPlanList] = useState(true);
+   const [swappingKey, setSwappingKey] = useState<string | null>(null);
++  const [draggedQuestionIndex, setDraggedQuestionIndex] = useState<number | null>(null);
++  const [dragOverQuestionIndex, setDragOverQuestionIndex] = useState<number | null>(null);
+   const [addRoundOpen, setAddRoundOpen] = useState(false);
+   const [settingsOpenRoundId, setSettingsOpenRoundId] = useState<string | null>(null);
+   const [activeRoundId, setActiveRoundId] = useState<string | null>(null);
+@@ -171,11 +173,11 @@ export default function QuizBuilderPage() {
+     await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
+     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
+   }
+-  async function moveRoundQuestion(round: QuizRound, qIndex: number, direction: -1 | 1) {
+-    const target = qIndex + direction;
+-    if (target < 0 || target >= round.questions.length) return;
++  async function reorderRoundQuestions(round: QuizRound, fromIndex: number, toIndex: number) {
++    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= round.questions.length || toIndex >= round.questions.length) return;
+     const newQuestions = [...round.questions];
+-    [newQuestions[qIndex], newQuestions[target]] = [newQuestions[target], newQuestions[qIndex]];
++    const [moved] = newQuestions.splice(fromIndex, 1);
++    newQuestions.splice(toIndex, 0, moved);
+     const supabase = createSupabaseBrowserClient();
+     await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
+     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
+@@ -716,14 +718,33 @@ export default function QuizBuilderPage() {
+                     const isAudio = qType === "audio";
+                     const musicLookup = isAudio ? String(qr.option_a ?? "") : "";
+                     return (
+-                      <div key={qi} style={{ position: "relative", padding: "12px 34px 12px 14px", borderRadius: 12, background: "#150A2E", border: "1px solid #2E1A52" }}>
++                      <div
++                        key={qi}
++                        draggable
++                        onDragStart={() => setDraggedQuestionIndex(qi)}
++                        onDragOver={e => { e.preventDefault(); if (dragOverQuestionIndex !== qi) setDragOverQuestionIndex(qi); }}
++                        onDragLeave={() => setDragOverQuestionIndex(cur => cur === qi ? null : cur)}
++                        onDrop={e => {
++                          e.preventDefault();
++                          if (draggedQuestionIndex !== null) reorderRoundQuestions(activeRound, draggedQuestionIndex, qi);
++                          setDraggedQuestionIndex(null);
++                          setDragOverQuestionIndex(null);
++                        }}
++                        onDragEnd={() => { setDraggedQuestionIndex(null); setDragOverQuestionIndex(null); }}
++                        style={{
++                          position: "relative", padding: "12px 34px 12px 14px", borderRadius: 12, background: "#150A2E",
++                          border: dragOverQuestionIndex === qi && draggedQuestionIndex !== qi ? "1px dashed #BE26C1" : "1px solid #2E1A52",
++                          opacity: draggedQuestionIndex === qi ? 0.4 : 1,
++                          cursor: "grab",
++                        }}
++                      >
+                         <button
+                           onClick={() => removeRoundQuestion(activeRound, qi)}
+                           title="Remove question"
+                           style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", fontSize: 14, lineHeight: "22px", padding: 0 }}
+                         >×</button>
+                         <div style={{ font: "400 13px 'Inter'", color: "#D9CCF2", lineHeight: 1.5 }}>
+-                          <strong style={{ color: "#6B5A8E" }}>{qi + 1}.</strong> {String(qr.question_text ?? "")}
++                          <strong style={{ color: "#6B5A8E" }}>{"⠿ "}{qi + 1}.</strong> {String(qr.question_text ?? "")}
+                         </div>
+                         {isAudio && musicLookup && (
+                           <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 8, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
+@@ -743,10 +764,9 @@ export default function QuizBuilderPage() {
+                         ) : (
+                           <div style={{ color: "#2EE06E", font: "600 12px 'Inter'", marginTop: 6 }}>{"-> "}{correctAnswer}</div>
+                         )}
+-                        <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+-                          <HostButton onClick={() => moveRoundQuestion(activeRound, qi, -1)} disabled={qi === 0} title="Move up" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>UP</HostButton>
+-                          <HostButton onClick={() => moveRoundQuestion(activeRound, qi, 1)} disabled={qi === activeRound.questions.length - 1} title="Move down" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>DOWN</HostButton>
++                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                           <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace with a new AI-generated question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
++                          <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Drag to reorder</span>
+                         </div>
+                       </div>
+                     );

@@ -13,6 +13,20 @@ const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), t
 type GuidedIntent = "create" | "duplicate" | "assign";
 type GuidedEvent = { id: string; label: string };
 const VALID_INTENTS: GuidedIntent[] = ["create", "duplicate", "assign"];
+// Shape of a saved Question Library row (question_bank table) - only the
+// fields this page reads/writes when inserting one into a Quiz Plan round.
+type BankQuestion = {
+  id: string;
+  question_text: string;
+  question_type: string;
+  option_a: string | null;
+  option_b: string | null;
+  option_c: string | null;
+  option_d: string | null;
+  correct_answer: string;
+  difficulty: string;
+  round_type: string;
+};
 
 export default function QuizBuilderPage() {
   const [quizzes, setQuizzes] = useState<QuizDefinition[]>([]);
@@ -47,6 +61,10 @@ export default function QuizBuilderPage() {
   const [addQuestionOpenId, setAddQuestionOpenId] = useState<string | null>(null);
   const [manualQText, setManualQText] = useState("");
   const [manualAText, setManualAText] = useState("");
+  const [libraryOpenId, setLibraryOpenId] = useState<string | null>(null);
+  const [librarySearch, setLibrarySearch] = useState("");
+  const [libraryResults, setLibraryResults] = useState<BankQuestion[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
   // Bulk/parallel question generation ("Generate All Rounds"). Lives alongside
   // the existing per-round generator at /host/questions - this does not replace
   // it, it lets a host configure several rounds at once and generate them all
@@ -121,6 +139,28 @@ export default function QuizBuilderPage() {
     await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
     setManualQText(""); setManualAText("");
+  }
+  async function loadLibraryQuestions(roundType: string, search: string) {
+    setLibraryLoading(true);
+    const supabase = createSupabaseBrowserClient();
+    let query = supabase.from("question_bank").select("*").eq("round_type", roundType).order("created_at", { ascending: false }).limit(25);
+    if (search.trim()) query = query.ilike("question_text", "%" + search.trim() + "%");
+    const { data } = await query;
+    setLibraryResults((data || []) as BankQuestion[]);
+    setLibraryLoading(false);
+  }
+  async function addLibraryQuestion(round: QuizRound, bankQ: BankQuestion) {
+    // Kept in the Question Library after adding (not deleted) - a library
+    // question is meant to be reusable across many quizzes, not consumed by
+    // the first round that uses it.
+    const newQuestions = [...round.questions, {
+      question_text: bankQ.question_text, question_type: bankQ.question_type,
+      option_a: bankQ.option_a, option_b: bankQ.option_b, option_c: bankQ.option_c, option_d: bankQ.option_d,
+      correct_answer: bankQ.correct_answer, difficulty: bankQ.difficulty,
+    }];
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
+    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
   }
   async function removeRoundQuestion(round: QuizRound, qIndex: number) {
     const newQuestions = round.questions.filter((_, i) => i !== qIndex);
@@ -504,6 +544,7 @@ export default function QuizBuilderPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                   <span className="ord">{activeIndex + 1}</span>
                   <input
+                    key={activeRound.id}
                     defaultValue={activeRound.name}
                     onBlur={e => renameRound(activeRound, e.target.value)}
                     style={{ flex: 1, minWidth: 0, background: "transparent", border: "1px solid transparent", borderBottom: "1px solid #2E1A52", color: "#fff", font: "700 16px 'Inter'", padding: "4px 2px" }}
@@ -597,10 +638,34 @@ export default function QuizBuilderPage() {
                   </>
                 )}
 
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
                   <div className="fbh-lbl" style={{ margin: 0 }}>Questions</div>
-                  <HostButton onClick={() => setAddQuestionOpenId(id => id === activeRound.id ? null : activeRound.id)}>{addQuestionOpen ? "CLOSE" : "+ ADD QUESTION"}</HostButton>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); loadLibraryQuestions(activeRound.round_type, ""); } return next; }); setAddQuestionOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
+                    <HostButton onClick={() => { setAddQuestionOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); }}>{addQuestionOpen ? "CLOSE" : "+ ADD QUESTION"}</HostButton>
+                  </div>
                 </div>
+                {libraryOpenId === activeRound.id && (
+                  <div style={{ display: "grid", gap: 8, padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
+                    <input
+                      value={librarySearch}
+                      onChange={e => { setLibrarySearch(e.target.value); loadLibraryQuestions(activeRound.round_type, e.target.value); }}
+                      placeholder={"Search " + activeRound.round_type + " questions..."}
+                      className="fbh-input"
+                      style={{ width: "100%" }}
+                    />
+                    {libraryLoading && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>Searching...</div>}
+                    {!libraryLoading && libraryResults.length === 0 && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>No saved {activeRound.round_type} questions found in the Question Library.</div>}
+                    <div style={{ display: "grid", gap: 6, maxHeight: 260, overflowY: "auto" }}>
+                      {libraryResults.map(bq => (
+                        <div key={bq.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52" }}>
+                          <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2" }}>{bq.question_text} <span style={{ color: "#2EE06E" }}>{"-> " + bq.correct_answer}</span></div>
+                          <HostButton onClick={() => addLibraryQuestion(activeRound, bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12, flexShrink: 0 }}>ADD</HostButton>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {addQuestionOpen && (
                   <div style={{ display: "grid", gap: 8, padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
                     <input value={manualQText} onChange={e => setManualQText(e.target.value)} placeholder="Question" className="fbh-input" style={{ width: "100%" }} />

@@ -1,0 +1,200 @@
+diff --git a/app/host/quizzes/page.tsx b/app/host/quizzes/page.tsx
+index 8996e82..015b3d5 100644
+--- a/app/host/quizzes/page.tsx
++++ b/app/host/quizzes/page.tsx
+@@ -77,7 +77,7 @@ export default function QuizBuilderPage() {
+     if (!selected) return;
+     const initial: Record<string, { selected: boolean; count: number; theme: string; difficulty: string }> = {};
+     selected.quiz_rounds.forEach(r => {
+-      initial[r.id] = { selected: false, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.questions.length || 10), theme: "", difficulty: "mixed" };
++      initial[r.id] = { selected: false, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.questions.length || 10), theme: r.theme ?? "", difficulty: r.difficulty || "mixed" };
+     });
+     setBulkConfig(initial);
+     setBulkProgress({});
+@@ -150,9 +150,6 @@ export default function QuizBuilderPage() {
+     setLibraryLoading(false);
+   }
+   async function addLibraryQuestion(round: QuizRound, bankQ: BankQuestion) {
+-    // Kept in the Question Library after adding (not deleted) - a library
+-    // question is meant to be reusable across many quizzes, not consumed by
+-    // the first round that uses it.
+     const newQuestions = [...round.questions, {
+       question_text: bankQ.question_text, question_type: bankQ.question_type,
+       option_a: bankQ.option_a, option_b: bankQ.option_b, option_c: bankQ.option_c, option_d: bankQ.option_d,
+@@ -160,7 +157,13 @@ export default function QuizBuilderPage() {
+     }];
+     const supabase = createSupabaseBrowserClient();
+     await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
++    // Remove it from the Question Library once used, same as the existing
++    // "add to round" behaviour on the Question Library page itself - using a
++    // question moves it into the round rather than leaving a copy sitting in
++    // the library, so the library doesn't fill up with already-used items.
++    await supabase.from("question_bank").delete().eq("id", bankQ.id);
+     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
++    setLibraryResults(prev => prev.filter(q => q.id !== bankQ.id));
+   }
+   async function removeRoundQuestion(round: QuizRound, qIndex: number) {
+     const newQuestions = round.questions.filter((_, i) => i !== qIndex);
+@@ -168,18 +171,29 @@ export default function QuizBuilderPage() {
+     await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
+     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
+   }
++  async function moveRoundQuestion(round: QuizRound, qIndex: number, direction: -1 | 1) {
++    const target = qIndex + direction;
++    if (target < 0 || target >= round.questions.length) return;
++    const newQuestions = [...round.questions];
++    [newQuestions[qIndex], newQuestions[target]] = [newQuestions[target], newQuestions[qIndex]];
++    const supabase = createSupabaseBrowserClient();
++    await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
++    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
++  }
+   async function swapRoundQuestion(round: QuizRound, qIndex: number) {
+     const key = round.id + "-" + qIndex;
+     setSwappingKey(key);
+     try {
+       const cfg = bulkConfig[round.id];
++      const theme = round.theme || cfg?.theme || "";
++      const difficulty = round.difficulty || cfg?.difficulty || "mixed";
+       const exclusions = await loadUsedQuestions();
+       round.questions.forEach(q => {
+         const text = (q as Record<string, unknown>).question_text as string | undefined;
+         if (text) exclusions.used.push(text);
+       });
+       const result = await generateValidatedRound(
+-        { roundType: round.round_type, difficulty: cfg?.difficulty || "mixed", theme: cfg?.theme || "", count: 1 },
++        { roundType: round.round_type, difficulty, theme, count: 1 },
+         exclusions,
+       );
+       if (result.questions.length === 0) {
+@@ -206,6 +220,11 @@ export default function QuizBuilderPage() {
+       theme: bulkConfig[r.id].theme,
+       count: bulkConfig[r.id].count,
+     }));
++    // Persist the theme/difficulty each round is being generated with right
++    // away, so it survives a reload and SWAP picks it back up later instead
++    // of silently generating untargeted content.
++    await Promise.all(targets.map(r => supabase.from("quiz_rounds").update({ theme: bulkConfig[r.id].theme || null, difficulty: bulkConfig[r.id].difficulty }).eq("id", r.id)));
++    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => targets.some(t2 => t2.id === r.id) ? { ...r, theme: bulkConfig[r.id].theme || null, difficulty: bulkConfig[r.id].difficulty } : r) }));
+     setBulkProgress(Object.fromEntries(targets.map(r => [r.id, "Queued..."])));
+     try {
+       await generateAllRounds(
+@@ -239,7 +258,7 @@ export default function QuizBuilderPage() {
+     const supabase = createSupabaseBrowserClient();
+     const [{ data: quizData, error: quizError }, { data: roundData }] = await Promise.all([
+       supabase.from("quizzes").select("*, quiz_rounds(*)").order("updated_at", { ascending: false }),
+-      supabase.from("rounds").select("id,name,round_type,difficulty,questions,hide_leaderboard,allow_power_cards,points_per_question,danger_zone_enabled,danger_zone_penalty,max_time_bonus").order("created_at", { ascending: false }),
++      supabase.from("rounds").select("id,name,round_type,difficulty,theme,questions,hide_leaderboard,allow_power_cards,points_per_question,danger_zone_enabled,danger_zone_penalty,max_time_bonus").order("created_at", { ascending: false }),
+     ]);
+     if (quizError) setError("Quiz Plan Builder migration is required. " + quizError.message);
+     const normalized = ((quizData ?? []) as QuizDefinition[]).map(q => ({ ...q, quiz_rounds: [...(q.quiz_rounds ?? [])].sort((a, b) => a.position - b.position) }));
+@@ -503,7 +522,7 @@ export default function QuizBuilderPage() {
+           const activeRound = selected.quiz_rounds.find(r => r.id === activeRoundId) || selected.quiz_rounds[0];
+           const activeIndex = selected.quiz_rounds.findIndex(r => r.id === activeRound.id);
+           const isGeneratable = GENERATABLE_ROUND_TYPES.has(activeRound.round_type);
+-          const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: activeRound.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (activeRound.questions.length || 10), theme: "", difficulty: "mixed" };
++          const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: activeRound.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (activeRound.questions.length || 10), theme: activeRound.theme ?? "", difficulty: activeRound.difficulty || "mixed" };
+           const progress = bulkProgress[activeRound.id];
+           const settingsOpen = settingsOpenRoundId === activeRound.id;
+           const addQuestionOpen = addQuestionOpenId === activeRound.id;
+@@ -675,10 +694,27 @@ export default function QuizBuilderPage() {
+                 )}
+ 
+                 {activeRound.questions.length === 0 && <p style={{ color: "#6B5A8E", font: "400 12px 'Inter'", margin: 0 }}>No questions in this round yet.</p>}
+-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 10 }}>
++                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>
+                   {activeRound.questions.map((q, qi) => {
+                     const swapKey = activeRound.id + "-" + qi;
+                     const isSwapping = swappingKey === swapKey;
++                    const qr = q as Record<string, unknown>;
++                    const qType = String(qr.question_type ?? "");
++                    const correctAnswer = String(qr.correct_answer ?? "");
++                    // Full option list (a-f, whichever exist) - previously only
++                    // the correct answer was shown, so there was no way to
++                    // review a multiple-choice/sequence question's wrong
++                    // options before it went live.
++                    const optionLetters = ["a", "b", "c", "d", "e", "f"] as const;
++                    const options = optionLetters
++                      .map(letter => ({ letter, value: qr["option_" + letter] as string | null | undefined }))
++                      .filter(o => o.value);
++                    // Audio (music) questions hide the real search info from
++                    // players in option_a - that's exactly the field a host
++                    // needs to see to go find/cue up the actual track before
++                    // the show, so surface it explicitly here.
++                    const isAudio = qType === "audio";
++                    const musicLookup = isAudio ? String(qr.option_a ?? "") : "";
+                     return (
+                       <div key={qi} style={{ position: "relative", padding: "12px 34px 12px 14px", borderRadius: 12, background: "#150A2E", border: "1px solid #2E1A52" }}>
+                         <button
+@@ -687,10 +723,31 @@ export default function QuizBuilderPage() {
+                           style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", fontSize: 14, lineHeight: "22px", padding: 0 }}
+                         >×</button>
+                         <div style={{ font: "400 13px 'Inter'", color: "#D9CCF2", lineHeight: 1.5 }}>
+-                          <strong style={{ color: "#6B5A8E" }}>{qi + 1}.</strong> {String((q as Record<string, unknown>).question_text ?? "")}
++                          <strong style={{ color: "#6B5A8E" }}>{qi + 1}.</strong> {String(qr.question_text ?? "")}
++                        </div>
++                        {isAudio && musicLookup && (
++                          <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 8, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
++                            <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Search to find this track</div>
++                            <div style={{ color: "#fff", font: "600 12px 'Inter'", marginTop: 2 }}>{musicLookup}</div>
++                          </div>
++                        )}
++                        {options.length > 0 ? (
++                          <div style={{ marginTop: 6, display: "grid", gap: 3 }}>
++                            {options.map(o => (
++                              <div key={o.letter} style={{ font: "400 12px 'Inter'", color: correctAnswer.toLowerCase().includes(o.letter) || correctAnswer === o.value ? "#2EE06E" : "#B9A8D9" }}>
++                                {o.letter.toUpperCase()}. {o.value}
++                              </div>
++                            ))}
++                            <div style={{ color: "#2EE06E", font: "700 12px 'Inter'", marginTop: 2 }}>{"Correct: " + correctAnswer}</div>
++                          </div>
++                        ) : (
++                          <div style={{ color: "#2EE06E", font: "600 12px 'Inter'", marginTop: 6 }}>{"-> "}{correctAnswer}</div>
++                        )}
++                        <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
++                          <HostButton onClick={() => moveRoundQuestion(activeRound, qi, -1)} disabled={qi === 0} title="Move up" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>UP</HostButton>
++                          <HostButton onClick={() => moveRoundQuestion(activeRound, qi, 1)} disabled={qi === activeRound.questions.length - 1} title="Move down" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>DOWN</HostButton>
++                          <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace with a new AI-generated question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
+                         </div>
+-                        <div style={{ color: "#2EE06E", font: "600 12px 'Inter'", marginTop: 6 }}>{"-> "}{String((q as Record<string, unknown>).correct_answer ?? "")}</div>
+-                        <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} style={{ marginTop: 8, padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "SWAPPING..." : "SWAP"}</HostButton>
+                       </div>
+                     );
+                   })}
+diff --git a/lib/quiz-builder/types.ts b/lib/quiz-builder/types.ts
+index a1d1996..6bfcbf5 100644
+--- a/lib/quiz-builder/types.ts
++++ b/lib/quiz-builder/types.ts
+@@ -3,6 +3,10 @@ export type LibraryRound = {
+   name: string;
+   round_type: string;
+   difficulty: string | null;
++  // Theme/category the round was generated with (e.g. "kids", "80s music").
++  // Persisted so it survives reloads and every generation path (initial
++  // generate, Generate All, and single-question SWAP) stays in agreement.
++  theme: string | null;
+   questions: Record<string, unknown>[];
+   hide_leaderboard: boolean;
+   allow_power_cards: boolean;
+diff --git a/supabase/migrations/202608110001_round_theme.sql b/supabase/migrations/202608110001_round_theme.sql
+new file mode 100644
+index 0000000..ae1970e
+--- /dev/null
++++ b/supabase/migrations/202608110001_round_theme.sql
+@@ -0,0 +1,17 @@
++-- Persist the theme/category a round was generated with (e.g. "kids",
++-- "80s music") on the round row itself. Previously the theme a host typed
++-- into a round's Settings panel only lived in transient page state
++-- (bulkConfig), so it reset to blank on every reload/reselect and the
++-- SWAP (regenerate one question) action silently regenerated with no theme
++-- at all - explaining why a "Bonus Round - kids" ended up with unrelated
++-- content after a swap or a fresh page load. Storing it on the row makes it
++-- survive reloads and lets every generation path (single round, Generate
++-- All, and single-question SWAP) agree on the same theme.
++alter table public.quiz_rounds
++  add column if not exists theme text;
++
++alter table public.rounds
++  add column if not exists theme text;
++
++alter table public.session_rounds
++  add column if not exists theme text;

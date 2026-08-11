@@ -3,6 +3,10 @@ export type LibraryRound = {
   name: string;
   round_type: string;
   difficulty: string | null;
+  // Theme/category the round was generated with (e.g. "kids", "80s music").
+  // Persisted so it survives reloads and every generation path (initial
+  // generate, Generate All, and single-question SWAP) stays in agreement.
+  theme: string | null;
   questions: Record<string, unknown>[];
   hide_leaderboard: boolean;
   allow_power_cards: boolean;

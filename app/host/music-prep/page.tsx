@@ -193,15 +193,26 @@ export default function MusicPrepPage() {
   const [openRound, setOpenRound] = useState<Round | null>(null);
   const [questionStates, setQuestionStates] = useState<Record<number, QuestionState>>({});
   const [status, setStatus] = useState("");
+  const [loadError, setLoadError] = useState("");
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     (async () => {
       const supabase = createSupabaseBrowserClient();
-      const [libraryRes, quizPlanRes] = await Promise.all([
-        supabase.from("rounds").select("*").order("created_at", { ascending: false }),
-        supabase.from("quiz_rounds").select("*, quizzes(name)").order("created_at", { ascending: false }),
-      ]);
+      const libraryRes = await supabase.from("rounds").select("*").order("created_at", { ascending: false });
+      // Try the joined query first (so we can label which quiz a round
+      // belongs to); if the embed fails for any reason (e.g. relationship
+      // name mismatch), fall back to a plain select rather than silently
+      // dropping every Quiz Plan round from the list.
+      let quizPlanRes = await supabase.from("quiz_rounds").select("*, quizzes(name)").order("created_at", { ascending: false });
+      if (quizPlanRes.error) {
+        console.error("Music Prep: joined quiz_rounds query failed, retrying without join:", quizPlanRes.error);
+        quizPlanRes = await supabase.from("quiz_rounds").select("*").order("created_at", { ascending: false });
+      }
+      if (quizPlanRes.error) {
+        console.error("Music Prep: quiz_rounds query failed:", quizPlanRes.error);
+        setLoadError(quizPlanRes.error.message);
+      }
       const libraryRounds: Round[] = (libraryRes.data || []).map((r: Round) => ({ ...r, source: "library" as const }));
       const quizPlanRounds: Round[] = (quizPlanRes.data || []).map((r: Record<string, unknown>) => ({
         id: r.id as string,
@@ -360,6 +371,7 @@ export default function MusicPrepPage() {
         </div>
 
         {status && <div style={{ textAlign: "center", color: "#D94FDC", font: "600 13px 'Inter'", marginBottom: 16 }}>{status}</div>}
+        {loadError && <div style={{ textAlign: "center", color: "#FF3B4E", font: "600 13px 'Inter'", marginBottom: 16 }}>Couldn&apos;t load Quiz Plan rounds: {loadError}</div>}
 
         {/* ROUND LIST */}
         {!openRound && (

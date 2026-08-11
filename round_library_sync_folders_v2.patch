@@ -1,0 +1,173 @@
+diff --git a/app/host/quizzes/page.tsx b/app/host/quizzes/page.tsx
+index 9b6bf28..6e05e4d 100644
+--- a/app/host/quizzes/page.tsx
++++ b/app/host/quizzes/page.tsx
+@@ -173,6 +173,24 @@ export default function QuizBuilderPage() {
+     await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
+     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
+   }
++  async function syncRoundToLibrary(round: QuizRound, questions: Record<string, unknown>[], quizName: string) {
++    const supabase = createSupabaseBrowserClient();
++    await supabase.from("rounds").upsert({
++      synced_from_quiz_round_id: round.id,
++      folder: quizName,
++      name: round.name,
++      round_type: round.round_type,
++      difficulty: round.difficulty,
++      theme: round.theme,
++      questions,
++      hide_leaderboard: round.hide_leaderboard,
++      allow_power_cards: round.allow_power_cards,
++      points_per_question: round.points_per_question,
++      danger_zone_enabled: round.danger_zone_enabled,
++      danger_zone_penalty: round.danger_zone_penalty,
++      max_time_bonus: round.max_time_bonus,
++    }, { onConflict: "synced_from_quiz_round_id" });
++  }
+   async function reorderRoundQuestions(round: QuizRound, fromIndex: number, toIndex: number) {
+     if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= round.questions.length || toIndex >= round.questions.length) return;
+     const newQuestions = [...round.questions];
+@@ -206,6 +224,7 @@ export default function QuizBuilderPage() {
+       const supabase = createSupabaseBrowserClient();
+       await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
+       setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
++      if (selected) void syncRoundToLibrary(round, newQuestions, selected.name);
+     } finally {
+       setSwappingKey(null);
+     }
+@@ -246,6 +265,7 @@ export default function QuizBuilderPage() {
+               if (q.id !== selected.id) return q;
+               return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: result.questions } : r) };
+             }));
++            void syncRoundToLibrary(round, result.questions, selected.name);
+           });
+         },
+       );
+diff --git a/app/host/rounds/page.tsx b/app/host/rounds/page.tsx
+index c9834d6..06da27d 100644
+--- a/app/host/rounds/page.tsx
++++ b/app/host/rounds/page.tsx
+@@ -28,6 +28,12 @@ type Round = {
+   hide_leaderboard: boolean;
+   allow_power_cards: boolean;
+   points_per_question: number | null;
++  // Rounds generated inside a Quiz Plan get auto-synced here, filed under
++  // the parent Quiz Plan's name so they don't flood the main list. Rounds
++  // created directly in the Round Library have no folder and keep showing
++  // in "All Rounds" exactly as before.
++  folder: string | null;
++  synced_from_quiz_round_id: string | null;
+ };
+ 
+ const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence" };
+@@ -59,6 +65,25 @@ export default function RoundsPage() {
+     })();
+   }, []);
+ 
++  async function moveRoundToFolder(round: Round) {
++    const input = window.prompt(
++      "Move \"" + round.name + "\" to which folder? Leave blank for no folder (shows in All Rounds).",
++      round.folder || ""
++    );
++    if (input === null) return;
++    const folder = input.trim() || null;
++    const supabase = createSupabaseBrowserClient();
++    const { error } = await supabase.from("rounds").update({ folder }).eq("id", round.id);
++    if (error) {
++      setStatus("Could not move round: " + error.message);
++      return;
++    }
++    const apply = (r: Round) => r.id === round.id ? { ...r, folder } : r;
++    setRounds(prev => prev.map(apply));
++    setOpenRound(prev => prev ? apply(prev) : prev);
++    setStatus(folder ? "Moved to \"" + folder + "\"" : "Moved to All Rounds");
++    setTimeout(() => setStatus(""), 2000);
++  }
+   async function deleteRound(id: string) {
+     if (!confirm("Delete this round?")) return;
+     const supabase = createSupabaseBrowserClient();
+@@ -161,25 +186,41 @@ export default function RoundsPage() {
+           <HostEmpty title="No Rounds Yet" note="Generate your first round to build tonight's show." actionLabel="+ NEW ROUND" onAction={() => { window.location.href = "/host/questions"; }} />
+         )}
+ 
+-        {/* ALL ROUNDS */}
+-        {!openRound && rounds.length > 0 && (
+-          <div style={{ marginTop: 8 }}>
+-            <div className="fbh-lbl">All Rounds</div>
+-            {rounds.map(r => (
+-              <div key={r.id} className="fbh-panel">
+-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+-                  <div style={{ flex: 1 }}>
+-                    <div style={{ font: "700 15px 'Inter'", marginBottom: 4 }}>{r.name}</div>
+-                    <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>{r.questions?.length || 0} questions · {r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
+-                  </div>
+-                  <HostButton onClick={() => setOpenRound(r)} style={{ height: 36 }}>View</HostButton>
+-                  <HostButton onClick={() => duplicateRound(r)} style={{ height: 36 }}>Duplicate</HostButton>
+-                  <HostButton onClick={() => deleteRound(r.id)} style={{ height: 36 }}>Delete</HostButton>
++        {/* ALL ROUNDS - unfiled (created directly here, or never moved into a folder) */}
++        {!openRound && rounds.length > 0 && (() => {
++          const unfiled = rounds.filter(r => !r.folder);
++          const folderNames = Array.from(new Set(rounds.filter(r => r.folder).map(r => r.folder as string))).sort();
++          const roundRow = (r: Round) => (
++            <div key={r.id} className="fbh-panel">
++              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
++                <div style={{ flex: 1 }}>
++                  <div style={{ font: "700 15px 'Inter'", marginBottom: 4 }}>{r.name}</div>
++                  <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>{r.questions?.length || 0} questions · {r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
+                 </div>
++                <HostButton onClick={() => setOpenRound(r)} style={{ height: 36 }}>View</HostButton>
++                <HostButton onClick={() => moveRoundToFolder(r)} style={{ height: 36 }}>Move</HostButton>
++                <HostButton onClick={() => duplicateRound(r)} style={{ height: 36 }}>Duplicate</HostButton>
++                <HostButton onClick={() => deleteRound(r.id)} style={{ height: 36 }}>Delete</HostButton>
+               </div>
+-            ))}
+-          </div>
+-        )}
++            </div>
++          );
++          return (
++            <div style={{ marginTop: 8 }}>
++              <div className="fbh-lbl">All Rounds</div>
++              {unfiled.length === 0 && <p style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>Nothing unfiled - everything below is tucked into a folder.</p>}
++              {unfiled.map(roundRow)}
++              {folderNames.map(folder => {
++                const inFolder = rounds.filter(r => r.folder === folder);
++                return (
++                  <details key={folder} style={{ marginTop: 14 }}>
++                    <summary style={{ cursor: "pointer", font: "700 13px 'Inter'", color: "#D94FDC", padding: "8px 2px" }}>{folder} ({inFolder.length})</summary>
++                    <div style={{ marginTop: 6 }}>{inFolder.map(roundRow)}</div>
++                  </details>
++                );
++              })}
++            </div>
++          );
++        })()}
+ 
+         {/* ROUND DETAIL */}
+         {openRound && (
+diff --git a/supabase/migrations/202608110002_round_library_sync.sql b/supabase/migrations/202608110002_round_library_sync.sql
+new file mode 100644
+index 0000000..647a838
+--- /dev/null
++++ b/supabase/migrations/202608110002_round_library_sync.sql
+@@ -0,0 +1,20 @@
++-- Rounds generated inside a Quiz Plan (quiz_rounds table) previously never
++-- appeared in the standalone Round Library (rounds table) at all - the two
++-- were completely separate tables with no link between them. This adds:
++--   1. synced_from_quiz_round_id - lets the app upsert a Round Library copy
++--      of a Quiz Plan round without creating duplicates every time it's
++--      regenerated.
++--   2. folder - a lightweight grouping label so auto-synced rounds can be
++--      tucked into a "<Quiz Plan name>" section instead of flooding the
++--      main Round Library list. Manually created library rounds are
++--      unaffected (folder stays null, so they keep showing in "All Rounds"
++--      exactly as before).
++alter table public.rounds
++  add column if not exists synced_from_quiz_round_id uuid references public.quiz_rounds(id) on delete set null;
++
++alter table public.rounds
++  add column if not exists folder text;
++
++create unique index if not exists rounds_synced_from_quiz_round_id_key
++  on public.rounds (synced_from_quiz_round_id)
++  where synced_from_quiz_round_id is not null;

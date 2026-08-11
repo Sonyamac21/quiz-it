@@ -28,6 +28,12 @@ type Round = {
   hide_leaderboard: boolean;
   allow_power_cards: boolean;
   points_per_question: number | null;
+  // Rounds generated inside a Quiz Plan get auto-synced here, filed under
+  // the parent Quiz Plan's name so they don't flood the main list. Rounds
+  // created directly in the Round Library have no folder and keep showing
+  // in "All Rounds" exactly as before.
+  folder: string | null;
+  synced_from_quiz_round_id: string | null;
 };
 
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence" };
@@ -59,6 +65,25 @@ export default function RoundsPage() {
     })();
   }, []);
 
+  async function moveRoundToFolder(round: Round) {
+    const input = window.prompt(
+      "Move \"" + round.name + "\" to which folder? Leave blank for no folder (shows in All Rounds).",
+      round.folder || ""
+    );
+    if (input === null) return;
+    const folder = input.trim() || null;
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.from("rounds").update({ folder }).eq("id", round.id);
+    if (error) {
+      setStatus("Could not move round: " + error.message);
+      return;
+    }
+    const apply = (r: Round) => r.id === round.id ? { ...r, folder } : r;
+    setRounds(prev => prev.map(apply));
+    setOpenRound(prev => prev ? apply(prev) : prev);
+    setStatus(folder ? "Moved to \"" + folder + "\"" : "Moved to All Rounds");
+    setTimeout(() => setStatus(""), 2000);
+  }
   async function deleteRound(id: string) {
     if (!confirm("Delete this round?")) return;
     const supabase = createSupabaseBrowserClient();
@@ -161,25 +186,41 @@ export default function RoundsPage() {
           <HostEmpty title="No Rounds Yet" note="Generate your first round to build tonight's show." actionLabel="+ NEW ROUND" onAction={() => { window.location.href = "/host/questions"; }} />
         )}
 
-        {/* ALL ROUNDS */}
-        {!openRound && rounds.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            <div className="fbh-lbl">All Rounds</div>
-            {rounds.map(r => (
-              <div key={r.id} className="fbh-panel">
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ font: "700 15px 'Inter'", marginBottom: 4 }}>{r.name}</div>
-                    <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>{r.questions?.length || 0} questions · {r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
-                  </div>
-                  <HostButton onClick={() => setOpenRound(r)} style={{ height: 36 }}>View</HostButton>
-                  <HostButton onClick={() => duplicateRound(r)} style={{ height: 36 }}>Duplicate</HostButton>
-                  <HostButton onClick={() => deleteRound(r.id)} style={{ height: 36 }}>Delete</HostButton>
+        {/* ALL ROUNDS - unfiled (created directly here, or never moved into a folder) */}
+        {!openRound && rounds.length > 0 && (() => {
+          const unfiled = rounds.filter(r => !r.folder);
+          const folderNames = Array.from(new Set(rounds.filter(r => r.folder).map(r => r.folder as string))).sort();
+          const roundRow = (r: Round) => (
+            <div key={r.id} className="fbh-panel">
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: "700 15px 'Inter'", marginBottom: 4 }}>{r.name}</div>
+                  <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>{r.questions?.length || 0} questions · {r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
                 </div>
+                <HostButton onClick={() => setOpenRound(r)} style={{ height: 36 }}>View</HostButton>
+                <HostButton onClick={() => moveRoundToFolder(r)} style={{ height: 36 }}>Move</HostButton>
+                <HostButton onClick={() => duplicateRound(r)} style={{ height: 36 }}>Duplicate</HostButton>
+                <HostButton onClick={() => deleteRound(r.id)} style={{ height: 36 }}>Delete</HostButton>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          );
+          return (
+            <div style={{ marginTop: 8 }}>
+              <div className="fbh-lbl">All Rounds</div>
+              {unfiled.length === 0 && <p style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>Nothing unfiled - everything below is tucked into a folder.</p>}
+              {unfiled.map(roundRow)}
+              {folderNames.map(folder => {
+                const inFolder = rounds.filter(r => r.folder === folder);
+                return (
+                  <details key={folder} style={{ marginTop: 14 }}>
+                    <summary style={{ cursor: "pointer", font: "700 13px 'Inter'", color: "#D94FDC", padding: "8px 2px" }}>{folder} ({inFolder.length})</summary>
+                    <div style={{ marginTop: 6 }}>{inFolder.map(roundRow)}</div>
+                  </details>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* ROUND DETAIL */}
         {openRound && (

@@ -173,6 +173,24 @@ export default function QuizBuilderPage() {
     await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
   }
+  async function syncRoundToLibrary(round: QuizRound, questions: Record<string, unknown>[], quizName: string) {
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("rounds").upsert({
+      synced_from_quiz_round_id: round.id,
+      folder: quizName,
+      name: round.name,
+      round_type: round.round_type,
+      difficulty: round.difficulty,
+      theme: round.theme,
+      questions,
+      hide_leaderboard: round.hide_leaderboard,
+      allow_power_cards: round.allow_power_cards,
+      points_per_question: round.points_per_question,
+      danger_zone_enabled: round.danger_zone_enabled,
+      danger_zone_penalty: round.danger_zone_penalty,
+      max_time_bonus: round.max_time_bonus,
+    }, { onConflict: "synced_from_quiz_round_id" });
+  }
   async function reorderRoundQuestions(round: QuizRound, fromIndex: number, toIndex: number) {
     if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= round.questions.length || toIndex >= round.questions.length) return;
     const newQuestions = [...round.questions];
@@ -206,6 +224,7 @@ export default function QuizBuilderPage() {
       const supabase = createSupabaseBrowserClient();
       await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
       setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
+      if (selected) void syncRoundToLibrary(round, newQuestions, selected.name);
     } finally {
       setSwappingKey(null);
     }
@@ -246,6 +265,7 @@ export default function QuizBuilderPage() {
               if (q.id !== selected.id) return q;
               return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: result.questions } : r) };
             }));
+            void syncRoundToLibrary(round, result.questions, selected.name);
           });
         },
       );

@@ -27,6 +27,12 @@ type Round = {
   round_type: string;
   questions: Question[];
   created_at: string;
+  // Where this round lives - the standalone Round Library ("rounds" table)
+  // or embedded in a Quiz Plan ("quiz_rounds" table). Anything generated in
+  // a Quiz Plan is a quiz_rounds row and previously never showed up here at
+  // all, since this page only ever queried "rounds".
+  source: "library" | "quiz_plan";
+  quizName?: string | null;
 };
 
 type Candidate = {
@@ -192,10 +198,24 @@ export default function MusicPrepPage() {
   useEffect(() => {
     (async () => {
       const supabase = createSupabaseBrowserClient();
-      const { data, error } = await supabase.from("rounds").select("*").order("created_at", { ascending: false });
-      if (!error && data) {
-        setRounds(data.filter((r: Round) => r.questions?.some((q: Question) => q.question_type === "audio")));
-      }
+      const [libraryRes, quizPlanRes] = await Promise.all([
+        supabase.from("rounds").select("*").order("created_at", { ascending: false }),
+        supabase.from("quiz_rounds").select("*, quizzes(name)").order("created_at", { ascending: false }),
+      ]);
+      const libraryRounds: Round[] = (libraryRes.data || []).map((r: Round) => ({ ...r, source: "library" as const }));
+      const quizPlanRounds: Round[] = (quizPlanRes.data || []).map((r: Record<string, unknown>) => ({
+        id: r.id as string,
+        name: r.name as string,
+        round_type: r.round_type as string,
+        questions: r.questions as Question[],
+        created_at: r.created_at as string,
+        source: "quiz_plan" as const,
+        quizName: (r.quizzes as { name?: string } | null)?.name ?? null,
+      }));
+      const merged = [...libraryRounds, ...quizPlanRounds]
+        .filter(r => r.questions?.some((q: Question) => q.question_type === "audio"))
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setRounds(merged);
       setLoading(false);
     })();
   }, []);
@@ -288,12 +308,15 @@ export default function MusicPrepPage() {
       const uploadData = await uploadRes.json();
       if (!uploadRes.ok || uploadData.error) throw new Error(uploadData?.error?.message || "Upload failed");
 
-      // Update the question in the round
+      // Update the question in the round - write back to whichever table
+      // it actually lives in (standalone Round Library vs. a Quiz Plan's
+      // quiz_rounds), since the two are separate tables.
       const updatedQuestions = round.questions.map((q, i) =>
         i === qIdx ? { ...q, option_b: uploadData.url } : q
       );
       const supabase = createSupabaseBrowserClient();
-      await supabase.from("rounds").update({ questions: updatedQuestions }).eq("id", round.id);
+      const table = round.source === "quiz_plan" ? "quiz_rounds" : "rounds";
+      await supabase.from(table).update({ questions: updatedQuestions }).eq("id", round.id);
 
       // Log to media_assets
       await supabase.from("media_assets").insert({
@@ -352,7 +375,7 @@ export default function MusicPrepPage() {
               return (
                 <div key={r.id} onClick={() => openForPrep(r)} className="fbh-panel" style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ font: "700 15px 'Inter'", marginBottom: 4 }}>{r.name}</div>
+                    <div style={{ font: "700 15px 'Inter'", marginBottom: 4 }}>{r.name}{r.source === "quiz_plan" && <span style={{ marginLeft: 8, font: "600 11px 'Inter'", color: "#D94FDC" }}>{"in: " + (r.quizName || "a Quiz Plan")}</span>}</div>
                     <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>{total} music questions · {prepped}/{total} prepped · {new Date(r.created_at).toLocaleDateString()}</div>
                   </div>
                   <span className={ready ? "fbh-pill live" : "fbh-pill"}>{ready ? "✓ Ready" : "Prep →"}</span>

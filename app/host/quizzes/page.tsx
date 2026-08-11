@@ -579,6 +579,9 @@ export default function QuizBuilderPage() {
                   <HostButton onClick={() => moveRound(activeIndex, 1)} disabled={activeIndex === selected.quiz_rounds.length - 1}>DOWN</HostButton>
                   <HostButton onClick={() => duplicateRound(activeRound)}>COPY</HostButton>
                   <HostButton onClick={() => removeRound(activeRound)}>REMOVE</HostButton>
+                  {activeRound.questions.some(q => (q as Record<string, unknown>).question_type === "audio") && (
+                    <a className="fbh-btn" href="/host/music-prep" title="Search, trim and save the actual audio clips for this round's music questions">PREP MUSIC</a>
+                  )}
                 </div>
 
                 {settingsOpen && (

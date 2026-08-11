@@ -345,8 +345,8 @@ export default function SessionPage() {
             <HostBody>
               <HostPad>
                 <div className="fbh-center" style={{ minHeight: 220 }}>
-                  <div className="fbh-stage-title" style={{ fontSize: 17 }}>{preparedEvent ? "Prepare Tonight’s Quiz" : "Prepare A Live Quiz"}</div>
-                  <div style={{ font: "400 13px 'Inter'", color: "#B9A8D9", margin: "8px 0 18px", lineHeight: 1.6, maxWidth: 380 }}>
+                  <div className="fbh-stage-title" style={{ fontSize: 26 }}>{preparedEvent ? "Prepare Tonight’s Quiz" : "Prepare A Live Quiz"}</div>
+                  <div style={{ font: "400 16px 'Inter'", color: "#B9A8D9", margin: "8px 0 18px", lineHeight: 1.6, maxWidth: 420 }}>
                     {preparedEvent ? `${preparedEvent.event_name} · ${preparedEvent.venue?.venue_name || "Venue not assigned"}` : `Your first quiz night is one decision away. Teams join at ${host}/join`}
                   </div>
                   {preparedEvent ? (
@@ -355,7 +355,7 @@ export default function SessionPage() {
                       <div><span>Starts</span><strong>{new Date(`${preparedEvent.event_date}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · {preparedEvent.start_time.slice(0, 5)}</strong></div>
                       <div><span>Quiz Plan</span><strong>{quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "Loading Quiz Plan…"}</strong></div>
                     </div>
-                  ) : <div style={{ width: "100%", maxWidth: 420, marginBottom: 14, textAlign: "left" }}><HostLabel>Quiz Plan</HostLabel><select value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)} className="fbh-input" style={{ width: "100%", minHeight: 48 }}><option value="">Select a prepared Quiz Plan…</option>{quizzes.map(quiz => <option key={quiz.id} value={quiz.id} disabled={!quiz.quiz_rounds.length}>{quiz.name} ({quiz.quiz_rounds.length} rounds)</option>)}</select></div>}
+                  ) : <div style={{ width: "100%", maxWidth: 420, marginBottom: 14, textAlign: "left" }}><div className="fbh-lbl" style={{ fontSize: 14 }}>Quiz Plan</div><select value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)} className="fbh-input" style={{ width: "100%", minHeight: 52, fontSize: 16 }}><option value="">Select a prepared Quiz Plan…</option>{quizzes.map(quiz => <option key={quiz.id} value={quiz.id} disabled={!quiz.quiz_rounds.length}>{quiz.name} ({quiz.quiz_rounds.length} rounds)</option>)}</select></div>}
                   <HostButton variant="pri" big onClick={createSession} disabled={creating || !selectedQuizId}>
                     {creating ? "PREPARING…" : "PREPARE JOIN SCREEN"}
                   </HostButton>
@@ -483,7 +483,7 @@ export default function SessionPage() {
                 </HostButton>
               )}
               {status === "active" && (
-                <HostButton big onClick={endQuiz} style={{ flex: 1 }}>END QUIZ</HostButton>
+                <HostButton big onClick={() => { if (window.confirm("End the quiz for everyone? This closes the live session and cannot be undone.")) endQuiz(); }} style={{ flex: 1 }}>END QUIZ</HostButton>
               )}
             </div>
           </div>

@@ -1526,7 +1526,7 @@ function QuizControllerInner() {
           <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
         </div>}
         {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
-        <Button variant="destructive" className="qi-mc-toolbar__end" onClick={doEndOfQuiz}>End quiz</Button>
+        <Button variant="destructive" className="qi-mc-toolbar__end" onClick={() => { if (window.confirm("End the quiz for everyone? This closes the live session and cannot be undone.")) doEndOfQuiz(); }}>End quiz</Button>
       </div>
 
       {/* DOMINANT NEXT-ACTION BAR — the one thing the host acts on next, huge and

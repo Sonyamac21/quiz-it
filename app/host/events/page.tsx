@@ -127,7 +127,29 @@ export default function EventCalendarPage() {
     {view==="agenda"&&<section>{filtered.length?filtered.map(event=><article key={event.id} className="fbh-panel" style={{display:"grid",gridTemplateColumns:"160px 1fr auto",gap:18,alignItems:"center"}}><div><strong>{formatEventDate(event.event_date)}</strong><div style={{color:"#B9A8D9"}}>{formatEventTime(event.start_time)}</div></div><div><strong>{event.venue?.venue_name||event.event_name}</strong><div style={{color:"#B9A8D9",marginTop:4}}>{event.host_name||"Host"} · {event.quiz?<span>{event.quiz.name}</span>:<span style={{color:"#FFC533",fontWeight:700}}>⚠ No Quiz Plan</span>} · {event.status}</div></div><button className="fbh-btn" onClick={()=>editEvent(event)}>EDIT</button></article>):<div className="fbh-panel">No events match these filters.</div>}</section>}
     {draft&&<div onClick={closeDraft} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:100,display:"flex",justifyContent:"flex-end"}}><aside onClick={e=>e.stopPropagation()} style={{width:"min(520px,94vw)",height:"100%",overflowY:"auto",background:"#0F0525",borderLeft:"1px solid #8A1B8D",padding:24}}><div style={{display:"flex",alignItems:"center",marginBottom:22}}><div><div className="fbh-lbl">{draft.id?"Edit Event":"Schedule Event"}</div><strong style={{fontSize:22}}>{formatEventDate(draft.date)}</strong></div><TopSpacer/><button className="fbh-btn" onClick={closeDraft}>CLOSE</button></div>
       <label className="fbh-lbl">Venue</label><select style={field} value={draft.venueId} onChange={e=>chooseVenue(e.target.value)}><option value="">Choose venue…</option>{venues.map(v=><option key={v.id} value={v.id}>{v.venue_name}</option>)}</select>
-      <div className="qi-bo-event-summary"><div><span>Date and time</span><strong>{formatEventDate(draft.date)} · {draft.start}</strong></div><div><span>Host</span><strong>{draft.hostName||"Inherited from venue"}</strong></div><div><span>Quiz Plan</span><strong style={!draft.quizId?{color:"#FFC533"}:undefined}>{quizzes.find(q=>q.id===draft.quizId)?.name||"Not assigned"}</strong></div></div>
+      {draft.venueId && (() => {
+        const venue = venues.find(v => v.id === draft.venueId);
+        if (!venue) return null;
+        const hasOffers = venue.food_offers || venue.drink_offers || venue.happy_hour;
+        return (
+          <div className="fbh-panel" style={{ margin: "10px 0", padding: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div className="fbh-lbl" style={{ margin: 0 }}>Venue Info</div>
+              <Link href={`/host/venues?id=${venue.id}`} target="_blank" style={{ font: "600 12px 'Inter'", color: "#D94FDC", textDecoration: "underline" }}>Edit venue</Link>
+            </div>
+            {venue.address && <div style={{ color: "#D9CCF2", font: "400 13px 'Inter'", marginBottom: 6 }}>{venue.address}</div>}
+            {hasOffers && (
+              <div style={{ color: "#B9A8D9", font: "400 12px 'Inter'", lineHeight: 1.6 }}>
+                {venue.food_offers && <div>Food: {venue.food_offers}</div>}
+                {venue.drink_offers && <div>Drink: {venue.drink_offers}</div>}
+                {venue.happy_hour && <div>Happy hour: {venue.happy_hour}</div>}
+              </div>
+            )}
+            {!venue.address && !hasOffers && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>No venue details on file yet.</div>}
+          </div>
+        );
+      })()}
+      <div className="qi-bo-event-summary"><div><span>Date and time</span><strong>{formatEventDate(draft.date)} · {draft.start}</strong></div><div><span>Host</span><strong>{draft.hostName||"Inherited from venue"}</strong></div><div><span>Quiz Plan</span><strong style={!draft.quizId?{color:"#FFC533"}:undefined}>{draft.quizId ? (() => { const q = quizzes.find(q => q.id === draft.quizId); return q ? `${q.name} - ${q.quiz_rounds.length} round${q.quiz_rounds.length === 1 ? "" : "s"}` : "Loading…"; })() : "Not assigned"}</strong></div></div>
       {draft.quizId ? <div style={{display:"flex",gap:8,minWidth:0}}><select style={{...field,flex:"1 1 auto",minWidth:0}} value={draft.quizId} onChange={e=>setDraft({...draft,quizId:e.target.value})}><option value="">Not assigned</option>{quizzes.map(q=><option key={q.id} value={q.id}>{q.name}</option>)}</select><Link href="/host/quizzes" target="_blank" className="fbh-btn" style={{whiteSpace:"nowrap",flexShrink:0}}>Manage Quiz Plans</Link></div>
       : draft.id ? <div>
         <button type="button" className="fbh-btn pri" style={{width:"100%"}} aria-expanded={showQuizOptions} aria-haspopup="true" onClick={()=>setShowQuizOptions(v=>!v)}>CREATE / ASSIGN QUIZ</button>

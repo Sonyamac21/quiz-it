@@ -411,6 +411,16 @@ export default function QuizBuilderPage() {
             <div className="fbh-lbl" style={{ margin: 0 }}>Rounds</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <HostButton variant="pri" onClick={() => setAddRoundOpen(v => !v)}>{addRoundOpen ? "CLOSE" : "+ ADD ROUND"}</HostButton>
+              <HostButton
+                onClick={() => setBulkConfig(prev => {
+                  const next = { ...prev };
+                  selected.quiz_rounds.filter(r => GENERATABLE_ROUND_TYPES.has(r.round_type)).forEach(r => {
+                    next[r.id] = { selected: true, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (prev[r.id]?.count ?? (r.questions.length || 10)), theme: prev[r.id]?.theme ?? "", difficulty: prev[r.id]?.difficulty ?? "mixed" };
+                  });
+                  return next;
+                })}
+                disabled={bulkRunning}
+              >SELECT ALL ROUNDS</HostButton>
               <HostButton onClick={runBulkGenerate} disabled={bulkRunning || !selected.quiz_rounds.some(r => (bulkConfig[r.id] ?? { selected: false }).selected)}>
                 {bulkRunning ? "GENERATING..." : "GENERATE ALL SELECTED"}
               </HostButton>
@@ -460,9 +470,13 @@ export default function QuizBuilderPage() {
           return (
             <>
               {/* One tab per round - the whole quiz at a glance, click a tab to work on just that round's questions. */}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-                {selected.quiz_rounds.map((round, index) => (
-                  <button
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                {selected.quiz_rounds.map((round, index) => {
+                  const isRoundGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
+                  const roundCfg = bulkConfig[round.id];
+                  const roundProgress = bulkProgress[round.id];
+                  return (
+                  <div
                     key={round.id}
                     onClick={() => setActiveRoundId(round.id)}
                     style={{
@@ -472,10 +486,18 @@ export default function QuizBuilderPage() {
                       color: "#fff", display: "flex", flexDirection: "column", gap: 2,
                     }}
                   >
+                    {isRoundGeneratable && (
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, font: "600 11px 'Inter'", color: "#B9A8D9" }} onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={roundCfg?.selected ?? false} onChange={e => updateBulkConfig(round.id, { selected: e.target.checked })} />
+                        Include in Generate All
+                      </label>
+                    )}
                     <span style={{ font: "700 13px 'Inter'" }}>{index + 1}. {round.name}</span>
+                    {roundProgress && <span style={{ color: "#2EE06E", font: "600 11px 'Inter'" }}>{roundProgress}</span>}
                     <span style={{ color: "#6B5A8E", font: "400 11px 'Inter'" }}>{round.questions.length} Q - {round.round_type}</span>
-                  </button>
-                ))}
+                  </div>
+                  );
+                })}
               </div>
 
               <div className="fbh-panel" style={{ padding: 16 }}>

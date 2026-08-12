@@ -4,6 +4,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { encodeWavFromBuffer, sliceAudioBuffer } from "@/lib/audio/wavEncoder";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { HostShell, HostButton, HostLoading, HostEmpty, TopSpacer } from "@/components/fable/HostConsole";
+import { generateValidatedRound, loadUsedQuestions } from "@/lib/quiz/generateRound";
 
 const purple = "#BE26C1";
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -56,6 +57,19 @@ type QuestionState = {
   clipEnd: number;
   savedUrl: string | null;
   error: string;
+};
+
+type BankQuestion = {
+  id: string;
+  question_text: string;
+  question_type: string;
+  option_a: string | null;
+  option_b: string | null;
+  option_c: string | null;
+  option_d: string | null;
+  correct_answer: string;
+  difficulty: string;
+  round_type: string;
 };
 
 function fmtTime(t: number) {
@@ -194,6 +208,11 @@ export default function MusicPrepPage() {
   const [questionStates, setQuestionStates] = useState<Record<number, QuestionState>>({});
   const [status, setStatus] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [regeneratingIdx, setRegeneratingIdx] = useState<number | null>(null);
+  const [libraryPickerIdx, setLibraryPickerIdx] = useState<number | null>(null);
+  const [librarySearch, setLibrarySearch] = useState("");
+  const [libraryResults, setLibraryResults] = useState<BankQuestion[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
@@ -264,6 +283,122 @@ export default function MusicPrepPage() {
 
   function setState(qIdx: number, update: Partial<QuestionState>) {
     setQuestionStates(prev => ({ ...prev, [qIdx]: { ...prev[qIdx], ...update } }));
+  }
+
+  // Rebuild question-prep state from scratch for a round's current question
+  // list - used after removing or replacing a question, since array indices
+  // shift and stale per-index state (candidates, trimmed audio, etc.) from
+  // the old slot would otherwise bleed into the new one.
+  function refreshQuestionStates(round: Round, autoSearch: boolean) {
+    const initial: Record<number, QuestionState> = {};
+    round.questions.forEach((q, i) => {
+      if (q.question_type !== "audio") return;
+      const hasSavedClip = q.option_b && q.option_b.includes("blob.vercel-storage.com");
+      initial[i] = {
+        phase: hasSavedClip ? "done" : "idle",
+        candidates: [], selectedCandidate: null,
+        audioBuffer: null, peaks: [], clipStart: 0, clipEnd: 0,
+        savedUrl: hasSavedClip ? q.option_b : null,
+        error: "",
+      };
+    });
+    setQuestionStates(initial);
+    if (autoSearch) {
+      round.questions.forEach((q, i) => {
+        if (q.question_type === "audio" && !(q.option_b && q.option_b.includes("blob.vercel-storage.com"))) {
+          setTimeout(() => searchForQuestion(round, i, q.option_a || q.correct_answer), i * 300);
+        }
+      });
+    }
+  }
+
+  // Write an updated question list back to whichever table this round
+  // actually lives in (standalone Round Library vs. a Quiz Plan's
+  // quiz_rounds) - same split saveClip already relies on.
+  async function writeQuestions(round: Round, questions: Question[]) {
+    const supabase = createSupabaseBrowserClient();
+    const table = round.source === "quiz_plan" ? "quiz_rounds" : "rounds";
+    return supabase.from(table).update({ questions }).eq("id", round.id);
+  }
+
+  async function regenerateQuestion(round: Round, qIdx: number) {
+    setRegeneratingIdx(qIdx);
+    try {
+      const exclusions = await loadUsedQuestions();
+      round.questions.forEach(q => { if (q.question_text) exclusions.used.push(q.question_text); });
+      // Force type "audio" regardless of the containing round's own type -
+      // this slot needs a music question specifically, not whatever mix a
+      // "regular" round would normally generate.
+      const result = await generateValidatedRound({ roundType: "music", difficulty: "mixed", theme: "", count: 1 }, exclusions);
+      if (result.questions.length === 0) {
+        setStatus("Couldn't generate a replacement question: " + result.finalStatus);
+        setTimeout(() => setStatus(""), 4000);
+        return;
+      }
+      const newQuestions = round.questions.map((q, i) => i === qIdx ? (result.questions[0] as unknown as Question) : q) as Question[];
+      const { error } = await writeQuestions(round, newQuestions);
+      if (error) {
+        setStatus("Could not save regenerated question: " + error.message);
+        setTimeout(() => setStatus(""), 4000);
+        return;
+      }
+      const updated = { ...round, questions: newQuestions };
+      setOpenRound(updated);
+      setRounds(prev => prev.map(r => r.id === round.id ? updated : r));
+      refreshQuestionStates(updated, true);
+    } finally {
+      setRegeneratingIdx(null);
+    }
+  }
+
+  async function removeQuestion(round: Round, qIdx: number) {
+    if (!window.confirm("Remove this question from the round?")) return;
+    const newQuestions = round.questions.filter((_, i) => i !== qIdx);
+    const { error } = await writeQuestions(round, newQuestions);
+    if (error) {
+      setStatus("Could not remove question: " + error.message);
+      setTimeout(() => setStatus(""), 4000);
+      return;
+    }
+    const updated = { ...round, questions: newQuestions };
+    setOpenRound(updated);
+    setRounds(prev => prev.map(r => r.id === round.id ? updated : r));
+    refreshQuestionStates(updated, false);
+  }
+
+  async function loadLibraryQuestions(search: string) {
+    setLibraryLoading(true);
+    const supabase = createSupabaseBrowserClient();
+    let query = supabase.from("question_bank").select("*").order("created_at", { ascending: false }).limit(25);
+    if (search.trim()) query = query.ilike("question_text", "%" + search.trim() + "%");
+    const { data } = await query;
+    setLibraryResults((data || []) as BankQuestion[]);
+    setLibraryLoading(false);
+  }
+
+  async function replaceWithLibraryQuestion(round: Round, qIdx: number, bankQ: BankQuestion) {
+    const replacement: Question = {
+      question_text: bankQ.question_text, question_type: bankQ.question_type,
+      option_a: bankQ.option_a, option_b: bankQ.option_b, option_c: bankQ.option_c, option_d: bankQ.option_d,
+      correct_answer: bankQ.correct_answer, difficulty: bankQ.difficulty, round_type: bankQ.round_type,
+    };
+    const newQuestions = round.questions.map((q, i) => i === qIdx ? replacement : q);
+    const { error } = await writeQuestions(round, newQuestions);
+    if (error) {
+      setStatus("Could not swap in library question: " + error.message);
+      setTimeout(() => setStatus(""), 4000);
+      return;
+    }
+    const supabase = createSupabaseBrowserClient();
+    // Consume it from the library once used, same as everywhere else in the
+    // app a library question gets pulled into a round.
+    await supabase.from("question_bank").delete().eq("id", bankQ.id);
+    const updated = { ...round, questions: newQuestions };
+    setOpenRound(updated);
+    setRounds(prev => prev.map(r => r.id === round.id ? updated : r));
+    refreshQuestionStates(updated, true);
+    setLibraryPickerIdx(null);
+    setLibraryResults(prev => prev.filter(q => q.id !== bankQ.id));
   }
 
   async function searchForQuestion(round: Round, qIdx: number, rawQuery: string) {
@@ -403,8 +538,8 @@ export default function MusicPrepPage() {
           return (
             <div key={i} className="fbh-panel" style={{ border: `1px solid ${qs.phase === "done" ? "rgba(46,224,110,0.4)" : "#2E1A52"}` }}>
               {/* Question header */}
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
-                <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 220 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <span className="fbh-chip on">Name That Tune {n + 1}</span>
                     {qs.phase === "done" && <span style={{ color: "#2EE06E", font: "700 12px 'Inter'" }}>✓ Ready</span>}
@@ -412,7 +547,43 @@ export default function MusicPrepPage() {
                   <p style={{ font: "600 15px 'Inter'", margin: "0 0 4px", lineHeight: 1.5 }}>{q.question_text}</p>
                   <p style={{ font: "600 13px 'Inter'", color: "#2EE06E", margin: 0 }}>Answer: {q.correct_answer}</p>
                 </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <HostButton
+                    onClick={() => regenerateQuestion(openRound, i)}
+                    disabled={regeneratingIdx === i}
+                    title="Can't find the right version to use? Get a fresh music question here instead."
+                    style={{ height: 30, padding: "0 10px", fontSize: 11 }}
+                  >{regeneratingIdx === i ? "REGENERATING..." : "REGENERATE"}</HostButton>
+                  <HostButton
+                    onClick={() => { setLibraryPickerIdx(idx => { const next = idx === i ? null : i; if (next !== null) { setLibrarySearch(""); loadLibraryQuestions(""); } return next; }); }}
+                    title="Swap this slot for any question already saved in the Question Library"
+                    style={{ height: 30, padding: "0 10px", fontSize: 11 }}
+                  >{libraryPickerIdx === i ? "CLOSE" : "FROM LIBRARY"}</HostButton>
+                  <HostButton onClick={() => removeQuestion(openRound, i)} style={{ height: 30, padding: "0 10px", fontSize: 11 }}>REMOVE</HostButton>
+                </div>
               </div>
+
+              {libraryPickerIdx === i && (
+                <div style={{ display: "grid", gap: 8, padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
+                  <input
+                    value={librarySearch}
+                    onChange={e => { setLibrarySearch(e.target.value); loadLibraryQuestions(e.target.value); }}
+                    placeholder="Search the Question Library (any type)…"
+                    className="fbh-input"
+                    style={{ width: "100%" }}
+                  />
+                  {libraryLoading && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>Searching…</div>}
+                  {!libraryLoading && libraryResults.length === 0 && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>No matching questions in the library.</div>}
+                  <div style={{ display: "grid", gap: 6, maxHeight: 260, overflowY: "auto" }}>
+                    {libraryResults.map(bq => (
+                      <div key={bq.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52" }}>
+                        <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2" }}>{bq.question_text} <span style={{ color: "#2EE06E" }}>{"-> " + bq.correct_answer}</span> <span style={{ color: "#6B5A8E" }}>{"(" + bq.question_type + ")"}</span></div>
+                        <HostButton onClick={() => replaceWithLibraryQuestion(openRound, i, bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12, flexShrink: 0 }}>USE</HostButton>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Phase: searching */}
               {(qs.phase === "idle" || qs.phase === "searching") && (

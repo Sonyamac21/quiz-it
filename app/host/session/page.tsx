@@ -1,9 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import Image from "next/image";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HostShell, HostButton, HostInput, HostLabel, HostFrame, HostBody, HostPad, HostCrest, HostLoading, TopSpacer, Pill } from "@/components/fable/HostConsole";
-import { ImageUploader } from "@/components/ImageUploader";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
@@ -37,12 +35,12 @@ export default function SessionPage() {
   const [showRecent, setShowRecent] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [restoringHost, setRestoringHost] = useState(true);
-  const [intermissionOffers, setIntermissionOffers] = useState("");
-  const [intermissionPhotos, setIntermissionPhotos] = useState<string[]>([]);
-  const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
-  const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
-  const [savingIntermission, setSavingIntermission] = useState(false);
-  const [intermissionOpen, setIntermissionOpen] = useState(false);
+  // Explicit venue picker for sessions started directly from this page
+  // (no Calendar event) - previously the venue was silently guessed from
+  // today's day-of-week with no way to see or override that guess, so the
+  // display screen could show the wrong venue's branding entirely.
+  const [venues, setVenues] = useState<{ id: string; venue_name: string; day_of_week: number }[]>([]);
+  const [selectedVenueId, setSelectedVenueId] = useState("");
   const [venueName, setVenueName] = useState("");
   const [venueLogoUrl, setVenueLogoUrl] = useState<string | null>(null);
   const [quizzes, setQuizzes] = useState<QuizOption[]>([]);
@@ -51,8 +49,28 @@ export default function SessionPage() {
   const [createError, setCreateError] = useState("");
   const [preparedEvent, setPreparedEvent] = useState<PreparedEvent | null>(null);
 
+  // If a Quiz Plan's name matches a venue's name (e.g. a "The Club" quiz
+  // plan and a "The Club" venue), auto-select that venue - a host picking
+  // venue-named content reasonably expects that venue to show on the
+  // display, not whatever today's day-of-week happened to default to.
+  // Still fully overridable via the Venue dropdown itself.
+  useEffect(() => {
+    if (preparedEvent || !selectedQuizId || !quizzes.length || !venues.length) return;
+    const quizName = quizzes.find(q => q.id === selectedQuizId)?.name?.trim().toLowerCase();
+    if (!quizName) return;
+    const match = venues.find(v => v.venue_name.trim().toLowerCase() === quizName || quizName.startsWith(v.venue_name.trim().toLowerCase()));
+    if (match) setSelectedVenueId(match.id);
+  }, [selectedQuizId, quizzes, venues, preparedEvent]);
+
   useEffect(() => {
     createSupabaseBrowserClient().from("quizzes").select("id,name,quiz_rounds(id)").eq("archived", false).order("updated_at", { ascending: false }).then(({ data }) => setQuizzes((data ?? []) as QuizOption[]));
+    createSupabaseBrowserClient().from("venues").select("id,venue_name,day_of_week").order("venue_name").then(({ data }) => {
+      const list = (data ?? []) as { id: string; venue_name: string; day_of_week: number }[];
+      setVenues(list);
+      const today = new Date().getDay();
+      const todaysVenue = list.find(v => v.day_of_week === today);
+      if (todaysVenue) setSelectedVenueId(todaysVenue.id);
+    });
   }, []);
 
   useEffect(() => {
@@ -91,10 +109,6 @@ export default function SessionPage() {
           setPin(parsed.pin);
           setSessionId(parsed.sessionId);
           setStatus(data.status);
-          setIntermissionOffers(data.intermission_offers || "");
-          setIntermissionWhatsapp(data.intermission_whatsapp || "");
-          setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
-          setIntermissionPhotos(data.intermission_photos || []);
           setVenueName(data.venue_name || "");
           setVenueLogoUrl(data.venue_logo_url || null);
           setSelectedQuizId(data.quiz_id || "");
@@ -142,8 +156,11 @@ export default function SessionPage() {
     setCreateError("");
     const newPin = generatePin();
     const supabase = createSupabaseBrowserClient();
-    const today = new Date().getDay();
-    const { data: venueData } = preparedEvent ? { data: preparedEvent.venue } : await supabase.from("venues").select("*").eq("day_of_week", today).maybeSingle();
+    const { data: venueData } = preparedEvent
+      ? { data: preparedEvent.venue }
+      : selectedVenueId
+        ? await supabase.from("venues").select("*").eq("id", selectedVenueId).maybeSingle()
+        : { data: null };
     const quizName = quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "";
     const inheritedOffers = preparedEvent?.special_offers || [preparedEvent?.venue?.food_offers, preparedEvent?.venue?.drink_offers, preparedEvent?.venue?.happy_hour].filter(Boolean).join("\n");
     // Auto-built from the host's own Calendar - the next few scheduled
@@ -204,10 +221,6 @@ export default function SessionPage() {
       localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify({ pin: newPin, sessionId: data.id, savedAt: Date.now() }));
       setTeams([]);
       setStatus("waiting");
-      setIntermissionOffers(data.intermission_offers || "");
-      setIntermissionWhatsapp(data.intermission_whatsapp || "");
-      setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
-      setIntermissionPhotos(data.intermission_photos || []);
       setVenueName(data.venue_name || "");
       setVenueLogoUrl(data.venue_logo_url || null);
       setSessionQuizName(quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "");
@@ -216,20 +229,6 @@ export default function SessionPage() {
     setCreating(false);
   }
 
-  async function saveIntermission() {
-    if (!sessionId) return;
-    setSavingIntermission(true);
-    const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({
-      intermission_offers: intermissionOffers,
-      intermission_photos: intermissionPhotos,
-      intermission_whatsapp: intermissionWhatsapp,
-      intermission_other_quizzes: intermissionOtherQuizzes,
-      venue_name: venueName,
-      venue_logo_url: venueLogoUrl,
-    }).eq("id", sessionId);
-    setSavingIntermission(false);
-  }
   async function startQuiz() {
     if (!sessionId || !pin) return;
     const supabase = createSupabaseBrowserClient();
@@ -275,9 +274,6 @@ export default function SessionPage() {
     setSessionId(data.id);
     localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify({ pin: data.pin, sessionId: data.id, savedAt: Date.now() }));
     setStatus(data.status);
-    setIntermissionOffers(data.intermission_offers || "");
-    setIntermissionWhatsapp(data.intermission_whatsapp || "");
-    setIntermissionOtherQuizzes(data.intermission_other_quizzes || "");
     setVenueName(data.venue_name || "");
     setVenueLogoUrl(data.venue_logo_url || null);
     setSelectedQuizId(data.quiz_id || "");
@@ -355,7 +351,15 @@ export default function SessionPage() {
                       <div><span>Starts</span><strong>{new Date(`${preparedEvent.event_date}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · {preparedEvent.start_time.slice(0, 5)}</strong></div>
                       <div><span>Quiz Plan</span><strong>{quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "Loading Quiz Plan…"}</strong></div>
                     </div>
-                  ) : <div style={{ width: "100%", maxWidth: 420, marginBottom: 14, textAlign: "left" }}><div className="fbh-lbl" style={{ fontSize: 14 }}>Quiz Plan</div><select value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)} className="fbh-input" style={{ width: "100%", minHeight: 52, fontSize: 16 }}><option value="">Select a prepared Quiz Plan…</option>{quizzes.map(quiz => <option key={quiz.id} value={quiz.id} disabled={!quiz.quiz_rounds.length}>{quiz.name} ({quiz.quiz_rounds.length} rounds)</option>)}</select></div>}
+                  ) : <div style={{ width: "100%", maxWidth: 420, marginBottom: 14, textAlign: "left" }}>
+                      <div className="fbh-lbl" style={{ fontSize: 14 }}>Venue</div>
+                      <select value={selectedVenueId} onChange={e => setSelectedVenueId(e.target.value)} className="fbh-input" style={{ width: "100%", minHeight: 52, fontSize: 16, marginBottom: 14 }}>
+                        <option value="">No venue - display screen will show generic branding only</option>
+                        {venues.map(v => <option key={v.id} value={v.id}>{v.venue_name}</option>)}
+                      </select>
+                      <div className="fbh-lbl" style={{ fontSize: 14 }}>Quiz Plan</div>
+                      <select value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)} className="fbh-input" style={{ width: "100%", minHeight: 52, fontSize: 16 }}><option value="">Select a prepared Quiz Plan…</option>{quizzes.map(quiz => <option key={quiz.id} value={quiz.id} disabled={!quiz.quiz_rounds.length}>{quiz.name} ({quiz.quiz_rounds.length} rounds)</option>)}</select>
+                    </div>}
                   <HostButton variant="pri" big onClick={createSession} disabled={creating || !selectedQuizId}>
                     {creating ? "PREPARING…" : "PREPARE JOIN SCREEN"}
                   </HostButton>
@@ -419,40 +423,6 @@ export default function SessionPage() {
                 <Pill live={status === "active"}>{status.toUpperCase()}</Pill>
               </div>
               {sessionQuizName && <div style={{ marginTop: 10, color: "#B9A8D9", font: "600 13px 'Inter'" }}>{sessionQuizName}</div>}
-            </div>
-
-            {/* INTERMISSION PANEL (collapsible) */}
-            <div className="fbh-panel">
-              <div onClick={() => setIntermissionOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-                <h4 style={{ font: "800 13.5px 'Inter'", margin: 0 }}>Intermission Screen</h4>
-                <span style={{ font: "600 12px 'Inter'", color: "#D94FDC" }}>{intermissionOpen ? "Hide ▴" : "Edit ▾"}</span>
-              </div>
-              {intermissionOpen && (
-                <>
-                  <div style={{ font: "400 12px 'Inter'", color: "#B9A8D9", margin: "12px 0" }}>Shown automatically between rounds on the display and player phones.</div>
-                  <textarea value={intermissionOffers} onChange={e => setIntermissionOffers(e.target.value)} placeholder="Venue offers…" rows={2} style={textareaStyle} />
-                  <input value={intermissionWhatsapp} onChange={e => setIntermissionWhatsapp(e.target.value)} placeholder="WhatsApp number or link" style={{ ...textareaStyle, resize: undefined }} />
-                  <textarea value={intermissionOtherQuizzes} onChange={e => setIntermissionOtherQuizzes(e.target.value)} placeholder="Other quiz nights…" rows={2} style={textareaStyle} />
-                  <HostLabel>Intermission photos</HostLabel>
-                  <div style={{ font: "400 11px 'Inter'", color: "#6B5A8E", marginBottom: 10 }}>Uploaded here rather than on the venue profile - these are specific to tonight&apos;s session and cycle on the display and phones during breaks.</div>
-                  <ImageUploader currentUrl={null} onUploaded={url => setIntermissionPhotos(prev => [...prev, url])} />
-                  {intermissionPhotos.length > 0 && (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 8, margin: "12px 0" }}>
-                      {intermissionPhotos.map(url => (
-                        <div key={url} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", border: "1px solid #2E1A52" }}>
-                          <Image unoptimized fill sizes="90px" src={url} alt="Intermission" style={{ objectFit: "cover" }} />
-                          <button
-                            onClick={() => setIntermissionPhotos(prev => prev.filter(item => item !== url))}
-                            aria-label="Remove intermission photo"
-                            style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, background: "rgba(5,2,10,0.8)", border: "1px solid #ff3b4e", color: "#ff8290", fontSize: 13, lineHeight: 1, cursor: "pointer" }}
-                          >×</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <HostButton variant="pri" onClick={saveIntermission} disabled={savingIntermission}>{savingIntermission ? "SAVING…" : "SAVE INTERMISSION CONTENT"}</HostButton>
-                </>
-              )}
             </div>
 
             {/* TEAMS PANEL */}

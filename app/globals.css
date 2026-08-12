@@ -1182,7 +1182,7 @@ button, input, select, textarea { font: inherit; }
 .qi-display-connect-error { color: #ff8290; }
 
 /* Lobby / join */
-.qi-display-lobby .lb-split { grid-template-columns: minmax(0, 1.18fr) minmax(360px, .82fr); }
+.qi-display-lobby .lb-split { grid-template-columns: minmax(340px, .25fr) minmax(0, .75fr); }
 .qi-display-lobby .lb-join { padding: 5vh 5vw 8vh; }
 .qi-display-lobby .lb-kicker { font-size: clamp(16px, 1.6vw, 28px); color: #d94fdc; letter-spacing: .26em; }
 .qi-display-lobby .lb-pin { font-size: clamp(88px, 12vw, 190px); line-height: .86; letter-spacing: .06em; text-shadow: 0 0 48px rgba(217,79,220,.28); }

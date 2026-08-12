@@ -1,0 +1,53 @@
+diff --git a/app/host/display/page.tsx b/app/host/display/page.tsx
+index a7b799c..6ca3f46 100644
+--- a/app/host/display/page.tsx
++++ b/app/host/display/page.tsx
+@@ -301,23 +301,6 @@ function DisplayScreenInner() {
+     const interval = window.setInterval(loadApprovedPhotos, 5000);
+     return () => { cancelled = true; window.clearInterval(interval); };
+   }, [phase, sessionPin]);
+-  const reelScenes = ["venue", "cards", ...(approvedCustomerPhotos.length > 0 ? ["photos"] : [])];
+-  useEffect(() => {
+-    if (phase !== "waiting") return;
+-    const id = window.setInterval(() => {
+-      setReelSceneIdx(i => (i + 1) % reelScenes.length);
+-    }, 7000);
+-    return () => window.clearInterval(id);
+-  }, [phase, reelScenes.length]);
+-  useEffect(() => {
+-    if (approvedCustomerPhotos.length === 0) return;
+-    const id = window.setInterval(() => {
+-      setFloatingPhotoIdx(i => (i + 1) % approvedCustomerPhotos.length);
+-    }, 4000);
+-    return () => window.clearInterval(id);
+-  }, [approvedCustomerPhotos.length]);
+-  const currentReelScene = reelScenes[reelSceneIdx % reelScenes.length];
+-
+   // THE PURSUIT — display-side mirror of pursuit_status + the pursuit_data race.
+   const [pursuitStatus, setPursuitStatus] = useState<PursuitPhase>("idle");
+   const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
+@@ -406,6 +389,24 @@ function DisplayScreenInner() {
+   // yet, so the reel never sits on an empty scene.
+   const [reelSceneIdx, setReelSceneIdx] = useState(0);
+   const [floatingPhotoIdx, setFloatingPhotoIdx] = useState(0);
++
++  const reelScenes = ["venue", "cards", ...(approvedCustomerPhotos.length > 0 ? ["photos"] : [])];
++  useEffect(() => {
++    if (phase !== "waiting") return;
++    const id = window.setInterval(() => {
++      setReelSceneIdx(i => (i + 1) % reelScenes.length);
++    }, 7000);
++    return () => window.clearInterval(id);
++  }, [phase, reelScenes.length]);
++  useEffect(() => {
++    if (approvedCustomerPhotos.length === 0) return;
++    const id = window.setInterval(() => {
++      setFloatingPhotoIdx(i => (i + 1) % approvedCustomerPhotos.length);
++    }, 4000);
++    return () => window.clearInterval(id);
++  }, [approvedCustomerPhotos.length]);
++  const currentReelScene = reelScenes[reelSceneIdx % reelScenes.length];
++
+   // Host-approved customer photos (session_photos.approved = true). Unlike
+   // the venue photos above, approvals can land at any moment mid-show, so
+   // this polls its own session_photos query rather than riding the session

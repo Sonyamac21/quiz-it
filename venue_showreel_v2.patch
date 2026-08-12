@@ -1,0 +1,548 @@
+diff --git a/app/api/upload-video/route.ts b/app/api/upload-video/route.ts
+new file mode 100644
+index 0000000..ed214ef
+--- /dev/null
++++ b/app/api/upload-video/route.ts
+@@ -0,0 +1,51 @@
++import { NextRequest, NextResponse } from "next/server";
++import { put } from "@vercel/blob";
++
++export const runtime = "nodejs";
++
++// Venue hero videos are short branded loops (logo/schedule reveal), not
++// full-length content, so this cap is generous for that use case without
++// letting someone accidentally upload a full-length recording.
++const MAX_UPLOAD_BYTES = 40 * 1024 * 1024;
++const ACCEPTED_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
++
++export async function POST(req: NextRequest) {
++  try {
++    if (!process.env.BLOB_READ_WRITE_TOKEN) {
++      return NextResponse.json(
++        { error: { message: "Video storage isn't configured yet - BLOB_READ_WRITE_TOKEN is missing." } },
++        { status: 500 }
++      );
++    }
++
++    const formData = await req.formData();
++    const file = formData.get("file");
++    if (!file || !(file instanceof Blob)) {
++      return NextResponse.json({ error: { message: "No file provided" } }, { status: 400 });
++    }
++    if (file.size > MAX_UPLOAD_BYTES) {
++      return NextResponse.json({ error: { message: "Video too large - max 40MB. Keep hero videos short (under ~15s)." } }, { status: 400 });
++    }
++    const contentType = ACCEPTED_TYPES.includes(file.type) ? file.type : "video/mp4";
++    const ext = contentType === "video/webm" ? "webm" : contentType === "video/quicktime" ? "mov" : "mp4";
++
++    const buffer = Buffer.from(await file.arrayBuffer());
++    const fileName = "venue-video/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + ext;
++    const blob = await put(fileName, buffer, {
++      access: "private",
++      contentType,
++    });
++
++    return NextResponse.json({
++      url: blob.url,
++      fileName,
++      fileSize: buffer.length,
++    });
++  } catch (e) {
++    console.error("Video upload failed:", e);
++    return NextResponse.json(
++      { error: { message: e instanceof Error ? e.message : "Video upload failed" } },
++      { status: 500 }
++    );
++  }
++}
+diff --git a/app/globals.css b/app/globals.css
+index 8951403..12e612a 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -611,6 +611,35 @@ button, input, select, textarea { font: inherit; }
+ .fbl .lb-dot.on{background:var(--purple-b);box-shadow:0 0 12px rgba(217,79,220,.6);}
+ @keyframes lbCardIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+ @media (prefers-reduced-motion: reduce){.fbl .lb-pcard{animation:none;}.fbl .lb-dot{transition:none;}}
++/* Pre-show reel: venue video/hero image, power cards, and floating team
++   photos rotate through the same stage. Each scene fades in on mount. */
++.fbl .lb-reel{position:relative;}
++.fbl .lb-reel-title{position:absolute;top:4%;left:50%;transform:translateX(-50%);font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:clamp(14px,1.6vw,22px);letter-spacing:.18em;color:var(--purple-b);text-align:center;white-space:nowrap;}
++.fbl .lb-reel-scene{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3%;animation:lbCardIn .6s var(--settle);}
++.fbl .lb-reel-venue{width:100%;height:100%;}
++.fbl .lb-reel-media{width:88%;height:80%;object-fit:cover;border-radius:20px;border:2px solid var(--purple);box-shadow:0 0 60px rgba(190,38,193,.25);}
++.fbl .lb-reel-fallback{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;padding:0 8%;}
++.fbl .lb-reel-photos{position:relative;width:100%;height:100%;}
++.fbl .lb-float-photo{position:absolute;left:50%;width:min(34%,260px);background:#fff;padding:10px 10px 34px;border-radius:6px;box-shadow:0 20px 40px rgba(0,0,0,.45);transform:translate(-50%,110%) rotate(-3deg);opacity:0;animation:lbFloatPhoto 9s ease-in-out infinite;}
++.fbl .lb-float-photo img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:2px;}
++.fbl .lb-float-photo-0{top:8%;transform:translate(-70%,110%) rotate(-4deg);}
++.fbl .lb-float-photo-1{top:32%;transform:translate(-30%,110%) rotate(3deg);}
++.fbl .lb-float-photo-2{top:56%;transform:translate(-50%,110%) rotate(-2deg);}
++@keyframes lbFloatPhoto{
++  0%{opacity:0;transform:translate(-50%,110%) rotate(-3deg);}
++  12%{opacity:1;transform:translate(-50%,0%) rotate(-2deg);}
++  70%{opacity:1;transform:translate(-50%,0%) rotate(-2deg);}
++  88%{opacity:0;transform:translate(-50%,-110%) rotate(2deg);}
++  100%{opacity:0;transform:translate(-50%,-110%) rotate(2deg);}
++}
++@media (prefers-reduced-motion: reduce){.fbl .lb-reel-scene{animation:none;}.fbl .lb-float-photo{animation:none;opacity:1;transform:translate(-50%,0);}}
++/* Small circular host avatar in the corner branding badge. Falls back to
++   initials since no photo asset is wired in yet - swap in a real image URL
++   here (background-image) once one is uploaded. */
++.fbl .badge{display:inline-flex;align-items:center;gap:.6em;padding:.35em .8em .35em .35em;border-radius:999px;background:rgba(10,1,24,.55);border:1px solid rgba(217,79,220,.25);backdrop-filter:blur(6px);}
++.fbl .badge-avatar{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:2.1em;height:2.1em;border-radius:50%;background:linear-gradient(160deg,var(--purple-b),var(--purple));color:#fff;font:700 .75em 'Inter';letter-spacing:0;box-shadow:0 0 0 2px rgba(255,255,255,.15),0 2px 10px rgba(190,38,193,.5);overflow:hidden;}
++.fbl .badge-avatar img{width:100%;height:100%;object-fit:cover;object-position:top center;}
++.fbl .badge-text{white-space:nowrap;}
+ /* Large, room-readable countdown + final-5s urgent glow (steady intensity ramp,
+    no rapid flashing; reduced-motion disables the smoothing transition). */
+ .fbl .qd-bigtimer{position:absolute;top:2.6%;right:4%;font:800 clamp(56px,7.5vw,150px)/1 'Inter';font-variant-numeric:tabular-nums;color:var(--text);text-shadow:0 0 34px rgba(190,38,193,.5);z-index:5;letter-spacing:.02em;}
+diff --git a/app/host/display/page.tsx b/app/host/display/page.tsx
+index fc38da2..52c5c14 100644
+--- a/app/host/display/page.tsx
++++ b/app/host/display/page.tsx
+@@ -31,6 +31,26 @@ type Question = {
+ type Score = { team_name: string; total_points: number; };
+ type Phase = "waiting" | "round_start" | "question" | "hot_seat" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission" | "spin_to_win" | "pursuit";
+ 
++// Set this once a real cutout photo is available (upload it via the Media
++// tab pattern, or drop a hosted URL here directly) - every screen's badge
++// picks it up automatically, no further changes needed anywhere else.
++const HOST_AVATAR_URL: string | null = null;
++
++// Corner branding badge shown on every display screen. Centralised so the
++// design (and the eventual real photo) only has to be changed in one place
++// instead of the 7 identical copies that used to be scattered through this
++// file.
++function QuizItBadge() {
++  return (
++    <div className="badge">
++      <span className="badge-avatar" aria-hidden="true">
++        {HOST_AVATAR_URL ? <img src={HOST_AVATAR_URL} alt="" /> : "SM"}
++      </span>
++      <span className="badge-text">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</span>
++    </div>
++  );
++}
++
+ // Real, automatic audio playback for "audio" question types - this replaces
+ // what used to be the host manually alt-tabbing to YouTube on their own laptop.
+ // Preloads immediately on mount (the clip is a short, lightweight file on a
+@@ -269,7 +289,7 @@ function DisplayScreenInner() {
+   // screen - approvals can land at any moment, so this can't be a one-shot
+   // fetch, but there's no need to keep querying it during live gameplay.
+   useEffect(() => {
+-    if (phase !== "intermission" || !sessionPin) { setApprovedCustomerPhotos([]); return; }
++    if ((phase !== "intermission" && phase !== "waiting") || !sessionPin) { setApprovedCustomerPhotos([]); return; }
+     let cancelled = false;
+     const supabase = createSupabaseBrowserClient();
+     async function loadApprovedPhotos() {
+@@ -280,6 +300,23 @@ function DisplayScreenInner() {
+     const interval = window.setInterval(loadApprovedPhotos, 5000);
+     return () => { cancelled = true; window.clearInterval(interval); };
+   }, [phase, sessionPin]);
++  const reelScenes = ["venue", "cards", ...(approvedCustomerPhotos.length > 0 ? ["photos"] : [])];
++  useEffect(() => {
++    if (phase !== "waiting") return;
++    const id = window.setInterval(() => {
++      setReelSceneIdx(i => (i + 1) % reelScenes.length);
++    }, 7000);
++    return () => window.clearInterval(id);
++  }, [phase, reelScenes.length]);
++  useEffect(() => {
++    if (approvedCustomerPhotos.length === 0) return;
++    const id = window.setInterval(() => {
++      setFloatingPhotoIdx(i => (i + 1) % approvedCustomerPhotos.length);
++    }, 4000);
++    return () => window.clearInterval(id);
++  }, [approvedCustomerPhotos.length]);
++  const currentReelScene = reelScenes[reelSceneIdx % reelScenes.length];
++
+   // THE PURSUIT — display-side mirror of pursuit_status + the pursuit_data race.
+   const [pursuitStatus, setPursuitStatus] = useState<PursuitPhase>("idle");
+   const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
+@@ -360,6 +397,14 @@ function DisplayScreenInner() {
+   // intermission fields.
+   const [intermissionVenuePhotos, setIntermissionVenuePhotos] = useState<string[]>([]);
+   const [venueName, setVenueName] = useState<string | null>(null);
++  const [venueHeroImageUrl, setVenueHeroImageUrl] = useState<string | null>(null);
++  const [venueHeroVideoUrl, setVenueHeroVideoUrl] = useState<string | null>(null);
++  // Which scene of the pre-show reel is on screen: the venue's branded
++  // video/image, the power card explainer, or floating team photos. Cycles
++  // automatically; "photos" is skipped entirely when nobody's uploaded one
++  // yet, so the reel never sits on an empty scene.
++  const [reelSceneIdx, setReelSceneIdx] = useState(0);
++  const [floatingPhotoIdx, setFloatingPhotoIdx] = useState(0);
+   // Host-approved customer photos (session_photos.approved = true). Unlike
+   // the venue photos above, approvals can land at any moment mid-show, so
+   // this polls its own session_photos query rather than riding the session
+@@ -482,6 +527,9 @@ function DisplayScreenInner() {
+     setRoundName((data.round_name as string) || "");
+     setRoundNumber((data.round_number as number) || 1);
+     setVenueName((data.venue_name as string) || null);
++    const snapshotVenue = (data.event_snapshot as { venue?: { hero_image_url?: string | null; hero_video_url?: string | null } } | null)?.venue;
++    setVenueHeroImageUrl(snapshotVenue?.hero_image_url || null);
++    setVenueHeroVideoUrl(snapshotVenue?.hero_video_url || null);
+     setHideLeaderboard(!!data.hide_leaderboard);
+     setAllowPowerCards(data.allow_power_cards !== false);
+     const hotSeat = readHotSeatState(data);
+@@ -951,7 +999,7 @@ function DisplayScreenInner() {
+             </>
+           )}
+         </div>
+-        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
++        <QuizItBadge />
+       </div>
+     );
+   }
+@@ -1013,40 +1061,75 @@ function DisplayScreenInner() {
+               ))}
+             </div>
+           </div>
+-          <div className="lb-cardstage">
+-            {!allowPowerCards ? (
+-              <>
+-                <div className="lb-cardkicker">ROUND RULE</div>
+-                <div className="lb-pcard">
+-                  <div className="lb-pcard-sigil" aria-hidden="true">◇</div>
+-                  <div className="lb-pcard-name">POWER CARDS PAUSED</div>
+-                  <div className="lb-pcard-rule">Unused cards stay available for a later round.</div>
+-                </div>
+-              </>
+-            ) : <>
+-            <div className="lb-cardkicker">POWER CARDS</div>
+-            {(() => {
+-              const c = POWER_CARD_INFO[powerCardIdx];
+-              return (
+-                <div key={powerCardIdx} className="lb-pcard" style={{ borderColor: c.color, boxShadow: `0 0 60px ${c.glow}` }}>
+-                  <div className="lb-pcard-sigil" style={{ color: c.color, textShadow: `0 0 34px ${c.glow}` }}>{c.sigil}</div>
+-                  <div className="lb-pcard-name" style={{ color: c.color }}>{c.name}</div>
+-                  <div className="lb-pcard-rule">{c.rule}</div>
+-                  <div className="lb-pcard-meta">Once per quiz</div>
++          <div className="lb-cardstage lb-reel">
++            <div className="lb-reel-title">{venueName ? `TONIGHT AT ${venueName.toUpperCase()}` : "TONIGHT'S SHOW"}</div>
++
++            {currentReelScene === "venue" && (
++              <div className="lb-reel-scene lb-reel-venue">
++                {venueHeroVideoUrl ? (
++                  <video key={venueHeroVideoUrl} className="lb-reel-media" src={venueHeroVideoUrl} autoPlay muted loop playsInline />
++                ) : venueHeroImageUrl ? (
++                  <img className="lb-reel-media" src={venueHeroImageUrl} alt={venueName || "Venue"} />
++                ) : (
++                  <div className="lb-reel-fallback">
++                    <div className="lb-cardkicker">{venueName ? venueName.toUpperCase() : "QUIZ NIGHT"}</div>
++                    <div className="lb-tease">Add a Hero Video or Hero Image on this venue's Media tab to brand this screen.</div>
++                  </div>
++                )}
++              </div>
++            )}
++
++            {currentReelScene === "cards" && (
++              <div className="lb-reel-scene">
++                {!allowPowerCards ? (
++                  <>
++                    <div className="lb-cardkicker">ROUND RULE</div>
++                    <div className="lb-pcard">
++                      <div className="lb-pcard-sigil" aria-hidden="true">◇</div>
++                      <div className="lb-pcard-name">POWER CARDS PAUSED</div>
++                      <div className="lb-pcard-rule">Unused cards stay available for a later round.</div>
++                    </div>
++                  </>
++                ) : <>
++                <div className="lb-cardkicker">POWER CARDS</div>
++                {(() => {
++                  const c = POWER_CARD_INFO[powerCardIdx];
++                  return (
++                    <div key={powerCardIdx} className="lb-pcard" style={{ borderColor: c.color, boxShadow: `0 0 60px ${c.glow}` }}>
++                      <div className="lb-pcard-sigil" style={{ color: c.color, textShadow: `0 0 34px ${c.glow}` }}>{c.sigil}</div>
++                      <div className="lb-pcard-name" style={{ color: c.color }}>{c.name}</div>
++                      <div className="lb-pcard-rule">{c.rule}</div>
++                      <div className="lb-pcard-meta">Once per quiz</div>
++                    </div>
++                  );
++                })()}
++                <div className="lb-dots">
++                  {POWER_CARD_INFO.map((_, i) => <span key={i} className={"lb-dot" + (i === powerCardIdx ? " on" : "")} />)}
+                 </div>
+-              );
+-            })()}
+-            <div className="lb-dots">
+-              {POWER_CARD_INFO.map((_, i) => <span key={i} className={"lb-dot" + (i === powerCardIdx ? " on" : "")} />)}
+-            </div>
+-            </>}
++                </>}
++              </div>
++            )}
++
++            {currentReelScene === "photos" && approvedCustomerPhotos.length > 0 && (
++              <div className="lb-reel-scene lb-reel-photos">
++                {[0, 1, 2].map(slot => {
++                  const photo = approvedCustomerPhotos[(floatingPhotoIdx + slot) % approvedCustomerPhotos.length];
++                  if (!photo) return null;
++                  return (
++                    <div key={slot} className={`lb-float-photo lb-float-photo-${slot}`} style={{ animationDelay: `${slot * 1.3}s` }}>
++                      <img src={photo} alt="Team photo" />
++                    </div>
++                  );
++                })}
++              </div>
++            )}
+           </div>
+           <div className="lb-foot">
+             <div className="lb-start">SHOW STARTS SOON</div>
+             <div className="lb-tease">TONIGHT: SPIN TO WIN · THE HARD DECK · THE PURSUIT</div>
+           </div>
+         </div>
+-        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
++        <QuizItBadge />
+       </div>
+     );
+   }
+@@ -1119,7 +1202,7 @@ function DisplayScreenInner() {
+         <div className="qi-display-spin-machine">
+           <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeam || "Team"} victorySong={fastestSong || undefined} size="full" audioEnabled={true} />
+         </div>
+-        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
++        <QuizItBadge />
+       </div>
+     );
+   }
+@@ -1154,7 +1237,7 @@ function DisplayScreenInner() {
+             <div className="ld-foot">TOP {Math.min(3, sorted.length)} SEPARATED BY {topGap.toLocaleString()} POINTS</div>
+           )}
+         </div>
+-        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
++        <QuizItBadge />
+       </div>
+     );
+   }
+@@ -1193,7 +1276,7 @@ function DisplayScreenInner() {
+             <div className="wc-meta tnum">{(winner?.total_points ?? 0).toLocaleString()} POINTS</div>
+             <div className="wc-photo">📸 GET UP HERE — YOUR PHOTO&rsquo;S WAITING</div>
+           </div>
+-          <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
++          <QuizItBadge />
+         </div>
+       );
+     }
+@@ -1359,7 +1442,7 @@ function DisplayScreenInner() {
+         ) : (
+           <div className="qi-display-hot-seat__call"><strong>NO TEAMS REMAINING</strong><small>Eyes on the host</small></div>
+         )}
+-        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
++        <QuizItBadge />
+       </div>
+     );
+   }
+@@ -1476,7 +1559,7 @@ function DisplayScreenInner() {
+             </div>
+           </div>
+         </div>
+-        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
++        <QuizItBadge />
+       </div>
+     );
+   }
+diff --git a/app/host/session/page.tsx b/app/host/session/page.tsx
+index 5f17b99..768fadf 100644
+--- a/app/host/session/page.tsx
++++ b/app/host/session/page.tsx
+@@ -16,7 +16,7 @@ type Team = {
+ };
+ 
+ type QuizOption = { id: string; name: string; quiz_rounds: { id: string }[] };
+-type PreparedEvent = { id: string; event_name: string; event_date: string; start_time: string; end_time: string | null; venue_record_id: string | null; quiz_definition_id: string; brand_kit: string | null; music_pack: string | null; sponsors: string[]; prizes: string | null; notes: string | null; special_offers: string | null; overrides: Record<string, unknown>; venue: { venue_name: string; venue_logo_url: string | null; address: string | null; hero_image_url?: string | null; gallery_images?: string[]; google_maps_url?: string | null; contact_name?: string | null; contact_email?: string | null; contact_phone?: string | null; website?: string | null; social_links?: Record<string,string>; food_offers?: string | null; drink_offers?: string | null; happy_hour?: string | null; prize_information?: string | null; sponsors?: string[]; brand_colours?: Record<string,string>; display_slides?: string[]; display_adverts?: string[]; default_brand_kit?: string | null; default_music_pack?: string | null } | null };
++type PreparedEvent = { id: string; event_name: string; event_date: string; start_time: string; end_time: string | null; venue_record_id: string | null; quiz_definition_id: string; brand_kit: string | null; music_pack: string | null; sponsors: string[]; prizes: string | null; notes: string | null; special_offers: string | null; overrides: Record<string, unknown>; venue: { venue_name: string; venue_logo_url: string | null; address: string | null; hero_image_url?: string | null; hero_video_url?: string | null; gallery_images?: string[]; google_maps_url?: string | null; contact_name?: string | null; contact_email?: string | null; contact_phone?: string | null; website?: string | null; social_links?: Record<string,string>; food_offers?: string | null; drink_offers?: string | null; happy_hour?: string | null; prize_information?: string | null; sponsors?: string[]; brand_colours?: Record<string,string>; display_slides?: string[]; display_adverts?: string[]; default_brand_kit?: string | null; default_music_pack?: string | null } | null };
+ 
+ function generatePin(): string {
+   return String(Math.floor(1000 + Math.random() * 9000));
+diff --git a/app/host/venues/page.tsx b/app/host/venues/page.tsx
+index c0067be..6c464ff 100644
+--- a/app/host/venues/page.tsx
++++ b/app/host/venues/page.tsx
+@@ -5,19 +5,20 @@ import Link from "next/link";
+ import Image from "next/image";
+ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+ import { ImageUploader } from "@/components/ImageUploader";
++import { VideoUploader } from "@/components/VideoUploader";
+ import { HostButton, HostInput, HostLabel, HostLoading, HostShell } from "@/components/fable/HostConsole";
+ 
+ const BG="radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
+ const DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+-type Venue={id:string;day_of_week:number;venue_name:string;venue_logo_url:string|null;hero_image_url:string|null;gallery_images:string[];address:string|null;google_maps_url:string|null;contact_name:string|null;contact_email:string|null;contact_phone:string|null;website:string|null;social_links:Record<string,string>;default_host_id:string|null;default_host_name:string|null;default_quiz_day:number|null;default_start_time:string|null;default_end_time:string|null;food_offers:string|null;drink_offers:string|null;happy_hour:string|null;prize_information:string|null;sponsors:string[];brand_colours:Record<string,string>;display_slides:string[];display_adverts:string[];notes:string|null;active:boolean};
++type Venue={id:string;day_of_week:number;venue_name:string;venue_logo_url:string|null;hero_image_url:string|null;hero_video_url:string|null;gallery_images:string[];address:string|null;google_maps_url:string|null;contact_name:string|null;contact_email:string|null;contact_phone:string|null;website:string|null;social_links:Record<string,string>;default_host_id:string|null;default_host_name:string|null;default_quiz_day:number|null;default_start_time:string|null;default_end_time:string|null;food_offers:string|null;drink_offers:string|null;happy_hour:string|null;prize_information:string|null;sponsors:string[];brand_colours:Record<string,string>;display_slides:string[];display_adverts:string[];notes:string|null;active:boolean};
+ type Offer={id:string;venue_id:string|null;image_url:string;active:boolean;start_date:string|null;end_date:string|null;sort_order:number};
+-type FormState={venue_name:string;venue_logo_url:string;hero_image_url:string;gallery_images:string[];address:string;google_maps_url:string;contact_name:string;contact_email:string;contact_phone:string;website:string;social_links:string;default_host_id:string;default_host_name:string;default_quiz_day:string;default_start_time:string;default_end_time:string;food_offers:string;drink_offers:string;happy_hour:string;prize_information:string;sponsors:string;brand_colours:string;display_slides:string;display_adverts:string;notes:string;active:boolean};
+-const empty:FormState={venue_name:"",venue_logo_url:"",hero_image_url:"",gallery_images:[],address:"",google_maps_url:"",contact_name:"",contact_email:"",contact_phone:"",website:"",social_links:"",default_host_id:"",default_host_name:"",default_quiz_day:"",default_start_time:"19:30",default_end_time:"21:30",food_offers:"",drink_offers:"",happy_hour:"",prize_information:"",sponsors:"",brand_colours:"",display_slides:"",display_adverts:"",notes:"",active:true};
++type FormState={venue_name:string;venue_logo_url:string;hero_image_url:string;hero_video_url:string;gallery_images:string[];address:string;google_maps_url:string;contact_name:string;contact_email:string;contact_phone:string;website:string;social_links:string;default_host_id:string;default_host_name:string;default_quiz_day:string;default_start_time:string;default_end_time:string;food_offers:string;drink_offers:string;happy_hour:string;prize_information:string;sponsors:string;brand_colours:string;display_slides:string;display_adverts:string;notes:string;active:boolean};
++const empty:FormState={venue_name:"",venue_logo_url:"",hero_image_url:"",hero_video_url:"",gallery_images:[],address:"",google_maps_url:"",contact_name:"",contact_email:"",contact_phone:"",website:"",social_links:"",default_host_id:"",default_host_name:"",default_quiz_day:"",default_start_time:"19:30",default_end_time:"21:30",food_offers:"",drink_offers:"",happy_hour:"",prize_information:"",sponsors:"",brand_colours:"",display_slides:"",display_adverts:"",notes:"",active:true};
+ const textArea={width:"100%",padding:"11px 14px",borderRadius:12,background:"#150A2E",color:"#fff",border:"1px solid #2E1A52",font:"500 13px Inter"} as const;
+ const split=(value:string)=>value.split(",").map(v=>v.trim()).filter(Boolean);
+ const pairs=(value:string)=>Object.fromEntries(split(value).map(item=>{const [key,...rest]=item.split(":");return [key.trim(),rest.join(":").trim()]}).filter(([,value])=>value));
+ const pairText=(value:Record<string,string>|null)=>Object.entries(value||{}).map(([key,item])=>`${key}: ${item}`).join(", ");
+-function toForm(venue:Venue):FormState{return{venue_name:venue.venue_name||"",venue_logo_url:venue.venue_logo_url||"",hero_image_url:venue.hero_image_url||"",gallery_images:venue.gallery_images||[],address:venue.address||"",google_maps_url:venue.google_maps_url||"",contact_name:venue.contact_name||"",contact_email:venue.contact_email||"",contact_phone:venue.contact_phone||"",website:venue.website||"",social_links:pairText(venue.social_links),default_host_id:venue.default_host_id||"",default_host_name:venue.default_host_name||"",default_quiz_day:venue.default_quiz_day==null?"":String(venue.default_quiz_day),default_start_time:venue.default_start_time?.slice(0,5)||"",default_end_time:venue.default_end_time?.slice(0,5)||"",food_offers:venue.food_offers||"",drink_offers:venue.drink_offers||"",happy_hour:venue.happy_hour||"",prize_information:venue.prize_information||"",sponsors:(venue.sponsors||[]).join(", "),brand_colours:pairText(venue.brand_colours),display_slides:(venue.display_slides||[]).join(", "),display_adverts:(venue.display_adverts||[]).join(", "),notes:venue.notes||"",active:venue.active};}
++function toForm(venue:Venue):FormState{return{venue_name:venue.venue_name||"",venue_logo_url:venue.venue_logo_url||"",hero_image_url:venue.hero_image_url||"",hero_video_url:venue.hero_video_url||"",gallery_images:venue.gallery_images||[],address:venue.address||"",google_maps_url:venue.google_maps_url||"",contact_name:venue.contact_name||"",contact_email:venue.contact_email||"",contact_phone:venue.contact_phone||"",website:venue.website||"",social_links:pairText(venue.social_links),default_host_id:venue.default_host_id||"",default_host_name:venue.default_host_name||"",default_quiz_day:venue.default_quiz_day==null?"":String(venue.default_quiz_day),default_start_time:venue.default_start_time?.slice(0,5)||"",default_end_time:venue.default_end_time?.slice(0,5)||"",food_offers:venue.food_offers||"",drink_offers:venue.drink_offers||"",happy_hour:venue.happy_hour||"",prize_information:venue.prize_information||"",sponsors:(venue.sponsors||[]).join(", "),brand_colours:pairText(venue.brand_colours),display_slides:(venue.display_slides||[]).join(", "),display_adverts:(venue.display_adverts||[]).join(", "),notes:venue.notes||"",active:venue.active};}
+ 
+ export default function VenueManagerPage(){
+   const [venues,setVenues]=useState<Venue[]>([]);const [quizzes,setQuizzes]=useState<{id:string;name:string}[]>([]);const [host,setHost]=useState({id:"",name:"Current host"});const [form,setForm]=useState<FormState>(empty);const [editing,setEditing]=useState<string|null>(null);const [section,setSection]=useState("profile");const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [error,setError]=useState("");const [offers,setOffers]=useState<Offer[]>([]);const [offerBusy,setOfferBusy]=useState<string|null>(null);
+@@ -29,7 +30,7 @@ export default function VenueManagerPage(){
+   function set<K extends keyof FormState>(key:K,value:FormState[K]){setForm(current=>({...current,[key]:value}));}
+   function edit(venue:Venue){setEditing(venue.id);setForm(toForm(venue));setSection("profile");window.scrollTo({top:0,behavior:"smooth"});}
+   function clear(){setEditing(null);setForm({...empty,default_host_id:host.id,default_host_name:host.name});setSection("profile");setError("");}
+-  async function save(){if(!form.venue_name.trim())return;setSaving(true);setError("");const payload={venue_name:form.venue_name.trim(),venue_logo_url:form.venue_logo_url||null,hero_image_url:form.hero_image_url||null,gallery_images:form.gallery_images,address:form.address||null,google_maps_url:form.google_maps_url||null,contact_name:form.contact_name||null,contact_email:form.contact_email||null,contact_phone:form.contact_phone||null,website:form.website||null,social_links:pairs(form.social_links),default_host_id:form.default_host_id||host.id,default_host_name:form.default_host_name||null,default_quiz_day:form.default_quiz_day===""?null:Number(form.default_quiz_day),default_start_time:form.default_start_time||null,default_end_time:form.default_end_time||null,food_offers:form.food_offers||null,drink_offers:form.drink_offers||null,happy_hour:form.happy_hour||null,prize_information:form.prize_information||null,sponsors:split(form.sponsors),brand_colours:pairs(form.brand_colours),display_slides:split(form.display_slides),display_adverts:split(form.display_adverts),notes:form.notes||null,active:form.active,updated_at:new Date().toISOString()};const supabase=createSupabaseBrowserClient();
++  async function save(){if(!form.venue_name.trim())return;setSaving(true);setError("");const payload={venue_name:form.venue_name.trim(),venue_logo_url:form.venue_logo_url||null,hero_image_url:form.hero_image_url||null,hero_video_url:form.hero_video_url||null,gallery_images:form.gallery_images,address:form.address||null,google_maps_url:form.google_maps_url||null,contact_name:form.contact_name||null,contact_email:form.contact_email||null,contact_phone:form.contact_phone||null,website:form.website||null,social_links:pairs(form.social_links),default_host_id:form.default_host_id||host.id,default_host_name:form.default_host_name||null,default_quiz_day:form.default_quiz_day===""?null:Number(form.default_quiz_day),default_start_time:form.default_start_time||null,default_end_time:form.default_end_time||null,food_offers:form.food_offers||null,drink_offers:form.drink_offers||null,happy_hour:form.happy_hour||null,prize_information:form.prize_information||null,sponsors:split(form.sponsors),brand_colours:pairs(form.brand_colours),display_slides:split(form.display_slides),display_adverts:split(form.display_adverts),notes:form.notes||null,active:form.active,updated_at:new Date().toISOString()};const supabase=createSupabaseBrowserClient();
+     const result=editing
+       ?await supabase.from("venues").update(payload).eq("id",editing).select().single()
+       :await supabase.from("venues").insert({...payload,day_of_week:venues.reduce((max,v)=>Math.max(max,v.day_of_week),-1)+1}).select().single();
+@@ -103,7 +104,7 @@ export default function VenueManagerPage(){
+             </div>
+           </div>
+         </div>}
+-        {section==="media"&&<div className="qi-bo-profile-section"><h3>Display media</h3><p>Visual assets preloaded for the venue experience.</p><HostLabel>Hero Image</HostLabel><ImageUploader key={"hero-"+(editing||"new")} currentUrl={form.hero_image_url||null} onUploaded={url=>set("hero_image_url",url)}/><HostLabel>Gallery</HostLabel><ImageUploader key={"gallery-"+(editing||"new")} currentUrl={null} onUploaded={url=>set("gallery_images",[...form.gallery_images,url])}/><div className="qi-bo-gallery">{form.gallery_images.map(url=><div key={url}><Image unoptimized fill sizes="180px" src={url} alt="Venue gallery"/><button onClick={()=>set("gallery_images",form.gallery_images.filter(item=>item!==url))} aria-label="Remove gallery image">×</button></div>)}</div><Area label="Display Slides" value={form.display_slides} setValue={v=>set("display_slides",v)}/><Area label="Display Adverts" value={form.display_adverts} setValue={v=>set("display_adverts",v)}/></div>}
++        {section==="media"&&<div className="qi-bo-profile-section"><h3>Display media</h3><p>Visual assets preloaded for the venue experience.</p><HostLabel>Hero Image</HostLabel><ImageUploader key={"hero-"+(editing||"new")} currentUrl={form.hero_image_url||null} onUploaded={url=>set("hero_image_url",url)}/><HostLabel>Hero Video (plays on the display screen instead of the Hero Image, when set)</HostLabel><VideoUploader key={"herovid-"+(editing||"new")} currentUrl={form.hero_video_url||null} onUploaded={url=>set("hero_video_url",url)}/><HostLabel>Gallery</HostLabel><ImageUploader key={"gallery-"+(editing||"new")} currentUrl={null} onUploaded={url=>set("gallery_images",[...form.gallery_images,url])}/><div className="qi-bo-gallery">{form.gallery_images.map(url=><div key={url}><Image unoptimized fill sizes="180px" src={url} alt="Venue gallery"/><button onClick={()=>set("gallery_images",form.gallery_images.filter(item=>item!==url))} aria-label="Remove gallery image">×</button></div>)}</div><Area label="Display Slides" value={form.display_slides} setValue={v=>set("display_slides",v)}/><Area label="Display Adverts" value={form.display_adverts} setValue={v=>set("display_adverts",v)}/></div>}
+         {section==="notes"&&<div className="qi-bo-profile-section"><h3>Internal notes</h3><p>Private operational information for hosts and administrators.</p><Area label="Notes" value={form.notes} setValue={v=>set("notes",v)} rows={8}/><div className="qi-bo-active-row"><div><strong>Venue availability</strong><span>{form.active?"Available when scheduling events":"Hidden from new event scheduling"}</span></div><button className="fbh-btn" onClick={()=>set("active",!form.active)}>{form.active?"Deactivate venue":"Activate venue"}</button></div></div>}
+         {error&&<div className="qi-bo-alert" role="alert">{error}</div>}<footer><span>{!form.venue_name.trim()?<span style={{color:"#FFC533"}}>Enter a Venue Name on the Profile tab to save.</span>:editing?"Changes apply to future events. Live sessions keep their snapshot.":"Complete the profile at your own pace."}</span><HostButton variant="pri" big onClick={()=>{if(!form.venue_name.trim()){setSection("profile");return;}save();}} disabled={saving}>{saving?"Saving…":editing?"Save venue":"Create venue"}</HostButton></footer>
+       </section></div></main></HostShell>;
+diff --git a/components/VideoUploader.tsx b/components/VideoUploader.tsx
+new file mode 100644
+index 0000000..1d176ed
+--- /dev/null
++++ b/components/VideoUploader.tsx
+@@ -0,0 +1,126 @@
++"use client";
++import { useRef, useState } from "react";
++import { createSupabaseBrowserClient } from "@/lib/supabase/client";
++import { getMediaUrl } from "@/lib/getMediaUrl";
++
++type Props = {
++  currentUrl: string | null;
++  onUploaded: (url: string) => void;
++};
++
++const MAX_FILE_BYTES = 40 * 1024 * 1024;
++const ACCEPTED_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
++
++export function VideoUploader({ currentUrl, onUploaded }: Props) {
++  const [dragging, setDragging] = useState(false);
++  const [uploading, setUploading] = useState(false);
++  const [error, setError] = useState("");
++  const [pendingFile, setPendingFile] = useState<File | null>(null);
++  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
++  const inputRef = useRef<HTMLInputElement>(null);
++
++  function validate(file: File): string | null {
++    if (!ACCEPTED_TYPES.includes(file.type)) return "Only MP4, WEBM, or MOV videos are supported.";
++    if (file.size > MAX_FILE_BYTES) return "Video is too large - max 40MB. Keep hero videos short.";
++    return null;
++  }
++
++  function handleFile(file: File) {
++    const err = validate(file);
++    if (err) { setError(err); return; }
++    setError("");
++    setPendingFile(file);
++    setPreviewUrl(URL.createObjectURL(file));
++  }
++
++  async function handleUpload() {
++    if (!pendingFile) return;
++    setUploading(true);
++    setError("");
++    try {
++      const formData = new FormData();
++      formData.append("file", pendingFile);
++      const res = await fetch("/api/upload-video", { method: "POST", body: formData });
++      const raw = await res.text();
++      let data: { url?: string; fileName?: string; fileSize?: number; error?: { message?: string } } = {};
++      try { data = raw ? JSON.parse(raw) : {}; } catch {
++        throw new Error(!res.ok ? (raw.slice(0, 120) || `Upload failed (status ${res.status})`) : "Upload failed - unexpected server response");
++      }
++      if (!res.ok || data.error || !data.url) {
++        throw new Error(data?.error?.message || "Upload failed");
++      }
++      onUploaded(data.url);
++      const supabase = createSupabaseBrowserClient();
++      supabase.from("media_assets").insert({
++        file_name: data.fileName,
++        media_type: "video",
++        file_url: data.url,
++        file_size: data.fileSize,
++      }).then(({ error: insertErr }) => { if (insertErr) console.error("Failed to log media_asset:", insertErr); });
++      setPendingFile(null);
++      if (previewUrl) URL.revokeObjectURL(previewUrl);
++      setPreviewUrl(null);
++    } catch (e) {
++      setError(e instanceof Error ? e.message : "Upload failed - please try again.");
++    } finally {
++      setUploading(false);
++    }
++  }
++
++  function clearPending() {
++    if (previewUrl) URL.revokeObjectURL(previewUrl);
++    setPendingFile(null);
++    setPreviewUrl(null);
++    setError("");
++  }
++
++  const displayUrl = previewUrl || getMediaUrl(currentUrl);
++
++  return (
++    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
++      {displayUrl && (
++        <div style={{ position: "relative", maxWidth: 280 }}>
++          <video src={displayUrl} controls muted style={{ width: "100%", borderRadius: 10, border: "1px solid rgba(190,38,193,0.3)", display: "block" }} />
++        </div>
++      )}
++
++      <div
++        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
++        onDragLeave={() => setDragging(false)}
++        onDrop={(e) => {
++          e.preventDefault();
++          setDragging(false);
++          const file = e.dataTransfer.files?.[0];
++          if (file) handleFile(file);
++        }}
++        onClick={() => inputRef.current?.click()}
++        style={{
++          padding: "18px 16px", borderRadius: 10, textAlign: "center", cursor: "pointer",
++          border: "2px dashed " + (dragging ? "#BE26C1" : "rgba(190,38,193,0.4)"),
++          background: dragging ? "rgba(190,38,193,0.1)" : "rgba(255,255,255,0.03)",
++          fontSize: 13, color: "rgba(255,255,255,0.6)",
++        }}
++      >
++        {displayUrl ? "Drop a new video here or click to replace" : "Drop a video here or click to upload (MP4, WEBM, MOV, max 40MB)"}
++        <input
++          ref={inputRef}
++          type="file"
++          accept="video/mp4,video/webm,video/quicktime"
++          style={{ display: "none" }}
++          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
++        />
++      </div>
++
++      {pendingFile && (
++        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
++          <button type="button" onClick={handleUpload} disabled={uploading} style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(34,197,94,0.25)", border: "1px solid #22c55e", color: "#fff", fontSize: 12, fontWeight: 700, cursor: uploading ? "default" : "pointer" }}>
++            {uploading ? "Uploading..." : "Save Video"}
++          </button>
++          <button type="button" onClick={clearPending} style={{ padding: "6px 12px", borderRadius: 8, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.6)", fontSize: 12, cursor: "pointer" }}>Cancel</button>
++        </div>
++      )}
++
++      {error && <p style={{ color: "#ef4444", fontSize: 12, margin: 0 }}>{error}</p>}
++    </div>
++  );
++}
+diff --git a/supabase/migrations/202608120001_venue_hero_video.sql b/supabase/migrations/202608120001_venue_hero_video.sql
+new file mode 100644
+index 0000000..0307650
+--- /dev/null
++++ b/supabase/migrations/202608120001_venue_hero_video.sql
+@@ -0,0 +1,7 @@
++-- The venue "showreel" on the display screen (pre-show + intermission) needs
++-- a short branded video per venue, separate from the existing static Hero
++-- Image. Additive/nullable - existing venues with no video just fall back
++-- to showing their Hero Image instead, so nothing breaks for venues that
++-- haven't uploaded one yet.
++alter table public.venues
++  add column if not exists hero_video_url text;

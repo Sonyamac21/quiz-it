@@ -1,0 +1,20 @@
+diff --git a/app/host/display/page.tsx b/app/host/display/page.tsx
+index 52c5c14..a7b799c 100644
+--- a/app/host/display/page.tsx
++++ b/app/host/display/page.tsx
+@@ -285,6 +285,7 @@ function DisplayScreenInner() {
+   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number|null>(null);
+   const [hardDeckWheelSpinning, setHardDeckWheelSpinning] = useState(false);
+   const prevHardDeckStatusRef = useRef<string>("idle");
++  const [approvedCustomerPhotos, setApprovedCustomerPhotos] = useState<string[]>([]);
+   // Poll approved customer photos only while actually on the intermission
+   // screen - approvals can land at any moment, so this can't be a one-shot
+   // fetch, but there's no need to keep querying it during live gameplay.
+@@ -409,7 +410,6 @@ function DisplayScreenInner() {
+   // the venue photos above, approvals can land at any moment mid-show, so
+   // this polls its own session_photos query rather than riding the session
+   // row - approving a photo does not touch `sessions` at all.
+-  const [approvedCustomerPhotos, setApprovedCustomerPhotos] = useState<string[]>([]);
+   const [spinTargetIdx, setSpinTargetIdx] = useState<number|null>(null);
+   const [spinNonce, setSpinNonce] = useState<number | null>(null);
+   // Tracks which spin_nonce has already forced phase to spin_to_win once.

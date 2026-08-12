@@ -31,6 +31,26 @@ type Question = {
 type Score = { team_name: string; total_points: number; };
 type Phase = "waiting" | "round_start" | "question" | "hot_seat" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission" | "spin_to_win" | "pursuit";
 
+// Set this once a real cutout photo is available (upload it via the Media
+// tab pattern, or drop a hosted URL here directly) - every screen's badge
+// picks it up automatically, no further changes needed anywhere else.
+const HOST_AVATAR_URL: string | null = null;
+
+// Corner branding badge shown on every display screen. Centralised so the
+// design (and the eventual real photo) only has to be changed in one place
+// instead of the 7 identical copies that used to be scattered through this
+// file.
+function QuizItBadge() {
+  return (
+    <div className="badge">
+      <span className="badge-avatar" aria-hidden="true">
+        {HOST_AVATAR_URL ? <img src={HOST_AVATAR_URL} alt="" /> : "SM"}
+      </span>
+      <span className="badge-text">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</span>
+    </div>
+  );
+}
+
 // Real, automatic audio playback for "audio" question types - this replaces
 // what used to be the host manually alt-tabbing to YouTube on their own laptop.
 // Preloads immediately on mount (the clip is a short, lightweight file on a
@@ -265,11 +285,12 @@ function DisplayScreenInner() {
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number|null>(null);
   const [hardDeckWheelSpinning, setHardDeckWheelSpinning] = useState(false);
   const prevHardDeckStatusRef = useRef<string>("idle");
+  const [approvedCustomerPhotos, setApprovedCustomerPhotos] = useState<string[]>([]);
   // Poll approved customer photos only while actually on the intermission
   // screen - approvals can land at any moment, so this can't be a one-shot
   // fetch, but there's no need to keep querying it during live gameplay.
   useEffect(() => {
-    if (phase !== "intermission" || !sessionPin) { setApprovedCustomerPhotos([]); return; }
+    if ((phase !== "intermission" && phase !== "waiting") || !sessionPin) { setApprovedCustomerPhotos([]); return; }
     let cancelled = false;
     const supabase = createSupabaseBrowserClient();
     async function loadApprovedPhotos() {
@@ -360,11 +381,36 @@ function DisplayScreenInner() {
   // intermission fields.
   const [intermissionVenuePhotos, setIntermissionVenuePhotos] = useState<string[]>([]);
   const [venueName, setVenueName] = useState<string | null>(null);
+  const [venueHeroImageUrl, setVenueHeroImageUrl] = useState<string | null>(null);
+  const [venueHeroVideoUrl, setVenueHeroVideoUrl] = useState<string | null>(null);
+  // Which scene of the pre-show reel is on screen: the venue's branded
+  // video/image, the power card explainer, or floating team photos. Cycles
+  // automatically; "photos" is skipped entirely when nobody's uploaded one
+  // yet, so the reel never sits on an empty scene.
+  const [reelSceneIdx, setReelSceneIdx] = useState(0);
+  const [floatingPhotoIdx, setFloatingPhotoIdx] = useState(0);
+
+  const reelScenes = ["venue", "cards", ...(approvedCustomerPhotos.length > 0 ? ["photos"] : [])];
+  useEffect(() => {
+    if (phase !== "waiting") return;
+    const id = window.setInterval(() => {
+      setReelSceneIdx(i => (i + 1) % reelScenes.length);
+    }, 7000);
+    return () => window.clearInterval(id);
+  }, [phase, reelScenes.length]);
+  useEffect(() => {
+    if (approvedCustomerPhotos.length === 0) return;
+    const id = window.setInterval(() => {
+      setFloatingPhotoIdx(i => (i + 1) % approvedCustomerPhotos.length);
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, [approvedCustomerPhotos.length]);
+  const currentReelScene = reelScenes[reelSceneIdx % reelScenes.length];
+
   // Host-approved customer photos (session_photos.approved = true). Unlike
   // the venue photos above, approvals can land at any moment mid-show, so
   // this polls its own session_photos query rather than riding the session
   // row - approving a photo does not touch `sessions` at all.
-  const [approvedCustomerPhotos, setApprovedCustomerPhotos] = useState<string[]>([]);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number|null>(null);
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
   // Tracks which spin_nonce has already forced phase to spin_to_win once.
@@ -482,6 +528,9 @@ function DisplayScreenInner() {
     setRoundName((data.round_name as string) || "");
     setRoundNumber((data.round_number as number) || 1);
     setVenueName((data.venue_name as string) || null);
+    const snapshotVenue = (data.event_snapshot as { venue?: { hero_image_url?: string | null; hero_video_url?: string | null } } | null)?.venue;
+    setVenueHeroImageUrl(snapshotVenue?.hero_image_url || null);
+    setVenueHeroVideoUrl(snapshotVenue?.hero_video_url || null);
     setHideLeaderboard(!!data.hide_leaderboard);
     setAllowPowerCards(data.allow_power_cards !== false);
     const hotSeat = readHotSeatState(data);
@@ -951,7 +1000,7 @@ function DisplayScreenInner() {
             </>
           )}
         </div>
-        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
+        <QuizItBadge />
       </div>
     );
   }
@@ -1013,40 +1062,75 @@ function DisplayScreenInner() {
               ))}
             </div>
           </div>
-          <div className="lb-cardstage">
-            {!allowPowerCards ? (
-              <>
-                <div className="lb-cardkicker">ROUND RULE</div>
-                <div className="lb-pcard">
-                  <div className="lb-pcard-sigil" aria-hidden="true">◇</div>
-                  <div className="lb-pcard-name">POWER CARDS PAUSED</div>
-                  <div className="lb-pcard-rule">Unused cards stay available for a later round.</div>
+          <div className="lb-cardstage lb-reel">
+            <div className="lb-reel-title">{venueName ? `TONIGHT AT ${venueName.toUpperCase()}` : "TONIGHT'S SHOW"}</div>
+
+            {currentReelScene === "venue" && (
+              <div className="lb-reel-scene lb-reel-venue">
+                {venueHeroVideoUrl ? (
+                  <video key={venueHeroVideoUrl} className="lb-reel-media" src={venueHeroVideoUrl} autoPlay muted loop playsInline />
+                ) : venueHeroImageUrl ? (
+                  <img className="lb-reel-media" src={venueHeroImageUrl} alt={venueName || "Venue"} />
+                ) : (
+                  <div className="lb-reel-fallback">
+                    <div className="lb-cardkicker">{venueName ? venueName.toUpperCase() : "QUIZ NIGHT"}</div>
+                    <div className="lb-tease">Add a Hero Video or Hero Image on this venue's Media tab to brand this screen.</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {currentReelScene === "cards" && (
+              <div className="lb-reel-scene">
+                {!allowPowerCards ? (
+                  <>
+                    <div className="lb-cardkicker">ROUND RULE</div>
+                    <div className="lb-pcard">
+                      <div className="lb-pcard-sigil" aria-hidden="true">◇</div>
+                      <div className="lb-pcard-name">POWER CARDS PAUSED</div>
+                      <div className="lb-pcard-rule">Unused cards stay available for a later round.</div>
+                    </div>
+                  </>
+                ) : <>
+                <div className="lb-cardkicker">POWER CARDS</div>
+                {(() => {
+                  const c = POWER_CARD_INFO[powerCardIdx];
+                  return (
+                    <div key={powerCardIdx} className="lb-pcard" style={{ borderColor: c.color, boxShadow: `0 0 60px ${c.glow}` }}>
+                      <div className="lb-pcard-sigil" style={{ color: c.color, textShadow: `0 0 34px ${c.glow}` }}>{c.sigil}</div>
+                      <div className="lb-pcard-name" style={{ color: c.color }}>{c.name}</div>
+                      <div className="lb-pcard-rule">{c.rule}</div>
+                      <div className="lb-pcard-meta">Once per quiz</div>
+                    </div>
+                  );
+                })()}
+                <div className="lb-dots">
+                  {POWER_CARD_INFO.map((_, i) => <span key={i} className={"lb-dot" + (i === powerCardIdx ? " on" : "")} />)}
                 </div>
-              </>
-            ) : <>
-            <div className="lb-cardkicker">POWER CARDS</div>
-            {(() => {
-              const c = POWER_CARD_INFO[powerCardIdx];
-              return (
-                <div key={powerCardIdx} className="lb-pcard" style={{ borderColor: c.color, boxShadow: `0 0 60px ${c.glow}` }}>
-                  <div className="lb-pcard-sigil" style={{ color: c.color, textShadow: `0 0 34px ${c.glow}` }}>{c.sigil}</div>
-                  <div className="lb-pcard-name" style={{ color: c.color }}>{c.name}</div>
-                  <div className="lb-pcard-rule">{c.rule}</div>
-                  <div className="lb-pcard-meta">Once per quiz</div>
-                </div>
-              );
-            })()}
-            <div className="lb-dots">
-              {POWER_CARD_INFO.map((_, i) => <span key={i} className={"lb-dot" + (i === powerCardIdx ? " on" : "")} />)}
-            </div>
-            </>}
+                </>}
+              </div>
+            )}
+
+            {currentReelScene === "photos" && approvedCustomerPhotos.length > 0 && (
+              <div className="lb-reel-scene lb-reel-photos">
+                {[0, 1, 2].map(slot => {
+                  const photo = approvedCustomerPhotos[(floatingPhotoIdx + slot) % approvedCustomerPhotos.length];
+                  if (!photo) return null;
+                  return (
+                    <div key={slot} className={`lb-float-photo lb-float-photo-${slot}`} style={{ animationDelay: `${slot * 1.3}s` }}>
+                      <img src={photo} alt="Team photo" />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div className="lb-foot">
             <div className="lb-start">SHOW STARTS SOON</div>
             <div className="lb-tease">TONIGHT: SPIN TO WIN · THE HARD DECK · THE PURSUIT</div>
           </div>
         </div>
-        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
+        <QuizItBadge />
       </div>
     );
   }
@@ -1119,7 +1203,7 @@ function DisplayScreenInner() {
         <div className="qi-display-spin-machine">
           <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeam || "Team"} victorySong={fastestSong || undefined} size="full" audioEnabled={true} />
         </div>
-        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
+        <QuizItBadge />
       </div>
     );
   }
@@ -1154,7 +1238,7 @@ function DisplayScreenInner() {
             <div className="ld-foot">TOP {Math.min(3, sorted.length)} SEPARATED BY {topGap.toLocaleString()} POINTS</div>
           )}
         </div>
-        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
+        <QuizItBadge />
       </div>
     );
   }
@@ -1193,7 +1277,7 @@ function DisplayScreenInner() {
             <div className="wc-meta tnum">{(winner?.total_points ?? 0).toLocaleString()} POINTS</div>
             <div className="wc-photo">📸 GET UP HERE — YOUR PHOTO&rsquo;S WAITING</div>
           </div>
-          <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
+          <QuizItBadge />
         </div>
       );
     }
@@ -1359,7 +1443,7 @@ function DisplayScreenInner() {
         ) : (
           <div className="qi-display-hot-seat__call"><strong>NO TEAMS REMAINING</strong><small>Eyes on the host</small></div>
         )}
-        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
+        <QuizItBadge />
       </div>
     );
   }
@@ -1476,7 +1560,7 @@ function DisplayScreenInner() {
             </div>
           </div>
         </div>
-        <div className="badge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
+        <QuizItBadge />
       </div>
     );
   }

@@ -34,7 +34,7 @@ type Phase = "waiting" | "round_start" | "question" | "hot_seat" | "answer" | "c
 // Set this once a real cutout photo is available (upload it via the Media
 // tab pattern, or drop a hosted URL here directly) - every screen's badge
 // picks it up automatically, no further changes needed anywhere else.
-const HOST_AVATAR_URL: string | null = null;
+const HOST_AVATAR_URL: string | null = "/sonya-avatar.png";
 
 // Corner branding badge shown on every display screen. Centralised so the
 // design (and the eventual real photo) only has to be changed in one place

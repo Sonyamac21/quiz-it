@@ -205,7 +205,10 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
             ? `THE PURSUIT: ${summary.completed.length} TEAM${summary.completed.length === 1 ? "" : "S"} WENT ALL THE WAY.`
             : `${stillRunning} OF ${teamNames.length} STILL RUNNING.`}
         </div>
-        <div className="pu-brandbadge">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</div>
+        <div className="pu-brandbadge">
+          <span className="pu-brandbadge-avatar" aria-hidden="true"><img src="/sonya-avatar.png" alt="" /></span>
+          <span>QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</span>
+        </div>
       </div>
     </div>
   );

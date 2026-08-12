@@ -940,7 +940,9 @@ button, input, select, textarea { font: inherit; }
 .pursuit-board .pu-footer { padding: 14px 32px 20px; display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 2; }
 .pursuit-board .pu-survivors { font: 800 clamp(20px,2.6vw,38px) 'Inter', sans-serif; letter-spacing: 0.1em; font-variant-numeric: tabular-nums; color: var(--text); }
 .pursuit-board .pu-survivors.stamp { animation: puStampIn var(--m-moment) var(--ease-settle); }
-.pursuit-board .pu-brandbadge { font: 400 11px 'Inter', sans-serif; color: var(--text-disabled); letter-spacing: 0.04em; }
+.pursuit-board .pu-brandbadge { display: inline-flex; align-items: center; gap: 6px; font: 400 11px 'Inter', sans-serif; color: var(--text-disabled); letter-spacing: 0.04em; }
+.pursuit-board .pu-brandbadge-avatar { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; overflow: hidden; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(255,255,255,.15); }
+.pursuit-board .pu-brandbadge-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
 
 /* reduce-motion profile */
 @media (prefers-reduced-motion: reduce) {

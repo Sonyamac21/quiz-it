@@ -697,6 +697,31 @@ function QuizControllerInner() {
     if (!sessionId) { alert("Not connected to a session - cannot end quiz."); return; }
     quizEndRevealedRef.current = 0;
     const supabase = createSupabaseBrowserClient();
+    // "End quiz" needs to do two different things depending on where the
+    // show already is: if it hasn't reached the leaderboard reveal yet,
+    // trigger that phase first (unchanged from before). But if it's
+    // clicked again once already on the reveal screen, that used to be a
+    // silent no-op - phase was already "quiz_end" so nothing visibly
+    // changed, even though the button says "End quiz" and just asked for
+    // confirmation. Now a second click (or first click while already on
+    // the reveal) actually closes the session out - same status:"finished"
+    // + event completion the Session Prep page's own End Quiz does - so
+    // this one button reliably finishes the night regardless of phase.
+    if (hostPhase === "quiz_end") {
+      const { data: sessionRow } = await supabase.from("sessions").select("event_id").eq("id", sessionId).maybeSingle();
+      const { error } = await supabase.from("sessions").update({ status: "finished" }).eq("id", sessionId);
+      if (error) {
+        console.error("Closing session failed:", error);
+        alert("Failed to close the session: " + error.message);
+        return;
+      }
+      if (sessionRow?.event_id) {
+        await supabase.from("events").update({ status: "completed", updated_at: new Date().toISOString() }).eq("id", sessionRow.event_id);
+      }
+      alert("Session closed. It'll now show up under Reports as completed.");
+      window.location.href = "/host/session";
+      return;
+    }
     // scoreboard_data is kept fresh by the score service after every score
     // mutation - no need to recompute or embed it here.
     const { data, error } = await supabase.from("sessions").update({ phase: "quiz_end", quiz_end_revealed_count: 0, quiz_end_trophy_visible: false }).eq("id", sessionId).select();
@@ -1526,7 +1551,7 @@ function QuizControllerInner() {
           <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
         </div>}
         {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
-        <Button variant="destructive" className="qi-mc-toolbar__end" onClick={() => { if (window.confirm("End the quiz for everyone? This closes the live session and cannot be undone.")) doEndOfQuiz(); }}>End quiz</Button>
+        <Button variant="destructive" className="qi-mc-toolbar__end" onClick={() => { const closing = hostPhase === "quiz_end"; if (window.confirm(closing ? "Close this session for good? It'll be marked completed in Reports and cannot be reopened." : "End the quiz for everyone? This closes the live session and cannot be undone.")) doEndOfQuiz(); }}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
       </div>
 
       {/* DOMINANT NEXT-ACTION BAR — the one thing the host acts on next, huge and

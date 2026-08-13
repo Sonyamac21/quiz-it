@@ -162,7 +162,8 @@ export default function SessionPage() {
         ? await supabase.from("venues").select("*").eq("id", selectedVenueId).maybeSingle()
         : { data: null };
     const quizName = quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "";
-    const inheritedOffers = preparedEvent?.special_offers || [preparedEvent?.venue?.food_offers, preparedEvent?.venue?.drink_offers, preparedEvent?.venue?.happy_hour].filter(Boolean).join("\n");
+    const offersVenue = preparedEvent?.venue || (venueData as { food_offers?: string | null; drink_offers?: string | null; happy_hour?: string | null } | null);
+    const inheritedOffers = preparedEvent?.special_offers || [offersVenue?.food_offers, offersVenue?.drink_offers, offersVenue?.happy_hour].filter(Boolean).join("\n");
     // Auto-built from the host's own Calendar - the next few scheduled
     // events (soonest first), excluding tonight's own event. RLS already
     // scopes "events" to this host, so no extra owner filter is needed here.
@@ -190,7 +191,20 @@ export default function SessionPage() {
         event_id: preparedEvent?.id || null,
         venue_record_id: preparedEvent?.venue_record_id || null,
         quiz_plan_name: quizName,
-        event_snapshot: preparedEvent ? { event_name: preparedEvent.event_name, event_date: preparedEvent.event_date, start_time: preparedEvent.start_time, end_time: preparedEvent.end_time, venue: preparedEvent.venue, brand_kit: preparedEvent.brand_kit || preparedEvent.venue?.default_brand_kit, music_pack: preparedEvent.music_pack || preparedEvent.venue?.default_music_pack, sponsors: preparedEvent.sponsors.length ? preparedEvent.sponsors : preparedEvent.venue?.sponsors, prizes: preparedEvent.prizes || preparedEvent.venue?.prize_information, offers: inheritedOffers, notes: preparedEvent.notes, overrides: preparedEvent.overrides, quiz_plan_id: selectedQuizId, quiz_plan_name: quizName } : { quiz_plan_id: selectedQuizId, quiz_plan_name: quizName },
+        // Previously, launching a session WITHOUT going via a Calendar event
+        // (picking a venue directly from the dropdown below - the host's
+        // actual everyday workflow, not an edge case) wrote an event_snapshot
+        // with no venue data in it at all, even though the full venue row
+        // (venueData, including hero_image_url/hero_video_url) was already
+        // being fetched and used for venue_name/venue_logo_url/offers/photos
+        // just below. That's why the display screen's venue showreel never
+        // had a video or photo to show for sessions started this way - it
+        // reads venueHeroVideoUrl/venueHeroImageUrl straight out of
+        // event_snapshot.venue, which was always empty. Now both paths
+        // always populate venue the same way.
+        event_snapshot: preparedEvent
+          ? { event_name: preparedEvent.event_name, event_date: preparedEvent.event_date, start_time: preparedEvent.start_time, end_time: preparedEvent.end_time, venue: preparedEvent.venue, brand_kit: preparedEvent.brand_kit || preparedEvent.venue?.default_brand_kit, music_pack: preparedEvent.music_pack || preparedEvent.venue?.default_music_pack, sponsors: preparedEvent.sponsors.length ? preparedEvent.sponsors : preparedEvent.venue?.sponsors, prizes: preparedEvent.prizes || preparedEvent.venue?.prize_information, offers: inheritedOffers, notes: preparedEvent.notes, overrides: preparedEvent.overrides, quiz_plan_id: selectedQuizId, quiz_plan_name: quizName }
+          : { venue: venueData || null, brand_kit: (venueData as { default_brand_kit?: string | null } | null)?.default_brand_kit, music_pack: (venueData as { default_music_pack?: string | null } | null)?.default_music_pack, sponsors: (venueData as { sponsors?: string[] } | null)?.sponsors, prizes: (venueData as { prize_information?: string | null } | null)?.prize_information, offers: inheritedOffers, quiz_plan_id: selectedQuizId, quiz_plan_name: quizName },
         venue_name: venueData?.venue_name || null,
         venue_logo_url: venueData?.venue_logo_url || null,
         intermission_offers: inheritedOffers || null,

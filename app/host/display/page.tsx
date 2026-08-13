@@ -1038,7 +1038,7 @@ function DisplayScreenInner() {
       );
     }
     return (
-      <div className="fbl fbl-stage">
+      <div className="fbl fbl-stage qi-display-stage qi-display-lobby">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
         <div className="lb lb-split">
           <div className="lb-join">
@@ -1574,21 +1574,13 @@ export default function DisplayScreen() {
       <div className="qi-display-shell">
         <DisplayScreenInner />
         <DisplayFullscreenControl />
-      {/* Persistent branding overlay - sits on top of every phase screen
-          regardless of which internal return branch rendered, instead of
-          needing to be threaded through each one individually. */}
-        <div className="qi-display-brand-signature" style={{
-        position: "fixed", bottom: 14, right: 18, zIndex: 9999,
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "6px 12px", borderRadius: 999,
-        background: "rgba(13,2,37,0.6)", border: "1px solid rgba(190,38,193,0.3)",
-        pointerEvents: "none" as const,
-      }}>
-        <img src="/me-logo.jpg" alt="ME" style={{ width: 20, height: 20, borderRadius: "50%" }} />
-        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", letterSpacing: 0.5 }}>
-          <span style={{ fontFamily: "'Bruno Ace SC',sans-serif" }}>Quiz-It</span><span style={{ fontFamily: "'Inter',sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>
-        </span>
-        </div>
+      {/* The old "persistent branding overlay" that used to sit here,
+          fixed on top of every phase regardless of which internal return
+          branch rendered, has been removed - it was a leftover second
+          corner badge (with its own separate ME-logo icon and "Quiz-It"
+          styling) duplicating the real QuizItBadge() that every phase
+          already renders individually. That's what was causing two
+          overlapping badges to show at once on the waiting screen. */}
       </div>
     </Suspense>
   );

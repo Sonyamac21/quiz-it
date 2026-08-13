@@ -63,6 +63,26 @@ export default function QuizBuilderPage() {
   const [dragOverRoundId, setDragOverRoundId] = useState<string | null>(null);
   const [dragOverLibrary, setDragOverLibrary] = useState(false);
   const [draggedRoundIndex, setDraggedRoundIndex] = useState<number | null>(null);
+  const [photoSearching, setPhotoSearching] = useState(false);
+  const [photoCandidates, setPhotoCandidates] = useState<{ id: number; thumb: string; full: string; tags: string }[]>([]);
+  const [photoSearchError, setPhotoSearchError] = useState("");
+  async function searchPhotos(query: string) {
+    if (!query.trim()) return;
+    setPhotoSearching(true);
+    setPhotoSearchError("");
+    try {
+      const res = await fetch("/api/pixabay-search?q=" + encodeURIComponent(query.trim()));
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Search failed");
+      setPhotoCandidates(data.candidates || []);
+      if (!data.candidates?.length) setPhotoSearchError("No photos found for that search - try different words.");
+    } catch (e) {
+      setPhotoCandidates([]);
+      setPhotoSearchError(e instanceof Error ? e.message : "Search failed");
+    } finally {
+      setPhotoSearching(false);
+    }
+  }
   const [addRoundOpen, setAddRoundOpen] = useState(false);
   const [settingsOpenRoundId, setSettingsOpenRoundId] = useState<string | null>(null);
   const [activeRoundId, setActiveRoundId] = useState<string | null>(null);
@@ -291,6 +311,8 @@ export default function QuizBuilderPage() {
     });
     setEditDraft(draft);
     setEditingKey(key);
+    setPhotoCandidates([]);
+    setPhotoSearchError("");
   }
   async function saveEditQuestion(round: QuizRound, qIndex: number) {
     const original = round.questions[qIndex] as Record<string, unknown>;
@@ -936,22 +958,46 @@ export default function QuizBuilderPage() {
                               </div>
                             ) : isPicture ? (
                               <div>
-                                {photoUrl && <img src={photoUrl} alt={photoQuery || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 140, objectFit: "cover", borderRadius: 6, marginBottom: 6 }} />}
+                                {editDraft.option_b && <img src={editDraft.option_b} alt={editDraft.option_a || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 140, objectFit: "cover", borderRadius: 6, marginBottom: 6 }} />}
                                 <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Image search query</div>
-                                <input
-                                  value={editDraft.option_a ?? ""}
-                                  onChange={e => setEditDraft(d => ({ ...d, option_a: e.target.value }))}
-                                  className="fbh-input"
-                                  style={{ width: "100%", font: "400 12px 'Inter'" }}
-                                  placeholder="e.g. Eiffel Tower Paris"
-                                />
-                                <div style={{ color: "#6B5A8E", font: "400 10px 'Inter'", marginTop: 4 }}>Changing this doesn&apos;t re-fetch a new photo automatically - use REGENERATE for a fresh AI-picked image, or paste a direct image URL below to swap it yourself.</div>
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <input
+                                    value={editDraft.option_a ?? ""}
+                                    onChange={e => setEditDraft(d => ({ ...d, option_a: e.target.value }))}
+                                    className="fbh-input"
+                                    style={{ flex: 1, font: "400 12px 'Inter'" }}
+                                    placeholder="e.g. Eiffel Tower Paris"
+                                  />
+                                  <HostButton type="button" onClick={() => searchPhotos(editDraft.option_a ?? "")} disabled={photoSearching || !(editDraft.option_a ?? "").trim()} style={{ padding: "0 12px", height: 34, fontSize: 11, flexShrink: 0 }}>
+                                    {photoSearching ? "SEARCHING..." : "SEARCH"}
+                                  </HostButton>
+                                </div>
+                                <div style={{ color: "#6B5A8E", font: "400 10px 'Inter'", marginTop: 4 }}>Edit the query above and hit SEARCH to browse real photo options and pick one directly.</div>
+                                {photoSearchError && <div style={{ color: "#FF8290", font: "400 11px 'Inter'", marginTop: 4 }}>{photoSearchError}</div>}
+                                {photoCandidates.length > 0 && (
+                                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 8 }}>
+                                    {photoCandidates.map(c => (
+                                      <button
+                                        key={c.id}
+                                        type="button"
+                                        onClick={() => { setEditDraft(d => ({ ...d, option_b: c.full })); setPhotoCandidates([]); }}
+                                        title={c.tags}
+                                        style={{
+                                          padding: 0, border: editDraft.option_b === c.full ? "2px solid #2EE06E" : "1px solid #2E1A52",
+                                          borderRadius: 6, overflow: "hidden", cursor: "pointer", background: "none", height: 64,
+                                        }}
+                                      >
+                                        <img src={c.thumb} alt={c.tags} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                                 <input
                                   value={editDraft.option_b ?? ""}
                                   onChange={e => setEditDraft(d => ({ ...d, option_b: e.target.value }))}
                                   className="fbh-input"
                                   style={{ width: "100%", font: "400 12px 'Inter'", marginTop: 6 }}
-                                  placeholder="Direct image URL (optional)"
+                                  placeholder="Or paste a direct image URL"
                                 />
                                 <div style={{ marginTop: 6 }}>
                                   <div style={{ color: "#B9A8D9", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Correct answer</div>
@@ -1000,7 +1046,7 @@ export default function QuizBuilderPage() {
                             )}
                             <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
                               <HostButton variant="pri" onClick={() => saveEditQuestion(activeRound, qi)} style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>SAVE</HostButton>
-                              <HostButton onClick={() => { setEditingKey(null); setEditDraft({}); }} style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>CANCEL</HostButton>
+                              <HostButton onClick={() => { setEditingKey(null); setEditDraft({}); setPhotoCandidates([]); }} style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>CANCEL</HostButton>
                             </div>
                           </div>
                         ) : (

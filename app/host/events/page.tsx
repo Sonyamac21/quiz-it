@@ -43,7 +43,7 @@ export default function EventCalendarPage() {
   const [events,setEvents]=useState<EventRecord[]>([]); const [venues,setVenues]=useState<EventVenue[]>([]); const [quizzes,setQuizzes]=useState<EventQuiz[]>([]);
   const [view,setView]=useState<CalendarView>("month"); const [anchor,setAnchor]=useState(()=>new Date()); const [draft,setDraft]=useState<Draft|null>(null);
   const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [error,setError]=useState("");
-  const [currentHost,setCurrentHost]=useState({id:"",name:"Host"}); const [filters,setFilters]=useState({venue:"",host:"",status:""}); const [showPast,setShowPast]=useState(false);
+  const [currentHost,setCurrentHost]=useState({id:"",name:"Host"}); const [filters,setFilters]=useState({venue:"",host:"",status:""}); const [showPast,setShowPast]=useState(true);
   const [showQuizOptions,setShowQuizOptions]=useState(false);
   const autoOpenedRef=useRef(false);
 

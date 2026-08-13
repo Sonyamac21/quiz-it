@@ -22,7 +22,11 @@ export type EventRecord = {
   recurrence_group_id: string | null;
   recurrence_rule: RecurrenceRule | null;
   venue: { venue_name: string; address?: string | null; venue_logo_url?: string | null } | null;
-  quiz: { name: string } | null;
+  // quiz_rounds is optional - most callers only ever select id+name and
+  // never populate it, but the Dashboard also needs each round's questions
+  // to tell "a Quiz Plan is linked" apart from "that plan is actually
+  // finished" (every round has questions, music prep done).
+  quiz: { name: string; quiz_rounds?: { id: string; round_type: string; questions: Record<string, unknown>[] }[] } | null;
 };
 
 export type EventVenue = {

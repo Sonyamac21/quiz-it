@@ -11,7 +11,13 @@ const addDays=(date:Date,days:number)=>{const copy=new Date(date);copy.setDate(c
 
 export default function BackOfficeDashboard(){
   const [events,setEvents]=useState<EventRecord[]>([]);const [venues,setVenues]=useState<VenueAlert[]>([]);const [questionCount,setQuestionCount]=useState(0);const [loading,setLoading]=useState(true);const [error,setError]=useState("");
-  const load=useCallback(async()=>{const supabase=createSupabaseBrowserClient();const today=localDateKey();const [{data:eventData,error:eventError},{data:venueData},{data:quizData},{count}]=await Promise.all([supabase.from("events").select("*").gte("event_date",today).order("event_date").order("start_time").limit(30),supabase.from("venues").select("*").order("venue_name"),supabase.from("quizzes").select("id,name"),supabase.from("question_bank").select("id",{count:"exact",head:true})]);const venueRows=(venueData||[])as(Array<VenueAlert&{day_of_week?:number}>);const quizRows=(quizData||[])as{id:string;name:string}[];const mapped=(eventData||[]).map(row=>({...row,status:row.status||"scheduled",host_name:row.host_name||null,venue:venueRows.find(venue=>venue.id===row.venue_record_id||venue.day_of_week===row.venue_id)||null,quiz:quizRows.find(quiz=>quiz.id===row.quiz_definition_id)||null}))as EventRecord[];setEvents(mapped);setVenues(venueRows);setQuestionCount(count||0);if(eventError)setError(eventError.message);else setError("");setLoading(false)},[]);
+  // Pulls each quiz's rounds/questions too (not just id+name) so the
+  // dashboard can tell "a Quiz Plan is linked" apart from "that Quiz Plan
+  // actually has questions in every round and its music prepped" - a plan
+  // being built and complete in the Quiz Library doesn't mean it's been
+  // assigned to a specific Calendar date, and being assigned doesn't mean
+  // it's actually finished either. Both are surfaced separately below.
+  const load=useCallback(async()=>{const supabase=createSupabaseBrowserClient();const today=localDateKey();const [{data:eventData,error:eventError},{data:venueData},{data:quizData},{count}]=await Promise.all([supabase.from("events").select("*").gte("event_date",today).order("event_date").order("start_time").limit(30),supabase.from("venues").select("*").order("venue_name"),supabase.from("quizzes").select("id,name,quiz_rounds(id,round_type,questions)"),supabase.from("question_bank").select("id",{count:"exact",head:true})]);const venueRows=(venueData||[])as(Array<VenueAlert&{day_of_week?:number}>);const quizRows=(quizData||[])as{id:string;name:string;quiz_rounds?:{id:string;round_type:string;questions:Record<string,unknown>[]}[]}[];const mapped=(eventData||[]).map(row=>({...row,status:row.status||"scheduled",host_name:row.host_name||null,venue:venueRows.find(venue=>venue.id===row.venue_record_id||venue.day_of_week===row.venue_id)||null,quiz:quizRows.find(quiz=>quiz.id===row.quiz_definition_id)||null}))as EventRecord[];setEvents(mapped);setVenues(venueRows);setQuestionCount(count||0);if(eventError)setError(eventError.message);else setError("");setLoading(false)},[]);
   useEffect(()=>{const timer=window.setTimeout(()=>void load(),0);return()=>window.clearTimeout(timer)},[load]);
   const today=localDateKey();const weekEnd=addDays(new Date(),7);const todayEvents=events.filter(e=>e.event_date===today);const weekEvents=events.filter(e=>e.event_date<=weekEnd);const alerts=useMemo(()=>venues.filter(v=>v.active&&(!v.default_quiz_id||!v.default_start_time||!v.contact_email)),[venues]);const mediaAttention=venues.filter(v=>v.active&&(!v.venue_logo_url||!v.hero_image_url));
   return <main className="qi-bo-page"><header className="qi-bo-pagehead"><div><p>Back Office</p><h1>Good evening</h1><span>Everything needed to prepare the next live event.</span></div><Link className="qi-bo-primary" href="/host/events">Open Calendar</Link></header>{error&&<div className="qi-bo-alert" role="alert">Dashboard data could not be fully loaded: {error}</div>}
@@ -23,8 +29,29 @@ export default function BackOfficeDashboard(){
   </main>
 }
 
+// A Quiz Plan being linked to an event isn't the same as that plan actually
+// being finished - every round still needs questions, and every audio
+// question still needs an actual saved clip from Music Prep (not just a
+// generated search query). Ready-to-host only when both are true.
+function isQuizPlanComplete(quiz: EventRecord["quiz"]): boolean {
+  const rounds = quiz?.quiz_rounds;
+  if (!rounds || rounds.length === 0) return false;
+  return rounds.every(round => {
+    if (!round.questions || round.questions.length === 0) return false;
+    return round.questions.every(q => {
+      if (q.question_type !== "audio") return true;
+      const clip = q.option_b as string | undefined | null;
+      return Boolean(clip && clip.includes("blob.vercel-storage.com"));
+    });
+  });
+}
+
 function EventRow({event}:{event:EventRecord}){
-  const actionLabel=event.status==="live"?"Open live":event.quiz?"Prepare":"Finish planning";
+  const planComplete = isQuizPlanComplete(event.quiz);
+  const actionLabel = event.status==="live" ? "Open live"
+    : !event.quiz ? "Finish planning"
+    : planComplete ? "Ready to host"
+    : "Continue planning";
   const href=event.status==="live"?`/host/session?event=${event.id}`:`/host/events?event=${event.id}`;
   return <article className="qi-bo-event"><div className="qi-bo-date"><strong>{new Date(`${event.event_date}T12:00:00`).getDate()}</strong><span>{new Date(`${event.event_date}T12:00:00`).toLocaleDateString("en-GB",{month:"short"})}</span></div><div><strong>{event.venue?.venue_name||event.event_name}</strong><span>{formatEventDate(event.event_date)} · {formatEventTime(event.start_time)} · {event.host_name||"Host"}</span><small>{event.quiz?.name||"Quiz Plan needed"}</small></div><span className={`qi-bo-status ${event.status}`}>{event.status}</span><Link href={href}>{actionLabel}</Link></article>
 }

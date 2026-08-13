@@ -59,6 +59,9 @@ export default function QuizBuilderPage() {
   const [dragOverQuestionIndex, setDragOverQuestionIndex] = useState<number | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Record<string, string>>({});
+  const [draggedQuestionSource, setDraggedQuestionSource] = useState<{ roundId: string; index: number } | null>(null);
+  const [dragOverRoundId, setDragOverRoundId] = useState<string | null>(null);
+  const [dragOverLibrary, setDragOverLibrary] = useState(false);
   const [addRoundOpen, setAddRoundOpen] = useState(false);
   const [settingsOpenRoundId, setSettingsOpenRoundId] = useState<string | null>(null);
   const [activeRoundId, setActiveRoundId] = useState<string | null>(null);
@@ -174,6 +177,50 @@ export default function QuizBuilderPage() {
     const supabase = createSupabaseBrowserClient();
     await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
+  }
+  // Move a question from one round to another (drag-and-drop between round
+  // tabs) - removes it from the source round's questions array and appends
+  // it to the target round's, persisting both rows.
+  async function moveQuestionToRound(fromRound: QuizRound, qIndex: number, toRoundId: string) {
+    if (fromRound.id === toRoundId) return;
+    const toRound = selected?.quiz_rounds.find(r => r.id === toRoundId);
+    if (!toRound) return;
+    const moved = fromRound.questions[qIndex];
+    if (!moved) return;
+    const fromQuestions = fromRound.questions.filter((_, i) => i !== qIndex);
+    const toQuestions = [...toRound.questions, moved];
+    const supabase = createSupabaseBrowserClient();
+    await Promise.all([
+      supabase.from("quiz_rounds").update({ questions: fromQuestions }).eq("id", fromRound.id),
+      supabase.from("quiz_rounds").update({ questions: toQuestions }).eq("id", toRound.id),
+    ]);
+    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : {
+      ...q,
+      quiz_rounds: q.quiz_rounds.map(r => {
+        if (r.id === fromRound.id) return { ...r, questions: fromQuestions };
+        if (r.id === toRound.id) return { ...r, questions: toQuestions };
+        return r;
+      }),
+    }));
+  }
+  // Send a question you don't want in this quiz back to the reusable
+  // Question Library instead of just deleting it outright.
+  async function moveQuestionToLibrary(round: QuizRound, qIndex: number) {
+    const q = round.questions[qIndex] as Record<string, unknown> | undefined;
+    if (!q) return;
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("question_bank").insert({
+      question_text: q.question_text ?? "",
+      question_type: q.question_type ?? null,
+      option_a: q.option_a ?? null,
+      option_b: q.option_b ?? null,
+      option_c: q.option_c ?? null,
+      option_d: q.option_d ?? null,
+      correct_answer: q.correct_answer ?? "",
+      difficulty: q.difficulty ?? round.difficulty ?? "mixed",
+      round_type: round.round_type,
+    });
+    await removeRoundQuestion(round, qIndex);
   }
   async function syncRoundToLibrary(round: QuizRound, questions: Record<string, unknown>[], quizName: string) {
     const supabase = createSupabaseBrowserClient();
@@ -582,14 +629,26 @@ export default function QuizBuilderPage() {
                   const isRoundGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
                   const roundCfg = bulkConfig[round.id];
                   const roundProgress = bulkProgress[round.id];
+                  const isDropTarget = draggedQuestionSource && draggedQuestionSource.roundId !== round.id;
                   return (
                   <div
                     key={round.id}
                     onClick={() => setActiveRoundId(round.id)}
+                    onDragOver={e => { if (isDropTarget) { e.preventDefault(); if (dragOverRoundId !== round.id) setDragOverRoundId(round.id); } }}
+                    onDragLeave={() => setDragOverRoundId(cur => cur === round.id ? null : cur)}
+                    onDrop={e => {
+                      e.preventDefault();
+                      if (draggedQuestionSource && isDropTarget) {
+                        const fromRound = selected.quiz_rounds.find(r => r.id === draggedQuestionSource.roundId);
+                        if (fromRound) void moveQuestionToRound(fromRound, draggedQuestionSource.index, round.id);
+                      }
+                      setDraggedQuestionSource(null);
+                      setDragOverRoundId(null);
+                    }}
                     style={{
                       padding: "8px 14px", borderRadius: 10, cursor: "pointer", textAlign: "left",
-                      border: round.id === activeRound.id ? "2px solid #BE26C1" : "1px solid #2E1A52",
-                      background: round.id === activeRound.id ? "rgba(190,38,193,0.15)" : "#150A2E",
+                      border: dragOverRoundId === round.id ? "2px dashed #2EE06E" : round.id === activeRound.id ? "2px solid #BE26C1" : "1px solid #2E1A52",
+                      background: dragOverRoundId === round.id ? "rgba(46,224,110,0.12)" : round.id === activeRound.id ? "rgba(190,38,193,0.15)" : "#150A2E",
                       color: "#fff", display: "flex", flexDirection: "column", gap: 2,
                     }}
                   >
@@ -605,6 +664,27 @@ export default function QuizBuilderPage() {
                   </div>
                   );
                 })}
+                {draggedQuestionSource && (
+                  <div
+                    onDragOver={e => { e.preventDefault(); setDragOverLibrary(true); }}
+                    onDragLeave={() => setDragOverLibrary(false)}
+                    onDrop={e => {
+                      e.preventDefault();
+                      const fromRound = selected.quiz_rounds.find(r => r.id === draggedQuestionSource.roundId);
+                      if (fromRound) void moveQuestionToLibrary(fromRound, draggedQuestionSource.index);
+                      setDraggedQuestionSource(null);
+                      setDragOverLibrary(false);
+                    }}
+                    style={{
+                      padding: "8px 14px", borderRadius: 10, textAlign: "center", alignSelf: "center",
+                      border: dragOverLibrary ? "2px dashed #2EE06E" : "1px dashed #6B5A8E",
+                      background: dragOverLibrary ? "rgba(46,224,110,0.12)" : "transparent",
+                      color: dragOverLibrary ? "#2EE06E" : "#6B5A8E", font: "600 12px 'Inter'",
+                    }}
+                  >
+                    Drop here to send to Question Library
+                  </div>
+                )}
               </div>
 
               <div className="fbh-panel" style={{ padding: 16 }}>
@@ -772,7 +852,7 @@ export default function QuizBuilderPage() {
                       <div
                         key={qi}
                         draggable={!isEditing}
-                        onDragStart={() => setDraggedQuestionIndex(qi)}
+                        onDragStart={() => { setDraggedQuestionIndex(qi); setDraggedQuestionSource({ roundId: activeRound.id, index: qi }); }}
                         onDragOver={e => { e.preventDefault(); if (dragOverQuestionIndex !== qi) setDragOverQuestionIndex(qi); }}
                         onDragLeave={() => setDragOverQuestionIndex(cur => cur === qi ? null : cur)}
                         onDrop={e => {
@@ -780,8 +860,9 @@ export default function QuizBuilderPage() {
                           if (draggedQuestionIndex !== null) reorderRoundQuestions(activeRound, draggedQuestionIndex, qi);
                           setDraggedQuestionIndex(null);
                           setDragOverQuestionIndex(null);
+                          setDraggedQuestionSource(null);
                         }}
-                        onDragEnd={() => { setDraggedQuestionIndex(null); setDragOverQuestionIndex(null); }}
+                        onDragEnd={() => { setDraggedQuestionIndex(null); setDragOverQuestionIndex(null); setDraggedQuestionSource(null); }}
                         style={{
                           position: "relative", padding: "12px 34px 12px 14px", borderRadius: 12, background: "#150A2E",
                           border: dragOverQuestionIndex === qi && draggedQuestionIndex !== qi ? "1px dashed #BE26C1" : "1px solid #2E1A52",

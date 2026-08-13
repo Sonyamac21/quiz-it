@@ -521,7 +521,7 @@ export default function QuizBuilderPage() {
   }
 
   return <HostShell><main className="qi-bo-page" style={{ minHeight: "100vh", background: BG, color: "#fff" }}>
-    <header className="qi-bo-pagehead"><div><p>Programme planning</p><h1>Quiz Library</h1><span>A Quiz Plan is the running order for one night: pick rounds from the Round Library, put them in order, then assign the plan to a date on the Calendar.</span></div><div className="qi-bo-page-actions">
+    <header className="qi-bo-pagehead" style={{ marginBottom: 10 }}><div><p style={{ margin: "0 0 2px" }}>Programme planning</p><h1 style={{ fontSize: "clamp(18px,1.6vw,22px)" }}>Quiz Library</h1></div><div className="qi-bo-page-actions">
       <select value={selectedId ?? "__new__"} onChange={e => setSelectedId(e.target.value === "__new__" ? null : e.target.value)} style={{ minHeight: 44, padding: "0 12px", borderRadius: 10, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", font: "600 13px 'Inter'" }}>
         <option value="__new__">+ New Quiz Plan</option>
         {quizzes.map(q => <option key={q.id} value={q.id}>{q.name}{q.archived ? " (Archived)" : ""} - {q.quiz_rounds.length} rounds</option>)}
@@ -623,8 +623,10 @@ export default function QuizBuilderPage() {
           const addQuestionOpen = addQuestionOpenId === activeRound.id;
           return (
             <>
-              {/* One tab per round - the whole quiz at a glance, click a tab to work on just that round's questions. */}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+              {/* One tab per round - the whole quiz at a glance, click a tab to work on just that round's questions.
+                  Sticks below the site header so it stays reachable as a drag-and-drop target while scrolling
+                  through a long list of questions, instead of scrolling out of view. */}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, position: "sticky", top: 96, zIndex: 20, padding: "8px 8px", margin: "-8px -8px 6px", background: "rgba(10,1,24,0.92)", backdropFilter: "blur(10px)", borderRadius: 12 }}>
                 {selected.quiz_rounds.map((round, index) => {
                   const isRoundGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
                   const roundCfg = bulkConfig[round.id];

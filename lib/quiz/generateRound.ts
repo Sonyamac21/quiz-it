@@ -767,6 +767,7 @@ export async function generateValidatedRound(
   spec: RoundGenerationSpec,
   exclusions: ExclusionState,
   onProgress?: (status: string) => void,
+  onAccept?: (q: Question) => void,
 ): Promise<RoundGenerationResult> {
   const { roundType, difficulty, theme } = spec;
   // The Pursuit is always exactly 7 gates, never host-configurable - enforce it
@@ -860,6 +861,7 @@ export async function generateValidatedRound(
       await commitToMemory(q);
       good.push(q);
       registerAccepted(exclusions, q);
+      onAccept?.(q);
       addReportEntry({ outcome: "accepted", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       consecutiveCheckFailures = 0;
     } else {
@@ -915,6 +917,21 @@ export async function generateAllRounds(
     rejectedFingerprints: new Set(baseExclusions.rejectedFingerprints),
     rejectedTexts: new Set(baseExclusions.rejectedTexts),
   }));
+  // Broadcasts a just-accepted question from one round into every OTHER
+  // round's exclusion bundle immediately, so two rounds generating at the
+  // same time can't both land the same brand-new question (e.g. two rounds
+  // both accepting "Bat" for "only mammal capable of true flight") before
+  // either has been saved to the database. Previously this merge was only
+  // described in a comment but never actually implemented.
+  const broadcastAccept = (fromIdx: number, q: Question) => {
+    perRoundExclusions.forEach((state, j) => {
+      if (j === fromIdx) return;
+      state.used = [...state.used, q.question_text];
+      state.usedFingerprints.add(questionFingerprint(q));
+      const normAnswer = (q.correct_answer || "").toLowerCase().trim();
+      if (normAnswer) state.usedAnswers = [...state.usedAnswers, normAnswer];
+    });
+  };
   return Promise.all(
     specs.map(async (spec, idx) => {
       // A single round throwing (network hiccup, unexpected API shape, etc.)
@@ -924,7 +941,7 @@ export async function generateAllRounds(
       // saved. Catch here so this round reports itself as failed while every
       // other round keeps running and saving independently.
       try {
-        const result = await generateValidatedRound(spec, perRoundExclusions[idx], status => onProgress?.(idx, status));
+        const result = await generateValidatedRound(spec, perRoundExclusions[idx], status => onProgress?.(idx, status), q => broadcastAccept(idx, q));
         onRoundComplete?.(idx, result);
         return result;
       } catch (e) {

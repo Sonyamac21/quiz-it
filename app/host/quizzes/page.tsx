@@ -838,16 +838,25 @@ export default function QuizBuilderPage() {
                     // the correct answer was shown, so there was no way to
                     // review a multiple-choice/sequence question's wrong
                     // options before it went live.
-                    const optionLetters = ["a", "b", "c", "d", "e", "f"] as const;
-                    const options = optionLetters
-                      .map(letter => ({ letter, value: qr["option_" + letter] as string | null | undefined }))
-                      .filter(o => o.value);
                     // Audio (music) questions hide the real search info from
                     // players in option_a - that's exactly the field a host
                     // needs to see to go find/cue up the actual track before
                     // the show, so surface it explicitly here.
                     const isAudio = qType === "audio";
                     const musicLookup = isAudio ? String(qr.option_a ?? "") : "";
+                    // Picture questions store the internal search query in
+                    // option_a and the actual fetched image URL in option_b -
+                    // neither is a real multiple-choice option, so both need
+                    // to be pulled out of the generic options list and shown
+                    // as an actual photo instead of raw text/a URL string.
+                    const isPicture = qType === "picture";
+                    const photoQuery = isPicture ? String(qr.option_a ?? "") : "";
+                    const photoUrl = isPicture ? String(qr.option_b ?? "") : "";
+                    const optionLetters = ["a", "b", "c", "d", "e", "f"] as const;
+                    const options = optionLetters
+                      .map(letter => ({ letter, value: qr["option_" + letter] as string | null | undefined }))
+                      .filter(o => o.value)
+                      .filter(o => !((isAudio || isPicture) && (o.letter === "a" || o.letter === "b")));
                     const editKey = activeRound.id + "-" + qi;
                     const isEditing = editingKey === editKey;
                     return (
@@ -896,6 +905,35 @@ export default function QuizBuilderPage() {
                                   className="fbh-input"
                                   style={{ width: "100%", font: "400 12px 'Inter'" }}
                                 />
+                              </div>
+                            ) : isPicture ? (
+                              <div>
+                                {photoUrl && <img src={photoUrl} alt={photoQuery || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 140, objectFit: "cover", borderRadius: 6, marginBottom: 6 }} />}
+                                <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Image search query</div>
+                                <input
+                                  value={editDraft.option_a ?? ""}
+                                  onChange={e => setEditDraft(d => ({ ...d, option_a: e.target.value }))}
+                                  className="fbh-input"
+                                  style={{ width: "100%", font: "400 12px 'Inter'" }}
+                                  placeholder="e.g. Eiffel Tower Paris"
+                                />
+                                <div style={{ color: "#6B5A8E", font: "400 10px 'Inter'", marginTop: 4 }}>Changing this doesn&apos;t re-fetch a new photo automatically - use REGENERATE for a fresh AI-picked image, or paste a direct image URL below to swap it yourself.</div>
+                                <input
+                                  value={editDraft.option_b ?? ""}
+                                  onChange={e => setEditDraft(d => ({ ...d, option_b: e.target.value }))}
+                                  className="fbh-input"
+                                  style={{ width: "100%", font: "400 12px 'Inter'", marginTop: 6 }}
+                                  placeholder="Direct image URL (optional)"
+                                />
+                                <div style={{ marginTop: 6 }}>
+                                  <div style={{ color: "#B9A8D9", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Correct answer</div>
+                                  <input
+                                    value={editDraft.correct_answer ?? ""}
+                                    onChange={e => setEditDraft(d => ({ ...d, correct_answer: e.target.value }))}
+                                    className="fbh-input"
+                                    style={{ width: "100%", font: "400 12px 'Inter'" }}
+                                  />
+                                </div>
                               </div>
                             ) : options.length > 0 ? (
                               <div style={{ display: "grid", gap: 4 }}>
@@ -946,6 +984,17 @@ export default function QuizBuilderPage() {
                               <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 8, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
                                 <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Search to find this track</div>
                                 <div style={{ color: "#fff", font: "600 12px 'Inter'", marginTop: 2 }}>{musicLookup}</div>
+                              </div>
+                            )}
+                            {isPicture && (
+                              <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 8, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
+                                <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Photo shown to players</div>
+                                {photoUrl ? (
+                                  <img src={photoUrl} alt={photoQuery || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 6, marginTop: 6 }} />
+                                ) : (
+                                  <div style={{ color: "#B9A8D9", font: "400 12px 'Inter'", marginTop: 4 }}>No image found for this question yet.</div>
+                                )}
+                                {photoQuery && <div style={{ color: "#6B5A8E", font: "400 11px 'Inter'", marginTop: 4 }}>{"Search: " + photoQuery}</div>}
                               </div>
                             )}
                             {options.length > 0 ? (

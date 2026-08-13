@@ -62,6 +62,7 @@ export default function QuizBuilderPage() {
   const [draggedQuestionSource, setDraggedQuestionSource] = useState<{ roundId: string; index: number } | null>(null);
   const [dragOverRoundId, setDragOverRoundId] = useState<string | null>(null);
   const [dragOverLibrary, setDragOverLibrary] = useState(false);
+  const [draggedRoundIndex, setDraggedRoundIndex] = useState<number | null>(null);
   const [addRoundOpen, setAddRoundOpen] = useState(false);
   const [settingsOpenRoundId, setSettingsOpenRoundId] = useState<string | null>(null);
   const [activeRoundId, setActiveRoundId] = useState<string | null>(null);
@@ -449,6 +450,20 @@ export default function QuizBuilderPage() {
     await load();
   }
 
+  // Drag-and-drop reorder of whole rounds (the round tabs), same pattern as
+  // dragging questions within a round - drop a round tab onto another one to
+  // move it there, rather than only being able to nudge it one place at a
+  // time with UP/DOWN.
+  async function reorderRounds(fromIndex: number, toIndex: number) {
+    if (!selected || fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    const ordered = [...selected.quiz_rounds];
+    if (fromIndex >= ordered.length || toIndex >= ordered.length) return;
+    const [moved] = ordered.splice(fromIndex, 1);
+    ordered.splice(toIndex, 0, moved);
+    await normalizePositions(selected.id, ordered);
+    await load();
+  }
+
   async function duplicateRound(round: QuizRound) {
     if (!selected) return;
     const { id: _id, ...copy } = round;
@@ -631,26 +646,39 @@ export default function QuizBuilderPage() {
                   const isRoundGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
                   const roundCfg = bulkConfig[round.id];
                   const roundProgress = bulkProgress[round.id];
-                  const isDropTarget = draggedQuestionSource && draggedQuestionSource.roundId !== round.id;
+                  // A tab is a drop target either for a dragged QUESTION (moving it into
+                  // a different round) or for a dragged ROUND tab itself (reordering the
+                  // rounds) - the two never happen at the same time, so they share the
+                  // same highlight state.
+                  const isQuestionDropTarget = Boolean(draggedQuestionSource) && draggedQuestionSource!.roundId !== round.id;
+                  const isRoundDropTarget = draggedRoundIndex !== null && draggedRoundIndex !== index;
+                  const isDropTarget = isQuestionDropTarget || isRoundDropTarget;
                   return (
                   <div
                     key={round.id}
+                    draggable
                     onClick={() => setActiveRoundId(round.id)}
+                    onDragStart={e => { e.stopPropagation(); setDraggedRoundIndex(index); }}
                     onDragOver={e => { if (isDropTarget) { e.preventDefault(); if (dragOverRoundId !== round.id) setDragOverRoundId(round.id); } }}
                     onDragLeave={() => setDragOverRoundId(cur => cur === round.id ? null : cur)}
                     onDrop={e => {
                       e.preventDefault();
-                      if (draggedQuestionSource && isDropTarget) {
+                      if (draggedQuestionSource && isQuestionDropTarget) {
                         const fromRound = selected.quiz_rounds.find(r => r.id === draggedQuestionSource.roundId);
                         if (fromRound) void moveQuestionToRound(fromRound, draggedQuestionSource.index, round.id);
+                      } else if (draggedRoundIndex !== null && isRoundDropTarget) {
+                        void reorderRounds(draggedRoundIndex, index);
                       }
                       setDraggedQuestionSource(null);
+                      setDraggedRoundIndex(null);
                       setDragOverRoundId(null);
                     }}
+                    onDragEnd={() => { setDraggedRoundIndex(null); setDragOverRoundId(null); }}
                     style={{
-                      padding: "8px 14px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+                      padding: "8px 14px", borderRadius: 10, cursor: "grab", textAlign: "left",
                       border: dragOverRoundId === round.id ? "2px dashed #2EE06E" : round.id === activeRound.id ? "2px solid #BE26C1" : "1px solid #2E1A52",
                       background: dragOverRoundId === round.id ? "rgba(46,224,110,0.12)" : round.id === activeRound.id ? "rgba(190,38,193,0.15)" : "#150A2E",
+                      opacity: draggedRoundIndex === index ? 0.4 : 1,
                       color: "#fff", display: "flex", flexDirection: "column", gap: 2,
                     }}
                   >
@@ -708,7 +736,7 @@ export default function QuizBuilderPage() {
                   <HostButton onClick={() => duplicateRound(activeRound)}>COPY</HostButton>
                   <HostButton onClick={() => removeRound(activeRound)}>REMOVE</HostButton>
                   {activeRound.questions.some(q => (q as Record<string, unknown>).question_type === "audio") && (
-                    <a className="fbh-btn" href="/host/music-prep" title="Search, trim and save the actual audio clips for this round's music questions">PREP MUSIC</a>
+                    <a className="fbh-btn" href={`/host/music-prep?round=${activeRound.id}`} title="Search, trim and save the actual audio clips for this round's music questions">PREP MUSIC</a>
                   )}
                 </div>
 

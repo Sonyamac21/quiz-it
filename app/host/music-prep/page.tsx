@@ -247,7 +247,17 @@ export default function MusicPrepPage() {
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setRounds(merged);
       setLoading(false);
+      // Arriving here via a "PREP MUSIC" link from a specific round (Quiz
+      // Plan builder or Round Library) should drop straight into that
+      // round's questions, not the full "All Rounds" list - one click
+      // instead of clicking in, then finding, then opening the round again.
+      const roundId = new URLSearchParams(window.location.search).get("round");
+      if (roundId) {
+        const match = merged.find(r => r.id === roundId);
+        if (match) openForPrep(match);
+      }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function getAudioCtx(): AudioContext {

@@ -57,6 +57,8 @@ export default function QuizBuilderPage() {
   const [swappingKey, setSwappingKey] = useState<string | null>(null);
   const [draggedQuestionIndex, setDraggedQuestionIndex] = useState<number | null>(null);
   const [dragOverQuestionIndex, setDragOverQuestionIndex] = useState<number | null>(null);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<Record<string, string>>({});
   const [addRoundOpen, setAddRoundOpen] = useState(false);
   const [settingsOpenRoundId, setSettingsOpenRoundId] = useState<string | null>(null);
   const [activeRoundId, setActiveRoundId] = useState<string | null>(null);
@@ -228,6 +230,30 @@ export default function QuizBuilderPage() {
     } finally {
       setSwappingKey(null);
     }
+  }
+  function startEditQuestion(round: QuizRound, qIndex: number, q: Record<string, unknown>) {
+    const key = round.id + "-" + qIndex;
+    const draft: Record<string, string> = {
+      question_text: String(q.question_text ?? ""),
+      correct_answer: String(q.correct_answer ?? ""),
+    };
+    (["a", "b", "c", "d", "e", "f"] as const).forEach(letter => {
+      const v = q["option_" + letter];
+      if (v != null) draft["option_" + letter] = String(v);
+    });
+    setEditDraft(draft);
+    setEditingKey(key);
+  }
+  async function saveEditQuestion(round: QuizRound, qIndex: number) {
+    const original = round.questions[qIndex] as Record<string, unknown>;
+    const updated: Record<string, unknown> = { ...original, ...editDraft };
+    const newQuestions = round.questions.map((q, i) => i === qIndex ? updated : q);
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
+    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
+    if (selected) void syncRoundToLibrary(round, newQuestions, selected.name);
+    setEditingKey(null);
+    setEditDraft({});
   }
   async function runBulkGenerate() {
     if (!selected) return;
@@ -740,10 +766,12 @@ export default function QuizBuilderPage() {
                     // the show, so surface it explicitly here.
                     const isAudio = qType === "audio";
                     const musicLookup = isAudio ? String(qr.option_a ?? "") : "";
+                    const editKey = activeRound.id + "-" + qi;
+                    const isEditing = editingKey === editKey;
                     return (
                       <div
                         key={qi}
-                        draggable
+                        draggable={!isEditing}
                         onDragStart={() => setDraggedQuestionIndex(qi)}
                         onDragOver={e => { e.preventDefault(); if (dragOverQuestionIndex !== qi) setDragOverQuestionIndex(qi); }}
                         onDragLeave={() => setDragOverQuestionIndex(cur => cur === qi ? null : cur)}
@@ -766,31 +794,95 @@ export default function QuizBuilderPage() {
                           title="Remove question"
                           style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", fontSize: 14, lineHeight: "22px", padding: 0 }}
                         >×</button>
-                        <div style={{ font: "400 13px 'Inter'", color: "#D9CCF2", lineHeight: 1.5 }}>
-                          <strong style={{ color: "#6B5A8E" }}>{"⠿ "}{qi + 1}.</strong> {String(qr.question_text ?? "")}
-                        </div>
-                        {isAudio && musicLookup && (
-                          <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 8, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
-                            <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Search to find this track</div>
-                            <div style={{ color: "#fff", font: "600 12px 'Inter'", marginTop: 2 }}>{musicLookup}</div>
-                          </div>
-                        )}
-                        {options.length > 0 ? (
-                          <div style={{ marginTop: 6, display: "grid", gap: 3 }}>
-                            {options.map(o => (
-                              <div key={o.letter} style={{ font: "400 12px 'Inter'", color: correctAnswer.toLowerCase().includes(o.letter) || correctAnswer === o.value ? "#2EE06E" : "#B9A8D9" }}>
-                                {o.letter.toUpperCase()}. {o.value}
+                        {isEditing ? (
+                          <div style={{ display: "grid", gap: 6 }}>
+                            <textarea
+                              value={editDraft.question_text ?? ""}
+                              onChange={e => setEditDraft(d => ({ ...d, question_text: e.target.value }))}
+                              className="fbh-input"
+                              rows={2}
+                              style={{ width: "100%", resize: "vertical", font: "400 13px 'Inter'" }}
+                              placeholder="Question"
+                            />
+                            {isAudio ? (
+                              <div>
+                                <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Search to find this track</div>
+                                <input
+                                  value={editDraft.option_a ?? ""}
+                                  onChange={e => setEditDraft(d => ({ ...d, option_a: e.target.value }))}
+                                  className="fbh-input"
+                                  style={{ width: "100%", font: "400 12px 'Inter'" }}
+                                />
                               </div>
-                            ))}
-                            <div style={{ color: "#2EE06E", font: "700 12px 'Inter'", marginTop: 2 }}>{"Correct: " + correctAnswer}</div>
+                            ) : options.length > 0 ? (
+                              <div style={{ display: "grid", gap: 4 }}>
+                                {options.map(o => (
+                                  <div key={o.letter} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditDraft(d => ({ ...d, correct_answer: o.letter }))}
+                                      title="Mark as correct answer"
+                                      style={{
+                                        width: 22, height: 22, flexShrink: 0, borderRadius: "50%", cursor: "pointer",
+                                        border: (editDraft.correct_answer ?? "").toLowerCase() === o.letter ? "2px solid #2EE06E" : "1px solid #6B5A8E",
+                                        background: (editDraft.correct_answer ?? "").toLowerCase() === o.letter ? "rgba(46,224,110,0.2)" : "transparent",
+                                        color: (editDraft.correct_answer ?? "").toLowerCase() === o.letter ? "#2EE06E" : "#6B5A8E",
+                                        font: "700 11px 'Inter'",
+                                      }}
+                                    >{o.letter.toUpperCase()}</button>
+                                    <input
+                                      value={editDraft["option_" + o.letter] ?? ""}
+                                      onChange={e => setEditDraft(d => ({ ...d, ["option_" + o.letter]: e.target.value }))}
+                                      className="fbh-input"
+                                      style={{ flex: 1, font: "400 12px 'Inter'" }}
+                                    />
+                                  </div>
+                                ))}
+                                <div style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Tap a letter to set the correct answer</div>
+                              </div>
+                            ) : (
+                              <input
+                                value={editDraft.correct_answer ?? ""}
+                                onChange={e => setEditDraft(d => ({ ...d, correct_answer: e.target.value }))}
+                                className="fbh-input"
+                                style={{ width: "100%", font: "400 12px 'Inter'" }}
+                                placeholder="Correct answer"
+                              />
+                            )}
+                            <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
+                              <HostButton variant="pri" onClick={() => saveEditQuestion(activeRound, qi)} style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>SAVE</HostButton>
+                              <HostButton onClick={() => { setEditingKey(null); setEditDraft({}); }} style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>CANCEL</HostButton>
+                            </div>
                           </div>
                         ) : (
-                          <div style={{ color: "#2EE06E", font: "600 12px 'Inter'", marginTop: 6 }}>{"-> "}{correctAnswer}</div>
+                          <>
+                            <div style={{ font: "400 13px 'Inter'", color: "#D9CCF2", lineHeight: 1.5 }}>
+                              <strong style={{ color: "#6B5A8E" }}>{"⠿ "}{qi + 1}.</strong> {String(qr.question_text ?? "")}
+                            </div>
+                            {isAudio && musicLookup && (
+                              <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 8, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
+                                <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Search to find this track</div>
+                                <div style={{ color: "#fff", font: "600 12px 'Inter'", marginTop: 2 }}>{musicLookup}</div>
+                              </div>
+                            )}
+                            {options.length > 0 ? (
+                              <div style={{ marginTop: 6, display: "grid", gap: 3 }}>
+                                {options.map(o => (
+                                  <div key={o.letter} style={{ font: "400 12px 'Inter'", color: correctAnswer.toLowerCase().includes(o.letter) || correctAnswer === o.value ? "#2EE06E" : "#B9A8D9" }}>
+                                    {o.letter.toUpperCase()}. {o.value}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div style={{ color: "#2EE06E", font: "600 12px 'Inter'", marginTop: 6 }}>{"-> "}{correctAnswer}</div>
+                            )}
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                              <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>EDIT</HostButton>
+                              <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace with a new AI-generated question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
+                              <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Drag to reorder</span>
+                            </div>
+                          </>
                         )}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                          <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace with a new AI-generated question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
-                          <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Drag to reorder</span>
-                        </div>
                       </div>
                     );
                   })}

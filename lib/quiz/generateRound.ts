@@ -813,7 +813,7 @@ export async function generateValidatedRound(
   const shuffledMusicTopics = shuffle(MUSIC_TOPICS);
   const good: Question[] = [];
   let attempts = 0;
-  const maxAttempts = count * 8;
+  const maxAttempts = count * 14;
   let i = 0;
   let consecutiveFailures = 0;
   let consecutiveCheckFailures = 0;
@@ -874,7 +874,7 @@ export async function generateValidatedRound(
       consecutiveCheckFailures++;
       const failReason = (validation.reason || "Unknown reason").substring(0, 40);
       onProgress?.("Question " + (good.length + 1) + " failed check (" + failReason + ") - retrying...");
-      if (consecutiveCheckFailures >= 15) {
+      if (consecutiveCheckFailures >= 25) {
         const finalStatus = "Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + (validation.reason || "Unknown reason").substring(0, 60) + "). Got " + good.length + " of " + count + ". See Generation Report for details.";
         onProgress?.(finalStatus);
         return { spec, questions: good, report, finalStatus, stoppedEarly: true };

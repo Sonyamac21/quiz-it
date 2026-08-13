@@ -135,7 +135,7 @@ export default function EventCalendarPage() {
           <div className="fbh-panel" style={{ margin: "10px 0", padding: 14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <div className="fbh-lbl" style={{ margin: 0 }}>Venue Info</div>
-              <Link href={`/host/venues?id=${venue.id}`} target="_blank" style={{ font: "600 12px 'Inter'", color: "#D94FDC", textDecoration: "underline" }}>Edit venue</Link>
+              <Link href={`/host/venues?id=${venue.id}`} style={{ font: "600 12px 'Inter'", color: "#D94FDC", textDecoration: "underline" }}>Edit venue</Link>
             </div>
             {venue.address && <div style={{ color: "#D9CCF2", font: "400 13px 'Inter'", marginBottom: 6 }}>{venue.address}</div>}
             {hasOffers && (
@@ -150,7 +150,7 @@ export default function EventCalendarPage() {
         );
       })()}
       <div className="qi-bo-event-summary"><div><span>Date and time</span><strong>{formatEventDate(draft.date)} · {draft.start}</strong></div><div><span>Host</span><strong>{draft.hostName||"Inherited from venue"}</strong></div><div><span>Quiz Plan</span><strong style={!draft.quizId?{color:"#FFC533"}:undefined}>{draft.quizId ? (() => { const q = quizzes.find(q => q.id === draft.quizId); return q ? `${q.name} - ${q.quiz_rounds.length} round${q.quiz_rounds.length === 1 ? "" : "s"}` : "Loading…"; })() : "Not assigned"}</strong></div></div>
-      {draft.quizId ? <div style={{display:"flex",gap:8,minWidth:0}}><select style={{...field,flex:"1 1 auto",minWidth:0}} value={draft.quizId} onChange={e=>setDraft({...draft,quizId:e.target.value})}><option value="">Not assigned</option>{quizzes.map(q=><option key={q.id} value={q.id}>{q.name}</option>)}</select><Link href="/host/quizzes" target="_blank" className="fbh-btn" style={{whiteSpace:"nowrap",flexShrink:0}}>Manage Quiz Plans</Link></div>
+      {draft.quizId ? <div style={{display:"flex",gap:8,minWidth:0}}><select style={{...field,flex:"1 1 auto",minWidth:0}} value={draft.quizId} onChange={e=>setDraft({...draft,quizId:e.target.value})}><option value="">Not assigned</option>{quizzes.map(q=><option key={q.id} value={q.id}>{q.name}</option>)}</select><Link href="/host/quizzes" className="fbh-btn" style={{whiteSpace:"nowrap",flexShrink:0}}>Manage Quiz Plans</Link></div>
       : draft.id ? <div>
         <button type="button" className="fbh-btn pri" style={{width:"100%"}} aria-expanded={showQuizOptions} aria-haspopup="true" onClick={()=>setShowQuizOptions(v=>!v)}>CREATE / ASSIGN QUIZ</button>
         {showQuizOptions&&<div className="fbh-panel" style={{marginTop:8,display:"grid",gap:8}}>

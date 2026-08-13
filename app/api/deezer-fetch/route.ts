@@ -2,16 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-// The browser cannot fetch Deezer preview MP3s directly due to CORS.
+// The browser cannot fetch preview MP3s directly due to CORS.
 // This route fetches them server-side and streams the bytes back,
 // allowing the browser to decode the audio for the waveform editor.
+// Deezer search now automatically falls back to Apple's iTunes Search API
+// when Deezer's API blocks the request (see /api/deezer-search), so this
+// proxy has to accept iTunes' preview CDN domains too, not just Deezer's.
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   if (!url) return NextResponse.json({ error: "Missing url parameter" }, { status: 400 });
 
-  // Safety: only proxy Deezer CDN URLs
-  if (!url.includes("dzcdn.net") && !url.includes("deezer.com")) {
-    return NextResponse.json({ error: "Not a Deezer URL" }, { status: 400 });
+  // Safety: only proxy known preview-audio CDN domains
+  const allowed = ["dzcdn.net", "deezer.com", "mzstatic.com", "apple.com"];
+  if (!allowed.some(domain => url.includes(domain))) {
+    return NextResponse.json({ error: "Not a recognised preview-audio URL" }, { status: 400 });
   }
 
   try {

@@ -222,11 +222,11 @@ function registerAccepted(state: ExclusionState, q: Question) {
 
 // ── AI calls (copied verbatim, same /api/generate-questions server route) ──
 
-async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false) {
+async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false) {
   const res = await withAiRequestSlot(() => fetch("/api/generate-questions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, maxTokens, structuredOutput }),
+    body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch }),
   }));
   const rawText = await res.text();
   let data;
@@ -388,6 +388,17 @@ async function generateOne(
       + (usedAnswersList ? " Also do NOT use any of these already-used answers (even with different question wording): " + usedAnswersList + "." : "")
     : "";
   if (exclusionNote.length > 1200) exclusionNote = exclusionNote.slice(0, 1200);
+  // These two topics are the only ones allowed to touch anything from the
+  // last few years - everything else in TOPICS is evergreen trivia that the
+  // model already knows solidly. For these two specifically, ungrounded
+  // generation was producing stale or occasionally wrong "recent" facts,
+  // since the model only knows whatever was true as of its training cutoff,
+  // not what's actually current. Routing just these through Claude's live
+  // web search tool (wired in app/api/generate-questions/route.ts) fixes
+  // that at the source instead of relying on the model to "remember"
+  // correctly.
+  const isRecencyTopic = topic === "recent entertainment news (last 1-3 years, no politics)"
+    || topic === "celebrity and pop culture moments (last 1-3 years, no politics)";
   const angle = VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
   const varietyNote = type === "audio"
     ? " IMPORTANT - pick a well-known song: either a genuinely famous track a pub crowd would clap along to, OR any other song (even a deeper cut, B-side, or later single) by a genuinely famous, widely recognised artist/band - the artist being well-known is enough on its own, the specific song does not also have to be their single most famous hit. Not obscure/unknown artists either way. Vary the decade/genre/artist from recent picks."
@@ -415,7 +426,9 @@ STRICT QUALITY RULES (every question must pass all of these):
 4. Wrong answer options must be plausible. Use well-known alternatives someone might genuinely confuse, not obviously wrong fillers.
 5. Every question must be answerable by a reasonably well-informed adult with no specialist training.
 6. UAE venue safe: no alcohol references, no pork, no sexual content, no religion, no LGBTQ+ content, no Iran or Israel political references.
-7. Use one stable, verifiable fact: nothing disputed, subjective, or invented. For the "recent entertainment news" and "celebrity and pop culture moments" topics only, you may use well-known entertainment, film/TV, music, sport or celebrity events from roughly the last 1-3 years (award wins, releases, retirements, records, headline pop-culture moments) - never politics, never anything from the last few months, and never anything you are not confident is still accurate.
+7. Use one stable, verifiable fact: nothing disputed, subjective, or invented.${isRecencyTopic
+    ? " This question is for the \"" + topic + "\" topic - you have a web_search tool available and MUST use it before writing the question. Search for a genuinely well-known, headline-level entertainment/celebrity/pop-culture/sport event from roughly the last 1-3 years (award win, major release, record, retirement, high-profile moment). Base the question and correct_answer strictly on what your search results actually confirm - do not fall back on memory alone or guess at a date, result or detail your search didn't verify. If search results are unclear or conflicting on a fact, pick a different, more clearly-confirmed event instead of guessing. Never write about politics, elections, war, or anything from the last few weeks (too recent to be common knowledge to a pub crowd yet)."
+    : " For the \"recent entertainment news\" and \"celebrity and pop culture moments\" topics only, you may use well-known entertainment, film/TV, music, sport or celebrity events from roughly the last 1-3 years (award wins, releases, retirements, records, headline pop-culture moments) - never politics, never anything from the last few months, and never anything you are not confident is still accurate."}
 8. Wording must allow exactly one defensible, natural answer-not an abbreviation, fragment, trick or technicality.
 9. If the correct_answer is a person's name and only part of the full name (surname only, or first name only) will be stored as the answer, the question_text itself must explicitly state which part is required (e.g. "What is the SURNAME of the actress who played Katniss Everdeen?" with correct_answer "Lawrence", or "What is the FIRST NAME of the actor who played Iron Man?" with correct_answer "Robert"). Never ask an ambiguous full-name question and store only a partial name as the answer.
 10. The question must stand alone without its explanation and test one satisfying piece of knowledge.
@@ -427,7 +440,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
 [{"question_text":"...","question_type":"${type}","option_a":"...","option_b":"...","option_c":"...","option_d":"...","option_e":"...","option_f":"...","correct_answer":"...","explanation":"...","difficulty":"${difficulty}","round_type":"${roundType}"}]`;
   const safePrompt = prompt.length > 7500 ? prompt.slice(0, 7500) : prompt;
   try {
-    const text = await callAPI(safePrompt);
+    // Web-search-grounded calls need more token headroom than a plain
+    // generation call - the search results themselves, plus the model's
+    // tool-use turn, both count against the same max_tokens ceiling before
+    // it even gets to writing the final question JSON.
+    const text = await callAPI(safePrompt, 8000, false, isRecencyTopic);
     let q;
     try {
       q = parseModelJson<Array<Question & Record<string, unknown>>>(text, "array")[0];

@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Validate the prompt.
-    const { prompt, maxTokens, structuredOutput } = await req.json();
+    const { prompt, maxTokens, structuredOutput, webSearch } = await req.json();
     if (!prompt || typeof prompt !== "string") {
       return NextResponse.json({ error: { message: "Missing prompt" } }, { status: 400 });
     }
@@ -109,6 +109,23 @@ export async function POST(req: NextRequest) {
         },
       }];
       requestBody.tool_choice = { type: "tool", name: "return_validation_result" };
+    } else if (webSearch === true) {
+      // Claude's server-side web search tool: Anthropic itself runs the
+      // search and feeds the results back into the same request before the
+      // model writes its final answer - we don't have to run a separate
+      // search API or a manual tool-use loop, and the final text block still
+      // comes back through the normal content array exactly like a
+      // non-search response, so the existing text-extraction logic in
+      // lib/quiz/generateRound.ts's callAPI() needs no changes to consume it.
+      // Only used for the "recent entertainment news" / "celebrity and pop
+      // culture moments" topics - every other topic still generates purely
+      // from the model's own knowledge, which is faster and cheaper and
+      // doesn't need grounding for evergreen trivia.
+      requestBody.tools = [{
+        type: "web_search_20250305",
+        name: "web_search",
+        max_uses: 3,
+      }];
     }
 
     const apiRes = await fetch("https://api.anthropic.com/v1/messages", {

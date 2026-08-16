@@ -4,7 +4,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { encodeWavFromBuffer, sliceAudioBuffer } from "@/lib/audio/wavEncoder";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { HostShell, HostButton, HostLoading, HostEmpty, TopSpacer } from "@/components/fable/HostConsole";
-import { generateValidatedRound, loadUsedQuestions } from "@/lib/quiz/generateRound";
+import { generateValidatedRound, quickExclusionState } from "@/lib/quiz/generateRound";
 
 const purple = "#BE26C1";
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -334,8 +334,10 @@ export default function MusicPrepPage() {
   async function regenerateQuestion(round: Round, qIdx: number) {
     setRegeneratingIdx(qIdx);
     try {
-      const exclusions = await loadUsedQuestions();
-      round.questions.forEach(q => { if (q.question_text) exclusions.used.push(q.question_text); });
+      // Fast local-only exclusion seed instead of the full all-time history
+      // fetch - permanent duplicate protection still runs server-side per
+      // candidate, this just avoids the slow full fetch on every REGENERATE.
+      const exclusions = quickExclusionState(round.questions as unknown as Record<string, unknown>[]);
       // Force type "audio" regardless of the containing round's own type -
       // this slot needs a music question specifically, not whatever mix a
       // "regular" round would normally generate.

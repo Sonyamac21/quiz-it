@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LibraryRound, QuizDefinition, QuizRound } from "@/lib/quiz-builder/types";
-import { generateAllRounds, generateValidatedRound, loadUsedQuestions, type RoundGenerationSpec } from "@/lib/quiz/generateRound";
+import { generateAllRounds, generateValidatedRound, quickExclusionState, type RoundGenerationSpec } from "@/lib/quiz/generateRound";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell, Toggle } from "@/components/fable/HostConsole";
 
@@ -277,11 +277,12 @@ export default function QuizBuilderPage() {
       const cfg = bulkConfig[round.id];
       const theme = round.theme || cfg?.theme || "";
       const difficulty = round.difficulty || cfg?.difficulty || "mixed";
-      const exclusions = await loadUsedQuestions();
-      round.questions.forEach(q => {
-        const text = (q as Record<string, unknown>).question_text as string | undefined;
-        if (text) exclusions.used.push(text);
-      });
+      // Regenerating ONE question uses the fast, local-only exclusion seed
+      // (just this round's own questions) instead of the full all-time
+      // history fetch - that fetch is what was making REGENERATE feel slow.
+      // The permanent duplicate check still runs server-side per candidate
+      // regardless, so this doesn't weaken duplicate protection.
+      const exclusions = quickExclusionState(round.questions as Record<string, unknown>[]);
       const result = await generateValidatedRound(
         { roundType: round.round_type, difficulty, theme, count: 1 },
         exclusions,

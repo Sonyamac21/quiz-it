@@ -206,6 +206,28 @@ export async function loadUsedQuestions(): Promise<ExclusionState> {
   return state;
 }
 
+// A lighter-weight alternative to loadUsedQuestions() for regenerating ONE
+// question (the REGENERATE button on a single question, in either the Quiz
+// Plan builder or Music Prep). loadUsedQuestions() deliberately fetches the
+// entire all-time history across three tables to seed exclusions - correct
+// for a full "Generate All" batch, but overkill for swapping a single
+// question, where that same full fetch was making the button visibly slow
+// to respond, especially as an account's saved-question history grows over
+// months of use. The permanent, all-time duplicate catch still happens
+// regardless - it's server-side, per-candidate, via check_question_memory
+// in isDuplicateInMemory() - so skipping the big client-side preload here
+// only means the model's prompt has fewer "don't repeat these" examples
+// up front, not that duplicates can slip through unchecked.
+export function quickExclusionState(currentRoundQuestions: Record<string, unknown>[]): ExclusionState {
+  const state = emptyExclusionState();
+  currentRoundQuestions.forEach(q => {
+    const text = q.question_text as string | undefined;
+    if (text) state.used.push(text);
+    state.usedFingerprints.add(questionFingerprint(q as Question));
+  });
+  return state;
+}
+
 function blacklistRejected(state: ExclusionState, q: Question) {
   const fingerprint = questionFingerprint(q);
   if (fingerprint) state.rejectedFingerprints.add(fingerprint);

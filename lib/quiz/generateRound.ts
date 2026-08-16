@@ -669,15 +669,26 @@ async function checkRoundBalance(q: Question, currentRound: Question[], theme: s
 }
 
 async function isDuplicateInMemory(q: Question, exclusions: ExclusionState): Promise<boolean> {
-  if (["multiple_choice", "multi_tap", "sequence", "picture", "audio"].includes(q.question_type)) {
-    return exclusions.usedFingerprints.has(questionFingerprint(q));
-  }
+  // The fingerprint check is exact-match only (normalized text + answer +
+  // options) - it catches a question regenerated verbatim, but NOT a
+  // paraphrase of one already used ("Which fashion house has two
+  // interlocking Gs?" vs "Which fashion house's logo is two interlocking
+  // Gs?" - same fact, same answer, different wording). That's a real gap:
+  // this used to be the ONLY check run for multiple_choice/multi_tap/
+  // sequence/picture/audio types, skipping the semantic similarity check
+  // entirely for most of what actually gets generated. Now every type gets
+  // both: the cheap exact check first, then the semantic one underneath.
+  if (exclusions.usedFingerprints.has(questionFingerprint(q))) return true;
   try {
     const supabase = createSupabaseBrowserClient();
     const { data, error } = await supabase.rpc("check_question_memory", {
       p_text: q.question_text,
       p_type: q.question_type,
-      p_threshold: 0.82,
+      // 0.82 required near-total word-for-word similarity to trigger,
+      // which let most paraphrased repeats straight through - this is
+      // trigram similarity on normalized question text, so 0.6 still
+      // requires a genuinely close rewording, not just a shared topic.
+      p_threshold: 0.6,
     });
     if (error) { console.error("Question Memory check unavailable (allowing question):", error.message); return false; }
     return data != null;

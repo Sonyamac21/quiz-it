@@ -702,6 +702,12 @@ export default function QuizBuilderPage() {
                       background: dragOverRoundId === round.id ? "rgba(46,224,110,0.12)" : round.id === activeRound.id ? "rgba(190,38,193,0.15)" : "#150A2E",
                       opacity: draggedRoundIndex === index ? 0.4 : 1,
                       color: "#fff", display: "flex", flexDirection: "column", gap: 2,
+                      // Fixed width + clipped status line so a round that's
+                      // hit a long "stalled after 25 questions..." message
+                      // stays the same compact rectangle as every other
+                      // round tab instead of stretching full-width and
+                      // pushing the actual question cards below off screen.
+                      width: 220, flexShrink: 0,
                     }}
                   >
                     {isRoundGeneratable && (
@@ -710,8 +716,8 @@ export default function QuizBuilderPage() {
                         Include in Generate All
                       </label>
                     )}
-                    <span style={{ font: "700 13px 'Inter'" }}>{index + 1}. {round.name}</span>
-                    {roundProgress && <span style={{ color: "#2EE06E", font: "600 11px 'Inter'" }}>{roundProgress}</span>}
+                    <span style={{ font: "700 13px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{index + 1}. {round.name}</span>
+                    {roundProgress && <span title={roundProgress} style={{ color: "#2EE06E", font: "600 11px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{roundProgress}</span>}
                     <span style={{ color: "#6B5A8E", font: "400 11px 'Inter'" }}>{round.questions.length} Q - {round.round_type}</span>
                   </div>
                   );

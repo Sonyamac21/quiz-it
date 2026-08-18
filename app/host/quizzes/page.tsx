@@ -55,7 +55,20 @@ export default function QuizBuilderPage() {
   const [guidedChecked, setGuidedChecked] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  // Set once a guided "duplicate for this event" copy has actually been
+  // attached to the event in the background - lets the banner switch from
+  // "duplicate it" instructions to "now build it", without leaving guided
+  // mode (and without navigating away, unlike a plain assign).
+  const [guidedAttached, setGuidedAttached] = useState(false);
   const [showPlanList, setShowPlanList] = useState(true);
+  // Quiz-plan picker/manager - was a bare native <select>, which with a
+  // couple dozen real + test/duplicate plans became an unmanageable wall of
+  // text with no way to tell them apart or clean any of them up without
+  // first opening each one individually. This drives a proper panel instead
+  // (name + round count + Open/Archive/Delete per row, archived hidden by
+  // default behind a toggle so old/test plans don't dominate the list).
+  const [plansPanelOpen, setPlansPanelOpen] = useState(false);
+  const [showArchivedPlans, setShowArchivedPlans] = useState(false);
   const [swappingKey, setSwappingKey] = useState<string | null>(null);
   const [draggedQuestionIndex, setDraggedQuestionIndex] = useState<number | null>(null);
   const [dragOverQuestionIndex, setDragOverQuestionIndex] = useState<number | null>(null);
@@ -393,6 +406,21 @@ export default function QuizBuilderPage() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  // Arriving here always used to land on the blank "+ New Quiz Plan" form
+  // with nothing selected, and (coming from another page, e.g. the guided
+  // duplicate flow) sometimes with the browser's scroll position stuck
+  // wherever the previous page left off - between the two, the header info
+  // a host actually needs was routinely off-screen or hidden behind an
+  // empty create form. Reset scroll to the top on load, and once quizzes
+  // are in, default to the most recently updated non-archived plan instead
+  // of a blank form (quizzes is already sorted by updated_at desc).
+  useEffect(() => { window.scrollTo(0, 0); }, []);
+  useEffect(() => {
+    if (loading || selectedId || guidedIntent) return;
+    const mostRecent = quizzes.find(q => !q.archived);
+    if (mostRecent) setSelectedId(mostRecent.id);
+  }, [loading, quizzes, selectedId, guidedIntent]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams(window.location.search);
@@ -412,16 +440,30 @@ export default function QuizBuilderPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  async function assignQuizToEvent(quizId: string) {
-    if (!guidedEvent) return;
-    setAssigning(true); setError("");
+  // Attaches quizId to the guided event WITHOUT navigating anywhere -
+  // shared by assignQuizToEvent (which navigates straight back to the
+  // Calendar once done, for "assign an existing complete quiz" and "create
+  // a blank quiz" - both of which have nothing left to build here) and the
+  // guided "duplicate" path below, which needs the copy attached but then
+  // wants to STAY on this page so the host can actually build it out.
+  async function attachQuizToEventSilently(quizId: string): Promise<boolean> {
+    if (!guidedEvent) return false;
+    setError("");
     // .select() so we can tell "updated nothing because the event vanished"
     // apart from a genuine success - a blind update matching zero rows
-    // returns no error, which would otherwise redirect into a dead end.
+    // returns no error, which would otherwise silently do nothing.
     const { data: updated, error: assignError } = await createSupabaseBrowserClient().from("events").update({ quiz_definition_id: quizId, updated_at: new Date().toISOString() }).eq("id", guidedEvent.id).select("id");
-    if (assignError) { setError(assignError.message); setAssigning(false); return; }
-    if (!updated?.length) { setError("This calendar event no longer exists, so the Quiz Plan couldn't be attached. It's still saved in the Quiz Library."); setAssigning(false); return; }
-    window.location.assign(`/host/events?event=${guidedEvent.id}`);
+    if (assignError) { setError(assignError.message); return false; }
+    if (!updated?.length) { setError("This calendar event no longer exists, so the Quiz Plan couldn't be attached. It's still saved in the Quiz Library."); return false; }
+    return true;
+  }
+
+  async function assignQuizToEvent(quizId: string) {
+    if (!guidedEvent) return;
+    setAssigning(true);
+    const ok = await attachQuizToEventSilently(quizId);
+    setAssigning(false);
+    if (ok) window.location.assign(`/host/events?event=${guidedEvent.id}`);
   }
 
   const selected = quizzes.find(q => q.id === selectedId) ?? null;
@@ -546,7 +588,19 @@ export default function QuizBuilderPage() {
     const { data, error: copyError } = await supabase.from("quizzes").insert({ name: quiz.name + " (Copy)", description: quiz.description, venue_id: quiz.venue_id, host_id: quiz.host_id }).select().single();
     if (copyError || !data) { setError(copyError?.message || "Could not duplicate quiz"); setDuplicating(false); return; }
     if (quiz.quiz_rounds.length) await supabase.from("quiz_rounds").insert(quiz.quiz_rounds.map(round => ({ quiz_id: data.id, source_round_id: round.source_round_id, position: round.position, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: [], hide_leaderboard: round.hide_leaderboard, allow_power_cards: round.allow_power_cards, points_per_question: round.points_per_question ?? null, notes: round.notes, sponsor: round.sponsor, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5, max_time_bonus: round.max_time_bonus ?? 5 })));
-    if (guidedIntent === "duplicate" && guidedEvent) { await assignQuizToEvent(data.id); setDuplicating(false); return; }
+    if (guidedIntent === "duplicate" && guidedEvent) {
+      // Attach the copy to the event right away so it's linked even if the
+      // host navigates off without hitting an explicit "done" - but stay on
+      // this page with the new copy selected, since a fresh duplicate has
+      // empty rounds (see the insert above) and is exactly what the host
+      // came here to actually build, not something to be bounced away from
+      // immediately after creating.
+      const ok = await attachQuizToEventSilently(data.id);
+      await load(); setSelectedId(data.id);
+      if (ok) setGuidedAttached(true);
+      setDuplicating(false);
+      return;
+    }
     await load(); setSelectedId(data.id);
     setDuplicating(false);
   }
@@ -562,25 +616,56 @@ export default function QuizBuilderPage() {
 
   return <HostShell><main className="qi-bo-page" style={{ minHeight: "100vh", background: BG, color: "#fff" }}>
     <header className="qi-bo-pagehead" style={{ marginBottom: 10 }}><div><p style={{ margin: "0 0 2px" }}>Programme planning</p><h1 style={{ fontSize: "clamp(18px,1.6vw,22px)" }}>Quiz Library</h1></div><div className="qi-bo-page-actions">
-      <select value={selectedId ?? "__new__"} onChange={e => setSelectedId(e.target.value === "__new__" ? null : e.target.value)} style={{ minHeight: 44, padding: "0 12px", borderRadius: 10, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", font: "600 13px 'Inter'" }}>
-        <option value="__new__">+ New Quiz Plan</option>
-        {quizzes.map(q => <option key={q.id} value={q.id}>{q.name}{q.archived ? " (Archived)" : ""} - {q.quiz_rounds.length} rounds</option>)}
-      </select>
+      <div style={{ position: "relative" }}>
+        <HostButton onClick={() => setPlansPanelOpen(v => !v)} style={{ minHeight: 44, display: "flex", alignItems: "center", gap: 8 }}>
+          {selected ? selected.name : "+ New Quiz Plan"}
+          <span aria-hidden="true" style={{ fontSize: 10, opacity: 0.7 }}>{plansPanelOpen ? "▲" : "▼"}</span>
+        </HostButton>
+        {plansPanelOpen && <>
+          {/* Click-outside-to-close backdrop, same pattern as the Calendar
+              drawer - a transparent full-screen layer under the panel. */}
+          <div onClick={() => setPlansPanelOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+          <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 41, width: "min(520px, 90vw)", maxHeight: "70vh", overflowY: "auto", background: "#150A2E", border: "1px solid #2E1A52", borderRadius: 14, boxShadow: "0 20px 50px rgba(0,0,0,0.5)", padding: 8 }}>
+            <button
+              onClick={() => { setSelectedId(null); setPlansPanelOpen(false); }}
+              style={{ display: "flex", alignItems: "center", width: "100%", textAlign: "left", gap: 8, padding: "10px 12px", borderRadius: 10, background: !selectedId ? "rgba(190,38,193,0.18)" : "transparent", border: "none", color: "#D94FDC", font: "700 13px 'Inter'", cursor: "pointer" }}
+            >{!selectedId && "✓ "}+ New Quiz Plan</button>
+            <div style={{ height: 1, background: "#2E1A52", margin: "6px 0" }} />
+            {quizzes.filter(q => showArchivedPlans || !q.archived).map(q => (
+              <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 2px", borderRadius: 10, background: q.id === selectedId ? "rgba(190,38,193,0.12)" : "transparent" }}>
+                <button
+                  onClick={() => { setSelectedId(q.id); setPlansPanelOpen(false); }}
+                  style={{ flex: 1, minWidth: 0, textAlign: "left", padding: "8px 6px", background: "transparent", border: "none", color: q.archived ? "#6B5A8E" : "#fff", font: "600 13px 'Inter'", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  title={`${q.name} - ${q.quiz_rounds.length} rounds${q.archived ? " (Archived)" : ""}`}
+                >{q.id === selectedId ? "✓ " : ""}{q.name}{q.archived ? " (Archived)" : ""} <span style={{ color: "#6B5A8E", fontWeight: 400 }}>- {q.quiz_rounds.length} rounds</span></button>
+                <button onClick={() => archiveQuiz(q)} title={q.archived ? "Restore" : "Archive"} style={{ flexShrink: 0, padding: "6px 8px", borderRadius: 8, background: "transparent", border: "1px solid #2E1A52", color: "#B9A8D9", font: "600 10px 'Inter'", cursor: "pointer" }}>{q.archived ? "RESTORE" : "ARCHIVE"}</button>
+                <button onClick={() => deleteQuiz(q)} title="Delete" style={{ flexShrink: 0, padding: "6px 8px", borderRadius: 8, background: "transparent", border: "1px solid rgba(255,112,112,0.4)", color: "#FF7070", font: "600 10px 'Inter'", cursor: "pointer" }}>DELETE</button>
+              </div>
+            ))}
+            {quizzes.some(q => q.archived) && (
+              <button onClick={() => setShowArchivedPlans(v => !v)} style={{ width: "100%", textAlign: "center", marginTop: 6, padding: "8px 6px", background: "transparent", border: "none", color: "#6B5A8E", font: "600 11px 'Inter'", cursor: "pointer" }}>
+                {showArchivedPlans ? "Hide archived plans" : `Show ${quizzes.filter(q => q.archived).length} archived plan${quizzes.filter(q => q.archived).length === 1 ? "" : "s"}`}
+              </button>
+            )}
+          </div>
+        </>}
+      </div>
       <Link className="fbh-btn" href="/host/rounds">Round Library</Link><Link className="fbh-btn pri" href="/host/session">Open Live Session</Link></div></header>
-    {guidedIntent&&guidedEvent&&<section className="fbh-panel" role="status" style={{marginBottom:16,borderColor:"#BE26C1"}}>
+    {guidedIntent&&guidedEvent&&<section className="fbh-panel" role="status" style={{marginBottom:16,borderColor: guidedAttached ? "#2EE06E" : "#BE26C1"}}>
       <strong style={{display:"block",marginBottom:4}}>
         {guidedIntent==="create"&&"Create a new Quiz Plan for this event"}
-        {guidedIntent==="duplicate"&&"Duplicate an existing Quiz Plan for this event"}
+        {guidedIntent==="duplicate"&&(guidedAttached ? "Copy attached - now build it out" : "Duplicate an existing Quiz Plan for this event")}
         {guidedIntent==="assign"&&"Assign an existing Quiz Plan to this event"}
       </strong>
       <span style={{color:"#B9A8D9",fontSize:13}}>
         {guidedEvent.label}
         {guidedIntent==="create"&&" · Fill in the Quiz Plan on the left and create it - it'll be attached automatically."}
-        {guidedIntent==="duplicate"&&" · Select a Quiz Plan on the left, then use Duplicate Quiz Plan - the copy is attached automatically."}
+        {guidedIntent==="duplicate"&&!guidedAttached&&" · Select a Quiz Plan on the left, then use Duplicate Quiz Plan - the copy is attached automatically."}
+        {guidedIntent==="duplicate"&&guidedAttached&&" · The copy is already linked to this event. Add rounds/questions below, then come back here when you're done."}
         {guidedIntent==="assign"&&" · Pick a Quiz Plan below to attach it immediately."}
         {assigning&&" · Assigning…"}
       </span>
-      <div style={{marginTop:8}}><Link href={`/host/events?event=${guidedEvent.id}`} className="fbh-btn">CANCEL · BACK TO EVENT</Link></div>
+      <div style={{marginTop:8}}><Link href={`/host/events?event=${guidedEvent.id}`} className="fbh-btn pri">{guidedAttached ? "DONE · BACK TO EVENT" : "CANCEL · BACK TO EVENT"}</Link></div>
     </section>}
     {guidedIntent&&guidedChecked&&!guidedEvent&&<section className="fbh-panel" role="alert" style={{marginBottom:16,borderColor:"#FF7070"}}>
       <strong style={{display:"block",marginBottom:4,color:"#FF8290"}}>This calendar event could not be found</strong>
@@ -599,7 +684,7 @@ export default function QuizBuilderPage() {
         </div>
       ) : <>
         <HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input" style={{ width: "100%" }} />
-        <div style={{ display: "flex", gap: 8, margin: "12px 0 20px", flexWrap: "wrap" }}>{guidedIntent === "duplicate" ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning}>{assigning ? "ATTACHING…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>SAVE QUIZ PLAN</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton onClick={() => deleteQuiz(selected)}>DELETE</HostButton></>}</div>
+        <div style={{ display: "flex", gap: 8, margin: "12px 0 20px", flexWrap: "wrap" }}>{guidedIntent === "duplicate" && !guidedAttached ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning}>{assigning ? "ATTACHING…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>SAVE QUIZ PLAN</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton onClick={() => deleteQuiz(selected)}>DELETE</HostButton></>}</div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
             <div className="fbh-lbl" style={{ margin: 0 }}>Rounds</div>

@@ -907,6 +907,23 @@ export async function generateValidatedRound(
     consecutiveFailures = 0;
     onProgress?.("Checking question " + (good.length + 1) + " of " + count + "...");
     const validation = await validateCandidate(q, good, context.report.stages, theme, exclusions);
+    // validateCandidate's own duplicate check ran BEFORE the several awaited
+    // moderation/quality/memory calls above - during that gap, a sibling
+    // round generating at the same time (generateAllRounds runs every
+    // selected round concurrently) can land the exact same fact-question and
+    // broadcast it into this round's exclusions mid-flight. That broadcast
+    // was landing too late to matter, since this candidate had already
+    // cleared the earlier check - which is exactly how the same question
+    // could reach two different rounds of the same quiz. Re-checking the
+    // fingerprint one last time, synchronously, right before commit, closes
+    // that window: exclusions.usedFingerprints reflects every accept from
+    // every round up to THIS exact instant, no `await` in between.
+    if (validation.ok && exclusions.usedFingerprints.has(questionFingerprint(q))) {
+      addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: "Duplicate", reason: "Matched a question accepted by another round moments earlier", stages: context.report.stages });
+      consecutiveCheckFailures++;
+      refillPipeline();
+      continue;
+    }
     if (validation.ok) {
       await commitToMemory(q);
       good.push(q);

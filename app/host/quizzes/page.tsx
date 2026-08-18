@@ -116,6 +116,13 @@ export default function QuizBuilderPage() {
   const [bulkConfig, setBulkConfig] = useState<Record<string, { selected: boolean; count: number; theme: string; difficulty: string }>>({});
   const [bulkRunning, setBulkRunning] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<Record<string, string>>({});
+  // Which round is currently mid-"generate more" from the per-round Questions
+  // panel (see generateMoreForRound) - separate from bulkRunning/bulkProgress
+  // above since that pair is only ever driven by the top-of-page "GENERATE
+  // ALL SELECTED" flow, and this one-round action needs its own disabled/
+  // status state so it doesn't fight with or get hidden by that panel.
+  const [generatingMoreId, setGeneratingMoreId] = useState<string | null>(null);
+  const [generatingMoreStatus, setGeneratingMoreStatus] = useState("");
   function openBulkGenerate() {
     if (!selected) return;
     const initial: Record<string, { selected: boolean; count: number; theme: string; difficulty: string }> = {};
@@ -352,37 +359,57 @@ export default function QuizBuilderPage() {
     if (!targets.length) return;
     setBulkRunning(true);
     const supabase = createSupabaseBrowserClient();
-    const specs: RoundGenerationSpec[] = targets.map(r => ({
+    // GENERATE only ever needs to make up the SHORTFALL between what's
+    // already saved in a round and the target count - previously this asked
+    // for the full target count fresh every time, then wholesale REPLACED
+    // the round's questions with just that new batch below. Two rounds
+    // already at their target (shortfall 0) were silently wiped back down to
+    // 0 if that fresh batch happened to fail entirely, and any round with
+    // existing questions lost them the moment a regenerate only partially
+    // succeeded. Rounds already at/above target are skipped outright.
+    const shortfalls: Record<string, number> = {};
+    targets.forEach(r => { shortfalls[r.id] = Math.max(0, bulkConfig[r.id].count - r.questions.length); });
+    const runTargets = targets.filter(r => shortfalls[r.id] > 0);
+    if (!runTargets.length) {
+      setBulkRunning(false);
+      window.alert("Every selected round already has at least as many questions as its target count - nothing to generate. Raise a round's count in its settings to generate more.");
+      return;
+    }
+    const specs: RoundGenerationSpec[] = runTargets.map(r => ({
       roundType: r.round_type,
       difficulty: bulkConfig[r.id].difficulty,
       theme: bulkConfig[r.id].theme,
-      count: bulkConfig[r.id].count,
+      count: shortfalls[r.id],
     }));
     // Persist the theme/difficulty each round is being generated with right
     // away, so it survives a reload and SWAP picks it back up later instead
     // of silently generating untargeted content.
-    await Promise.all(targets.map(r => supabase.from("quiz_rounds").update({ theme: bulkConfig[r.id].theme || null, difficulty: bulkConfig[r.id].difficulty }).eq("id", r.id)));
-    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => targets.some(t2 => t2.id === r.id) ? { ...r, theme: bulkConfig[r.id].theme || null, difficulty: bulkConfig[r.id].difficulty } : r) }));
-    setBulkProgress(Object.fromEntries(targets.map(r => [r.id, "Queued..."])));
+    await Promise.all(runTargets.map(r => supabase.from("quiz_rounds").update({ theme: bulkConfig[r.id].theme || null, difficulty: bulkConfig[r.id].difficulty }).eq("id", r.id)));
+    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => runTargets.some(t2 => t2.id === r.id) ? { ...r, theme: bulkConfig[r.id].theme || null, difficulty: bulkConfig[r.id].difficulty } : r) }));
+    setBulkProgress(Object.fromEntries(runTargets.map(r => [r.id, "Queued..."])));
     try {
       await generateAllRounds(
         specs,
         (idx, status) => {
-          const round = targets[idx];
+          const round = runTargets[idx];
           setBulkProgress(prev => ({ ...prev, [round.id]: status }));
         },
         (idx, result) => {
           // Save THIS round the instant it finishes, independent of every
           // other round in the batch - a slow, crashed, or failed round
           // elsewhere can never cause an already-successful round's
-          // questions to go unsaved.
-          const round = targets[idx];
-          supabase.from("quiz_rounds").update({ questions: result.questions }).eq("id", round.id).then(() => {
+          // questions to go unsaved. APPENDED to whatever the round already
+          // had (spec.count above was only ever the shortfall) - a partial
+          // failure now just means "got fewer new ones than hoped", never
+          // "lost the ones that were already there".
+          const round = runTargets[idx];
+          const mergedQuestions = [...round.questions, ...result.questions];
+          supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id).then(() => {
             setQuizzes(prev => prev.map(q => {
               if (q.id !== selected.id) return q;
-              return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: result.questions } : r) };
+              return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) };
             }));
-            void syncRoundToLibrary(round, result.questions, selected.name);
+            void syncRoundToLibrary(round, mergedQuestions, selected.name);
           });
         },
       );
@@ -390,6 +417,39 @@ export default function QuizBuilderPage() {
       // Always runs, even if something above throws unexpectedly - the
       // Generate All button can never get stuck disabled again.
       setBulkRunning(false);
+    }
+  }
+
+  // Lets a host top up ONE round's questions straight from that round's own
+  // Questions panel - previously the only way to generate more was the
+  // top-of-page "GENERATE ALL SELECTED" flow, which had no way to just
+  // target one round that came up short (e.g. only 3 of a wanted 10
+  // questions, per bulk-generate partially failing on that round). Reuses
+  // the same generateAllRounds pipeline (permanent-history exclusion,
+  // duplicate/quality checks) as a one-round batch, and always APPENDS -
+  // never replaces - whatever the round already has.
+  async function generateMoreForRound(round: QuizRound) {
+    const input = window.prompt(`How many more questions for "${round.name}"?`, "5");
+    if (!input) return;
+    const n = Math.max(0, Math.floor(Number(input)));
+    if (!n) return;
+    setGeneratingMoreId(round.id);
+    setGeneratingMoreStatus("Queued...");
+    const supabase = createSupabaseBrowserClient();
+    const cfg = bulkConfig[round.id];
+    try {
+      const [result] = await generateAllRounds(
+        [{ roundType: round.round_type, difficulty: cfg?.difficulty || round.difficulty || "mixed", theme: cfg?.theme ?? round.theme ?? "", count: n }],
+        (_idx, status) => setGeneratingMoreStatus(status),
+      );
+      const mergedQuestions = [...round.questions, ...result.questions];
+      await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id);
+      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) }));
+      if (selected) void syncRoundToLibrary(round, mergedQuestions, selected.name);
+      if (result.questions.length < n) window.alert(`Only generated ${result.questions.length} of ${n} requested: ${result.finalStatus}`);
+    } finally {
+      setGeneratingMoreId(null);
+      setGeneratingMoreStatus("");
     }
   }
 
@@ -938,7 +998,7 @@ export default function QuizBuilderPage() {
                           </label>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Theme
-                            <input type="text" value={cfg.theme} onChange={e => updateBulkConfig(activeRound.id, { theme: e.target.value })} placeholder="optional" style={{ width: 140, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />
+                            <input type="text" value={cfg.theme} onChange={e => updateBulkConfig(activeRound.id, { theme: e.target.value })} placeholder="e.g. showbiz, music, 90s" style={{ width: 140, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />
                           </label>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Difficulty
@@ -957,7 +1017,13 @@ export default function QuizBuilderPage() {
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
                   <div className="fbh-lbl" style={{ margin: 0 }}>Questions</div>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {generatingMoreId === activeRound.id && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{generatingMoreStatus}</span>}
+                    {isGeneratable && (
+                      <HostButton onClick={() => generateMoreForRound(activeRound)} disabled={generatingMoreId === activeRound.id}>
+                        {generatingMoreId === activeRound.id ? "GENERATING..." : "+ GENERATE WITH AI"}
+                      </HostButton>
+                    )}
                     <HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); loadLibraryQuestions(activeRound.round_type, ""); } return next; }); setAddQuestionOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
                     <HostButton onClick={() => { setAddQuestionOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); }}>{addQuestionOpen ? "CLOSE" : "+ ADD QUESTION"}</HostButton>
                   </div>

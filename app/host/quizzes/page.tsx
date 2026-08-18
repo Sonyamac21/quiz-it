@@ -134,13 +134,18 @@ export default function QuizBuilderPage() {
     multi_tap: "Multi Tap",
     pursuit: "The Pursuit",
     hot_seat: "Hot Seat",
+    bonus: "Bonus",
     hard_deck: "The Hard Deck",
   };
   // Round types that are AI-question rounds and can be generated. Hard Deck
   // (and any future non-question round type) is added to the running order as
   // a placeholder only - it has its own standalone start button on the live
-  // quiz screen and never needs generated questions.
-  const GENERATABLE_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "pursuit", "hot_seat"]);
+  // quiz screen and never needs generated questions. Bonus uses the same
+  // mixed-question-type generation as Regular (generateRound.ts falls
+  // through to its default mixed-type branch for any unrecognised round
+  // type), it just gets its own label/tab so it's distinguishable in the
+  // running order.
+  const GENERATABLE_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "pursuit", "hot_seat", "bonus"]);
   // Adds a brand-new, empty round straight into this Quiz Plan's running order
   // (no need to first create/save it in the Round Library) and immediately
   // selects it in the Generate All panel with sensible defaults, so a host can

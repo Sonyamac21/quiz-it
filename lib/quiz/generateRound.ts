@@ -920,6 +920,28 @@ export async function generateValidatedRound(
   // "vary the angle" retry doesn't reliably escape (see forceObscure below).
   let consecutiveMemoryFailures = 0;
 
+  // PICTURE_TOPICS is a deliberately small, curated pool (15 entries, vs 32
+  // for general topics) - it has to be, since only photographable subjects
+  // belong in it. That smallness means the same picture topic (e.g. "famous
+  // rivers and waterfalls") can come up more than once within one round just
+  // from normal launchIndex cycling/retries, and the round-balance check
+  // doesn't reliably catch it because two different named waterfalls really
+  // are different entities - it's the shared SUBJECT that reads as
+  // repetitive to a host, not the specific answer. Tracking which picture
+  // topics this round has already tried and skipping straight to the next
+  // untried one closes that gap at the source, before it's ever generated,
+  // rather than hoping validation catches it after the fact.
+  const triedPictureTopics = new Set<string>();
+  const pickPictureTopic = (launchIndex: number): string => {
+    for (let offset = 0; offset < shuffledPictureTopics.length; offset++) {
+      const candidate = shuffledPictureTopics[(launchIndex + offset) % shuffledPictureTopics.length];
+      if (!triedPictureTopics.has(candidate)) { triedPictureTopics.add(candidate); return candidate; }
+    }
+    // Every picture topic already tried this round (more picture slots than
+    // the pool has entries) - allow repeats rather than getting stuck.
+    return shuffledPictureTopics[launchIndex % shuffledPictureTopics.length];
+  };
+
   type PendingCandidate = { type: string; context: GenerationContext; promise: Promise<Question | null> };
   const pending: PendingCandidate[] = [];
   const launchCandidate = () => {
@@ -927,7 +949,7 @@ export async function generateValidatedRound(
     const type = types[launchIndex % types.length];
     const topic = theme || (
       type === "audio" ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
-      : type === "picture" ? shuffledPictureTopics[launchIndex % shuffledPictureTopics.length]
+      : type === "picture" ? pickPictureTopic(launchIndex)
       : shuffledTopics[launchIndex % shuffledTopics.length]
     );
     const context = createGenerationContext(type, Boolean(theme.trim()));

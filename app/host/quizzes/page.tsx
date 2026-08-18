@@ -123,6 +123,10 @@ export default function QuizBuilderPage() {
   // status state so it doesn't fight with or get hidden by that panel.
   const [generatingMoreId, setGeneratingMoreId] = useState<string | null>(null);
   const [generatingMoreStatus, setGeneratingMoreStatus] = useState("");
+  // How many more questions to request per round, shown as a visible,
+  // editable inline field next to "+ GENERATE WITH AI" (see
+  // generateMoreForRound above for why this replaced a window.prompt()).
+  const [generateMoreCounts, setGenerateMoreCounts] = useState<Record<string, number>>({});
   function openBulkGenerate() {
     if (!selected) return;
     const initial: Record<string, { selected: boolean; count: number; theme: string; difficulty: string }> = {};
@@ -428,35 +432,46 @@ export default function QuizBuilderPage() {
   // the same generateAllRounds pipeline (permanent-history exclusion,
   // duplicate/quality checks) as a one-round batch, and always APPENDS -
   // never replaces - whatever the round already has.
-  async function generateMoreForRound(round: QuizRound) {
+  //
+  // Deliberately NOT window.prompt()/window.alert() (an earlier version used
+  // both) - those are native, page-blocking browser dialogs. If one opens
+  // somewhere the host doesn't immediately notice, the ENTIRE page stops
+  // responding to any click until it's found and dismissed, which reads as
+  // "the platform froze and I can't select anything" - exactly what got
+  // reported. They also pre-fill with a default ("5") that's easy to just
+  // click OK/Enter past without noticing it's editable, which is almost
+  // certainly why "it only ever generates 5". An inline input in the panel
+  // itself avoids both problems - nothing can block the page, and the
+  // number being requested is always visibly sitting right there.
+  async function generateMoreForRound(round: QuizRound, requested: number) {
     // The Pursuit is always exactly 7 gates total (never host-configurable) -
     // clamp here too, not just inside generateValidatedRound, so a host
     // asking for more than the round has room for gets told plainly instead
     // of the request silently getting cut down with no explanation.
     const roomLeft = round.round_type === "pursuit" ? Math.max(0, PURSUIT_TOTAL_QUESTIONS - round.questions.length) : null;
-    if (roomLeft === 0) { window.alert(`"${round.name}" already has the full ${PURSUIT_TOTAL_QUESTIONS} Pursuit gates.`); return; }
-    const input = window.prompt(`How many more questions for "${round.name}"?` + (roomLeft !== null ? ` (max ${roomLeft} - Pursuit is always exactly ${PURSUIT_TOTAL_QUESTIONS} gates total)` : ""), String(roomLeft ?? 5));
-    if (!input) return;
-    let n = Math.max(0, Math.floor(Number(input)));
+    if (roomLeft === 0) { setGeneratingMoreStatus(`"${round.name}" already has the full ${PURSUIT_TOTAL_QUESTIONS} Pursuit gates.`); return; }
+    let n = Math.max(0, Math.floor(requested));
     if (!n) return;
-    if (roomLeft !== null && n > roomLeft) { window.alert(`Only ${roomLeft} more will fit - Pursuit is always exactly ${PURSUIT_TOTAL_QUESTIONS} gates total. Generating ${roomLeft}.`); n = roomLeft; }
+    const capNote = roomLeft !== null && n > roomLeft ? ` (capped to ${roomLeft} - Pursuit is always exactly ${PURSUIT_TOTAL_QUESTIONS} gates total)` : "";
+    if (roomLeft !== null && n > roomLeft) n = roomLeft;
     setGeneratingMoreId(round.id);
-    setGeneratingMoreStatus("Queued...");
+    setGeneratingMoreStatus("Queued..." + capNote);
     const supabase = createSupabaseBrowserClient();
     const cfg = bulkConfig[round.id];
     try {
       const [result] = await generateAllRounds(
         [{ roundType: round.round_type, difficulty: cfg?.difficulty || round.difficulty || "mixed", theme: cfg?.theme ?? round.theme ?? "", count: n }],
-        (_idx, status) => setGeneratingMoreStatus(status),
+        (_idx, status) => setGeneratingMoreStatus(status + capNote),
       );
       const mergedQuestions = [...round.questions, ...result.questions];
       await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id);
       setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) }));
       if (selected) void syncRoundToLibrary(round, mergedQuestions, selected.name);
-      if (result.questions.length < n) window.alert(`Only generated ${result.questions.length} of ${n} requested: ${result.finalStatus}`);
-    } finally {
-      setGeneratingMoreId(null);
-      setGeneratingMoreStatus("");
+      setGeneratingMoreStatus(result.questions.length < n ? `Only generated ${result.questions.length} of ${n} requested: ${result.finalStatus}` : `Added ${result.questions.length} question${result.questions.length === 1 ? "" : "s"}.`);
+      setTimeout(() => setGeneratingMoreId(id => id === round.id ? null : id), 4000);
+    } catch {
+      setGeneratingMoreStatus("Generation failed - please try again.");
+      setTimeout(() => setGeneratingMoreId(id => id === round.id ? null : id), 4000);
     }
   }
 
@@ -1027,9 +1042,20 @@ export default function QuizBuilderPage() {
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     {generatingMoreId === activeRound.id && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{generatingMoreStatus}</span>}
                     {isGeneratable && (
-                      <HostButton onClick={() => generateMoreForRound(activeRound)} disabled={generatingMoreId === activeRound.id}>
-                        {generatingMoreId === activeRound.id ? "GENERATING..." : "+ GENERATE WITH AI"}
-                      </HostButton>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <input
+                          type="number"
+                          min={1}
+                          aria-label="How many more questions to generate"
+                          value={generateMoreCounts[activeRound.id] ?? 5}
+                          onChange={e => setGenerateMoreCounts(prev => ({ ...prev, [activeRound.id]: Math.max(1, Math.floor(Number(e.target.value)) || 1) }))}
+                          disabled={generatingMoreId === activeRound.id}
+                          style={{ width: 48, padding: "8px 6px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff", textAlign: "center" as const }}
+                        />
+                        <HostButton onClick={() => generateMoreForRound(activeRound, generateMoreCounts[activeRound.id] ?? 5)} disabled={generatingMoreId === activeRound.id}>
+                          {generatingMoreId === activeRound.id ? "GENERATING..." : "+ GENERATE WITH AI"}
+                        </HostButton>
+                      </div>
                     )}
                     <HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); loadLibraryQuestions(activeRound.round_type, ""); } return next; }); setAddQuestionOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
                     <HostButton onClick={() => { setAddQuestionOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); }}>{addQuestionOpen ? "CLOSE" : "+ ADD QUESTION"}</HostButton>

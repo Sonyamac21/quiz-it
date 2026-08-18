@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LibraryRound, QuizDefinition, QuizRound } from "@/lib/quiz-builder/types";
@@ -412,13 +412,19 @@ export default function QuizBuilderPage() {
   // wherever the previous page left off - between the two, the header info
   // a host actually needs was routinely off-screen or hidden behind an
   // empty create form. Reset scroll to the top on load, and once quizzes
-  // are in, default to the most recently updated non-archived plan instead
-  // of a blank form (quizzes is already sorted by updated_at desc).
+  // are in on FIRST load only, default to the most recently updated
+  // non-archived plan instead of a blank form (quizzes is already sorted by
+  // updated_at desc). The "on first load only" part matters: this must not
+  // re-fire every time selectedId becomes null later, or clicking
+  // "+ New Quiz Plan" (which clears the selection on purpose) would get
+  // silently overridden back to the last plan a heartbeat later - the
+  // click would look like it simply did nothing.
   useEffect(() => { window.scrollTo(0, 0); }, []);
+  const didAutoSelectRef = useRef(false);
   useEffect(() => {
-    if (loading || selectedId || guidedIntent) return;
+    if (loading || selectedId || guidedIntent || didAutoSelectRef.current) return;
     const mostRecent = quizzes.find(q => !q.archived);
-    if (mostRecent) setSelectedId(mostRecent.id);
+    if (mostRecent) { didAutoSelectRef.current = true; setSelectedId(mostRecent.id); }
   }, [loading, quizzes, selectedId, guidedIntent]);
 
   useEffect(() => {

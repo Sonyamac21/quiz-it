@@ -568,13 +568,30 @@ function QuizControllerInner() {
       // previously a team could tap every correct answer PLUS a wrong one and still be marked correct.
       return correctTaps.length === correctKeys.length && wrongTaps.length === 0 && correctKeys.length > 0;
     }
+    // Sequence: the player screen (SequenceQuestion) only ever submits the
+    // fixed option texts, tapped in whatever order the team chose, joined
+    // with ", " - never free-typed text. Order is the whole point of this
+    // question type, so it must be compared position-by-position, not as one
+    // fuzzy-matched blob. Comparing the full joined strings with isFuzzyMatch
+    // let a team that tapped every item RIGHT but in the WRONG order still
+    // read as "correct" (and even get credited as fastest correct answer),
+    // because word-transposition edit distance can land inside the generic
+    // 30%-of-length tolerance meant for typos, not reordering.
+    if (q.question_type === "sequence") {
+      const map: Record<string, string|null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
+      const order = (q.correct_answer||"").split(",").map(s => s.trim().toLowerCase());
+      const correctItems = order.map(key => map[key]).filter((t): t is string => !!t);
+      if (correctItems.length === 0 || correctItems.length !== order.length) return false;
+      const submittedItems = (ans.answer_text||"").split(",").map(s => s.trim());
+      if (submittedItems.length !== correctItems.length) return false;
+      return correctItems.every((item, i) => normalise(item) === normalise(submittedItems[i]||""));
+    }
     return isFuzzyMatch(ans.answer_text, getCorrectAnswerText(q), q);
   }
 
   async function autoScore(teamList: Team[], q: Question, currentAnswers: Answer[]) {
     if (!sessionPin) return;
     lastDeltasRef.current = {};
-    const correctText = getCorrectAnswerText(q);
     const supabase = createSupabaseBrowserClient();
     const hasBoost = (teamName: string) => unoCards.some(c => c.team_name === teamName && c.card_type === "x2" && new Date(c.played_at).getTime() >= roundStartedRef.current);
     // If a network retry ever creates more than one answer row for the same
@@ -633,7 +650,7 @@ function QuizControllerInner() {
         if (mtResult.scoreboardSyncError) console.error(`autoScore (multi tap, ${team.team_name}): score updated but scoreboard_data sync failed:`, mtResult.scoreboardSyncError);
         continue;
       }
-      const isCorrect = isFuzzyMatch(ans.answer_text, correctText, q);
+      const isCorrect = isAnswerCorrect(ans, q);
       const isWrong = !isCorrect && ans.answer_text.trim() !== "";
       if (!isCorrect && !(isWrong && dangerZone)) continue;
       const timeBonusPts = rankBonus[team.team_name] ?? 0;

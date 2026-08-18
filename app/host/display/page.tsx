@@ -276,6 +276,13 @@ function DisplayScreenInner() {
   const [sessionPin, setSessionPin] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState("");
+  // Whether the realtime channel is currently down (CHANNEL_ERROR/TIMED_OUT/
+  // CLOSED after having connected once). The screen keeps running off the
+  // poll-based safety nets during a drop, but the venue's projector should
+  // show something reassuring rather than silently stalling - see the small
+  // banner rendered below the main display.
+  const [realtimeDown, setRealtimeDown] = useState(false);
+  const hasSubscribedOnceRef = useRef(false);
   const [fastestTeam, setFastestTeam] = useState<string|null>(null);
   const [fastestSong, setFastestSong] = useState<string|null>(null);
   const [hardDeckTeam, setHardDeckTeam] = useState<string|null>(null);
@@ -884,7 +891,10 @@ function DisplayScreenInner() {
       });
     if (displayChannelRef.current) void supabase.removeChannel(displayChannelRef.current);
     displayChannelRef.current = channel;
-    channel.subscribe();
+    channel.subscribe(status => {
+      if (status === "SUBSCRIBED") { hasSubscribedOnceRef.current = true; setRealtimeDown(false); }
+      else if (hasSubscribedOnceRef.current && (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED")) setRealtimeDown(true);
+    });
   }
 
   useEffect(() => {
@@ -964,12 +974,38 @@ function DisplayScreenInner() {
           });
         if (displayChannelRef.current) void supabase.removeChannel(displayChannelRef.current);
         displayChannelRef.current = channel;
-        channel.subscribe();
+        channel.subscribe(status => {
+          if (status === "SUBSCRIBED") { hasSubscribedOnceRef.current = true; setRealtimeDown(false); }
+          else if (hasSubscribedOnceRef.current && (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED")) setRealtimeDown(true);
+        });
         });
       };
       tryAutoConnect(0);
     }
   }, [searchParams]);
+  // The phases below each `return` their own JSX tree independently, so a
+  // banner living inside any single one of them wouldn't show on the others.
+  // Managed imperatively instead - appended straight to <body> - so a drop
+  // shows on top of whichever phase happens to be live, without threading a
+  // prop through every branch.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    let el = document.getElementById("qi-display-reconnect-banner");
+    if (!connected || !realtimeDown) {
+      if (el) el.remove();
+      return;
+    }
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "qi-display-reconnect-banner";
+      el.className = "qi-display-reconnect-banner";
+      el.setAttribute("role", "status");
+      el.textContent = "Reconnecting…";
+      document.body.appendChild(el);
+    }
+    return () => { el?.remove(); };
+  }, [connected, realtimeDown]);
+
   if (!connected) {
     return (
       <div className="qi-display-connect">

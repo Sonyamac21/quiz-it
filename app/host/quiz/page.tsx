@@ -202,6 +202,11 @@ function QuizControllerInner() {
   const [realtimeLastSync, setRealtimeLastSync] = useState<number | null>(null);
   const [realtimeLastReconnect, setRealtimeLastReconnect] = useState<number | null>(null);
   const [realtimeErrors, setRealtimeErrors] = useState(0);
+  // Tracks whether the channel is coming back from a drop (CHANNEL_ERROR/
+  // TIMED_OUT) rather than subscribing for the first time, so reconnecting
+  // after a blip can auto-resync full session state instead of leaving the
+  // host silently behind until the next poll tick or a manual click.
+  const hadRealtimeDropRef = useRef(false);
   const hostChannelRef = useRef<HostRealtimeChannel | null>(null);
   const roundStartedRef = useRef<number>(0);
   const quizEndRevealedRef = useRef<number>(0);
@@ -902,9 +907,19 @@ function QuizControllerInner() {
       .subscribe(status => {
         setRealtimeStatus(status);
         if (status === "SUBSCRIBED") {
-          setRealtimeLastSync(diagnosticTimestamp());
           setRealtimeLastReconnect(diagnosticTimestamp());
+          if (hadRealtimeDropRef.current) {
+            // Coming back from a drop, not the initial subscribe - anything
+            // that changed while disconnected (an answer locked in, a card
+            // played, a hot seat update) was missed by the stream. Pull full
+            // state instead of waiting on the next poll tick.
+            hadRealtimeDropRef.current = false;
+            diagnosticsResyncSession().catch(() => { /* poll safety-net still covers this */ });
+          } else {
+            setRealtimeLastSync(diagnosticTimestamp());
+          }
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          hadRealtimeDropRef.current = true;
           setRealtimeErrors(value => value + 1);
         }
       });

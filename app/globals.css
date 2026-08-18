@@ -1198,6 +1198,22 @@ button, input, select, textarea { font: inherit; }
 .qi-display-connect-status { color: var(--qi-display-muted); }
 .qi-display-connect-error { color: #ff8290; }
 
+/* Small always-on-top banner shown when the display's realtime channel
+   drops mid-quiz (see app/host/display/page.tsx) - reassures the room a
+   brief blip is just a blip, not the screen freezing/crashing. Appended
+   directly to <body> since it needs to sit above whichever phase is live. */
+.qi-display-reconnect-banner {
+  position: fixed; top: clamp(14px, 2vh, 28px); left: 50%; transform: translateX(-50%);
+  z-index: 9999; display: flex; align-items: center; gap: 10px;
+  padding: 10px 22px; border-radius: 999px;
+  background: rgba(20, 10, 26, .88); border: 1px solid rgba(217,79,220,.55);
+  color: #fff; font: 700 clamp(13px,1vw,16px) var(--font-body), Inter, sans-serif;
+  letter-spacing: .08em; text-transform: uppercase;
+  box-shadow: 0 10px 30px rgba(0,0,0,.4);
+  animation: qi-display-reconnect-pulse 1.6s ease-in-out infinite;
+}
+@keyframes qi-display-reconnect-pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
 /* Lobby / join
    The join panel is a fixed QUARTER of the split (grid-template-columns
    below), but every size in this block used to be expressed in vw/vh units -

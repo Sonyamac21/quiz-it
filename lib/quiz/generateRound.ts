@@ -387,9 +387,9 @@ async function generateOne(
   type: string,
   topic: string,
   context: GenerationContext,
-  opts: { theme: string; difficulty: string; roundType: string; exclusions: ExclusionState },
+  opts: { theme: string; difficulty: string; roundType: string; exclusions: ExclusionState; forceObscure?: boolean },
 ): Promise<Question | null> {
-  const { theme, difficulty, roundType, exclusions } = opts;
+  const { theme, difficulty, roundType, exclusions, forceObscure } = opts;
   context.error = "";
   context.report = { questionText: "", questionType: type, stages: emptyValidationResults(Boolean(theme.trim()), type === "picture" || type === "audio") };
   const typeInstructions: Record<string, string> = {
@@ -421,7 +421,13 @@ async function generateOne(
   // correctly.
   const isRecencyTopic = topic === "recent entertainment news (last 1-3 years, no politics)"
     || topic === "celebrity and pop culture moments (last 1-3 years, no politics)";
-  const angle = VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
+  // A long-running account's permanent Question Memory eventually holds
+  // most of the OBVIOUS mainstream facts for a common topic (the ones a
+  // random angle pick keeps re-discovering) - so a run of consecutive
+  // Permanent-memory-match rejections stops picking a random angle and
+  // deliberately forces "deeper cut" instead, to push the model off the
+  // same well-trodden obvious answers it keeps proposing.
+  const angle = forceObscure ? "a deeper cut, not the most obvious example - genuinely less commonly asked, while still fair and answerable by a general pub-quiz crowd" : VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
   const varietyNote = type === "audio"
     ? " IMPORTANT - pick a well-known song: either a genuinely famous track a pub crowd would clap along to, OR any other song (even a deeper cut, B-side, or later single) by a genuinely famous, widely recognised artist/band - the artist being well-known is enough on its own, the specific song does not also have to be their single most famous hit. Not obscure/unknown artists either way. Vary the decade/genre/artist from recent picks."
     : " IMPORTANT - avoid defaulting to the single most famous, first-thought-of example for this topic (e.g. for 'Disney songs' don't always pick Let It Go or Circle of Life). Where possible, lean toward something " + angle + ". Vary your answer choices across different eras, genres, and sub-topics rather than the most obvious pick.";
@@ -874,6 +880,12 @@ export async function generateValidatedRound(
   let i = 0;
   let consecutiveFailures = 0;
   let consecutiveCheckFailures = 0;
+  // Tracks a streak of specifically Permanent-memory-match rejections (as
+  // opposed to moderation/theme/quality failures) - once an account has
+  // enough generation history, common topics genuinely start running out of
+  // not-yet-asked obvious facts, and that's the one failure mode a random
+  // "vary the angle" retry doesn't reliably escape (see forceObscure below).
+  let consecutiveMemoryFailures = 0;
 
   type PendingCandidate = { type: string; context: GenerationContext; promise: Promise<Question | null> };
   const pending: PendingCandidate[] = [];
@@ -883,7 +895,7 @@ export async function generateValidatedRound(
     const topic = theme || (type === "audio" ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length] : shuffledTopics[launchIndex % shuffledTopics.length]);
     const context = createGenerationContext(type, Boolean(theme.trim()));
     attempts++;
-    pending.push({ type, context, promise: generateOne(type, topic, context, { theme, difficulty, roundType, exclusions }) });
+    pending.push({ type, context, promise: generateOne(type, topic, context, { theme, difficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 }) });
   };
   const refillPipeline = () => {
     // Deliberately keeps up to 2 candidates in flight even once `count` is
@@ -938,6 +950,7 @@ export async function generateValidatedRound(
     if (validation.ok && exclusions.usedFingerprints.has(questionFingerprint(q))) {
       addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: "Duplicate", reason: "Matched a question accepted by another round moments earlier", stages: context.report.stages });
       consecutiveCheckFailures++;
+      consecutiveMemoryFailures++;
       refillPipeline();
       continue;
     }
@@ -948,6 +961,7 @@ export async function generateValidatedRound(
       onAccept?.(q);
       addReportEntry({ outcome: "accepted", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       consecutiveCheckFailures = 0;
+      consecutiveMemoryFailures = 0;
     } else {
       if (validation.category === "Moderation unavailable") {
         addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
@@ -958,10 +972,18 @@ export async function generateValidatedRound(
       blacklistRejected(exclusions, q);
       addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       consecutiveCheckFailures++;
+      consecutiveMemoryFailures = (validation.category === "Duplicate" || validation.category === "Permanent memory") ? consecutiveMemoryFailures + 1 : 0;
       const failReason = (validation.reason || "Unknown reason").substring(0, 40);
-      onProgress?.("Question " + (good.length + 1) + " failed check (" + failReason + ") - retrying...");
-      if (consecutiveCheckFailures >= 25) {
-        const finalStatus = "Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + (validation.reason || "Unknown reason").substring(0, 60) + "). Got " + good.length + " of " + count + ". See Generation Report for details.";
+      onProgress?.("Question " + (good.length + 1) + " failed check (" + failReason + ") - retrying..." + (consecutiveMemoryFailures >= 4 ? " (widening search for a fresh angle)" : ""));
+      // Raised from 25: an account with months of generation history
+      // legitimately needs more than 25 tries to find a not-yet-used fact on
+      // a well-covered topic, especially now that repeated memory-match
+      // rejections are actively steered toward deeper-cut, less-obvious
+      // facts (forceObscure above) rather than just re-rolling the same
+      // random angle - that steering needs room to actually pay off instead
+      // of the round giving up right as it starts working.
+      if (consecutiveCheckFailures >= 45) {
+        const finalStatus = "Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + (validation.reason || "Unknown reason").substring(0, 60) + "). Got " + good.length + " of " + count + ". This topic/theme may be close to exhausted in your saved question history - try a different or more specific theme. See Generation Report for details.";
         onProgress?.(finalStatus);
         return { spec, questions: good, report, finalStatus, stoppedEarly: true };
       }

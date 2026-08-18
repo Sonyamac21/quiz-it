@@ -73,6 +73,19 @@ type GenerationContext = { error: string; report: CandidateReport };
 
 const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife","recent entertainment news (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)"];
 const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","Christmas songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics"];
+// A picture-type candidate's photo query is restricted (see generateOne's
+// picture instructions) to only: a famous landmark/building, an animal or
+// species, a national flag, a well-known food/dish, or a sports venue/
+// stadium - because that's what stock photo sites actually carry (no
+// logos, celebrities, movie stills, TV characters, artwork). Without its
+// own topic pool, picture slots were drawing from the SAME general TOPICS
+// list as every other question type - most of which (movies, celebrities,
+// logos and brands, video games, reality TV, fashion, royals and politics,
+// crime and mystery, awards and records...) are flatly incompatible with
+// that whitelist, so a picture candidate's topic mismatched its own allowed
+// subject matter more often than not, failed moderation/quality on that
+// mismatch, and picture questions barely ever survived to be accepted.
+const PICTURE_TOPICS = ["famous landmarks","world flags","animals and wildlife","iconic buildings","national dishes and cuisine","famous bridges","sports stadiums","big cats and safari animals","dog and cat breeds","famous mountains and natural wonders","tropical destinations","classic desserts and sweets","famous rivers and waterfalls","farm animals","street food dishes"];
 const VARIETY_ANGLES = [
   "from the 1960s or 1970s", "from the 1980s", "from the 1990s", "from the 2000s", "from the 2010s or later",
   "that's a deeper cut, not the most obvious example", "with a British/UK angle", "with a US angle",
@@ -874,6 +887,7 @@ export async function generateValidatedRound(
 
   const shuffledTopics = shuffle(TOPICS);
   const shuffledMusicTopics = shuffle(MUSIC_TOPICS);
+  const shuffledPictureTopics = shuffle(PICTURE_TOPICS);
   const good: Question[] = [];
   let attempts = 0;
   const maxAttempts = count * 14;
@@ -892,7 +906,11 @@ export async function generateValidatedRound(
   const launchCandidate = () => {
     const launchIndex = i++;
     const type = types[launchIndex % types.length];
-    const topic = theme || (type === "audio" ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length] : shuffledTopics[launchIndex % shuffledTopics.length]);
+    const topic = theme || (
+      type === "audio" ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
+      : type === "picture" ? shuffledPictureTopics[launchIndex % shuffledPictureTopics.length]
+      : shuffledTopics[launchIndex % shuffledTopics.length]
+    );
     const context = createGenerationContext(type, Boolean(theme.trim()));
     attempts++;
     pending.push({ type, context, promise: generateOne(type, topic, context, { theme, difficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 }) });

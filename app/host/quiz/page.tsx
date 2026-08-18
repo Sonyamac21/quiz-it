@@ -29,6 +29,12 @@ type Question = {
   option_b: string | null;
   option_c: string | null;
   option_d: string | null;
+  // Multi Tap questions use up to 6 options (a-f), not just a-d - needed so
+  // autoScore's multi_tap branch can enumerate every option on the board,
+  // not just the first four, when working out which decoys were correctly
+  // left untapped.
+  option_e?: string | null;
+  option_f?: string | null;
   correct_answer: string;
   explanation?: string;
   difficulty: string;
@@ -628,14 +634,21 @@ function QuizControllerInner() {
       if (q.question_type === "multi_tap") {
         const correctKeys = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
         const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+        const allKeys = (["a","b","c","d","e","f"] as const).filter(k => q["option_"+k as "option_a"]);
         const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
         const wrongTaps = tappedKeys.filter(k => !correctKeys.includes(k));
-        // Per the confirmed Multi Tap spec: each correct tap scores flat host-set
-        // points, decoy/wrong taps cost nothing by default. Previously this also
-        // credited the team for every decoy left untapped, which massively
-        // over-awarded points (e.g. 2 correct + 4 decoys meant credit for 6
-        // things instead of 2) - that was never the intended scoring rule.
-        let mtBasePts = correctTaps.length * pointsPerQ;
+        // Confirmed Multi Tap spec: a team scores host-set points-per-question
+        // for EVERY option they get right on the board - tapping a correct
+        // one, OR correctly leaving a wrong/decoy one untapped. Both are
+        // worth the same. (An earlier version of this deliberately did NOT
+        // credit untapped decoys, because a mistaken version of that rule was
+        // crediting every decoy regardless of whether the team had also
+        // wrongly tapped others - that bug is what got removed, not the
+        // underlying "leaving it correctly counts" rule itself, which the
+        // host has now confirmed is the actual intended scoring.)
+        const wrongKeysUniverse = allKeys.filter(k => !correctKeys.includes(k));
+        const correctlyLeftWrong = wrongKeysUniverse.filter(k => !tappedKeys.includes(k));
+        let mtBasePts = (correctTaps.length + correctlyLeftWrong.length) * pointsPerQ;
         // Wipeout: a single wrong tap zeroes the ENTIRE question for that team -
         // base AND time bonus. Previously only the base was zeroed, so a team that
         // triggered wipeout still banked the speed bonus (points they should not

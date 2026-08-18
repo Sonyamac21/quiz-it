@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatEventDate, formatEventTime, localDateKey, type EventRecord } from "@/lib/events/types";
 import { FEATURE_FLAGS } from "@/lib/platform/featureFlags";
+import { isQuizPlanComplete } from "@/lib/quiz/planStatus";
 
 type VenueAlert = { id:string; venue_name:string; venue_logo_url:string|null; hero_image_url:string|null; default_quiz_id:string|null; default_start_time:string|null; contact_email:string|null; active:boolean };
 const addDays=(date:Date,days:number)=>{const copy=new Date(date);copy.setDate(copy.getDate()+days);return localDateKey(copy)};
@@ -27,23 +28,6 @@ export default function BackOfficeDashboard(){
     </div><section><div className="qi-bo-sectionhead"><div><p>This week</p><h2>Upcoming quizzes</h2></div></div><div className="qi-bo-upcoming">{weekEvents.length?weekEvents.map(event=><EventRow key={event.id} event={event}/>):<div className="qi-bo-empty"><strong>No upcoming quizzes</strong><span>Choose a date in Calendar to schedule one.</span></div>}</div></section>
     <section><div className="qi-bo-sectionhead"><div><p>Shortcuts</p><h2>Quick actions</h2></div></div><div className="qi-bo-actions"><Link href="/host/events">Schedule quiz</Link><Link href="/host/venues">Add venue</Link><Link href="/host/quizzes">Build Quiz Plan</Link><Link href="/host/questions">Generate questions</Link><Link href="/host/media">Review media</Link></div></section>
   </main>
-}
-
-// A Quiz Plan being linked to an event isn't the same as that plan actually
-// being finished - every round still needs questions, and every audio
-// question still needs an actual saved clip from Music Prep (not just a
-// generated search query). Ready-to-host only when both are true.
-function isQuizPlanComplete(quiz: EventRecord["quiz"]): boolean {
-  const rounds = quiz?.quiz_rounds;
-  if (!rounds || rounds.length === 0) return false;
-  return rounds.every(round => {
-    if (!round.questions || round.questions.length === 0) return false;
-    return round.questions.every(q => {
-      if (q.question_type !== "audio") return true;
-      const clip = q.option_b as string | undefined | null;
-      return Boolean(clip && clip.includes("blob.vercel-storage.com"));
-    });
-  });
 }
 
 function EventRow({event}:{event:EventRecord}){

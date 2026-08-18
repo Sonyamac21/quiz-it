@@ -445,6 +445,11 @@ function DisplayScreenInner() {
     return () => { clearTimeout(fadeOutTimer); clearTimeout(clearTimer); };
   }, [currentAnnounce]);
   const celebrationPlayingForRef = useRef<string | null>(null);
+  // Tracks which reveal (by question index) has already had its correct
+  // teams' theme songs queued, so a realtime resync/poll for the same
+  // reveal doesn't restart the sequence from the top.
+  const revealSongsPlayedForRef = useRef<string | null>(null);
+  const revealSongsTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
   // Tracks the full timer duration so the SVG ring can show correct progress
   const timerTotalRef = useRef<number>(30);
@@ -552,6 +557,36 @@ function DisplayScreenInner() {
     }
     prevHotSeatStatusRef.current = hotSeat.status;
     prevHotSeatPhaseRef.current = newPhase;
+    // Play each correct team's own theme song in turn on reveal, not just the
+    // single "fastest correct" team the celebration/spin flow already
+    // handles (see doRevealAnswer in the host quiz page, which writes this
+    // list). Keyed by question index so a realtime resync/poll for the same
+    // reveal doesn't restart the sequence, and skipped for Hot Seat (which
+    // already has its own cheer above) and multi_tap (no reveal_correct_teams
+    // written for those, per the host page).
+    const revealCorrectTeams = (data.reveal_correct_teams as string[] | null) || [];
+    const revealKey = newPhase === "answer" ? `${data.current_question_index}` : null;
+    if (
+      newPhase === "answer" &&
+      hotSeat.status !== "claimed" && hotSeat.status !== "submitted" &&
+      revealCorrectTeams.length > 0 &&
+      revealSongsPlayedForRef.current !== revealKey
+    ) {
+      revealSongsPlayedForRef.current = revealKey;
+      revealSongsTimeoutsRef.current.forEach(clearTimeout);
+      revealSongsTimeoutsRef.current = [];
+      const SONG_SLOT_MS = 2600;
+      revealCorrectTeams.forEach((teamName, i) => {
+        const song = teamsRef.current.find(t => t.team_name === teamName)?.victory_song;
+        if (!song) return;
+        const t = setTimeout(() => {
+          playShowAudio(encodeURIComponent(song) + ".mp3", { channel: "music", volume: 0.7 });
+        }, i * SONG_SLOT_MS);
+        revealSongsTimeoutsRef.current.push(t);
+      });
+    } else if (newPhase !== "answer" && revealSongsPlayedForRef.current !== null) {
+      revealSongsPlayedForRef.current = null;
+    }
     if (newPhase === "hot_seat" && hotSeat.status === "claimed" && hotSeat.answerStartedAt) {
       const elapsed = Math.floor((Date.now() - new Date(hotSeat.answerStartedAt).getTime()) / 1000);
       startCountdown(Math.max(0, hotSeat.answerDuration - elapsed));
@@ -583,10 +618,31 @@ function DisplayScreenInner() {
     {
       const newHDStatus = (data.hard_deck_status as string) || "idle";
       const newHDPotential = (data.hard_deck_potential as number) || 0;
+      const newHDTeam = (data.hard_deck_team as string) || null;
       if (newHDStatus !== prevHardDeckStatusRef.current) {
-        if (newHDStatus === "won") {
+        if (newHDStatus === "decision") {
+          // A correct higher/lower guess survived and the pot grew - every
+          // other correct-answer moment in the show (question reveal,
+          // Pursuit) gets an audible cheer, but Hard Deck was completely
+          // silent between the win/lose sounds, which read as dead air
+          // through most of the round.
+          playSound("correct-chime.mp3", 0.55);
+        } else if (newHDStatus === "won") {
+          // Previously only the max-pot win (>=40) got any sound at all
+          // (an airhorn) - every other win, and EVERY win regardless of pot
+          // size, played no music at all even though every team has a
+          // configured victory song used everywhere else in the show on a
+          // correct/winning moment. Play it here the same way, then the
+          // airhorn as a brief accent on top for the top payout specifically.
+          const wonTeam = teamsRef.current.find(t => t.team_name === newHDTeam);
+          if (wonTeam?.victory_song) {
+            stopShowAudio("music");
+            playShowAudio(encodeURIComponent(wonTeam.victory_song) + ".mp3", { channel: "music", volume: 0.85 });
+          }
           if (newHDPotential >= 40) {
             playSound("airhorn.mp3", 1.0);
+          } else {
+            playSound("crowd-cheer.mp3", 0.6);
           }
         } else if (newHDStatus === "lost") {
           playSound("sad-trombone.mp3", 0.9);

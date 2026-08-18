@@ -7,6 +7,8 @@ import type { LibraryRound, QuizDefinition, QuizRound } from "@/lib/quiz-builder
 import { generateAllRounds, generateValidatedRound, quickExclusionState, type RoundGenerationSpec } from "@/lib/quiz/generateRound";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell, Toggle } from "@/components/fable/HostConsole";
+import { getMediaUrl } from "@/lib/getMediaUrl";
+import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
@@ -720,6 +722,16 @@ export default function QuizBuilderPage() {
                     <span style={{ font: "700 13px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{index + 1}. {round.name}</span>
                     {roundProgress && <span title={roundProgress} style={{ color: "#2EE06E", font: "600 11px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{roundProgress}</span>}
                     <span style={{ color: "#6B5A8E", font: "400 11px 'Inter'" }}>{round.questions.length} Q - {round.round_type}</span>
+                    {/* A round with audio questions still needs each one's
+                        actual clip saved in Music Prep before the quiz can go
+                        live - previously the only way to notice this was to
+                        open every round and check, or find out live on the
+                        night. Surfacing it right on the tab means a host
+                        scanning the round list can see at a glance which
+                        rounds still need attention. */}
+                    {round.questions.some(q => (q as Record<string, unknown>).question_type === "audio") && !roundMusicIsPrepped(round) && (
+                      <span title="One or more audio questions in this round have no saved clip yet - open Music Prep before this quiz can go live" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#FFC533", font: "700 10px 'Inter'", letterSpacing: ".04em" }}>⚠ MUSIC NOT PREPPED</span>
+                    )}
                   </div>
                   );
                 })}
@@ -965,7 +977,7 @@ export default function QuizBuilderPage() {
                               </div>
                             ) : isPicture ? (
                               <div>
-                                {editDraft.option_b && <img src={editDraft.option_b} alt={editDraft.option_a || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 140, objectFit: "cover", borderRadius: 6, marginBottom: 6 }} />}
+                                {editDraft.option_b && <img src={getMediaUrl(editDraft.option_b) ?? undefined} alt={editDraft.option_a || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 140, objectFit: "cover", borderRadius: 6, marginBottom: 6 }} />}
                                 <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Image search query</div>
                                 <div style={{ display: "flex", gap: 6 }}>
                                   <input
@@ -1071,7 +1083,7 @@ export default function QuizBuilderPage() {
                               <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 8, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
                                 <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Photo shown to players</div>
                                 {photoUrl ? (
-                                  <img src={photoUrl} alt={photoQuery || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 6, marginTop: 6 }} />
+                                  <img src={getMediaUrl(photoUrl) ?? undefined} alt={photoQuery || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 6, marginTop: 6 }} />
                                 ) : (
                                   <div style={{ color: "#B9A8D9", font: "400 12px 'Inter'", marginTop: 4 }}>No image found for this question yet.</div>
                                 )}

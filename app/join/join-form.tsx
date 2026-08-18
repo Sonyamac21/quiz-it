@@ -262,7 +262,21 @@ export function JoinForm() {
         session_pin: pin,
         photo_url: photoUrl,
       });
-      if (dbError) throw dbError;
+      if (dbError) {
+        // Postgres unique_violation (23505) means another team's insert won
+        // the race for this song (or name) between our pre-check and now —
+        // the pre-check above is only a fast UX filter, this DB constraint
+        // is the real guarantee. Send the team back to pick again instead
+        // of silently creating a duplicate.
+        if (dbError.code === "23505") {
+          setError("That song was just taken by another team! Please pick a different one.");
+          setSelectedSong("");
+          setStep("song");
+          setLoading(false);
+          return;
+        }
+        throw dbError;
+      }
       setSessionPin(pin);
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin, savedAt: Date.now() }));
       setDone(true);
@@ -279,7 +293,13 @@ export function JoinForm() {
     if (done) {
       return (
         <div className="qi-player-live-root">
-          <PlayerQuizScreen teamName={teamName} sessionPin={sessionPin} />
+          {/* Trim here to match how team_name is written everywhere else
+              (join insert, sessionStorage restore) - an untrimmed name here
+              caused answers to be written under a slightly different string
+              than the team's DB row, so the host's per-team "waiting..."
+              status silently never matched even though the aggregate
+              answered-count (which doesn't compare names) looked correct. */}
+          <PlayerQuizScreen teamName={teamName.trim()} sessionPin={sessionPin} />
           {/* Persistent branding overlay - sits on top of every phase screen
               PlayerQuizScreen renders internally, instead of needing to be
               threaded through each of its many separate return branches. */}

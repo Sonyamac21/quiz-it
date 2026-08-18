@@ -259,6 +259,10 @@ button, input, select, textarea { font: inherit; }
 .qi-site-header__mark { position: absolute; left: 0; width: 42px; height: 42px; border: 1px solid var(--qi-border-strong); border-radius: 50%; object-fit: cover; }
 .qi-hero { flex: 1; display: grid; place-items: center; padding: var(--qi-space-8); text-align: center; }
 .qi-hero .qi-brand__name { font-size: var(--qi-type-display); text-shadow: 0 0 48px rgb(190 38 193 / 0.35); }
+.qi-hero--landing { display: flex; flex-direction: column; align-items: center; gap: var(--qi-space-5); }
+.qi-hero__tagline { color: var(--qi-text-secondary); font-size: 1.05rem; max-width: 32rem; }
+.qi-hero__actions { display: flex; gap: var(--qi-space-3); flex-wrap: wrap; justify-content: center; }
+.qi-hero__cta { min-width: 180px; text-decoration: none; }
 
 @media (max-width: 640px) {
   .qi-content { width: min(100% - 1.25rem, 80rem); }
@@ -492,7 +496,18 @@ button, input, select, textarea { font: inherit; }
 .fbl-phone{position:relative;width:100%;min-height:100vh;background:var(--stage-deep);overflow:hidden;}
 .fbl-phone::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 70% 40% at 50% 40%,rgba(190,38,193,.10),transparent 70%);}
 @keyframes fblBreath{0%,100%{opacity:.7}50%{opacity:1}}
-.fbl .badge{position:absolute;right:1.6%;bottom:1.4%;font:400 clamp(9px,0.8vw,12px) 'Inter';color:var(--text3);letter-spacing:.05em;z-index:5;}
+/* Unprefixed (not scoped to .fbl) - QuizItBadge is a shared component
+   rendered on every Display phase, including several (hot seat, celebration,
+   answer reveal, intermission, final reveal) whose root wrapper never had
+   the "fbl" class. Scoping these rules to ".fbl X" meant that on those
+   phases the badge got none of this: no small pinned corner position, no
+   pill background/shape, and critically no size/crop on the avatar image -
+   so the host's photo rendered at its raw, uncropped pixel size instead of
+   a small circle, blowing up to dominate the screen (this is what made Hot
+   Seat "look nothing like other rounds" - a giant stray face instead of a
+   tiny corner badge). Making the rule universal fixes every affected phase
+   at once instead of patching each wrapper's class list one at a time. */
+.badge{position:absolute;right:1.6%;bottom:1.4%;font:400 clamp(9px,0.8vw,12px) 'Inter';color:var(--text3);letter-spacing:.05em;z-index:5;}
 .fbl .wm{font-family:'Bruno Ace SC',var(--font-logo),cursive;letter-spacing:.05em;}
 .fbl .wm .q,.fbl .q{color:var(--purple);}
 .fbl .crest{background:linear-gradient(135deg,var(--purple-d),var(--stage-overlay));border:1px solid var(--purple);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;clip-path:polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%);}
@@ -636,10 +651,10 @@ button, input, select, textarea { font: inherit; }
 /* Small circular host avatar in the corner branding badge. Falls back to
    initials since no photo asset is wired in yet - swap in a real image URL
    here (background-image) once one is uploaded. */
-.fbl .badge{display:inline-flex;align-items:center;gap:.6em;padding:.35em .8em .35em .35em;border-radius:999px;background:rgba(10,1,24,.55);border:1px solid rgba(217,79,220,.25);backdrop-filter:blur(6px);}
-.fbl .badge-avatar{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:2.1em;height:2.1em;border-radius:50%;background:linear-gradient(160deg,var(--purple-b),var(--purple));color:#fff;font:700 .75em 'Inter';letter-spacing:0;box-shadow:0 0 0 2px rgba(255,255,255,.15),0 2px 10px rgba(190,38,193,.5);overflow:hidden;}
-.fbl .badge-avatar img{width:100%;height:100%;object-fit:cover;object-position:top center;}
-.fbl .badge-text{white-space:nowrap;}
+.badge{display:inline-flex;align-items:center;gap:.6em;padding:.35em .8em .35em .35em;border-radius:999px;background:rgba(10,1,24,.55);border:1px solid rgba(217,79,220,.25);backdrop-filter:blur(6px);}
+.badge-avatar{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:2.1em;height:2.1em;border-radius:50%;background:linear-gradient(160deg,var(--purple-b),var(--purple));color:#fff;font:700 .75em 'Inter';letter-spacing:0;box-shadow:0 0 0 2px rgba(255,255,255,.15),0 2px 10px rgba(190,38,193,.5);overflow:hidden;}
+.badge-avatar img{width:100%;height:100%;object-fit:cover;object-position:top center;}
+.badge-text{white-space:nowrap;}
 /* Large, room-readable countdown + final-5s urgent glow (steady intensity ramp,
    no rapid flashing; reduced-motion disables the smoothing transition). */
 .fbl .qd-bigtimer{position:absolute;top:2.6%;right:4%;font:800 clamp(56px,7.5vw,150px)/1 'Inter';font-variant-numeric:tabular-nums;color:var(--text);text-shadow:0 0 34px rgba(190,38,193,.5);z-index:5;letter-spacing:.02em;}
@@ -1183,14 +1198,26 @@ button, input, select, textarea { font: inherit; }
 .qi-display-connect-status { color: var(--qi-display-muted); }
 .qi-display-connect-error { color: #ff8290; }
 
-/* Lobby / join */
+/* Lobby / join
+   The join panel is a fixed QUARTER of the split (grid-template-columns
+   below), but every size in this block used to be expressed in vw/vh units -
+   i.e. relative to the FULL viewport, not the 25%-wide column it actually
+   lives in. That silently assumed the join panel was ~full width, so on the
+   real quarter-width column the PIN (12vw font-size) rendered roughly 4x
+   too big for its box and bled into the Power Cards panel next to it,
+   sometimes obscuring digits. Padding is now in % (percentages on padding
+   are resolved against the CONTAINING BLOCK's width, i.e. this column, not
+   the viewport) and every font clamp's vw component is scaled down to the
+   fraction of viewport width this column actually occupies (~1/4), so text
+   sizes stay proportional to the box it has to fit in instead of the whole
+   screen. */
 .qi-display-lobby .lb-split { grid-template-columns: minmax(340px, .25fr) minmax(0, .75fr); }
-.qi-display-lobby .lb-join { padding: 5vh 5vw 8vh; }
+.qi-display-lobby .lb-join { padding: 5% 8% 8%; }
 .qi-display-lobby .lb-kicker { font-size: clamp(16px, 1.6vw, 28px); color: #d94fdc; letter-spacing: .26em; }
-.qi-display-lobby .lb-pin { font-size: clamp(88px, 12vw, 190px); line-height: .86; letter-spacing: .06em; text-shadow: 0 0 48px rgba(217,79,220,.28); }
+.qi-display-lobby .lb-pin { font-size: clamp(56px, 3vw, 108px); line-height: .86; letter-spacing: .06em; text-shadow: 0 0 48px rgba(217,79,220,.28); }
 .qi-display-lobby .lb-pin small { font-size: clamp(13px, 1.2vw, 20px); letter-spacing: .34em; margin-bottom: 1vh; }
 .qi-display-lobby .lb-how { margin-top: 2.5vh; }
-.qi-display-lobby .lb-steps { font-size: clamp(17px, 1.5vw, 25px); line-height: 1.65; color: #ede7f7; }
+.qi-display-lobby .lb-steps { font-size: clamp(15px, 1vw, 20px); line-height: 1.65; color: #ede7f7; }
 .qi-display-lobby .lb-count { font-size: clamp(14px, 1.2vw, 20px); }
 .qi-display-lobby .lb-cardstage { background: linear-gradient(180deg, rgba(21,10,46,.28), rgba(21,10,46,.72)); }
 .qi-display-lobby .lb-pcard { width: min(84%, 520px); min-height: min(48vh, 520px); padding: 7% 8%; }
@@ -1220,7 +1247,13 @@ button, input, select, textarea { font: inherit; }
 .qi-display-promo-stack { display: grid; gap: 22px; }
 .qi-display-promo-card { padding: clamp(24px,2.6vw,42px); border-radius: 24px; background: var(--qi-display-surface); border: 1px solid var(--qi-display-line); box-shadow: 0 22px 58px rgba(0,0,0,.28); }
 .qi-display-promo-label { color: #d94fdc; font-weight: 800; font-size: clamp(13px,1.1vw,18px); letter-spacing: .22em; margin-bottom: 14px; }
-.qi-display-promo-copy { font-size: clamp(24px,2.2vw,38px); line-height: 1.28; font-weight: 700; }
+/* Offer/other-quizzes copy is free-text a host types into venue settings,
+   with no length limit - long text used to push the rest of the stack
+   (crucially the photo gallery below it) past the bottom of the fixed,
+   overflow:hidden 100dvh screen, silently clipping it. Capping at 4 lines
+   keeps every intermission screen the same predictable height regardless of
+   how much a host writes. */
+.qi-display-promo-copy { font-size: clamp(24px,2.2vw,38px); line-height: 1.28; font-weight: 700; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
 .qi-display-promo-qr { min-width: 280px; text-align: center; }
 .qi-display-promo-qr img { width: clamp(200px, 16vw, 280px); aspect-ratio: 1; border-radius: 16px; background: #fff; padding: 10px; }
 
@@ -1228,7 +1261,18 @@ button, input, select, textarea { font: inherit; }
    customer photos, cross-fading in place. Sits below the offers/WhatsApp
    grid, full width of the same promo column so it reads as part of the same
    layout rather than a bolted-on extra. */
-.qi-display-promo-gallery { position: relative; width: min(92vw, 1280px); aspect-ratio: 21 / 9; margin-top: clamp(20px,2.6vh,36px); border-radius: 24px; overflow: hidden; border: 1px solid var(--qi-display-line); box-shadow: 0 22px 58px rgba(0,0,0,.28); z-index: 2; }
+/* This screen is a fixed 100dvh box with overflow:hidden (see the shared
+   .qi-display-intermission rule above) - the gallery used to size purely
+   off viewport WIDTH (width: min(92vw,1280px) at a 21:9 ratio), with no
+   regard for how much vertical room the title/subtitle/offer cards above it
+   had already used. On a normal 16:9 screen that math alone produces a box
+   taller than what's actually left, so the gallery's bottom edge got
+   clipped by the parent's overflow:hidden - exactly the "photos become a
+   half screen, cutting them off" symptom. Bounding width by 70vh (a 21:9
+   box capped at 30vh tall) as a third candidate in the min() means the
+   gallery's real height can never exceed 30vh regardless of screen width,
+   so it reliably fits under whatever else is on screen. */
+.qi-display-promo-gallery { position: relative; width: min(92vw, 1280px, 70vh); aspect-ratio: 21 / 9; margin-top: clamp(20px,2.6vh,36px); border-radius: 24px; overflow: hidden; border: 1px solid var(--qi-display-line); box-shadow: 0 22px 58px rgba(0,0,0,.28); z-index: 2; }
 .qi-display-promo-gallery-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.1s ease; }
 .qi-display-promo-gallery-img.active { opacity: 1; }
 

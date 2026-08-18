@@ -9,7 +9,7 @@ import { PursuitPanel } from "@/components/PursuitPanel";
 import { PhotoApprovalPanel } from "@/components/PhotoApprovalPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc } from "@/lib/quiz/scoreService";
-import { teamInitials } from "@/components/TeamBadge";
+import { TeamBadge } from "@/components/TeamBadge";
 import { BrandLockup, Button, Field, Input, StatusPill } from "@/components/ui/quiz-it-ui";
 import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 import { HostDiagnostics } from "@/components/HostDiagnostics";
@@ -39,7 +39,11 @@ type Question = {
   fade_out?: boolean;
 };
 type Round = { id: string; name: string; questions: Question[]; round_type?: string; hide_leaderboard?: boolean; allow_power_cards?: boolean; points_per_question?: number | null; position?: number; completed_at?: string | null; source_round_id?: string | null; danger_zone_enabled?: boolean; danger_zone_penalty?: number; max_time_bonus?: number; };
-type Team = { id: string; team_name: string; victory_song: string; session_pin: string; };
+// photo_url/photo_approved already exist on the teams table (upload flow at
+// join, approval queue) and TeamBadge already supports rendering an avatar -
+// this type just didn't carry them through to where the host dashboard
+// renders each team's crest, so it always fell back to plain initials.
+type Team = { id: string; team_name: string; victory_song: string; session_pin: string; photo_url?: string | null; photo_approved?: boolean | null; };
 const DEFAULT_POINTS_PER_QUESTION = 10;
 type Answer = { session_pin: string; id: string; team_name: string; question_index: number; answer_text: string; submitted_at: string; };
 type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
@@ -1159,6 +1163,18 @@ function QuizControllerInner() {
     const answersToScore = freshAnswers ?? answers;
     setAnswers(answersToScore);
     await autoScore(teams, currentQ, answersToScore);
+    // Every team that got this question right should hear their own theme
+    // song, not just the single "fastest correct" team the celebration/spin
+    // flow already handles - record the full list here so the Display can
+    // play each one in turn. Multi_tap has no single correct/incorrect
+    // answer_text to compare, so it's excluded (matches autoScore's own
+    // per-question-type handling above).
+    if (currentQ.question_type !== "multi_tap") {
+      const correctTeamNames = answersToScore
+        .filter(a => isAnswerCorrect(a, currentQ))
+        .map(a => a.team_name);
+      await supabase.from("sessions").update({ reveal_correct_teams: correctTeamNames }).eq("id", sessionId);
+    }
   }
 
   async function doCelebrate() {
@@ -1335,16 +1351,24 @@ function QuizControllerInner() {
     await doPreviewQuestion(nextIdx);
   }
 
-  const teamHasAnswered = (teamName: string) => answers.some(a => a.team_name === teamName);
-  const teamAnswer = (teamName: string) => answers.find(a => a.team_name === teamName)?.answer_text || "";
-  const teamCardsUsed = (teamName: string) => new Set(unoCards.filter(c => c.team_name === teamName).map(c => c.card_type));
+  // Defensive normalization for the team_name join key used throughout this
+  // page - whitespace/case drift between the `teams` row and an `answers`
+  // row (e.g. from historical data written before join-form trimmed
+  // consistently) previously made a team's row silently stick on
+  // "waiting..." while the aggregate "answered" count, which never compares
+  // names, looked correct.
+  const sameTeam = (a: string | null | undefined, b: string | null | undefined) =>
+    (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
+  const teamHasAnswered = (teamName: string) => answers.some(a => sameTeam(a.team_name, teamName));
+  const teamAnswer = (teamName: string) => answers.find(a => sameTeam(a.team_name, teamName))?.answer_text || "";
+  const teamCardsUsed = (teamName: string) => new Set(unoCards.filter(c => sameTeam(c.team_name, teamName)).map(c => c.card_type));
   // Mission Control control-console requirement: submission order + badge +
   // real answer + correct/incorrect after reveal. Derived from the same
   // `answers` array and `isAnswerCorrect` helper scoring already uses — no
   // gameplay/scoring/state change.
   const orderedAnswers = [...answers].sort((a, b) => (a.submitted_at || "").localeCompare(b.submitted_at || ""));
-  const submissionOrder = (teamName: string) => { const i = orderedAnswers.findIndex(a => a.team_name === teamName); return i >= 0 ? i + 1 : null; };
-  const teamAnswerObj = (teamName: string) => answers.find(a => a.team_name === teamName) || null;
+  const submissionOrder = (teamName: string) => { const i = orderedAnswers.findIndex(a => sameTeam(a.team_name, teamName)); return i >= 0 ? i + 1 : null; };
+  const teamAnswerObj = (teamName: string) => answers.find(a => sameTeam(a.team_name, teamName)) || null;
   const hotSeatCurrentAnswer = hotSeatTeam ? teamAnswerObj(hotSeatTeam) : null;
   const hotSeatAnswerIsCorrect = !!(hotSeatCurrentAnswer && currentQ && isAnswerCorrect(hotSeatCurrentAnswer, currentQ));
   const answersRevealed = hostPhase === "answer" || hostPhase === "celebration";
@@ -1844,7 +1868,7 @@ function QuizControllerInner() {
                 {teams.map(t => (
                   <div key={t.id} className="qi-mc-team-card">
                     <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                      <div style={{ width:7, height:7, borderRadius:"50%", background:"#D94FDC", flexShrink:0 }} />
+                      <TeamBadge name={t.team_name} size={20} avatarUrl={t.photo_approved ? t.photo_url : null} style={{ fontSize:7, flexShrink:0 }} />
                       <span style={{ fontWeight:700, fontSize:13, flex:1, color:"#fff" }}>{t.team_name}</span>
                       <PowerCardDots teamName={t.team_name} />
                     </div>
@@ -1864,7 +1888,7 @@ function QuizControllerInner() {
                 <div key={s.team_name} className={`qi-mc-team-card${isFastest ? " qi-mc-team-card--fastest" : ""}`} style={{ borderColor:isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}>
                   <div className="qi-mc-team-card__summary">
                     <span style={{ fontSize:16, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
-                    <span className="fbh-crest" style={{ width:20, height:20, fontSize:7, flexShrink:0 }}>{teamInitials(s.team_name)}</span>
+                    <TeamBadge name={s.team_name} size={20} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:7, flexShrink:0 }} />
                     <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff" }}>{s.team_name}{isFastest?" ⚡":""}</span>
                     <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#D94FDC":"rgba(185,168,217,0.2)", flexShrink:0 }} />
                     <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const, fontVariantNumeric:"tabular-nums" }}>{s.total_points}</span>

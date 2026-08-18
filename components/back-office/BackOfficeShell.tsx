@@ -7,6 +7,12 @@ import type { ReactNode } from "react";
 const navigation = [
   ["Dashboard", "/host"], ["Calendar", "/host/events"], ["Venues", "/host/venues"],
   ["Quiz Library", "/host/quizzes"], ["Question Library", "/host/question-bank"],
+  // Music Prep previously had no entry anywhere in this global nav - the
+  // only way to reach it was a "PREP MUSIC" button buried inside the
+  // planner, and only once a music round already had generated questions.
+  // It's a distinct prep step of its own (uploading/trimming the actual
+  // audio clips), same tier as Media/Question Library, so it belongs here.
+  ["Music Prep", "/host/music-prep"],
   ["Media", "/host/media"], ["Reports", "/host/reports"], ["Settings", "/host/settings"],
 ] as const;
 

@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { CalendarView, EventQuiz, EventRecord, EventStatus, EventVenue, RecurrenceRule } from "@/lib/events/types";
 import { formatEventDate, formatEventTime, localDateKey } from "@/lib/events/types";
 import { HostLoading, HostShell, TopSpacer } from "@/components/fable/HostConsole";
+import { unpreppedMusicRounds } from "@/lib/quiz/planStatus";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const field = { width:"100%", minHeight:44, padding:"10px 12px", borderRadius:10, background:"#150A2E", color:"#fff", border:"1px solid #2E1A52", font:"500 13px Inter" } as const;
@@ -164,6 +165,22 @@ export default function EventCalendarPage() {
       <details className="qi-bo-event-options"><summary>Event overrides</summary><p>Only open this when tonight differs from the venue defaults.</p><div className="qi-bo-form-grid"><div><label className="fbh-lbl">Date</label><input style={field} type="date" value={draft.date} onChange={e=>setDraft({...draft,date:e.target.value})}/></div><div><label className="fbh-lbl">Status</label><select style={field} value={draft.status} onChange={e=>setDraft({...draft,status:e.target.value as EventStatus})}>{["draft","scheduled","live","completed","cancelled"].map(s=><option key={s}>{s}</option>)}</select></div><div><label className="fbh-lbl">Start</label><input style={field} type="time" value={draft.start} onChange={e=>setDraft({...draft,start:e.target.value})}/></div><div><label className="fbh-lbl">End</label><input style={field} type="time" value={draft.end} onChange={e=>setDraft({...draft,end:e.target.value})}/></div></div><label className="fbh-lbl">Host</label><input style={field} value={draft.hostName} onChange={e=>setDraft({...draft,hostName:e.target.value,hostId:draft.hostId||currentHost.id})}/><label className="fbh-lbl">Special Offers</label><textarea style={field} rows={3} value={draft.offers} onChange={e=>setDraft({...draft,offers:e.target.value})} placeholder="Leave empty to inherit venue offers"/><label className="fbh-lbl">Sponsors</label><input style={field} value={draft.sponsors} onChange={e=>setDraft({...draft,sponsors:e.target.value})} placeholder="Leave empty to inherit venue sponsors"/><label className="fbh-lbl">Internal Notes</label><textarea style={field} rows={4} value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})}/></details>
       {!draft.id&&<div className="fbh-panel" style={{marginTop:16}}><div className="fbh-lbl">Recurrence</div><select style={field} value={draft.recurrence.frequency} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,frequency:e.target.value as RecurrenceRule["frequency"]}})}><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="custom_weeks">Every X weeks</option></select>{draft.recurrence.frequency!=="none"&&<><label className="fbh-lbl" style={{marginTop:10}}>Interval</label><input style={field} type="number" min={1} max={52} value={draft.recurrence.interval} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,interval:Number(e.target.value)||1}})}/><label className="fbh-lbl" style={{marginTop:10}}>Ends</label><select style={field} value={draft.recurrence.end} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,end:e.target.value as RecurrenceRule["end"]}})}><option value="never">Never (create next 52)</option><option value="date">Specific date</option><option value="occurrences">Number of occurrences</option></select>{draft.recurrence.end==="date"&&<input style={{...field,marginTop:8}} type="date" value={draft.recurrence.endDate||draft.date} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,endDate:e.target.value}})}/>} {draft.recurrence.end==="occurrences"&&<input style={{...field,marginTop:8}} type="number" min={1} max={104} value={draft.recurrence.occurrences||1} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,occurrences:Number(e.target.value)||1}})}/>}</>}</div>}
       <button className={`fbh-btn ${draft.id&&draft.quizId?"":"pri "}big`} disabled={saving||!draft.venueId||!draft.hostId} onClick={saveDraft} style={{width:"100%",marginTop:18}}>{saving?"SAVING…":draft.id?"SAVE CHANGES":"CREATE EVENT"}</button>
-      {draft.id&&draft.quizId&&<Link className="fbh-btn pri big" href={`/host/session?event=${draft.id}`} style={{display:"flex",justifyContent:"center",marginTop:10}}>PREPARE LIVE QUIZ</Link>}</aside></div>}
+      {draft.id&&draft.quizId&&(()=>{
+        // The quiz can be assigned and this button can be clicked with rounds
+        // still missing questions or audio questions that were never actually
+        // prepped in Music Prep (option_b is still just a search query, not a
+        // saved clip) - the quiz cannot go live in that state, but nothing
+        // here ever warned the host before sending them into the live
+        // session. This mirrors the same "Ready to host" check the dashboard
+        // already runs, surfaced right where the host is about to commit.
+        const assignedQuiz=quizzes.find(q=>q.id===draft.quizId);
+        const unprepped=unpreppedMusicRounds(assignedQuiz);
+        return <>
+          {unprepped.length>0&&<div className="qi-bo-alert" role="alert" style={{marginTop:10}}>
+            <strong>Music not prepped:</strong> {unprepped.map(r=>r.name||"a round").join(", ")} still {unprepped.length===1?"has":"have"} audio questions with no saved clip. <Link href={`/host/music-prep?round=${unprepped[0].id}`} style={{color:"#fff",textDecoration:"underline"}}>Open Music Prep</Link>
+          </div>}
+          <Link className="fbh-btn pri big" href={`/host/session?event=${draft.id}`} style={{display:"flex",justifyContent:"center",marginTop:10}}>PREPARE LIVE QUIZ</Link>
+        </>;
+      })()}</aside></div>}
   </main></HostShell>;
 }

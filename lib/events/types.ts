@@ -64,6 +64,7 @@ export type RecurrenceRule = {
 export type EventQuiz = {
   id: string;
   name: string;
+  archived?: boolean;
   quiz_rounds: { id: string; position: number; name: string; round_type: string; questions: unknown[]; hide_leaderboard: boolean; allow_power_cards: boolean }[];
 };
 

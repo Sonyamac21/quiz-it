@@ -105,7 +105,23 @@ export default function SessionPage() {
         }
         const supabase = createSupabaseBrowserClient();
         const { data } = await supabase.from("sessions").select("*").eq("id", parsed.sessionId).single();
-        if (data && data.status !== "finished") {
+        // Opening this page for a SPECIFIC Calendar event (?event=...) must
+        // always show THAT event's own Quiz Plan - this restore used to run
+        // unconditionally, regardless of which event (if any) was open, and
+        // raced the separate ?event= effect above. Whichever one happened to
+        // resolve last silently won: if an old unfinished session from
+        // earlier (a different event, or leftover test data) restored AFTER
+        // the correct event/quiz had loaded, its quiz_id overwrote the
+        // correct one with no error or indication anything had changed - a
+        // host would set and save the right Quiz Plan on the Calendar, open
+        // "go live" for that event, and see a completely different plan
+        // already selected (in the worst case, an emptied-out test round
+        // with zero questions in it). Restoring is now only allowed when
+        // there's no specific event being opened, OR the saved session
+        // genuinely belongs to it.
+        const eventId = new URLSearchParams(window.location.search).get("event");
+        const belongsToThisEvent = !eventId || data?.event_id === eventId;
+        if (data && data.status !== "finished" && belongsToThisEvent) {
           setPin(parsed.pin);
           setSessionId(parsed.sessionId);
           setStatus(data.status);
@@ -114,6 +130,10 @@ export default function SessionPage() {
           setSelectedQuizId(data.quiz_id || "");
           const { data: teamData } = await supabase.from("teams").select("*").eq("session_pin", parsed.pin).order("created_at", { ascending: true });
           if (teamData) setTeams(teamData);
+        } else if (!belongsToThisEvent) {
+          // Leave the stored session alone (it may still be a live quiz
+          // running for its OWN event elsewhere) - just don't let it hijack
+          // a different event's "go live" screen.
         } else {
           localStorage.removeItem(HOST_STORAGE_KEY);
         }

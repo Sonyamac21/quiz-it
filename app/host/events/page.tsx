@@ -54,7 +54,19 @@ export default function EventCalendarPage() {
       supabase.auth.getUser(),
       supabase.from("events").select("*").order("event_date").order("start_time"),
       supabase.from("venues").select("*").eq("active",true).order("venue_name"),
-      supabase.from("quizzes").select("id,name,quiz_rounds(id,position,name,round_type,questions,hide_leaderboard,allow_power_cards)").eq("archived",false).order("name"),
+      // Deliberately NOT filtering out archived plans here - this list is
+      // also how an already-assigned event resolves its OWN quiz (the
+      // event.quiz lookup two lines down, keyed by quiz_definition_id) and
+      // how the assignment drawer's dropdown shows what's currently
+      // selected. If a host archives a plan AFTER assigning it to an event
+      // (a real, now-easy-to-do action since the Quiz Library got an
+      // archive/manage panel), the event's DB row still correctly points at
+      // it - only excluding archived rows here made that event wrongly show
+      // "⚠ No Quiz Plan" and made the drawer's dropdown silently blank out
+      // the selection, even though nothing about the actual assignment had
+      // changed. Archived plans are still excluded from the list of NEW
+      // options a host can pick going forward - see the dropdown below.
+      supabase.from("quizzes").select("id,name,archived,quiz_rounds(id,position,name,round_type,questions,hide_leaderboard,allow_power_cards)").order("name"),
     ]);
     const user=userData.user; const name=String(user?.user_metadata?.full_name||user?.user_metadata?.name||user?.email||"Host");
     const venueRows=(venueData||[]) as EventVenue[];const quizRows=(quizData||[]) as EventQuiz[];const mapped=(eventData||[]).map(row=>({...row,status:row.status||"scheduled",host_name:row.host_name||null,venue:venueRows.find(venue=>venue.id===row.venue_record_id||venue.day_of_week===row.venue_id)||null,quiz:quizRows.find(quiz=>quiz.id===row.quiz_definition_id)||null})) as EventRecord[];
@@ -151,7 +163,7 @@ export default function EventCalendarPage() {
         );
       })()}
       <div className="qi-bo-event-summary"><div><span>Date and time</span><strong>{formatEventDate(draft.date)} · {draft.start}</strong></div><div><span>Host</span><strong>{draft.hostName||"Inherited from venue"}</strong></div><div><span>Quiz Plan</span><strong style={!draft.quizId?{color:"#FFC533"}:undefined}>{draft.quizId ? (() => { const q = quizzes.find(q => q.id === draft.quizId); return q ? `${q.name} - ${q.quiz_rounds.length} round${q.quiz_rounds.length === 1 ? "" : "s"}` : "Loading…"; })() : "Not assigned"}</strong></div></div>
-      {draft.quizId ? <div style={{display:"flex",gap:8,minWidth:0}}><select style={{...field,flex:"1 1 auto",minWidth:0}} value={draft.quizId} onChange={e=>setDraft({...draft,quizId:e.target.value})}><option value="">Not assigned</option>{quizzes.map(q=><option key={q.id} value={q.id}>{q.name}</option>)}</select><Link href="/host/quizzes" className="fbh-btn" style={{whiteSpace:"nowrap",flexShrink:0}}>Manage Quiz Plans</Link></div>
+      {draft.quizId ? <div style={{display:"flex",gap:8,minWidth:0}}><select style={{...field,flex:"1 1 auto",minWidth:0}} value={draft.quizId} onChange={e=>setDraft({...draft,quizId:e.target.value})}><option value="">Not assigned</option>{quizzes.filter(q=>!q.archived||q.id===draft.quizId).map(q=><option key={q.id} value={q.id}>{q.name}{q.archived?" (archived)":""}</option>)}</select><Link href="/host/quizzes" className="fbh-btn" style={{whiteSpace:"nowrap",flexShrink:0}}>Manage Quiz Plans</Link></div>
       : draft.id ? <div>
         <button type="button" className="fbh-btn pri" style={{width:"100%"}} aria-expanded={showQuizOptions} aria-haspopup="true" onClick={()=>setShowQuizOptions(v=>!v)}>CREATE / ASSIGN QUIZ</button>
         {showQuizOptions&&<div className="fbh-panel" style={{marginTop:8,display:"grid",gap:8}}>

@@ -839,10 +839,19 @@ export async function generateValidatedRound(
   onAccept?: (q: Question) => void,
 ): Promise<RoundGenerationResult> {
   const { roundType, difficulty, theme } = spec;
-  // The Pursuit is always exactly 7 gates, never host-configurable - enforce it
-  // here so a bulk-generate request can never override it, matching the
-  // single-round generator's behaviour exactly.
-  const count = roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : spec.count;
+  // The Pursuit is always exactly 7 gates total, never host-configurable -
+  // but this used to force count to the FULL 7 regardless of what was asked
+  // for, on every call. That was fine back when spec.count always meant "the
+  // round's total target", but callers (runBulkGenerate's shortfall math,
+  // and the per-round "+ GENERATE WITH AI" button) now correctly pass "how
+  // many NEW questions to generate" - e.g. a Pursuit round already sitting
+  // at 4/7 asking for 3 more. Forcing that back up to 7 generated 7 BRAND
+  // NEW ones to append on top of the 4 already there, blowing straight past
+  // the fixed 7-gate total. Clamping to at most 7 (rather than replacing
+  // outright) still guarantees a single call can never be asked to generate
+  // more than a full Pursuit round's worth, without discarding a
+  // legitimately smaller top-up request.
+  const count = roundType === "pursuit" ? Math.min(spec.count, PURSUIT_TOTAL_QUESTIONS) : spec.count;
   const report: GenerationReportEntry[] = [];
   const addReportEntry = (entry: Omit<GenerationReportEntry, "id">) => { report.push({ ...entry, id: genUid() }); };
   const reportGeneratedFailure = (context: GenerationContext, fallbackType: string) => {

@@ -429,10 +429,17 @@ export default function QuizBuilderPage() {
   // duplicate/quality checks) as a one-round batch, and always APPENDS -
   // never replaces - whatever the round already has.
   async function generateMoreForRound(round: QuizRound) {
-    const input = window.prompt(`How many more questions for "${round.name}"?`, "5");
+    // The Pursuit is always exactly 7 gates total (never host-configurable) -
+    // clamp here too, not just inside generateValidatedRound, so a host
+    // asking for more than the round has room for gets told plainly instead
+    // of the request silently getting cut down with no explanation.
+    const roomLeft = round.round_type === "pursuit" ? Math.max(0, PURSUIT_TOTAL_QUESTIONS - round.questions.length) : null;
+    if (roomLeft === 0) { window.alert(`"${round.name}" already has the full ${PURSUIT_TOTAL_QUESTIONS} Pursuit gates.`); return; }
+    const input = window.prompt(`How many more questions for "${round.name}"?` + (roomLeft !== null ? ` (max ${roomLeft} - Pursuit is always exactly ${PURSUIT_TOTAL_QUESTIONS} gates total)` : ""), String(roomLeft ?? 5));
     if (!input) return;
-    const n = Math.max(0, Math.floor(Number(input)));
+    let n = Math.max(0, Math.floor(Number(input)));
     if (!n) return;
+    if (roomLeft !== null && n > roomLeft) { window.alert(`Only ${roomLeft} more will fit - Pursuit is always exactly ${PURSUIT_TOTAL_QUESTIONS} gates total. Generating ${roomLeft}.`); n = roomLeft; }
     setGeneratingMoreId(round.id);
     setGeneratingMoreStatus("Queued...");
     const supabase = createSupabaseBrowserClient();

@@ -844,20 +844,26 @@ export async function generateValidatedRound(
   } else if (roundType === "hot_seat") {
     types = shuffle(Array.from({ length: count }, (_, i) => ["multiple_choice", "text_answer", "number", "sequence"][i % 4]));
   } else {
-    const mcCount = Math.round(count * 0.25);
-    const taCount = Math.round(count * 0.20);
-    const numCount = Math.round(count * 0.15);
-    const seqCount = Math.round(count * 0.10);
-    const picCount = Math.round(count * 0.20);
-    const audCount = count - mcCount - taCount - numCount - seqCount - picCount;
-    types = shuffle([
-      ...Array(mcCount).fill("multiple_choice"),
-      ...Array(taCount).fill("text_answer"),
-      ...Array(numCount).fill("number"),
-      ...Array(seqCount).fill("sequence"),
-      ...Array(Math.max(0, picCount)).fill("picture"),
-      ...Array(Math.max(0, audCount)).fill("audio"),
-    ]);
+    // Largest-remainder allocation instead of independently Math.round()-ing
+    // each category then giving audio whatever's left over. Rounding every
+    // OTHER category up first could already overshoot the full count (e.g.
+    // count=10: mc round(2.5)=3, ta round(2)=2, num round(1.5)=2, seq
+    // round(1)=1, pic round(2)=2 - that's 10 already), leaving audio's
+    // subtraction at exactly 0 - which is exactly why "Name That Tune"
+    // questions were silently missing from a first-pass 10-question Regular
+    // round despite having a nonzero intended share. This guarantees the
+    // allocations sum to `count` exactly while keeping every category's true
+    // proportional share (including audio's).
+    const weights: [string, number][] = [
+      ["multiple_choice", 0.25], ["text_answer", 0.20], ["number", 0.15],
+      ["sequence", 0.10], ["picture", 0.20], ["audio", 0.10],
+    ];
+    const raw = weights.map(([, w]) => w * count);
+    const base = raw.map(Math.floor);
+    let remainder = count - base.reduce((a, b) => a + b, 0);
+    const order = raw.map((r, i) => ({ i, frac: r - base[i] })).sort((a, b) => b.frac - a.frac);
+    for (const { i } of order) { if (remainder <= 0) break; base[i]++; remainder--; }
+    types = shuffle(weights.flatMap(([type], i) => Array(base[i]).fill(type)));
   }
 
   const shuffledTopics = shuffle(TOPICS);
@@ -880,7 +886,18 @@ export async function generateValidatedRound(
     pending.push({ type, context, promise: generateOne(type, topic, context, { theme, difficulty, roundType, exclusions }) });
   };
   const refillPipeline = () => {
-    while (pending.length < 2 && attempts < maxAttempts && good.length + pending.length < count) launchCandidate();
+    // Deliberately keeps up to 2 candidates in flight even once `count` is
+    // nearly/already covered by good+pending - e.g. a single-question
+    // REGENERATE (count=1) used to gate this at `good.length + pending.length
+    // < count`, which for count=1 blocked a second candidate from ever
+    // launching: candidate 1 had to fully finish (generate + moderation +
+    // theme + duplicate + quality checks, all real API round-trips) before
+    // candidate 2 could even start, making a run of rejections purely
+    // sequential and slow. Running 2 in parallel and taking whichever
+    // resolves and validates first cuts that latency roughly in half; the
+    // cost is an occasional wasted extra generation call near the very end
+    // of a round, which is cheap next to the host's time.
+    while (pending.length < 2 && attempts < maxAttempts) launchCandidate();
   };
   refillPipeline();
 

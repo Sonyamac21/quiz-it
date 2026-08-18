@@ -75,7 +75,7 @@ const RULES = {
   ],
   multi_tap: [
     "Each question has several correct answers hidden among decoys.",
-    "Tap every option you think is correct \u2014 wrong taps cost nothing, so tap freely!",
+    "Tap every option you think is correct \u2014 leaving a wrong option untapped scores exactly the same as tapping a correct one.",
     "Fastest team to find ALL correct answers gets the speed bonus.",
     "Watch out \u2014 in the last 5 questions of this round, a single wrong tap zeroes that question's score (Wipeout Mode).",
   ],
@@ -1737,6 +1737,23 @@ function QuizControllerInner() {
                 <div style={{ fontSize:24, color:"rgba(255,255,255,0.4)", marginBottom:32 }}>{currentQ?.question_type === "multi_tap" ? "Nobody got all answers correct." : "No correct answers for this question"}</div>
               )}
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>{isLastQ ? "SPACE: End Round" : "SPACE: Preview Next Question"}</div>
+            </div>
+          ) : hostPhase === "waiting" ? (
+            <div style={{ textAlign:"center", marginTop:40, maxWidth:560, marginLeft:"auto", marginRight:"auto" }}>
+              <div style={{ fontSize:12, letterSpacing:3, color:"#6B5A8E", marginBottom:8 }}>ROUND {roundNumber}</div>
+              <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#fff", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>{selectedRound.name}</div>
+              <div style={{ font:"600 16px 'Inter'", color:"#B9A8D9", marginBottom:24 }}>{selectedRound.round_type === "pursuit" ? "The Pursuit" : `${selectedRound.questions.length} question${selectedRound.questions.length===1?"":"s"}`}{selectedRound.round_type ? " · " + (ROUND_TYPE_LABEL[selectedRound.round_type] || selectedRound.round_type) : ""}</div>
+              {RULES[selectedRound.round_type as keyof typeof RULES] && (
+                <ul style={{ textAlign:"left" as const, margin:"0 auto 28px", paddingLeft:20, maxWidth:460, fontSize:14, lineHeight:1.7, color:"rgba(255,255,255,0.75)" }}>
+                  {RULES[selectedRound.round_type as keyof typeof RULES].map((r,i) => <li key={i}>{r}</li>)}
+                </ul>
+              )}
+              <div style={{ display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap" as const, marginBottom:8 }}>
+                <span style={{ padding:"6px 14px", borderRadius:999, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", fontSize:12, fontWeight:700, color:selectedRound.hide_leaderboard ? "#ff8290" : "#2EE06E" }}>{selectedRound.hide_leaderboard ? "Leaderboard hidden this round" : "Leaderboard visible"}</span>
+                <span style={{ padding:"6px 14px", borderRadius:999, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", fontSize:12, fontWeight:700, color:(selectedRound.allow_power_cards ?? true) ? "#2EE06E" : "#ff8290" }}>{(selectedRound.allow_power_cards ?? true) ? "Power cards allowed" : "Power cards disabled"}</span>
+                <span style={{ padding:"6px 14px", borderRadius:999, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", fontSize:12, fontWeight:700, color:dangerZone ? "#D94FDC" : "#6B5A8E" }}>{dangerZone ? `Danger Zone ON — -${dangerPenalty}pts for wrong answers` : "Danger Zone off"}</span>
+              </div>
+              <div style={{ font:"400 13px 'Inter'", color:"#6B5A8E", letterSpacing:".16em", marginTop:20 }}>SPACE: {roundNumber === 1 ? "Start Quiz" : "Start Round"}</div>
             </div>
           ) : !currentQ ? (
             <div style={{ textAlign:"center", marginTop:80, color:"rgba(255,255,255,0.4)", fontSize:18 }}>No questions in this round</div>

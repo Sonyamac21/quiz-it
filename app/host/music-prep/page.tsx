@@ -213,6 +213,7 @@ export default function MusicPrepPage() {
   const [librarySearch, setLibrarySearch] = useState("");
   const [libraryResults, setLibraryResults] = useState<BankQuestion[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
+  const [showReady, setShowReady] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
@@ -527,11 +528,15 @@ export default function MusicPrepPage() {
             {!loading && rounds.length === 0 && (
               <HostEmpty title="No Music Rounds" note="Generate a music round, then prep its clips here." actionLabel="GENERATE MUSIC ROUND" onAction={() => { window.location.href = "/host/questions"; }} />
             )}
-            {rounds.map(r => {
-              const total = r.questions.filter(q => q.question_type === "audio").length;
-              const prepped = r.questions.filter(q => q.question_type === "audio" && q.option_b && q.option_b.includes("blob.vercel-storage.com")).length;
-              const ready = prepped === total;
-              return (
+            {!loading && rounds.length > 0 && (() => {
+              const withStatus = rounds.map(r => {
+                const total = r.questions.filter(q => q.question_type === "audio").length;
+                const prepped = r.questions.filter(q => q.question_type === "audio" && q.option_b && q.option_b.includes("blob.vercel-storage.com")).length;
+                return { r, total, prepped, ready: total > 0 && prepped === total };
+              });
+              const needsPrep = withStatus.filter(x => !x.ready);
+              const ready = withStatus.filter(x => x.ready);
+              const row = ({ r, total, prepped, ready }: { r: Round; total: number; prepped: number; ready: boolean }) => (
                 <div key={r.id} onClick={() => openForPrep(r)} className="fbh-panel" style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ font: "700 15px 'Inter'", marginBottom: 4 }}>{r.name}{r.source === "quiz_plan" && <span style={{ marginLeft: 8, font: "600 11px 'Inter'", color: "#D94FDC" }}>{"in: " + (r.quizName || "a Quiz Plan")}</span>}</div>
@@ -540,7 +545,24 @@ export default function MusicPrepPage() {
                   <span className={ready ? "fbh-pill live" : "fbh-pill"}>{ready ? "✓ Ready" : "Prep →"}</span>
                 </div>
               );
-            })}
+              return (
+                <>
+                  {needsPrep.length === 0 && (
+                    <div style={{ textAlign: "center", color: "#6B5A8E", font: "400 13px 'Inter'", padding: "24px 0" }}>Nothing left to prep — every music round is ready.</div>
+                  )}
+                  {needsPrep.map(row)}
+                  {ready.length > 0 && (
+                    <div style={{ marginTop: 20 }}>
+                      <button type="button" onClick={() => setShowReady(v => !v)}
+                        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "none", border: "none", borderTop: "1px solid #2E1A52", padding: "14px 4px 10px", cursor: "pointer", color: "#B9A8D9", font: "600 12px 'Inter'", letterSpacing: ".08em" }}>
+                        {showReady ? "▾" : "▸"} {ready.length} ready round{ready.length === 1 ? "" : "s"} — already prepped, saved to their round{showReady ? " (hide)" : " (show)"}
+                      </button>
+                      {showReady && ready.map(row)}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
 

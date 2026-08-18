@@ -725,11 +725,21 @@ async function isDuplicateInMemory(q: Question, exclusions: ExclusionState): Pro
     const { data, error } = await supabase.rpc("check_question_memory", {
       p_text: q.question_text,
       p_type: q.question_type,
-      // 0.82 required near-total word-for-word similarity to trigger,
-      // which let most paraphrased repeats straight through - this is
-      // trigram similarity on normalized question text, so 0.6 still
-      // requires a genuinely close rewording, not just a shared topic.
-      p_threshold: 0.6,
+      // 0.82 required near-total word-for-word similarity to trigger, which
+      // let most paraphrased repeats straight through. 0.6 was tried next to
+      // fix that, but trigram similarity on SHORT strings (a lot of pub-quiz
+      // questions - "How many...", "In which year...", "Who was the
+      // first...") is noisy: short text has few total trigrams, so two
+      // genuinely different questions that just share a common opening
+      // phrase can already clear 0.6 similarity purely from that overlap. On
+      // an account with months of saved generation history, that meant
+      // EVERY candidate for a common phrasing pattern could get flagged as a
+      // "duplicate" of something else that merely started the same way -
+      // observed directly as a Pursuit round generating 0 of 25 attempts, all
+      // rejected as permanent-memory matches. 0.75 still requires genuinely
+      // close rewording (nowhere near "shares an opening phrase"), while no
+      // longer treating routine templated phrasing as proof of duplication.
+      p_threshold: 0.75,
     });
     if (error) { console.error("Question Memory check unavailable (allowing question):", error.message); return false; }
     return data != null;

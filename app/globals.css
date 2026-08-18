@@ -634,6 +634,17 @@ button, input, select, textarea { font: inherit; }
 .fbl .lb-reel-venue{width:100%;height:100%;}
 .fbl .lb-reel-media{width:88%;height:80%;object-fit:cover;border-radius:20px;border:2px solid var(--purple);box-shadow:0 0 60px rgba(190,38,193,.25);}
 .fbl .lb-reel-fallback{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;padding:0 8%;}
+/* Auto-generated "venue experience" scenes (prizes, schedule, host, socials)
+   built from the venue profile's own fields - each slides its headline in
+   from alternating sides so the rotation doesn't feel identical to the
+   plain fade the other scenes use. */
+.fbl .lb-reel-brand{text-align:center;padding:0 8%;gap:18px;}
+.fbl .lb-reel-brand-logo{width:min(120px,18vw);height:min(120px,18vw);object-fit:contain;border-radius:16px;margin-bottom:4px;}
+.fbl .lb-reel-brand-headline{font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:clamp(24px,4vw,44px);color:#fff;letter-spacing:.04em;text-shadow:0 0 40px rgba(190,38,193,.5);animation:lbBrandSlide .7s var(--settle);}
+.fbl .lb-reel-brand-body{font:600 clamp(14px,1.8vw,22px) 'Inter';color:var(--text2);max-width:560px;line-height:1.5;white-space:pre-line;animation:lbBrandSlide .7s var(--settle) .1s both;}
+.fbl .lb-reel-host-photo{width:min(160px,22vw);height:min(160px,22vw);object-fit:cover;border-radius:50%;border:3px solid var(--purple);box-shadow:0 0 50px rgba(190,38,193,.4);}
+@keyframes lbBrandSlide{from{opacity:0;transform:translateX(-24px);}to{opacity:1;transform:none;}}
+@media (prefers-reduced-motion: reduce){.fbl .lb-reel-brand-headline,.fbl .lb-reel-brand-body{animation:none;}}
 .fbl .lb-reel-photos{position:relative;width:100%;height:100%;}
 .fbl .lb-float-photo{position:absolute;left:50%;width:min(34%,260px);background:#fff;padding:10px 10px 34px;border-radius:6px;box-shadow:0 20px 40px rgba(0,0,0,.45);transform:translate(-50%,110%) rotate(-3deg);opacity:0;animation:lbFloatPhoto 9s ease-in-out infinite;}
 .fbl .lb-float-photo img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:2px;}

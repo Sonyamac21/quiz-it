@@ -390,6 +390,16 @@ function DisplayScreenInner() {
   const [venueName, setVenueName] = useState<string | null>(null);
   const [venueHeroImageUrl, setVenueHeroImageUrl] = useState<string | null>(null);
   const [venueHeroVideoUrl, setVenueHeroVideoUrl] = useState<string | null>(null);
+  const [venueLogoUrl, setVenueLogoUrl] = useState<string | null>(null);
+  // Auto-generated "venue experience" pre-show scenes - built entirely from
+  // fields already on the venue profile (no separate video upload needed),
+  // per the host's request: prizes, schedule, host photo, website/socials.
+  const [venuePrizeInfo, setVenuePrizeInfo] = useState<string | null>(null);
+  const [venueScheduleText, setVenueScheduleText] = useState<string | null>(null);
+  const [venueHostName, setVenueHostName] = useState<string | null>(null);
+  const [venueHostPhotoUrl, setVenueHostPhotoUrl] = useState<string | null>(null);
+  const [venueWebsite, setVenueWebsite] = useState<string | null>(null);
+  const [venueSocialLinks, setVenueSocialLinks] = useState<Record<string, string>>({});
   // Which scene of the pre-show reel is on screen: the venue's branded
   // video/image, the power card explainer, or floating team photos. Cycles
   // automatically; "photos" is skipped entirely when nobody's uploaded one
@@ -397,7 +407,15 @@ function DisplayScreenInner() {
   const [reelSceneIdx, setReelSceneIdx] = useState(0);
   const [floatingPhotoIdx, setFloatingPhotoIdx] = useState(0);
 
-  const reelScenes = ["venue", "cards", ...(approvedCustomerPhotos.length > 0 ? ["photos"] : [])];
+  const reelScenes = [
+    "venue",
+    ...(venuePrizeInfo ? ["prizes"] : []),
+    ...(venueScheduleText ? ["schedule"] : []),
+    ...(venueHostName ? ["host"] : []),
+    ...(venueWebsite || Object.keys(venueSocialLinks).length > 0 ? ["social"] : []),
+    "cards",
+    ...(approvedCustomerPhotos.length > 0 ? ["photos"] : []),
+  ];
   useEffect(() => {
     if (phase !== "waiting") return;
     const id = window.setInterval(() => {
@@ -540,9 +558,33 @@ function DisplayScreenInner() {
     setRoundName((data.round_name as string) || "");
     setRoundNumber((data.round_number as number) || 1);
     setVenueName((data.venue_name as string) || null);
-    const snapshotVenue = (data.event_snapshot as { venue?: { hero_image_url?: string | null; hero_video_url?: string | null } } | null)?.venue;
+    const snapshot = data.event_snapshot as {
+      event_date?: string | null; start_time?: string | null;
+      venue?: {
+        hero_image_url?: string | null; hero_video_url?: string | null; venue_logo_url?: string | null;
+        prize_information?: string | null; website?: string | null;
+        social_links?: Record<string, string> | null;
+        default_host_name?: string | null; host_photo_url?: string | null;
+        default_quiz_day?: number | null; default_start_time?: string | null;
+      } | null;
+    } | null;
+    const snapshotVenue = snapshot?.venue;
     setVenueHeroImageUrl(snapshotVenue?.hero_image_url || null);
     setVenueHeroVideoUrl(snapshotVenue?.hero_video_url || null);
+    setVenueLogoUrl(snapshotVenue?.venue_logo_url || null);
+    setVenuePrizeInfo(snapshotVenue?.prize_information || null);
+    setVenueHostName(snapshotVenue?.default_host_name || null);
+    setVenueHostPhotoUrl(snapshotVenue?.host_photo_url || null);
+    setVenueWebsite(snapshotVenue?.website || null);
+    setVenueSocialLinks(snapshotVenue?.social_links || {});
+    // Prefer the actual booked date/time for this event; fall back to the
+    // venue's usual recurring slot if this session wasn't created from a
+    // Calendar event (e.g. a quick ad-hoc "go live").
+    const scheduleDay = snapshot?.event_date ? new Date(snapshot.event_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long" })
+      : snapshotVenue?.default_quiz_day != null ? ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][snapshotVenue.default_quiz_day]
+      : null;
+    const scheduleTime = (snapshot?.start_time || snapshotVenue?.default_start_time || "").slice(0, 5) || null;
+    setVenueScheduleText(scheduleDay && scheduleTime ? `${scheduleDay}s at ${scheduleTime}` : scheduleDay || scheduleTime);
     setHideLeaderboard(!!data.hide_leaderboard);
     setAllowPowerCards(data.allow_power_cards !== false);
     const hotSeat = readHotSeatState(data);
@@ -1169,6 +1211,37 @@ function DisplayScreenInner() {
                     <div className="lb-tease">Add a Hero Video or Hero Image on this venue's Media tab to brand this screen.</div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {currentReelScene === "prizes" && (
+              <div className="lb-reel-scene lb-reel-brand">
+                <div className="lb-cardkicker">TONIGHT&rsquo;S PRIZES</div>
+                <div className="lb-reel-brand-body">{venuePrizeInfo}</div>
+              </div>
+            )}
+
+            {currentReelScene === "schedule" && (
+              <div className="lb-reel-scene lb-reel-brand">
+                {venueLogoUrl && <img className="lb-reel-brand-logo" src={venueLogoUrl} alt="" />}
+                <div className="lb-cardkicker">EVERY WEEK</div>
+                <div className="lb-reel-brand-headline">{venueScheduleText}</div>
+              </div>
+            )}
+
+            {currentReelScene === "host" && (
+              <div className="lb-reel-scene lb-reel-brand">
+                {venueHostPhotoUrl && <img className="lb-reel-host-photo" src={venueHostPhotoUrl} alt={venueHostName || "Host"} />}
+                <div className="lb-cardkicker">YOUR HOST TONIGHT</div>
+                <div className="lb-reel-brand-headline">{venueHostName}</div>
+              </div>
+            )}
+
+            {currentReelScene === "social" && (
+              <div className="lb-reel-scene lb-reel-brand">
+                <div className="lb-cardkicker">FIND US</div>
+                {venueWebsite && <div className="lb-reel-brand-headline">{venueWebsite.replace(/^https?:\/\/(www\.)?/i, "")}</div>}
+                <div className="lb-reel-brand-body">{Object.entries(venueSocialLinks).map(([k]) => k).join(" · ")}</div>
               </div>
             )}
 

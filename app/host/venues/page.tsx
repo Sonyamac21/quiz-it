@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ImageUploader } from "@/components/ImageUploader";
 import { VideoUploader } from "@/components/VideoUploader";
 import { HostButton, HostInput, HostLabel, HostLoading, HostShell } from "@/components/fable/HostConsole";
+import { buildVenueIntroVideo } from "@/lib/reel/buildVenueIntro";
 
 const BG="radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -31,7 +32,7 @@ const pairText=(value:Record<string,string>|null)=>Object.entries(value||{}).map
 function toForm(venue:Venue):FormState{return{venue_name:venue.venue_name||"",venue_logo_url:venue.venue_logo_url||"",hero_image_url:venue.hero_image_url||"",hero_video_url:venue.hero_video_url||"",gallery_images:venue.gallery_images||[],address:venue.address||"",google_maps_url:venue.google_maps_url||"",contact_name:venue.contact_name||"",contact_email:venue.contact_email||"",contact_phone:venue.contact_phone||"",website:venue.website||"",social_links:pairText(venue.social_links),default_host_id:venue.default_host_id||"",default_host_name:venue.default_host_name||"",host_photo_url:venue.host_photo_url||"",default_quiz_day:venue.default_quiz_day==null?"":String(venue.default_quiz_day),default_start_time:venue.default_start_time?.slice(0,5)||"",default_end_time:venue.default_end_time?.slice(0,5)||"",food_offers:venue.food_offers||"",drink_offers:venue.drink_offers||"",happy_hour:venue.happy_hour||"",prize_information:venue.prize_information||"",sponsors:(venue.sponsors||[]).join(", "),brand_colours:pairText(venue.brand_colours),display_slides:(venue.display_slides||[]).join(", "),display_adverts:(venue.display_adverts||[]).join(", "),notes:venue.notes||"",active:venue.active};}
 
 export default function VenueManagerPage(){
-  const [venues,setVenues]=useState<Venue[]>([]);const [quizzes,setQuizzes]=useState<{id:string;name:string}[]>([]);const [host,setHost]=useState({id:"",name:"Current host"});const [form,setForm]=useState<FormState>(empty);const [editing,setEditing]=useState<string|null>(null);const [section,setSection]=useState("profile");const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [error,setError]=useState("");const [offers,setOffers]=useState<Offer[]>([]);const [offerBusy,setOfferBusy]=useState<string|null>(null);
+  const [venues,setVenues]=useState<Venue[]>([]);const [quizzes,setQuizzes]=useState<{id:string;name:string}[]>([]);const [host,setHost]=useState({id:"",name:"Current host"});const [form,setForm]=useState<FormState>(empty);const [editing,setEditing]=useState<string|null>(null);const [section,setSection]=useState("profile");const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [error,setError]=useState("");const [offers,setOffers]=useState<Offer[]>([]);const [offerBusy,setOfferBusy]=useState<string|null>(null);const [introBusy,setIntroBusy]=useState(false);const [introProgress,setIntroProgress]=useState(0);const [introStatus,setIntroStatus]=useState("");
   const load=useCallback(async()=>{const supabase=createSupabaseBrowserClient();const[{data:venueData,error:venueError},{data:quizData},{data:userData},{data:offerData}]=await Promise.all([supabase.from("venues").select("*").order("venue_name"),supabase.from("quizzes").select("id,name").eq("archived",false).order("name"),supabase.auth.getUser(),supabase.from("venue_offers").select("*").order("sort_order")]);setVenues((venueData||[]) as Venue[]);setQuizzes(quizData||[]);const user=userData.user;setHost({id:user?.id||"",name:String(user?.user_metadata?.full_name||user?.user_metadata?.name||user?.email||"Current host")});setOffers((offerData||[]) as Offer[]);if(venueError)setError(venueError.message);setLoading(false);},[]);
   useEffect(()=>{const timer=window.setTimeout(()=>void load(),0);return()=>window.clearTimeout(timer);},[load]);
   // Deep link from the Calendar event drawer's "Edit venue" link - open
@@ -55,6 +56,49 @@ export default function VenueManagerPage(){
       await load();
     }
     setSaving(false);}
+  // Builds a real animated video (canvas + MediaRecorder, entirely in the
+  // browser) from whatever's already filled in on this venue's profile -
+  // logo, prizes, schedule, host photo, socials - then uploads it and sets
+  // it as the Hero Video, same as if it had been recorded and dropped in
+  // manually. Requires the venue to already be saved (needs an id to attach
+  // offers/media to consistently with everything else on this page).
+  async function generateIntroVideo(){
+    if(!editing){setError("Save this venue first, then generate its intro video.");return;}
+    setIntroBusy(true);setIntroProgress(0);setIntroStatus("Rendering…");setError("");
+    try{
+      const scheduleDay=form.default_quiz_day===""?null:DAYS[Number(form.default_quiz_day)];
+      const scheduleText=scheduleDay&&form.default_start_time?`${scheduleDay}s at ${form.default_start_time}`:scheduleDay?`${scheduleDay}s`:form.default_start_time||null;
+      const{blob,fileExt}=await buildVenueIntroVideo({
+        venueName:form.venue_name||null,
+        venueLogoUrl:form.venue_logo_url||null,
+        prizeInfo:form.prize_information||null,
+        scheduleText,
+        hostName:form.default_host_name||null,
+        hostPhotoUrl:form.host_photo_url||null,
+        website:form.website||null,
+        socialLinks:pairs(form.social_links),
+        onProgress:f=>setIntroProgress(f),
+      });
+      setIntroStatus("Uploading…");
+      const file=new File([blob],(form.venue_name||"venue").replace(/\s+/g,"-").toLowerCase()+"-intro."+fileExt,{type:blob.type});
+      const formData=new FormData();formData.append("file",file);
+      const res=await fetch("/api/upload-video",{method:"POST",body:formData});
+      const raw=await res.text();let data:{url?:string;error?:{message?:string}}={};
+      try{data=raw?JSON.parse(raw):{};}catch{throw new Error(!res.ok?(raw.slice(0,120)||"Upload failed"):"Upload failed - unexpected server response");}
+      if(!res.ok||data.error||!data.url)throw new Error(data?.error?.message||"Upload failed");
+      set("hero_video_url",data.url);
+      const supabase=createSupabaseBrowserClient();
+      await supabase.from("venues").update({hero_video_url:data.url,updated_at:new Date().toISOString()}).eq("id",editing);
+      setVenues(prev=>prev.map(v=>v.id===editing?{...v,hero_video_url:data.url as string}:v));
+      setIntroStatus("Done - saved as this venue's Hero Video.");
+      setTimeout(()=>setIntroStatus(""),4000);
+    }catch(e){
+      setError(e instanceof Error?e.message:"Couldn't generate the video - please try again.");
+      setIntroStatus("");
+    }finally{
+      setIntroBusy(false);
+    }
+  }
   async function uploadOffer(file:File,targetVenueId:string|null){
     setOfferBusy(targetVenueId||"generic");setError("");
     try{
@@ -135,7 +179,15 @@ export default function VenueManagerPage(){
             </div>
           </div>
         </div>}
-        {section==="media"&&<div className="qi-bo-profile-section"><h3>Display media</h3><p>Visual assets preloaded for the venue experience.</p><HostLabel>Hero Image</HostLabel><ImageUploader key={"hero-"+(editing||"new")} currentUrl={form.hero_image_url||null} onUploaded={url=>set("hero_image_url",url)}/><HostLabel>Hero Video (plays on the display screen instead of the Hero Image, when set)</HostLabel><VideoUploader key={"herovid-"+(editing||"new")} currentUrl={form.hero_video_url||null} onUploaded={url=>set("hero_video_url",url)}/><HostLabel>Gallery</HostLabel><ImageUploader key={"gallery-"+(editing||"new")} currentUrl={null} onUploaded={url=>set("gallery_images",[...form.gallery_images,url])}/><div className="qi-bo-gallery">{form.gallery_images.map(url=><div key={url}><Image unoptimized fill sizes="180px" src={url} alt="Venue gallery"/><button onClick={()=>set("gallery_images",form.gallery_images.filter(item=>item!==url))} aria-label="Remove gallery image">×</button></div>)}</div><HostLabel>Display Slides</HostLabel><ImageUploader key={"slides-"+(editing||"new")} currentUrl={null} onUploaded={url=>set("display_slides",[...split(form.display_slides),url].join(", "))}/><div className="qi-bo-gallery">{split(form.display_slides).map(url=><div key={url}><Image unoptimized fill sizes="180px" src={url} alt="Display slide"/><button onClick={()=>set("display_slides",split(form.display_slides).filter(item=>item!==url).join(", "))} aria-label="Remove display slide">×</button></div>)}</div>
+        {section==="media"&&<div className="qi-bo-profile-section"><h3>Display media</h3><p>Visual assets preloaded for the venue experience.</p><HostLabel>Hero Image</HostLabel><ImageUploader key={"hero-"+(editing||"new")} currentUrl={form.hero_image_url||null} onUploaded={url=>set("hero_image_url",url)}/><HostLabel>Hero Video (plays on the display screen instead of the Hero Image, when set)</HostLabel><VideoUploader key={"herovid-"+(editing||"new")} currentUrl={form.hero_video_url||null} onUploaded={url=>set("hero_video_url",url)}/>
+          <div style={{margin:"10px 0 4px",padding:14,borderRadius:12,background:"#150A2E",border:"1px dashed #2E1A52"}}>
+            <div style={{font:"700 13px 'Inter'",color:"#D9CCF2",marginBottom:4}}>Or generate one automatically</div>
+            <p style={{margin:"0 0 10px",fontSize:12,color:"#6B5A8E"}}>Builds an animated video from this venue&rsquo;s own logo, prizes, schedule, host photo, and socials - no filming needed. Replaces the Hero Video above once done.</p>
+            <HostButton onClick={generateIntroVideo} disabled={introBusy||!editing}>{introBusy?`Rendering… ${Math.round(introProgress*100)}%`:"GENERATE VENUE INTRO VIDEO"}</HostButton>
+            {!editing&&<div style={{fontSize:11,color:"#FFC533",marginTop:8}}>Save this venue first to generate its video.</div>}
+            {introStatus&&<div style={{fontSize:12,color:"#2EE06E",marginTop:8}}>{introStatus}</div>}
+          </div>
+          <HostLabel>Gallery</HostLabel><ImageUploader key={"gallery-"+(editing||"new")} currentUrl={null} onUploaded={url=>set("gallery_images",[...form.gallery_images,url])}/><div className="qi-bo-gallery">{form.gallery_images.map(url=><div key={url}><Image unoptimized fill sizes="180px" src={url} alt="Venue gallery"/><button onClick={()=>set("gallery_images",form.gallery_images.filter(item=>item!==url))} aria-label="Remove gallery image">×</button></div>)}</div><HostLabel>Display Slides</HostLabel><ImageUploader key={"slides-"+(editing||"new")} currentUrl={null} onUploaded={url=>set("display_slides",[...split(form.display_slides),url].join(", "))}/><div className="qi-bo-gallery">{split(form.display_slides).map(url=><div key={url}><Image unoptimized fill sizes="180px" src={url} alt="Display slide"/><button onClick={()=>set("display_slides",split(form.display_slides).filter(item=>item!==url).join(", "))} aria-label="Remove display slide">×</button></div>)}</div>
           <HostLabel>Display Adverts</HostLabel><ImageUploader key={"adverts-"+(editing||"new")} currentUrl={null} onUploaded={url=>set("display_adverts",[...split(form.display_adverts),url].join(", "))}/><div className="qi-bo-gallery">{split(form.display_adverts).map(url=><div key={url}><Image unoptimized fill sizes="180px" src={url} alt="Display advert"/><button onClick={()=>set("display_adverts",split(form.display_adverts).filter(item=>item!==url).join(", "))} aria-label="Remove display advert">×</button></div>)}</div>
         </div>}
         {section==="notes"&&<div className="qi-bo-profile-section"><h3>Internal notes</h3><p>Private operational information for hosts and administrators.</p><Area label="Notes" value={form.notes} setValue={v=>set("notes",v)} rows={8}/><div className="qi-bo-active-row"><div><strong>Venue availability</strong><span>{form.active?"Available when scheduling events":"Hidden from new event scheduling"}</span></div><button className="fbh-btn" onClick={()=>set("active",!form.active)}>{form.active?"Deactivate venue":"Activate venue"}</button></div>

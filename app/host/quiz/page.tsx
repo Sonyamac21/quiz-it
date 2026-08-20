@@ -552,6 +552,13 @@ function QuizControllerInner() {
       if (texts.length === order.length) return texts.join(", ");
       return q.correct_answer;
     }
+    if (q.question_type === "multi_tap") {
+      const map: Record<string, string|null|undefined> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d, e: q.option_e, f: q.option_f };
+      const keys = q.correct_answer.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+      const texts = keys.map(key => map[key]).filter((t): t is string => !!t);
+      if (texts.length === keys.length) return texts.join(", ");
+      return q.correct_answer;
+    }
     return q.correct_answer;
   }
 

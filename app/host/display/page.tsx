@@ -1532,7 +1532,17 @@ function DisplayScreenInner() {
   if (phase === "answer" && question) {
     const options = [{ key:"A", text:question.option_a },{ key:"B", text:question.option_b },{ key:"C", text:question.option_c },{ key:"D", text:question.option_d }].filter(o => o.text);
     const isMulti = question.question_type === "multiple_choice";
-    const correctText = isMulti ? (options.find(o => o.key.toLowerCase()===question.correct_answer.toLowerCase())?.text || question.correct_answer) : question.correct_answer;
+    const isMultiTap = question.question_type === "multi_tap";
+    // Multi Tap's correct_answer is a comma-separated list of option letters
+    // (e.g. "c,d,e") - same raw format multiple_choice uses for one letter -
+    // so it needs the same letter-to-text mapping, just for several letters
+    // joined together, instead of showing the bare letters on screen.
+    const multiTapAllOptions = [{ key:"a", text:question.option_a },{ key:"b", text:question.option_b },{ key:"c", text:question.option_c },{ key:"d", text:question.option_d },{ key:"e", text:(question as unknown as { option_e?: string | null }).option_e },{ key:"f", text:(question as unknown as { option_f?: string | null }).option_f }];
+    const correctText = isMulti
+      ? (options.find(o => o.key.toLowerCase()===question.correct_answer.toLowerCase())?.text || question.correct_answer)
+      : isMultiTap
+      ? question.correct_answer.split(",").map(k => k.trim().toLowerCase()).map(k => multiTapAllOptions.find(o => o.key===k)?.text || k).filter(Boolean).join(", ")
+      : question.correct_answer;
     const correctKey = question.correct_answer.toLowerCase();
     return (
       <div className="qi-display-answer-reveal">

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
-import sharp from "sharp";
 
 export const runtime = "nodejs";
 
@@ -33,22 +32,40 @@ export async function POST(req: NextRequest) {
     // Optimize: resize to a sane max dimension and convert to WEBP for
     // consistent, fast, reliable loading on the TV display during a live show -
     // no more depending on whatever format/size the original upload happened to be.
-    const optimized = await sharp(inputBuffer)
-      .rotate() // respects EXIF orientation from phone cameras
-      .resize({ width: MAX_DIMENSION, height: MAX_DIMENSION, fit: "inside", withoutEnlargement: true })
-      .webp({ quality: 82 })
-      .toBuffer();
+    // sharp is loaded dynamically (not statically imported) and wrapped in its own
+    // try/catch: if its native binary isn't available on this runtime, the whole
+    // route would otherwise crash at import time, on every single request. Instead
+    // we fall back to storing the original, unprocessed file so uploads keep working.
+    let safeBuffer: Buffer;
+    let contentType = file.type || "application/octet-stream";
+    let ext = "webp";
 
-    // Force a fresh, non-pooled buffer copy - sharp's output can be a view into
-    // Node's internal buffer pool, which @vercel/blob's put() explicitly rejects
-    // with "ArrayBuffer: SharedArrayBuffer is not allowed." Buffer.from(buffer)
-    // always copies into new, dedicated memory, which sidesteps this entirely.
-    const safeBuffer = Buffer.from(optimized);
+    try {
+      const sharp = (await import("sharp")).default;
+      const optimized = await sharp(inputBuffer)
+        .rotate() // respects EXIF orientation from phone cameras
+        .resize({ width: MAX_DIMENSION, height: MAX_DIMENSION, fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 82 })
+        .toBuffer();
 
-    const fileName = "question-images/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".webp";
+      // Force a fresh, non-pooled buffer copy - sharp's output can be a view into
+      // Node's internal buffer pool, which @vercel/blob's put() explicitly rejects
+      // with "ArrayBuffer: SharedArrayBuffer is not allowed." Buffer.from(buffer)
+      // always copies into new, dedicated memory, which sidesteps this entirely.
+      safeBuffer = Buffer.from(optimized);
+      contentType = "image/webp";
+      ext = "webp";
+    } catch (sharpError) {
+      console.error("sharp processing unavailable, storing original file instead:", sharpError);
+      safeBuffer = inputBuffer;
+      const typeExt = (file.type || "").split("/")[1];
+      ext = typeExt && /^[a-z0-9]+$/i.test(typeExt) ? typeExt : "jpg";
+    }
+
+    const fileName = "question-images/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + ext;
     const blob = await put(fileName, safeBuffer, {
       access: "private",
-      contentType: "image/webp",
+      contentType,
     });
 
     return NextResponse.json({

@@ -8,6 +8,7 @@ import { ImageUploader } from "@/components/ImageUploader";
 import { VideoUploader } from "@/components/VideoUploader";
 import { HostButton, HostInput, HostLabel, HostLoading, HostShell } from "@/components/fable/HostConsole";
 import { buildVenueIntroVideo } from "@/lib/reel/buildVenueIntro";
+import { getMediaUrl } from "@/lib/getMediaUrl";
 
 const BG="radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -212,7 +213,7 @@ export default function VenueManagerPage(){
 function Field({label,value,set,type="text",placeholder}:{label:string;value:string;set:(value:string)=>void;type?:string;placeholder?:string}){return <div><HostLabel>{label}</HostLabel><HostInput type={type} value={value} placeholder={placeholder} onChange={event=>set(event.target.value)}/></div>}
 function OfferCard({offer,onDelete,onToggle,onDates}:{offer:Offer;onDelete:()=>void;onToggle:()=>void;onDates:(start:string,end:string)=>void}){
   return <div style={{borderRadius:12,overflow:"hidden",border:"1px solid "+(offer.active?"#2E1A52":"#5A1B1B"),opacity:offer.active?1:0.55}}>
-    <div style={{position:"relative",width:"100%",aspectRatio:"1"}}><Image unoptimized fill sizes="160px" src={offer.image_url} alt="Offer"/></div>
+    <div style={{position:"relative",width:"100%",aspectRatio:"1"}}><Image unoptimized fill sizes="160px" src={getMediaUrl(offer.image_url)||offer.image_url} alt="Offer"/></div>
     <div style={{padding:10,display:"grid",gap:6,background:"#150A2E"}}>
       <div style={{display:"flex",gap:6}}>
         <button onClick={onToggle} style={{flex:1,padding:"5px 8px",borderRadius:8,background:offer.active?"rgba(46,224,110,0.15)":"rgba(255,255,255,0.06)",border:"1px solid "+(offer.active?"#2EE06E":"#2E1A52"),color:offer.active?"#2EE06E":"#6B5A8E",fontSize:11,cursor:"pointer"}}>{offer.active?"Active":"Paused"}</button>

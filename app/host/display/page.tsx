@@ -293,6 +293,7 @@ function DisplayScreenInner() {
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number|null>(null);
   const [hardDeckWheelSpinning, setHardDeckWheelSpinning] = useState(false);
   const prevHardDeckStatusRef = useRef<string>("idle");
+  const [venueRecordId, setVenueRecordId] = useState<string | null>(null);
   const [approvedCustomerPhotos, setApprovedCustomerPhotos] = useState<string[]>([]);
   // Poll approved customer photos only while actually on the intermission
   // screen - approvals can land at any moment, so this can't be a one-shot
@@ -403,7 +404,6 @@ function DisplayScreenInner() {
   const [venueHeroImageUrl, setVenueHeroImageUrl] = useState<string | null>(null);
   const [venueHeroVideoUrl, setVenueHeroVideoUrl] = useState<string | null>(null);
   const [venueLogoUrl, setVenueLogoUrl] = useState<string | null>(null);
-  const [venueRecordId, setVenueRecordId] = useState<string | null>(null);
   // Auto-generated "venue experience" pre-show scenes - built entirely from
   // fields already on the venue profile (no separate video upload needed),
   // per the host's request: prizes, schedule, host photo, website/socials.

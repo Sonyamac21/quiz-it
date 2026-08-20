@@ -17,13 +17,26 @@ type FormState={venue_name:string;venue_logo_url:string;hero_image_url:string;he
 const empty:FormState={venue_name:"",venue_logo_url:"",hero_image_url:"",hero_video_url:"",gallery_images:[],address:"",google_maps_url:"",contact_name:"",contact_email:"",contact_phone:"",website:"",social_links:"",default_host_id:"",default_host_name:"",host_photo_url:"",default_quiz_day:"",default_start_time:"19:30",default_end_time:"21:30",food_offers:"",drink_offers:"",happy_hour:"",prize_information:"",sponsors:"",brand_colours:"",display_slides:"",display_adverts:"",notes:"",active:true};
 const textArea={width:"100%",padding:"11px 14px",borderRadius:12,background:"#150A2E",color:"#fff",border:"1px solid #2E1A52",font:"500 13px Inter"} as const;
 const split=(value:string)=>value.split(",").map(v=>v.trim()).filter(Boolean);
-async function heicToJpeg(file:File):Promise<File>{
+const MAX_OFFER_UPLOAD_EDGE=2000;
+// Same conversion the ImageUploader component does for every other image
+// field on this page - HEIC always needs converting (the server can't read
+// it), and any photo bigger than ~4MB/2000px needs shrinking first, since a
+// raw 8-15MB phone photo is well past what a Vercel serverless function
+// will accept as a request body (the platform rejects it outright with a
+// plain error page, before this app's own upload code ever runs). Offers
+// used to skip this step entirely.
+async function prepareOfferImage(file:File):Promise<File>{
+  const isHeic=file.type==="image/heic"||file.type==="image/heif"||/\.(heic|heif)$/i.test(file.name);
   const img=document.createElement("img");const url=URL.createObjectURL(file);
   try{
     await new Promise<void>((resolve,reject)=>{img.onload=()=>resolve();img.onerror=reject;img.src=url;});
-    const canvas=document.createElement("canvas");canvas.width=img.width;canvas.height=img.height;
-    const ctx=canvas.getContext("2d")!;ctx.drawImage(img,0,0);
-    const blob:Blob=await new Promise(resolve=>canvas.toBlob(b=>resolve(b!),"image/jpeg",0.9));
+    if(!isHeic&&img.width<=MAX_OFFER_UPLOAD_EDGE&&img.height<=MAX_OFFER_UPLOAD_EDGE&&file.size<=4*1024*1024){
+      return file;
+    }
+    const scale=Math.min(1,MAX_OFFER_UPLOAD_EDGE/Math.max(img.width,img.height));
+    const canvas=document.createElement("canvas");canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
+    const ctx=canvas.getContext("2d")!;ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    const blob:Blob=await new Promise(resolve=>canvas.toBlob(b=>resolve(b!),"image/jpeg",0.85));
     return new File([blob],file.name.replace(/\.(heic|heif)$/i,"")+".jpg",{type:"image/jpeg"});
   }finally{URL.revokeObjectURL(url);}
 }
@@ -102,15 +115,14 @@ export default function VenueManagerPage(){
   async function uploadOffer(file:File,targetVenueId:string|null){
     setOfferBusy(targetVenueId||"generic");setError("");
     try{
-      // iPhone Camera Roll photos are HEIC by default and the server's image
-      // processing can't decode that format - convert to JPEG client-side
-      // first (same fix as the ImageUploader component uses elsewhere).
-      const isHeic=file.type==="image/heic"||file.type==="image/heif"||/\.(heic|heif)$/i.test(file.name);
-      const ready=isHeic?await heicToJpeg(file):file;
+      // HEIC needs converting (server can't read it) and any large phone
+      // photo needs shrinking first, so it fits the server's request-size
+      // limit - see prepareOfferImage's comment above.
+      const ready=await prepareOfferImage(file);
       const formData=new FormData();formData.append("file",ready);
       const res=await fetch("/api/upload-image",{method:"POST",body:formData});
       const raw=await res.text();let data:{url?:string;error?:{message?:string}}={};
-      try{data=raw?JSON.parse(raw):{};}catch{throw new Error(!res.ok?(raw.slice(0,120)||"Upload failed"):"Upload failed - unexpected server response");}
+      try{data=raw?JSON.parse(raw):{};}catch{throw new Error(!res.ok?`Upload failed (server error ${res.status}) - try a smaller image or a different file.`:"Upload failed - unexpected server response");}
       if(!res.ok||data.error||!data.url)throw new Error(data?.error?.message||"Upload failed");
       const supabase=createSupabaseBrowserClient();
       const nextOrder=offers.filter(o=>o.venue_id===targetVenueId).length;

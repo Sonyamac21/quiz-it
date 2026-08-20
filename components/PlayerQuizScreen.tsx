@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
+import { fetchActiveVenueOffers } from "@/lib/venueOffers";
 import { UnoPlayerCards } from "@/components/UnoCards";
 import { AnswerKeypad } from "@/components/AnswerKeypad";
 import { SlotReels } from "@/components/SlotReels";
@@ -302,6 +303,25 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [intermissionOffers, setIntermissionOffers] = useState("");
   const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
+  const [venueRecordId, setVenueRecordId] = useState<string | null>(null);
+  // Venue Offers / Display Graphics uploaded on the Venues page - rotates on
+  // the player's own handset during intermission, same images as the
+  // Display screen shows. Offers change rarely (set up ahead of a show), so
+  // a one-shot fetch per intermission is enough.
+  const [venueOfferPhotos, setVenueOfferPhotos] = useState<string[]>([]);
+  const [offerPhotoIdx, setOfferPhotoIdx] = useState(0);
+  useEffect(() => {
+    if (phase !== "intermission") { setVenueOfferPhotos([]); return; }
+    let cancelled = false;
+    fetchActiveVenueOffers(venueRecordId).then(urls => { if (!cancelled) { setVenueOfferPhotos(urls); setOfferPhotoIdx(0); } });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, venueRecordId]);
+  useEffect(() => {
+    if (venueOfferPhotos.length < 2) return;
+    const id = window.setInterval(() => setOfferPhotoIdx(i => (i + 1) % venueOfferPhotos.length), 6000);
+    return () => window.clearInterval(id);
+  }, [venueOfferPhotos.length]);
   const [upcomingQuizzes, setUpcomingQuizzes] = useState<UpcomingQuiz[]>([]);
   const [quizEndRevealedCount, setQuizEndRevealedCount] = useState(0);
   const [quizEndTrophyVisible, setQuizEndTrophyVisible] = useState(false);
@@ -428,7 +448,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data, error: fetchError } = await supabase
         .from("sessions")
-        .select("phase, status, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
+        .select("phase, status, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, venue_record_id, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
         .eq("pin", sessionPin)
         .single();
       if (fetchError) {
@@ -657,6 +677,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     setIntermissionOffers((data.intermission_offers as string) || "");
     setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
     setIntermissionOtherQuizzes((data.intermission_other_quizzes as string) || "");
+    setVenueRecordId((data.venue_record_id as string) || null);
     setUpcomingQuizzes((data.upcoming_quizzes as UpcomingQuiz[]) || []);
     setQuizEndRevealedCount((data.quiz_end_revealed_count as number) || 0);
     setQuizEndTrophyVisible(!!data.quiz_end_trophy_visible);
@@ -1103,13 +1124,25 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
 
   if (phase === "intermission") {
-    const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes;
+    const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes || venueOfferPhotos.length > 0;
     return (
       <div className="qi-player-state qi-player-intermission" style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
         <div style={{ fontSize: 22, color: purple, letterSpacing: 4, fontWeight: 700 }}>INTERMISSION</div>
         <div style={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }}>Next round starting soon...</div>
         {!hasContent && (
           <img src="/me-logo.jpg" alt="ME" style={{ width: 70, height: 70, borderRadius: "50%", border: "2px solid " + purple, marginTop: 12 }} />
+        )}
+        {venueOfferPhotos.length > 0 && (
+          <div style={{ width: "100%", maxWidth: 340, aspectRatio: "1", borderRadius: 14, overflow: "hidden", border: "1.5px solid rgba(190,38,193,0.4)", position: "relative" }}>
+            <img key={venueOfferPhotos[offerPhotoIdx]} src={getMediaUrl(venueOfferPhotos[offerPhotoIdx]) || venueOfferPhotos[offerPhotoIdx]} alt="Offer" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            {venueOfferPhotos.length > 1 && (
+              <div style={{ position: "absolute", bottom: 8, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5 }}>
+                {venueOfferPhotos.map((_, i) => (
+                  <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: i === offerPhotoIdx ? purple : "rgba(255,255,255,0.35)" }} />
+                ))}
+              </div>
+            )}
+          </div>
         )}
         {intermissionOffers && (
           <div style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1.5px solid rgba(190,38,193,0.4)", width: "100%", maxWidth: 340 }}>

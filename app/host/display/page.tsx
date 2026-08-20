@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
+import { fetchActiveVenueOffers } from "@/lib/venueOffers";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { SlotReels } from "@/components/SlotReels";
 import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitCorrectAnswerText, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
@@ -308,6 +309,17 @@ function DisplayScreenInner() {
     const interval = window.setInterval(loadApprovedPhotos, 5000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [phase, sessionPin]);
+  // Venue Offers / Display Graphics uploaded on the Venues page - these
+  // change rarely (a host sets them up ahead of time), so a one-shot fetch
+  // per intermission is enough, unlike the constantly-changing photo
+  // approvals above.
+  const [venueOfferPhotos, setVenueOfferPhotos] = useState<string[]>([]);
+  useEffect(() => {
+    if (phase !== "intermission" && phase !== "waiting") { setVenueOfferPhotos([]); return; }
+    let cancelled = false;
+    fetchActiveVenueOffers(venueRecordId).then(urls => { if (!cancelled) setVenueOfferPhotos(urls); });
+    return () => { cancelled = true; };
+  }, [phase, venueRecordId]);
   // THE PURSUIT — display-side mirror of pursuit_status + the pursuit_data race.
   const [pursuitStatus, setPursuitStatus] = useState<PursuitPhase>("idle");
   const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
@@ -391,6 +403,7 @@ function DisplayScreenInner() {
   const [venueHeroImageUrl, setVenueHeroImageUrl] = useState<string | null>(null);
   const [venueHeroVideoUrl, setVenueHeroVideoUrl] = useState<string | null>(null);
   const [venueLogoUrl, setVenueLogoUrl] = useState<string | null>(null);
+  const [venueRecordId, setVenueRecordId] = useState<string | null>(null);
   // Auto-generated "venue experience" pre-show scenes - built entirely from
   // fields already on the venue profile (no separate video upload needed),
   // per the host's request: prizes, schedule, host photo, website/socials.
@@ -561,6 +574,7 @@ function DisplayScreenInner() {
     const snapshot = data.event_snapshot as {
       event_date?: string | null; start_time?: string | null;
       venue?: {
+        id?: string | null;
         hero_image_url?: string | null; hero_video_url?: string | null; venue_logo_url?: string | null;
         prize_information?: string | null; website?: string | null;
         social_links?: Record<string, string> | null;
@@ -572,6 +586,7 @@ function DisplayScreenInner() {
     setVenueHeroImageUrl(snapshotVenue?.hero_image_url || null);
     setVenueHeroVideoUrl(snapshotVenue?.hero_video_url || null);
     setVenueLogoUrl(snapshotVenue?.venue_logo_url || null);
+    setVenueRecordId((data.venue_record_id as string) || snapshotVenue?.id || null);
     setVenuePrizeInfo(snapshotVenue?.prize_information || null);
     setVenueHostName(snapshotVenue?.default_host_name || null);
     setVenueHostPhotoUrl(snapshotVenue?.host_photo_url || null);
@@ -1302,7 +1317,7 @@ function DisplayScreenInner() {
 
   // INTERMISSION
   if (phase === "intermission") {
-    const galleryPhotos = [...intermissionVenuePhotos, ...approvedCustomerPhotos];
+    const galleryPhotos = [...venueOfferPhotos, ...intermissionVenuePhotos, ...approvedCustomerPhotos];
     const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes || galleryPhotos.length > 0;
     // No venue content → the approved Fable holding shot. With content →
     // preserve the working offers/WhatsApp/other-quizzes advertising layout.

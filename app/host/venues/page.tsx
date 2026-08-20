@@ -142,11 +142,13 @@ export default function VenueManagerPage(){
     await supabase.from("venue_offers").update({active:!offer.active}).eq("id",offer.id);
     setOffers(prev=>prev.map(o=>o.id===offer.id?{...o,active:!o.active}:o));
   }
-  async function updateOfferDates(id:string,startDate:string,endDate:string){
+  async function reorderOffers(orderedIds:string[]){
+    setOffers(prev=>{
+      const order=new Map(orderedIds.map((id,i)=>[id,i]));
+      return prev.map(o=>order.has(o.id)?{...o,sort_order:order.get(o.id)!}:o);
+    });
     const supabase=createSupabaseBrowserClient();
-    const payload={start_date:startDate||null,end_date:endDate||null};
-    await supabase.from("venue_offers").update(payload).eq("id",id);
-    setOffers(prev=>prev.map(o=>o.id===id?{...o,...payload}:o));
+    await Promise.all(orderedIds.map((id,i)=>supabase.from("venue_offers").update({sort_order:i}).eq("id",id)));
   }
   async function deleteVenue(venue:Venue){
     if(!window.confirm(`Delete "${venue.venue_name}"? This can't be undone. Past events at this venue keep their own record, but it will disappear from scheduling and this list.`))return;
@@ -173,13 +175,13 @@ export default function VenueManagerPage(){
         {section==="profile"&&<div className="qi-bo-profile-section"><h3>Business profile</h3><p>The identity and contact details used throughout the Back Office.</p><HostLabel>Venue Name</HostLabel><HostInput value={form.venue_name} onChange={e=>set("venue_name",e.target.value)}/><HostLabel>Logo</HostLabel><ImageUploader key={"logo-"+(editing||"new")} currentUrl={form.venue_logo_url||null} onUploaded={url=>set("venue_logo_url",url)}/><div className="qi-bo-form-grid"><Field label="Address" value={form.address} set={v=>set("address",v)}/><Field label="Google Maps Link" value={form.google_maps_url} set={v=>set("google_maps_url",v)}/><Field label="Contact Name" value={form.contact_name} set={v=>set("contact_name",v)}/><Field label="Contact Email" type="email" value={form.contact_email} set={v=>set("contact_email",v)}/><Field label="Contact Phone" value={form.contact_phone} set={v=>set("contact_phone",v)}/><Field label="Website" value={form.website} set={v=>set("website",v)}/></div><HostLabel>Facebook and Instagram</HostLabel><HostInput value={form.social_links} onChange={e=>set("social_links",e.target.value)} placeholder="instagram: URL, facebook: URL"/></div>}
         {section==="schedule"&&<div className="qi-bo-profile-section"><h3>Quiz defaults</h3><p>Choose once. New calendar events inherit these details automatically.</p><div className="qi-bo-form-grid"><Field label="Default Host" value={form.default_host_name} set={v=>set("default_host_name",v)} placeholder={host.name}/><div><HostLabel>Default Quiz Day</HostLabel><select value={form.default_quiz_day} onChange={e=>set("default_quiz_day",e.target.value)}><option value="">Choose a day</option>{DAYS.map((day,index)=><option key={day} value={index}>{day}</option>)}</select></div><Field label="Start Time" type="time" value={form.default_start_time} set={v=>set("default_start_time",v)}/><Field label="End Time" type="time" value={form.default_end_time} set={v=>set("default_end_time",v)}/></div><HostLabel>Host Photo</HostLabel><p style={{margin:"-6px 0 8px",fontSize:12,color:"#6B5A8E"}}>Shown on the Display screen&rsquo;s pre-show &ldquo;Tonight at {form.venue_name||"the venue"}&rdquo; scene, alongside the host name above.</p><ImageUploader key={"hostphoto-"+(editing||"new")} currentUrl={form.host_photo_url||null} onUploaded={url=>set("host_photo_url",url)}/></div>}
         {section==="experience"&&<div className="qi-bo-profile-section"><h3>Venue experience</h3><p>Commercial content inherited by every event at this venue.</p>{[["food_offers","Food Offers"],["drink_offers","Drink Offers"],["happy_hour","Happy Hour"],["prize_information","Prize Information"],["sponsors","Sponsors"],["brand_colours","Brand Colours"]].map(([key,label])=><Area key={key} label={label} value={String(form[key as keyof FormState]||"")} setValue={v=>set(key as keyof FormState,v as never)}/>)}</div>}
-        {section==="offers"&&<div className="qi-bo-profile-section"><h3>Offers &amp; Display Graphics</h3><p>PNG or JPEG images that rotate on the display screen and player handsets during intermission. Leave dates blank to run indefinitely.</p>
+        {section==="offers"&&<div className="qi-bo-profile-section"><h3>Offers &amp; Display Graphics</h3><p>PNG or JPEG images that rotate on the display screen and player handsets during intermission. Drag a tile to reorder - that&rsquo;s the order they&rsquo;ll play in.</p>
           <div style={{marginBottom:28}}>
             <h4 style={{margin:"0 0 8px",font:"700 14px Inter"}}>This venue's offers</h4>
             {!editing&&<p style={{color:"#FFC533",fontSize:13}}>Save this venue first to upload offers just for it.</p>}
             {editing&&<label style={{display:"inline-block",padding:"10px 16px",borderRadius:10,background:"#150A2E",border:"1px dashed #2E1A52",color:"#D9CCF2",cursor:"pointer",fontSize:13}}>{offerBusy===editing?"Uploading…":"+ Upload offer image"}<input type="file" accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadOffer(f,editing);e.target.value="";}}/></label>}
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginTop:12}}>
-              {offers.filter(o=>o.venue_id===editing).map(o=><OfferCard key={o.id} offer={o} onDelete={()=>deleteOffer(o.id)} onToggle={()=>toggleOffer(o)} onDates={(s,e)=>updateOfferDates(o.id,s,e)}/>)}
+              {(()=>{const list=offers.filter(o=>o.venue_id===editing).slice().sort((a,b)=>a.sort_order-b.sort_order);return list.map((o,i)=><OfferCard key={o.id} offer={o} onDelete={()=>deleteOffer(o.id)} onToggle={()=>toggleOffer(o)} onDrop={draggedId=>{if(draggedId===o.id)return;const ids=list.map(x=>x.id);const from=ids.indexOf(draggedId);if(from<0)return;ids.splice(from,1);ids.splice(i,0,draggedId);reorderOffers(ids);}}/>);})()}
               {editing&&offers.filter(o=>o.venue_id===editing).length===0&&<p style={{color:"#6B5A8E",fontSize:13}}>No offers uploaded for this venue yet.</p>}
             </div>
           </div>
@@ -187,7 +189,7 @@ export default function VenueManagerPage(){
             <h4 style={{margin:"0 0 8px",font:"700 14px Inter"}}>Generic offers (shown at every venue)</h4>
             <label style={{display:"inline-block",padding:"10px 16px",borderRadius:10,background:"#150A2E",border:"1px dashed #2E1A52",color:"#D9CCF2",cursor:"pointer",fontSize:13}}>{offerBusy==="generic"?"Uploading…":"+ Upload generic offer image"}<input type="file" accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadOffer(f,null);e.target.value="";}}/></label>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginTop:12}}>
-              {offers.filter(o=>o.venue_id===null).map(o=><OfferCard key={o.id} offer={o} onDelete={()=>deleteOffer(o.id)} onToggle={()=>toggleOffer(o)} onDates={(s,e)=>updateOfferDates(o.id,s,e)}/>)}
+              {(()=>{const list=offers.filter(o=>o.venue_id===null).slice().sort((a,b)=>a.sort_order-b.sort_order);return list.map((o,i)=><OfferCard key={o.id} offer={o} onDelete={()=>deleteOffer(o.id)} onToggle={()=>toggleOffer(o)} onDrop={draggedId=>{if(draggedId===o.id)return;const ids=list.map(x=>x.id);const from=ids.indexOf(draggedId);if(from<0)return;ids.splice(from,1);ids.splice(i,0,draggedId);reorderOffers(ids);}}/>);})()}
               {offers.filter(o=>o.venue_id===null).length===0&&<p style={{color:"#6B5A8E",fontSize:13}}>No generic offers yet.</p>}
             </div>
           </div>
@@ -211,19 +213,22 @@ export default function VenueManagerPage(){
 }
 
 function Field({label,value,set,type="text",placeholder}:{label:string;value:string;set:(value:string)=>void;type?:string;placeholder?:string}){return <div><HostLabel>{label}</HostLabel><HostInput type={type} value={value} placeholder={placeholder} onChange={event=>set(event.target.value)}/></div>}
-function OfferCard({offer,onDelete,onToggle,onDates}:{offer:Offer;onDelete:()=>void;onToggle:()=>void;onDates:(start:string,end:string)=>void}){
-  return <div style={{borderRadius:12,overflow:"hidden",border:"1px solid "+(offer.active?"#2E1A52":"#5A1B1B"),opacity:offer.active?1:0.55}}>
-    <div style={{position:"relative",width:"100%",aspectRatio:"1"}}><Image unoptimized fill sizes="160px" src={getMediaUrl(offer.image_url)||offer.image_url} alt="Offer"/></div>
-    <div style={{padding:10,display:"grid",gap:6,background:"#150A2E"}}>
-      <div style={{display:"flex",gap:6}}>
-        <button onClick={onToggle} style={{flex:1,padding:"5px 8px",borderRadius:8,background:offer.active?"rgba(46,224,110,0.15)":"rgba(255,255,255,0.06)",border:"1px solid "+(offer.active?"#2EE06E":"#2E1A52"),color:offer.active?"#2EE06E":"#6B5A8E",fontSize:11,cursor:"pointer"}}>{offer.active?"Active":"Paused"}</button>
-        <button onClick={onDelete} style={{padding:"5px 8px",borderRadius:8,background:"rgba(255,59,78,0.1)",border:"1px solid rgba(255,59,78,0.3)",color:"#FF7280",fontSize:11,cursor:"pointer"}}>Delete</button>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
-        <input type="date" defaultValue={offer.start_date||""} onBlur={e=>onDates(e.target.value,offer.end_date||"")} style={{padding:"4px 6px",borderRadius:6,background:"#0A0118",border:"1px solid #2E1A52",color:"#fff",fontSize:11}}/>
-        <input type="date" defaultValue={offer.end_date||""} onBlur={e=>onDates(offer.start_date||"",e.target.value)} style={{padding:"4px 6px",borderRadius:6,background:"#0A0118",border:"1px solid #2E1A52",color:"#fff",fontSize:11}}/>
-      </div>
-      <div style={{fontSize:10,color:"#6B5A8E"}}>Start / end date (optional)</div>
+function OfferCard({offer,onDelete,onToggle,onDrop}:{offer:Offer;onDelete:()=>void;onToggle:()=>void;onDrop:(draggedId:string)=>void}){
+  const[dragOver,setDragOver]=useState(false);
+  return <div
+    draggable
+    onDragStart={e=>{e.dataTransfer.setData("text/plain",offer.id);e.dataTransfer.effectAllowed="move";}}
+    onDragOver={e=>{e.preventDefault();e.dataTransfer.dropEffect="move";setDragOver(true);}}
+    onDragLeave={()=>setDragOver(false)}
+    onDrop={e=>{e.preventDefault();setDragOver(false);onDrop(e.dataTransfer.getData("text/plain"));}}
+    style={{borderRadius:12,overflow:"hidden",border:"1px solid "+(dragOver?"#BE26C1":offer.active?"#2E1A52":"#5A1B1B"),opacity:offer.active?1:0.55,cursor:"grab"}}>
+    <div style={{position:"relative",width:"100%",aspectRatio:"1",background:"#0A0118"}}>
+      <Image unoptimized fill sizes="200px" style={{objectFit:"cover"}} src={getMediaUrl(offer.image_url)||offer.image_url} alt="Offer"/>
+      <div style={{position:"absolute",top:6,left:6,padding:"2px 6px",borderRadius:6,background:"rgba(10,1,24,0.7)",color:"#D9CCF2",fontSize:14,letterSpacing:2}}>⠿⠿</div>
+    </div>
+    <div style={{padding:10,display:"flex",gap:6,background:"#150A2E"}}>
+      <button onClick={onToggle} style={{flex:1,padding:"6px 8px",borderRadius:8,background:offer.active?"rgba(46,224,110,0.15)":"rgba(255,255,255,0.06)",border:"1px solid "+(offer.active?"#2EE06E":"#2E1A52"),color:offer.active?"#2EE06E":"#6B5A8E",fontSize:12,cursor:"pointer"}}>{offer.active?"Active":"Paused"}</button>
+      <button onClick={onDelete} style={{padding:"6px 10px",borderRadius:8,background:"rgba(255,59,78,0.1)",border:"1px solid rgba(255,59,78,0.3)",color:"#FF7280",fontSize:12,cursor:"pointer"}}>Delete</button>
     </div>
   </div>;
 }

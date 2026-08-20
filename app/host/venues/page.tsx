@@ -16,6 +16,16 @@ type FormState={venue_name:string;venue_logo_url:string;hero_image_url:string;he
 const empty:FormState={venue_name:"",venue_logo_url:"",hero_image_url:"",hero_video_url:"",gallery_images:[],address:"",google_maps_url:"",contact_name:"",contact_email:"",contact_phone:"",website:"",social_links:"",default_host_id:"",default_host_name:"",host_photo_url:"",default_quiz_day:"",default_start_time:"19:30",default_end_time:"21:30",food_offers:"",drink_offers:"",happy_hour:"",prize_information:"",sponsors:"",brand_colours:"",display_slides:"",display_adverts:"",notes:"",active:true};
 const textArea={width:"100%",padding:"11px 14px",borderRadius:12,background:"#150A2E",color:"#fff",border:"1px solid #2E1A52",font:"500 13px Inter"} as const;
 const split=(value:string)=>value.split(",").map(v=>v.trim()).filter(Boolean);
+async function heicToJpeg(file:File):Promise<File>{
+  const img=document.createElement("img");const url=URL.createObjectURL(file);
+  try{
+    await new Promise<void>((resolve,reject)=>{img.onload=()=>resolve();img.onerror=reject;img.src=url;});
+    const canvas=document.createElement("canvas");canvas.width=img.width;canvas.height=img.height;
+    const ctx=canvas.getContext("2d")!;ctx.drawImage(img,0,0);
+    const blob:Blob=await new Promise(resolve=>canvas.toBlob(b=>resolve(b!),"image/jpeg",0.9));
+    return new File([blob],file.name.replace(/\.(heic|heif)$/i,"")+".jpg",{type:"image/jpeg"});
+  }finally{URL.revokeObjectURL(url);}
+}
 const pairs=(value:string)=>Object.fromEntries(split(value).map(item=>{const [key,...rest]=item.split(":");return [key.trim(),rest.join(":").trim()]}).filter(([,value])=>value));
 const pairText=(value:Record<string,string>|null)=>Object.entries(value||{}).map(([key,item])=>`${key}: ${item}`).join(", ");
 function toForm(venue:Venue):FormState{return{venue_name:venue.venue_name||"",venue_logo_url:venue.venue_logo_url||"",hero_image_url:venue.hero_image_url||"",hero_video_url:venue.hero_video_url||"",gallery_images:venue.gallery_images||[],address:venue.address||"",google_maps_url:venue.google_maps_url||"",contact_name:venue.contact_name||"",contact_email:venue.contact_email||"",contact_phone:venue.contact_phone||"",website:venue.website||"",social_links:pairText(venue.social_links),default_host_id:venue.default_host_id||"",default_host_name:venue.default_host_name||"",host_photo_url:venue.host_photo_url||"",default_quiz_day:venue.default_quiz_day==null?"":String(venue.default_quiz_day),default_start_time:venue.default_start_time?.slice(0,5)||"",default_end_time:venue.default_end_time?.slice(0,5)||"",food_offers:venue.food_offers||"",drink_offers:venue.drink_offers||"",happy_hour:venue.happy_hour||"",prize_information:venue.prize_information||"",sponsors:(venue.sponsors||[]).join(", "),brand_colours:pairText(venue.brand_colours),display_slides:(venue.display_slides||[]).join(", "),display_adverts:(venue.display_adverts||[]).join(", "),notes:venue.notes||"",active:venue.active};}
@@ -48,7 +58,12 @@ export default function VenueManagerPage(){
   async function uploadOffer(file:File,targetVenueId:string|null){
     setOfferBusy(targetVenueId||"generic");setError("");
     try{
-      const formData=new FormData();formData.append("file",file);
+      // iPhone Camera Roll photos are HEIC by default and the server's image
+      // processing can't decode that format - convert to JPEG client-side
+      // first (same fix as the ImageUploader component uses elsewhere).
+      const isHeic=file.type==="image/heic"||file.type==="image/heif"||/\.(heic|heif)$/i.test(file.name);
+      const ready=isHeic?await heicToJpeg(file):file;
+      const formData=new FormData();formData.append("file",ready);
       const res=await fetch("/api/upload-image",{method:"POST",body:formData});
       const raw=await res.text();let data:{url?:string;error?:{message?:string}}={};
       try{data=raw?JSON.parse(raw):{};}catch{throw new Error(!res.ok?(raw.slice(0,120)||"Upload failed"):"Upload failed - unexpected server response");}
@@ -105,7 +120,7 @@ export default function VenueManagerPage(){
           <div style={{marginBottom:28}}>
             <h4 style={{margin:"0 0 8px",font:"700 14px Inter"}}>This venue's offers</h4>
             {!editing&&<p style={{color:"#FFC533",fontSize:13}}>Save this venue first to upload offers just for it.</p>}
-            {editing&&<label style={{display:"inline-block",padding:"10px 16px",borderRadius:10,background:"#150A2E",border:"1px dashed #2E1A52",color:"#D9CCF2",cursor:"pointer",fontSize:13}}>{offerBusy===editing?"Uploading…":"+ Upload offer image"}<input type="file" accept="image/jpeg,image/png" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadOffer(f,editing);e.target.value="";}}/></label>}
+            {editing&&<label style={{display:"inline-block",padding:"10px 16px",borderRadius:10,background:"#150A2E",border:"1px dashed #2E1A52",color:"#D9CCF2",cursor:"pointer",fontSize:13}}>{offerBusy===editing?"Uploading…":"+ Upload offer image"}<input type="file" accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadOffer(f,editing);e.target.value="";}}/></label>}
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginTop:12}}>
               {offers.filter(o=>o.venue_id===editing).map(o=><OfferCard key={o.id} offer={o} onDelete={()=>deleteOffer(o.id)} onToggle={()=>toggleOffer(o)} onDates={(s,e)=>updateOfferDates(o.id,s,e)}/>)}
               {editing&&offers.filter(o=>o.venue_id===editing).length===0&&<p style={{color:"#6B5A8E",fontSize:13}}>No offers uploaded for this venue yet.</p>}
@@ -113,7 +128,7 @@ export default function VenueManagerPage(){
           </div>
           <div>
             <h4 style={{margin:"0 0 8px",font:"700 14px Inter"}}>Generic offers (shown at every venue)</h4>
-            <label style={{display:"inline-block",padding:"10px 16px",borderRadius:10,background:"#150A2E",border:"1px dashed #2E1A52",color:"#D9CCF2",cursor:"pointer",fontSize:13}}>{offerBusy==="generic"?"Uploading…":"+ Upload generic offer image"}<input type="file" accept="image/jpeg,image/png" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadOffer(f,null);e.target.value="";}}/></label>
+            <label style={{display:"inline-block",padding:"10px 16px",borderRadius:10,background:"#150A2E",border:"1px dashed #2E1A52",color:"#D9CCF2",cursor:"pointer",fontSize:13}}>{offerBusy==="generic"?"Uploading…":"+ Upload generic offer image"}<input type="file" accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadOffer(f,null);e.target.value="";}}/></label>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginTop:12}}>
               {offers.filter(o=>o.venue_id===null).map(o=><OfferCard key={o.id} offer={o} onDelete={()=>deleteOffer(o.id)} onToggle={()=>toggleOffer(o)} onDates={(s,e)=>updateOfferDates(o.id,s,e)}/>)}
               {offers.filter(o=>o.venue_id===null).length===0&&<p style={{color:"#6B5A8E",fontSize:13}}>No generic offers yet.</p>}

@@ -1202,9 +1202,9 @@ function DisplayScreenInner() {
             {currentReelScene === "venue" && (
               <div className="lb-reel-scene lb-reel-venue">
                 {venueHeroVideoUrl ? (
-                  <video key={venueHeroVideoUrl} className="lb-reel-media" src={venueHeroVideoUrl} autoPlay muted loop playsInline />
+                  <video key={venueHeroVideoUrl} className="lb-reel-media" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline />
                 ) : venueHeroImageUrl ? (
-                  <img className="lb-reel-media" src={venueHeroImageUrl} alt={venueName || "Venue"} />
+                  <img className="lb-reel-media" src={getMediaUrl(venueHeroImageUrl) || undefined} alt={venueName || "Venue"} />
                 ) : (
                   <div className="lb-reel-fallback">
                     <div className="lb-cardkicker">{venueName ? venueName.toUpperCase() : "QUIZ NIGHT"}</div>
@@ -1223,7 +1223,7 @@ function DisplayScreenInner() {
 
             {currentReelScene === "schedule" && (
               <div className="lb-reel-scene lb-reel-brand">
-                {venueLogoUrl && <img className="lb-reel-brand-logo" src={venueLogoUrl} alt="" />}
+                {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
                 <div className="lb-cardkicker">EVERY WEEK</div>
                 <div className="lb-reel-brand-headline">{venueScheduleText}</div>
               </div>
@@ -1231,7 +1231,7 @@ function DisplayScreenInner() {
 
             {currentReelScene === "host" && (
               <div className="lb-reel-scene lb-reel-brand">
-                {venueHostPhotoUrl && <img className="lb-reel-host-photo" src={venueHostPhotoUrl} alt={venueHostName || "Host"} />}
+                {venueHostPhotoUrl && <img className="lb-reel-host-photo" src={getMediaUrl(venueHostPhotoUrl) || undefined} alt={venueHostName || "Host"} />}
                 <div className="lb-cardkicker">YOUR HOST TONIGHT</div>
                 <div className="lb-reel-brand-headline">{venueHostName}</div>
               </div>

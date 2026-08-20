@@ -10,6 +10,15 @@ type Props = {
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+// iPhones save Camera Roll photos as HEIC/HEIF by default (unless the host
+// has switched Settings > Camera > Formats to "Most Compatible"), and the
+// server's image processing (sharp) can't decode that format at all - so a
+// HEIC upload always used to fail. iOS sometimes reports an empty file.type
+// for these, so the extension is checked too.
+function isHeicFile(file: File): boolean {
+  return file.type === "image/heic" || file.type === "image/heif"
+    || /\.(heic|heif)$/i.test(file.name);
+}
 
 // Rotates an image client-side by the given degrees (90/180/270) using a canvas,
 // returning a new File ready to upload - lets the host fix a sideways phone
@@ -43,7 +52,7 @@ async function rotateFile(file: File, degrees: number): Promise<File> {
 // how big the original photo is. The server still does its own resize/WEBP
 // conversion; this just makes sure the request is small enough to arrive.
 const MAX_UPLOAD_EDGE = 2000;
-async function downscaleIfNeeded(file: File): Promise<File> {
+async function downscaleIfNeeded(file: File, forceConvert = false): Promise<File> {
   const img = document.createElement("img");
   const url = URL.createObjectURL(file);
   try {
@@ -52,7 +61,7 @@ async function downscaleIfNeeded(file: File): Promise<File> {
       img.onerror = reject;
       img.src = url;
     });
-    if (img.width <= MAX_UPLOAD_EDGE && img.height <= MAX_UPLOAD_EDGE && file.size <= 4 * 1024 * 1024) {
+    if (!forceConvert && img.width <= MAX_UPLOAD_EDGE && img.height <= MAX_UPLOAD_EDGE && file.size <= 4 * 1024 * 1024) {
       return file;
     }
     const scale = Math.min(1, MAX_UPLOAD_EDGE / Math.max(img.width, img.height));
@@ -77,7 +86,7 @@ export function ImageUploader({ currentUrl, onUploaded }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   function validate(file: File): string | null {
-    if (!ACCEPTED_TYPES.includes(file.type)) return "Only JPG, PNG, or WEBP images are supported.";
+    if (!ACCEPTED_TYPES.includes(file.type) && !isHeicFile(file)) return "Only JPG, PNG, WEBP, or iPhone HEIC images are supported.";
     if (file.size > MAX_FILE_BYTES) return "Image is too large - max 10MB.";
     return null;
   }
@@ -86,9 +95,18 @@ export function ImageUploader({ currentUrl, onUploaded }: Props) {
     const err = validate(file);
     if (err) { setError(err); return; }
     setError("");
-    const ready = await downscaleIfNeeded(file);
-    setPendingFile(ready);
-    setPreviewUrl(URL.createObjectURL(ready));
+    try {
+      // HEIC always needs converting client-side - the server's image
+      // processing can't read it - so force it through the canvas path
+      // even when it's small enough that a JPG/PNG would skip straight through.
+      const ready = isHeicFile(file) ? await downscaleIfNeeded(file, true) : await downscaleIfNeeded(file);
+      setPendingFile(ready);
+      setPreviewUrl(URL.createObjectURL(ready));
+    } catch {
+      setError(isHeicFile(file)
+        ? "This browser can't open HEIC photos. In iPhone Settings → Camera → Formats, switch to “Most Compatible” so new photos save as JPEG, or use Safari on the iPhone itself to upload."
+        : "Couldn't read that image - please try a different file.");
+    }
   }
 
   async function handleRotate(degrees: number) {
@@ -171,11 +189,11 @@ export function ImageUploader({ currentUrl, onUploaded }: Props) {
           fontSize: 13, color: "rgba(255,255,255,0.6)",
         }}
       >
-        {displayUrl ? "Drop a new image here or click to replace" : "Drop an image here or click to upload (JPG, PNG, WEBP, max 10MB)"}
+        {displayUrl ? "Drop a new image here or click to replace" : "Drop an image here or click to upload (JPG, PNG, WEBP, iPhone HEIC, max 10MB)"}
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
           style={{ display: "none" }}
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
         />

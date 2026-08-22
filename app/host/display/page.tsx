@@ -322,10 +322,17 @@ function DisplayScreenInner() {
   const prevPursuitRaceRef = useRef<PursuitRace>({});
   const pursuitUrgentPlayedRef = useRef<number>(-1);
   const pursuitLockPlayedRef = useRef<number>(-1);
-  // Pursuit countdown urgency (last 5s) + lock click on expiry — once per gate.
+  // Pursuit countdown track + lock click on expiry — once per gate. Previously
+  // this only started the countdown-urgent.mp3 track at timeLeft===5, so the
+  // host only ever heard the last 5 seconds of what's actually a ~50s ticking
+  // clock track meant to be audible for the whole countdown. Now it starts as
+  // soon as the gate's question timer appears (any timeLeft while status is
+  // "question", guarded to fire once per gate via the ref) and is explicitly
+  // stopped the moment the gate leaves "question", so it never bleeds into
+  // the reveal/advance cues.
   useEffect(() => {
     if (pursuitStatus !== "question" || timeLeft === null) return;
-    if (timeLeft === 5 && pursuitUrgentPlayedRef.current !== pursuitQIndex) {
+    if (pursuitUrgentPlayedRef.current !== pursuitQIndex) {
       pursuitUrgentPlayedRef.current = pursuitQIndex;
       playSound("countdown-urgent.mp3", 0.35);
     }
@@ -334,6 +341,9 @@ function DisplayScreenInner() {
       playSound("lock.mp3", 0.5);
     }
   }, [timeLeft, pursuitStatus, pursuitQIndex]);
+  useEffect(() => {
+    if (pursuitStatus !== "question") stopShowAudio("timer");
+  }, [pursuitStatus]);
   const [teams, setTeams] = useState<{ team_name: string; victory_song?: string; photo_url?: string; photo_approved?: boolean }[]>([]);
   // Lobby crest wall — flare newly-arrived teams once, then let them settle.
   const [flaringTeams, setFlaringTeams] = useState<Set<string>>(new Set());

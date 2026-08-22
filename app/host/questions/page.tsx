@@ -4,6 +4,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ImageUploader } from "@/components/ImageUploader";
 import { AudioUploader } from "@/components/AudioUploader";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
+import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { HostShell, HostButton, HostInput, Chip, TopSpacer } from "@/components/fable/HostConsole";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -656,7 +657,10 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           const pixData = await pixRes.json();
           const hit = pixData?.hits?.[0];
           if (hit) {
-            q.option_b = hit.webformatURL || hit.largeImageURL;
+            const pixabayUrl = hit.webformatURL || hit.largeImageURL;
+            // Re-host in our own storage - Pixabay's hotlink URLs are not
+            // guaranteed permanent and have been observed going dead over time.
+            q.option_b = await persistPixabayImage(pixabayUrl);
             context.report.stages.media = { status: "passed", note: "Pixabay image found" };
           } else {
             context.report.stages.media = { status: "failed", note: "No Pixabay image found" };
@@ -1182,6 +1186,31 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     let i = 0;
     let consecutiveFailures = 0;
     let consecutiveCheckFailures = 0;
+    // Keep retries targeted at whichever category still has a shortfall,
+    // rather than cycling `types[launchIndex % types.length]` forward on
+    // every single attempt including retries - that old approach let a
+    // harder-to-satisfy category (audio needs a real YouTube match; picture
+    // needs a brand-safe Pixabay result) get quietly skipped over by easier
+    // types once the cycle drifted past it, so a round could hit its target
+    // COUNT while still missing most or all of its audio/picture quota, with
+    // no indication anything was short. See generateRound.ts's identical fix
+    // for the full explanation.
+    const targetCounts: Record<string, number> = {};
+    types.forEach(t => { targetCounts[t] = (targetCounts[t] || 0) + 1; });
+    const acceptedCounts: Record<string, number> = {};
+    const inFlightCounts: Record<string, number> = {};
+    const pickNextType = (): string => {
+      let best: string | null = null;
+      let bestDeficit = 0;
+      for (const t of Object.keys(targetCounts)) {
+        const deficit = targetCounts[t] - (acceptedCounts[t] || 0) - (inFlightCounts[t] || 0);
+        if (deficit > bestDeficit) { bestDeficit = deficit; best = t; }
+      }
+      if (!best) {
+        best = Object.keys(targetCounts).reduce((a, b) => (acceptedCounts[a] || 0) <= (acceptedCounts[b] || 0) ? a : b);
+      }
+      return best;
+    };
     type PendingCandidate = {
       type: string;
       context: GenerationContext;
@@ -1190,12 +1219,13 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     const pending: PendingCandidate[] = [];
     const launchCandidate = () => {
       const launchIndex = i++;
-      const type = types[launchIndex % types.length];
+      const type = pickNextType();
       const topic = theme || (type === "audio"
         ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
         : shuffledTopics[launchIndex % shuffledTopics.length]);
       const context = createGenerationContext(type, Boolean(theme.trim()));
       attempts++;
+      inFlightCounts[type] = (inFlightCounts[type] || 0) + 1;
       pending.push({ type, context, promise: generateOne(type, topic, context) });
     };
     const refillPipeline = () => {
@@ -1210,6 +1240,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       const current = pending.shift()!;
       const { type, context } = current;
       const q = await current.promise;
+      inFlightCounts[type] = Math.max(0, (inFlightCounts[type] || 0) - 1);
       if (!q) {
         reportGeneratedFailure(context, type);
         consecutiveFailures++;
@@ -1241,6 +1272,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       if (validation.ok) {
         await commitToMemory(q); // accepted -> becomes part of permanent memory
         good.push(q);
+        acceptedCounts[type] = (acceptedCounts[type] || 0) + 1;
         registerAccepted(q);
         // Append functionally to the LIVE list instead of replacing it with a
         // snapshot of `good`. A full `setQuestions([...good])` here would resurrect

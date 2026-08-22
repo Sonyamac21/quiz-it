@@ -23,6 +23,7 @@
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
+import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 
 // ── Types (copied from app/host/questions/page.tsx) ────────────────────────
 
@@ -539,7 +540,10 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         const pixData = await pixRes.json();
         const hit = pixData?.hits?.[0];
         if (hit) {
-          q.option_b = hit.webformatURL || hit.largeImageURL;
+          const pixabayUrl = hit.webformatURL || hit.largeImageURL;
+          // Re-host in our own storage - Pixabay's hotlink URLs are not
+          // guaranteed permanent and have been observed going dead over time.
+          q.option_b = await persistPixabayImage(pixabayUrl);
           context.report.stages.media = { status: "passed", note: "Pixabay image found" };
         } else {
           context.report.stages.media = { status: "failed", note: "No Pixabay image found" };
@@ -942,11 +946,48 @@ export async function generateValidatedRound(
     return shuffledPictureTopics[launchIndex % shuffledPictureTopics.length];
   };
 
+  // The intended type MIX (e.g. 20% picture, 10% audio for a Regular round)
+  // only survives to the final round if retries stay targeted at whichever
+  // category is still short. The old approach walked `types[launchIndex %
+  // types.length]` forward on every single launch, including retries after a
+  // rejection - so once index i wrapped past the end of the list, the NEXT
+  // retry just picked up wherever the cycle had drifted to, not the type
+  // that actually failed. A harder-to-satisfy category (audio needs a real
+  // YouTube match, picture needs a brand-safe Pixabay result and passes a
+  // logo/brand filter) fails validation more often than multiple_choice, so
+  // its slots kept getting skipped over by the cycle while the loop quietly
+  // filled up on easier types instead - the round could hit its target
+  // COUNT while still missing most or all of its audio/picture quota, with
+  // nothing in the UI to say so. Tracking each category's remaining deficit
+  // (target minus accepted-or-in-flight) and always launching the type with
+  // the biggest shortfall keeps every retry aimed at the category that
+  // actually still needs it.
+  const targetCounts: Record<string, number> = {};
+  types.forEach(t => { targetCounts[t] = (targetCounts[t] || 0) + 1; });
+  const acceptedCounts: Record<string, number> = {};
+  const inFlightCounts: Record<string, number> = {};
+  const pickNextType = (): string => {
+    let best: string | null = null;
+    let bestDeficit = 0;
+    for (const t of Object.keys(targetCounts)) {
+      const deficit = targetCounts[t] - (acceptedCounts[t] || 0) - (inFlightCounts[t] || 0);
+      if (deficit > bestDeficit) { bestDeficit = deficit; best = t; }
+    }
+    // Every category's quota is already covered by accepted+in-flight
+    // candidates (can happen with the 2-ahead pipeline near the end of a
+    // round) - fall back to whichever type has accepted the fewest so far,
+    // rather than defaulting to the first type in the object every time.
+    if (!best) {
+      best = Object.keys(targetCounts).reduce((a, b) => (acceptedCounts[a] || 0) <= (acceptedCounts[b] || 0) ? a : b);
+    }
+    return best;
+  };
+
   type PendingCandidate = { type: string; context: GenerationContext; promise: Promise<Question | null> };
   const pending: PendingCandidate[] = [];
   const launchCandidate = () => {
     const launchIndex = i++;
-    const type = types[launchIndex % types.length];
+    const type = pickNextType();
     const topic = theme || (
       type === "audio" ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
       : type === "picture" ? pickPictureTopic(launchIndex)
@@ -954,6 +995,7 @@ export async function generateValidatedRound(
     );
     const context = createGenerationContext(type, Boolean(theme.trim()));
     attempts++;
+    inFlightCounts[type] = (inFlightCounts[type] || 0) + 1;
     pending.push({ type, context, promise: generateOne(type, topic, context, { theme, difficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 }) });
   };
   const refillPipeline = () => {
@@ -977,6 +1019,7 @@ export async function generateValidatedRound(
     const current = pending.shift()!;
     const { type, context } = current;
     const q = await current.promise;
+    inFlightCounts[type] = Math.max(0, (inFlightCounts[type] || 0) - 1);
     if (!q) {
       reportGeneratedFailure(context, type);
       consecutiveFailures++;
@@ -1016,6 +1059,7 @@ export async function generateValidatedRound(
     if (validation.ok) {
       await commitToMemory(q);
       good.push(q);
+      acceptedCounts[type] = (acceptedCounts[type] || 0) + 1;
       registerAccepted(exclusions, q);
       onAccept?.(q);
       addReportEntry({ outcome: "accepted", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });

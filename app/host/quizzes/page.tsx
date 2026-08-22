@@ -8,6 +8,7 @@ import { generateAllRounds, generateValidatedRound, quickExclusionState, type Ro
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell, Toggle } from "@/components/fable/HostConsole";
 import { getMediaUrl } from "@/lib/getMediaUrl";
+import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -349,6 +350,13 @@ export default function QuizBuilderPage() {
   async function saveEditQuestion(round: QuizRound, qIndex: number) {
     const original = round.questions[qIndex] as Record<string, unknown>;
     const updated: Record<string, unknown> = { ...original, ...editDraft };
+    // Picture questions edited to point at a freshly-picked Pixabay photo (or a
+    // pasted external URL) still have a hotlink at this point - re-host it in
+    // our own storage now so it doesn't quietly go dead later. Already-hosted
+    // blob URLs and empty values pass straight through.
+    if (updated.question_type === "picture" && typeof updated.option_b === "string" && updated.option_b && !updated.option_b.includes("blob.vercel-storage.com")) {
+      updated.option_b = await persistPixabayImage(updated.option_b);
+    }
     const newQuestions = round.questions.map((q, i) => i === qIndex ? updated : q);
     const supabase = createSupabaseBrowserClient();
     await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);

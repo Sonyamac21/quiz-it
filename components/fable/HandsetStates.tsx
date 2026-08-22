@@ -21,11 +21,15 @@ export function Crest({
   size = 40,
   gold,
   dim,
+  photoUrl,
 }: {
   initials: string;
   size?: number;
   gold?: boolean;
   dim?: boolean;
+  // Once a team has an approved photo, show it in place of the initials
+  // hexagon - same crest shape/border/glow, just a photo instead of text.
+  photoUrl?: string | null;
 }) {
   return (
     <span
@@ -34,13 +38,20 @@ export function Crest({
         width: size,
         height: size,
         fontSize: Math.round(size * 0.36),
+        overflow: "hidden",
+        padding: 0,
         ...(gold
           ? { borderColor: "#E8C36A", boxShadow: "0 0 24px rgba(232,195,106,.5)" }
           : {}),
         ...(dim ? { opacity: 0.5 } : {}),
       }}
     >
-      {initials}
+      {photoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photoUrl} alt={initials} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      ) : (
+        initials
+      )}
     </span>
   );
 }

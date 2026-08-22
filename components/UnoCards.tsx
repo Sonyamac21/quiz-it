@@ -115,7 +115,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
     };
     const remaining = CARDS.filter(c => !used.includes(c.type)).length;
     return (
-      <div className="fbl" style={{ paddingTop: 4 }}>
+      <div className="fbl" style={{ paddingTop: 4, padding: "4px 14px 0" }}>
         <div className="qi-player-card-rail" style={{ display: "flex", gap: 10 }}>
           {CARDS.map(card => {
             const isUsed = used.includes(card.type);
@@ -130,7 +130,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
                 title={card.desc}
                 style={{
                   position: "relative", overflow: "hidden",
-                  width: 78, minWidth: 78, aspectRatio: "2 / 3", borderRadius: 12,
+                  flex: "1 1 0", minWidth: 0, maxWidth: 110, aspectRatio: "2 / 3", borderRadius: 12,
                   border: "1px solid rgba(255,255,255,0.28)",
                   background: fb.face, color: fb.ink,
                   cursor: isLocked ? "not-allowed" : "pointer",

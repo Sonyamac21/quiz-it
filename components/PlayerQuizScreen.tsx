@@ -1536,7 +1536,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     <div className="fbl fbl-phone qi-player-state qi-player-waiting" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 14, textAlign: "center", position: "relative", zIndex: 2 }}>
-        <Crest initials={teamInitials(teamName)} size={88} />
+        <Crest initials={teamInitials(teamName)} size={88} photoUrl={getMediaUrl(teamPhotoUrl)} />
         <div style={{ font: "800 clamp(22px,6.6vw,30px) 'Inter'", color: "#fff" }}>{teamName}</div>
         <div style={{ font: "600 clamp(15px,4.6vw,18px) 'Inter'", color: "#B9A8D9", lineHeight: 1.45 }}>
           Waiting for your host…
@@ -1551,7 +1551,14 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       <div style={{ display: "flex", justifyContent: "center", padding: "0 14px 10px" }}>
         <TeamPhotoUpload sessionPin={sessionPin} teamName={teamName} />
       </div>
-      {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+      {/* Bottom padding reserves room for the fixed "Quiz-It · Powered by..."
+          brand pill (join-form.tsx, position:fixed bottom:10) that sits on
+          top of every phase screen - without it, the power cards' own
+          "X OF Y CARDS REMAINING" caption sat flush against the viewport
+          bottom and visually collided with that pill. */}
+      <div style={{ paddingBottom: 46 }}>
+        {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+      </div>
     </div>
   );
 }

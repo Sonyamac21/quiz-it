@@ -649,6 +649,18 @@ function DisplayScreenInner() {
         revealSongsTimeoutsRef.current.push(t);
       });
     } else if (newPhase !== "answer" && revealSongsPlayedForRef.current !== null) {
+      // Leaving the "answer" reveal (e.g. the host clicks straight through to
+      // celebration) does NOT mean every team's reveal song has actually
+      // played yet - they're deliberately staggered SONG_SLOT_MS apart so
+      // several correct teams' songs don't all start at once. A still-pending
+      // stagger timeout was previously left to fire on its own schedule
+      // regardless of what phase the show had since moved into, so a team's
+      // reveal song could suddenly start playing during celebration, or even
+      // over the NEXT question - "team music playing at the wrong times".
+      // Cancelling every outstanding timeout here guarantees reveal songs
+      // only ever play during their own reveal.
+      revealSongsTimeoutsRef.current.forEach(clearTimeout);
+      revealSongsTimeoutsRef.current = [];
       revealSongsPlayedForRef.current = null;
     }
     if (newPhase === "hot_seat" && hotSeat.status === "claimed" && hotSeat.answerStartedAt) {

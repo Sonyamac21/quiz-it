@@ -1556,6 +1556,7 @@ function DisplayScreenInner() {
     const options = [{ key:"A", text:question.option_a },{ key:"B", text:question.option_b },{ key:"C", text:question.option_c },{ key:"D", text:question.option_d }].filter(o => o.text);
     const isMulti = question.question_type === "multiple_choice";
     const isMultiTap = question.question_type === "multi_tap";
+    const isSequence = question.question_type === "sequence";
     // Multi Tap's correct_answer is a comma-separated list of option letters
     // (e.g. "c,d,e") - same raw format multiple_choice uses for one letter -
     // so it needs the same letter-to-text mapping, just for several letters
@@ -1564,6 +1565,12 @@ function DisplayScreenInner() {
     const correctText = isMulti
       ? (options.find(o => o.key.toLowerCase()===question.correct_answer.toLowerCase())?.text || question.correct_answer)
       : isMultiTap
+      ? question.correct_answer.split(",").map(k => k.trim().toLowerCase()).map(k => multiTapAllOptions.find(o => o.key===k)?.text || k).filter(Boolean).join(", ")
+      // Sequence's correct_answer is a comma-separated list of option LETTERS
+      // ("a,b,c,d"), same as multi_tap - it needs the same letter-to-text
+      // mapping, in order, joined together, instead of showing the bare
+      // letters on the display screen.
+      : isSequence
       ? question.correct_answer.split(",").map(k => k.trim().toLowerCase()).map(k => multiTapAllOptions.find(o => o.key===k)?.text || k).filter(Boolean).join(", ")
       : question.correct_answer;
     const correctKey = question.correct_answer.toLowerCase();

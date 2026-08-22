@@ -658,6 +658,22 @@ function QuizControllerInner() {
     // scoredFastestTeamRef's declaration).
     scoredFastestTeamRef.current = correctEntries[0]?.teamName || null;
 
+    // Wipeout Mode: the host has confirmed this is a WHOLE-QUESTION wipe, not
+    // a per-team one - if ANY team taps even one wrong option, NO team scores
+    // anything for this question, not just the team that tapped wrong.
+    // Previously each team's wipeout was judged only against its OWN taps, so
+    // one team's mistake left every other team's points untouched - that's
+    // the exact bug being fixed here. Computed once, up front, from every
+    // team's latest answer, so every team in the loop below is judged by the
+    // same single determination.
+    const anyTeamWipedOutThisQuestion = q.question_type === "multi_tap" && wipeoutMode && qIdx >= 5 && teamList.some(team => {
+      const ans = getLatestAnswer(team.team_name);
+      if (!ans) return false;
+      const correctKeys = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+      const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+      return tappedKeys.some(k => !correctKeys.includes(k));
+    });
+
     for (const team of teamList) {
       const ans = getLatestAnswer(team.team_name);
       if (!ans) continue;
@@ -679,11 +695,10 @@ function QuizControllerInner() {
         const wrongKeysUniverse = allKeys.filter(k => !correctKeys.includes(k));
         const correctlyLeftWrong = wrongKeysUniverse.filter(k => !tappedKeys.includes(k));
         let mtBasePts = (correctTaps.length + correctlyLeftWrong.length) * pointsPerQ;
-        // Wipeout: a single wrong tap zeroes the ENTIRE question for that team -
-        // base AND time bonus. Previously only the base was zeroed, so a team that
-        // triggered wipeout still banked the speed bonus (points they should not
-        // have got).
-        const mtWipedOut = wipeoutMode && qIdx >= 5 && wrongTaps.length > 0;
+        // Wipeout: ANY team's wrong tap this question zeroes EVERY team's
+        // score for it - base AND time bonus, for every team, not just
+        // whoever tapped wrong (see anyTeamWipedOutThisQuestion above).
+        const mtWipedOut = anyTeamWipedOutThisQuestion;
         if (mtWipedOut) mtBasePts = 0;
         const mtTimeBonus = mtWipedOut ? 0 : (rankBonus[team.team_name] ?? 0);
         const mtDelta = (mtBasePts + mtTimeBonus) * (hasBoost(team.team_name) ? 2 : 1);

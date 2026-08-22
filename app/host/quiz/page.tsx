@@ -1432,9 +1432,24 @@ function QuizControllerInner() {
   // real answer + correct/incorrect after reveal. Derived from the same
   // `answers` array and `isAnswerCorrect` helper scoring already uses — no
   // gameplay/scoring/state change.
-  const orderedAnswers = [...answers].sort((a, b) => (a.submitted_at || "").localeCompare(b.submitted_at || ""));
+  // If a network retry ever creates more than one answer row for the same
+  // team+question (autoScore already guards against this for scoring - see
+  // getLatestAnswer there), this list must dedupe the SAME way: one row per
+  // team, the most recently submitted one. Without this, a team with two
+  // rows inflates the array beyond the actual number of teams who've
+  // answered, and submissionOrder's array-position badge (#N) can land on 6
+  // or 8 with only 3 teams in the room - the exact wrong-order-number report.
+  const latestAnswerForTeam = (teamName: string): Answer | undefined => {
+    const matches = answers.filter(a => sameTeam(a.team_name, teamName));
+    if (matches.length === 0) return undefined;
+    return matches.reduce((latest, a) => new Date(a.submitted_at).getTime() > new Date(latest.submitted_at).getTime() ? a : latest);
+  };
+  const dedupedAnswers = Array.from(new Set(answers.map(a => a.team_name)))
+    .map(latestAnswerForTeam)
+    .filter((a): a is Answer => !!a);
+  const orderedAnswers = dedupedAnswers.sort((a, b) => (a.submitted_at || "").localeCompare(b.submitted_at || ""));
   const submissionOrder = (teamName: string) => { const i = orderedAnswers.findIndex(a => sameTeam(a.team_name, teamName)); return i >= 0 ? i + 1 : null; };
-  const teamAnswerObj = (teamName: string) => answers.find(a => sameTeam(a.team_name, teamName)) || null;
+  const teamAnswerObj = (teamName: string) => latestAnswerForTeam(teamName) || null;
   const hotSeatCurrentAnswer = hotSeatTeam ? teamAnswerObj(hotSeatTeam) : null;
   const hotSeatAnswerIsCorrect = !!(hotSeatCurrentAnswer && currentQ && isAnswerCorrect(hotSeatCurrentAnswer, currentQ));
   const answersRevealed = hostPhase === "answer" || hostPhase === "celebration";

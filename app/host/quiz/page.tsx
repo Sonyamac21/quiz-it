@@ -313,7 +313,17 @@ function QuizControllerInner() {
     setTimeout(() => { advancingRef.current = false; }, 400);
 
     if (hostPhase === "waiting") { doStartRound(); }
-    else if (hostPhase === "round_start") { doPreviewQuestion(qIdx); }
+    else if (hostPhase === "round_start") {
+      // A round with zero questions (e.g. a Hard Deck / Pursuit placeholder in
+      // the running order that's meant to be played through its own overlay
+      // button, not the normal question flow) has no question to preview -
+      // doPreviewQuestion/doSendQuestion would push through with an undefined
+      // question, and later doRevealAnswer's `if (!currentQ) return;` guard
+      // then silently no-ops forever on "Reveal Answer" with no way out. Skip
+      // straight to ending the round instead of walking into that dead end.
+      if ((selectedRound?.questions.length ?? 0) === 0) doEndRound();
+      else doPreviewQuestion(qIdx);
+    }
     else if (hostPhase === "preview") { doSendQuestion(); }
     else if (hostPhase === "question") {
       if (currentQ?.question_type === "picture" && picSubPhase === "image_only") {
@@ -1678,6 +1688,16 @@ function QuizControllerInner() {
           <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
         </div>}
         {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
+        {/* Escape hatch for a round that's stuck with no question to reveal -
+            e.g. a Hard Deck/Pursuit placeholder round with 0 questions in the
+            running order, walked into via the normal question flow instead of
+            its own overlay. doRevealAnswer's `if (!currentQ) return;` guard
+            then leaves "Reveal Answer"/Space doing nothing forever with no
+            other way forward. Always visible during a round (not just when
+            stuck) so the host never has to hunt for it mid-show. */}
+        {hostPhase !== "waiting" && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
+          <Button variant="secondary" onClick={() => { if (window.confirm("Skip the rest of this round and move on? Use this if the round is stuck (e.g. Space isn't doing anything).")) doEndRound(); }}>Skip Round</Button>
+        )}
         <Button variant="destructive" className="qi-mc-toolbar__end" onClick={() => { const closing = hostPhase === "quiz_end"; if (window.confirm(closing ? "Close this session for good? It'll be marked completed in Reports and cannot be reopened." : "End the quiz for everyone? This closes the live session and cannot be undone.")) doEndOfQuiz(); }}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
       </div>
 

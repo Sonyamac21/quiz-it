@@ -209,7 +209,16 @@ export default function SessionPage() {
         status: "waiting",
         quiz_id: selectedQuizId,
         event_id: preparedEvent?.id || null,
-        venue_record_id: preparedEvent?.venue_record_id || null,
+        // Previously only set when launched via a Calendar event - a session
+        // started the everyday way (picking a venue directly from the
+        // dropdown below, no preparedEvent) always left this null even
+        // though venueData (including its id) was already fetched and used
+        // for venue_name/venue_logo_url just below. Venue-specific offer
+        // images rotate on player handsets by matching THIS column
+        // (fetchActiveVenueOffers), so a direct-venue-pick session could
+        // never resolve its own venue's offers there - only venue_id=null
+        // "generic" offers, or nothing at all if the offer wasn't generic.
+        venue_record_id: preparedEvent?.venue_record_id || venueData?.id || null,
         quiz_plan_name: quizName,
         // Previously, launching a session WITHOUT going via a Calendar event
         // (picking a venue directly from the dropdown below - the host's

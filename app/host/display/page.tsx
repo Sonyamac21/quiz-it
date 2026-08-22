@@ -4,7 +4,6 @@ import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
-import { fetchActiveVenueOffers } from "@/lib/venueOffers";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { SlotReels } from "@/components/SlotReels";
 import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitCorrectAnswerText, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
@@ -310,17 +309,11 @@ function DisplayScreenInner() {
     const interval = window.setInterval(loadApprovedPhotos, 5000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [phase, sessionPin]);
-  // Venue Offers / Display Graphics uploaded on the Venues page - these
-  // change rarely (a host sets them up ahead of time), so a one-shot fetch
-  // per intermission is enough, unlike the constantly-changing photo
-  // approvals above.
-  const [venueOfferPhotos, setVenueOfferPhotos] = useState<string[]>([]);
-  useEffect(() => {
-    if (phase !== "intermission" && phase !== "waiting") { setVenueOfferPhotos([]); return; }
-    let cancelled = false;
-    fetchActiveVenueOffers(venueRecordId).then(urls => { if (!cancelled) setVenueOfferPhotos(urls); });
-    return () => { cancelled = true; };
-  }, [phase, venueRecordId]);
+  // Venue Offers ("Generic offers"/venue-offer rotation, uploaded on the
+  // Venues page) rotate on player handsets specifically, per the host - the
+  // Display screen's own gallery uses intermissionVenuePhotos (Display
+  // Slides/Adverts, curated for the TV) instead. See fetchActiveVenueOffers
+  // usage in PlayerQuizScreen.tsx for the handset side of this.
   // THE PURSUIT — display-side mirror of pursuit_status + the pursuit_data race.
   const [pursuitStatus, setPursuitStatus] = useState<PursuitPhase>("idle");
   const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
@@ -1328,7 +1321,11 @@ function DisplayScreenInner() {
 
   // INTERMISSION
   if (phase === "intermission") {
-    const galleryPhotos = [...venueOfferPhotos, ...intermissionVenuePhotos, ...approvedCustomerPhotos];
+    // venueOfferPhotos (the "Generic offers"/venue-offer rotation) is meant
+    // for player handsets specifically, per the host - the Display's own
+    // gallery uses intermissionVenuePhotos (the venue's own Display
+    // Slides/Adverts, curated for the TV) plus approved customer photos.
+    const galleryPhotos = [...intermissionVenuePhotos, ...approvedCustomerPhotos];
     const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes || galleryPhotos.length > 0;
     // No venue content → the approved Fable holding shot. With content →
     // preserve the working offers/WhatsApp/other-quizzes advertising layout.

@@ -1133,8 +1133,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           <img src="/me-logo.jpg" alt="ME" style={{ width: 70, height: 70, borderRadius: "50%", border: "2px solid " + purple, marginTop: 12 }} />
         )}
         {venueOfferPhotos.length > 0 && (
-          <div style={{ width: "100%", maxWidth: 340, aspectRatio: "1", borderRadius: 14, overflow: "hidden", border: "1.5px solid rgba(190,38,193,0.4)", position: "relative" }}>
-            <img key={venueOfferPhotos[offerPhotoIdx]} src={getMediaUrl(venueOfferPhotos[offerPhotoIdx]) || venueOfferPhotos[offerPhotoIdx]} alt="Offer" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          <div style={{ width: "100%", maxWidth: 340, aspectRatio: "1", borderRadius: 14, overflow: "hidden", border: "1.5px solid rgba(190,38,193,0.4)", position: "relative", background: "rgba(0,0,0,0.35)" }}>
+            <img key={venueOfferPhotos[offerPhotoIdx]} src={getMediaUrl(venueOfferPhotos[offerPhotoIdx]) || venueOfferPhotos[offerPhotoIdx]} alt="Offer" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
             {venueOfferPhotos.length > 1 && (
               <div style={{ position: "absolute", bottom: 8, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5 }}>
                 {venueOfferPhotos.map((_, i) => (

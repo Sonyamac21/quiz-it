@@ -621,14 +621,13 @@ function DisplayScreenInner() {
     }
     prevHotSeatStatusRef.current = hotSeat.status;
     prevHotSeatPhaseRef.current = newPhase;
-    // Play each correct team's own theme song in turn on reveal, not just the
-    // single "fastest correct" team the celebration/spin flow already
-    // handles (see doRevealAnswer in the host quiz page, which writes this
-    // list). Keyed by question index so a realtime resync/poll for the same
-    // reveal doesn't restart the sequence, and skipped for Hot Seat (which
-    // already has its own cheer above) and multi_tap (no reveal_correct_teams
-    // written for those, per the host page).
-    const revealCorrectTeams = (data.reveal_correct_teams as string[] | null) || [];
+    // Reveal used to play EVERY correct team's own theme song in turn, one
+    // after another - the host has confirmed that's not what's wanted: only
+    // the single fastest-correct team's theme should ever play, which the
+    // celebration phase below already handles via fastestSong. This block is
+    // now a no-op (kept only to still clear any leftover timeouts from an
+    // older session/build) so no team's music plays during the reveal itself.
+    const revealCorrectTeams: string[] = [];
     const revealKey = newPhase === "answer" ? `${data.current_question_index}` : null;
     if (
       newPhase === "answer" &&

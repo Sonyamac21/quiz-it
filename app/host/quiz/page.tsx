@@ -1760,6 +1760,16 @@ function QuizControllerInner() {
                 <span style={{ padding:"10px 20px", borderRadius:999, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", fontSize:16, fontWeight:700, color:(selectedRound.allow_power_cards ?? true) ? "#2EE06E" : "#ff8290" }}>{(selectedRound.allow_power_cards ?? true) ? "Power cards allowed" : "Power cards disabled"}</span>
                 <span style={{ padding:"10px 20px", borderRadius:999, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", fontSize:16, fontWeight:700, color:dangerZone ? "#D94FDC" : "#6B5A8E" }}>{dangerZone ? `Danger Zone ON — -${dangerPenalty}pts for wrong answers` : "Danger Zone off"}</span>
               </div>
+              {roundNumber === 1 && (selectedRound.allow_power_cards ?? true) && (
+                <div style={{ maxWidth:640, margin:"0 auto 12px", padding:"16px 22px", borderRadius:14, background:"rgba(190,38,193,0.08)", border:"1px solid rgba(190,38,193,0.3)", textAlign:"left" as const }}>
+                  <div style={{ fontSize:15, fontWeight:800, letterSpacing:2, color:"#D94FDC", marginBottom:10 }}>POWER CARDS — EACH TEAM GETS ONE OF EACH, ONCE PER QUIZ</div>
+                  <div style={{ fontSize:17, lineHeight:1.7, color:"rgba(255,255,255,0.85)" }}>
+                    <div><strong style={{ color:"#38A8FF" }}>⏸ Time-Out</strong> — freezes every other team for 10 seconds once the host starts the timer.</div>
+                    <div><strong style={{ color:"#FF7280" }}>↻ Reverse</strong> — reverses the digits of the team&rsquo;s own score (19 becomes 91).</div>
+                    <div><strong style={{ color:"#FFC533" }}>⚡ Boost</strong> — doubles that team&rsquo;s points for every correct answer for the rest of the round.</div>
+                  </div>
+                </div>
+              )}
               <div style={{ font:"600 15px 'Inter'", color:"#8A7AB0", letterSpacing:".16em", marginTop:24 }}>SPACE: {roundNumber === 1 ? "Start Quiz" : "Start Round"}</div>
             </div>
           ) : !currentQ ? (

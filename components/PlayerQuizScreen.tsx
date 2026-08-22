@@ -1532,7 +1532,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           </>
         ) : (
           <>
-            <Crest initials={teamInitials(teamName)} size={myRank === 1 ? 104 : 84} gold={!!myRank && myRank <= 3} />
+            <Crest initials={teamInitials(teamName)} size={teamPhotoUrl ? (myRank === 1 ? 148 : 128) : (myRank === 1 ? 104 : 84)} gold={!!myRank && myRank <= 3} photoUrl={getMediaUrl(teamPhotoUrl)} />
             {/* Rank is the single thing the player wants — make it the hero. */}
             <div style={{ position: "relative", zIndex: 2, font: "900 clamp(46px,17vw,80px) 'Inter'", color: myRank && myRank <= 3 ? "#E8C36A" : "#fff", lineHeight: 1, textShadow: myRank && myRank <= 3 ? "0 0 30px rgba(232,195,106,.5)" : "none" }}>{myRank ? ordinal(myRank) : "—"}</div>
             <div style={{ position: "relative", zIndex: 2, font: "800 24px 'Inter'", color: "#fff", letterSpacing: 1 }}>{teamName}</div>

@@ -1449,6 +1449,8 @@ function DisplayScreenInner() {
 
     if (trophyVisible) {
       const winner = top3[0];
+      const winnerTeamRow = winner ? teams.find(t => t.team_name === winner.team_name) : null;
+      const winnerPhoto = winnerTeamRow?.photo_approved ? getMediaUrl(winnerTeamRow.photo_url) : null;
       const confetti = [
         { left: "8%", bg: "var(--gold)", dur: "5s", delay: "0s" },
         { left: "18%", bg: "#fff", dur: "6.4s", delay: ".8s" },
@@ -1469,7 +1471,10 @@ function DisplayScreenInner() {
               <div key={i} className="confetti" style={{ left: c.left, background: c.bg, animationDuration: c.dur, animationDelay: c.delay }} />
             ))}
             <div className="wc-kicker">TONIGHT&rsquo;S WINNERS</div>
-            <div className="wc-crest crest">{winner ? teamInitials(winner.team_name) : "?"}<div className="wc-crown">👑</div></div>
+            <div className="wc-crest crest">
+              {winnerPhoto ? <img src={winnerPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : (winner ? teamInitials(winner.team_name) : "?")}
+              <div className="wc-crown">👑</div>
+            </div>
             <div className="wc-name">{(winner?.team_name || "").toUpperCase()}</div>
             <div className="wc-champ">CHAMPIONS</div>
             <div className="wc-meta tnum">{(winner?.total_points ?? 0).toLocaleString()} POINTS</div>

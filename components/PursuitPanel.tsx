@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { applyScoreDelta } from "@/lib/quiz/scoreService";
 import { teamInitials } from "@/components/TeamBadge";
 import {
@@ -109,7 +110,12 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     return () => clearInterval(id);
   }, [timerStartedAt, timerDur]);
 
-  const answersLocked = status === "question" && qIndex >= 0 && (timeLeft === null || timeLeft <= 0);
+  // Three sub-states of "question": timer not yet started (just revealed),
+  // timer running, and timer expired/locked. timeLeft === null covers BOTH
+  // "not started" and "already locked" for a normal round's timer mirror, so
+  // it's disambiguated here with timerStartedAt.
+  const timerNotStarted = status === "question" && qIndex >= 0 && timerStartedAt === null;
+  const answersLocked = status === "question" && qIndex >= 0 && timerStartedAt !== null && (timeLeft === null || timeLeft <= 0);
 
   // Host console data: every team's submitted answer for the current gate, plus
   // the overall standings — so the host is never blind to answers or scores
@@ -155,7 +161,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
       window.setTimeout(() => { spaceLockRef.current = false; }, 600);
       const canAskMore = qIndex + 1 < pursuitQuestions.length && hasActiveTeams(race, teamNames);
       if (status === "intro") { if (pursuitQuestions.length > 0) nextQuestion(); }
-      else if (status === "question") { if (!answersLocked) lockAnswers(); else revealAnswer(); }
+      else if (status === "question") { if (timerNotStarted) startTimer(); else if (!answersLocked) lockAnswers(); else revealAnswer(); }
       else if (status === "reveal") { advanceRace(); }
       else if (status === "advance") { if (canAskMore) nextQuestion(); else finishRound(); }
       else if (status === "complete") { showResults(); }
@@ -163,7 +169,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, status, answersLocked, qIndex, race, timeLeft, pursuitQuestions.length]);
+  }, [open, status, timerNotStarted, answersLocked, qIndex, race, timeLeft, pursuitQuestions.length]);
 
   // Auto-launch: fires when the host picks a Pursuit round from the main
   // running-order list (app/host/quiz/page.tsx), instead of requiring the
@@ -213,7 +219,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     return () => { cancelled = true; };
   }, [sessionId, supabase, hydrate]);
 
-  // Realtime echo channel (mirrors The Hard Deck). No polling.
+  // Realtime echo channel (mirrors The Hard Deck).
   useEffect(() => {
     if (!sessionId) return;
     const channel = supabase
@@ -226,6 +232,28 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [sessionId, sessionPin, supabase, hydrate]);
+
+  // Recovery safety net — unlike the Display screen (which polls sessions on a
+  // timer as a fallback for a missed/dropped realtime event), this panel
+  // previously relied ONLY on the realtime channel above once open, with no way
+  // to recover if an update was ever missed - the race board could get stuck
+  // showing stale positions/status with nothing to fix it short of leaving and
+  // re-entering the round. Poll while open so a missed event self-heals within
+  // a couple of seconds, and also expose a manual "Recover Graphics" button
+  // below for an instant re-pull on demand.
+  const [recovering, setRecovering] = useState(false);
+  const recoverGraphics = useCallback(async () => {
+    if (!sessionId) return;
+    setRecovering(true);
+    const { data } = await supabase.from("sessions").select("*").eq("id", sessionId).single();
+    if (data) hydrate(data as Record<string, unknown>);
+    setRecovering(false);
+  }, [sessionId, supabase, hydrate]);
+  useEffect(() => {
+    if (!open || !sessionId) return;
+    const id = window.setInterval(() => { recoverGraphics(); }, PLATFORM_CONFIG.polling.hostAnswerSafetyMilliseconds);
+    return () => window.clearInterval(id);
+  }, [open, sessionId, recoverGraphics]);
 
   const pushState = useCallback(async (fields: Record<string, unknown>) => {
     const { error } = await supabase.from("sessions").update(fields).eq("id", sessionId);
@@ -252,25 +280,35 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     });
   }
 
+  // Question reveal and timer start are now two separate beats, matching every
+  // other round: the question goes out to the Display/handsets first with no
+  // clock running (so the host can read it out), then a second Space press
+  // ("Start Timer") sets timer_started_at and the countdown begins. Previously
+  // both happened in the same nextQuestion() call, starting the clock the
+  // instant the question appeared with no chance to read it out first.
   async function nextQuestion() {
     const newIndex = qIndex + 1;
     if (newIndex >= pursuitQuestions.length) return;
     const q = pursuitQuestions[newIndex];
-    const now = new Date().toISOString();
     setQIndex(newIndex);
     setStatus("question");
-    // Start the shared platform timer: Display + handsets count down and the
-    // handset locks answers automatically on expiry (existing behaviour).
-    setTimerStartedAt(now);
+    setTimerStartedAt(null);
     setTimerDur(timerDuration);
     await pushState({
       pursuit_status: "question",
       current_question: q,
       current_question_index: newIndex,
       pursuit_data: buildPursuitData(race, newIndex, startedAt),
-      timer_started_at: now,
+      timer_started_at: null,
       timer_duration: timerDuration,
     });
+  }
+
+  async function startTimer() {
+    const now = new Date().toISOString();
+    setTimerStartedAt(now);
+    setTimerDur(timerDuration);
+    await pushState({ timer_started_at: now, timer_duration: timerDuration });
   }
 
   // Lock Answers: expire the timer now, which is exactly how a normal round locks
@@ -390,6 +428,8 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
             {status === "question" && (
               answersLocked
                 ? <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#ef4444" }}>ANSWERS LOCKED</span>
+                : timerNotStarted
+                ? <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#fbbf24" }}>TIMER NOT STARTED</span>
                 : <span style={{ fontSize: 20, fontWeight: 800, color: (timeLeft ?? 0) <= 5 ? "#ef4444" : "#38bdf8" }}>{timeLeft ?? "—"}s</span>
             )}
           </div>
@@ -461,17 +501,17 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
       {(() => {
         const pursuitNextLabel =
           status === "intro" ? "Start Question 1"
-          : status === "question" ? (answersLocked ? "Reveal Answer" : "Lock Answers")
+          : status === "question" ? (timerNotStarted ? "Start Timer" : answersLocked ? "Reveal Answer" : "Lock Answers")
           : status === "reveal" ? "Advance Race"
           : status === "advance" ? (canAskMore ? `Next Question (${qIndex + 2})` : "Finish Round")
           : status === "complete" ? "Show Results" : "";
         const pursuitNextHandler =
           status === "intro" ? nextQuestion
-          : status === "question" ? (answersLocked ? revealAnswer : lockAnswers)
+          : status === "question" ? (timerNotStarted ? startTimer : answersLocked ? revealAnswer : lockAnswers)
           : status === "reveal" ? advanceRace
           : status === "advance" ? (canAskMore ? nextQuestion : finishRound)
           : status === "complete" ? showResults : undefined;
-        const showTimer = status === "question" && !answersLocked;
+        const showTimer = status === "question" && !answersLocked && !timerNotStarted;
         return pursuitNextLabel ? (
           <button onClick={pursuitNextHandler} disabled={status === "intro" && pursuitQuestions.length === 0} className={`qi-mc-next${showTimer ? " qi-mc-next--timer" : ""}`}>
             <span className="qi-mc-next__eyebrow">Next action</span>
@@ -482,7 +522,12 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
         ) : null;
       })()}
       {status === "advance" && canAskMore && <SecondaryButton onClick={finishRound} label="Finish Round Early" />}
-      <button onClick={closePanel} style={{ marginTop: 6, padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
+      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+        <button onClick={recoverGraphics} disabled={recovering} title="Re-pull the race board from the last saved state — use this if the graphics ever look stuck or out of sync" style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(56,189,248,0.4)", color: recovering ? "rgba(56,189,248,0.4)" : "#38bdf8", fontSize: 12, cursor: recovering ? "default" : "pointer" }}>
+          {recovering ? "Recovering…" : "Recover Graphics"}
+        </button>
+        <button onClick={closePanel} style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
+      </div>
     </div>
   );
 

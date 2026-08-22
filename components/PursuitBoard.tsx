@@ -175,7 +175,7 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
           )}
           <div className="pu-qtext">{questionText || "Question is live on the handsets."}</div>
           <div className={"pu-qstate" + (status === "reveal" || status === "advance" ? " correct" : "")}>
-            {status === "question" ? (timeLeft === 0 ? "ANSWERS LOCKED" : "TEAMS ANSWERING…") : "CORRECT: " + (correctAnswer || "—")}
+            {status === "question" ? (timeLeft === 0 ? "ANSWERS LOCKED" : typeof timeLeft === "number" ? "TEAMS ANSWERING…" : "GET READY…") : "CORRECT: " + (correctAnswer || "—")}
           </div>
         </div>
       )}

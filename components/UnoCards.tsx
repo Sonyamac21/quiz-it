@@ -42,6 +42,10 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
 
   const playCard = async (cardType: string) => {
     if (!enabled || !sessionPin || used.includes(cardType) || playing) return;
+    // Reverse can only be played in Round 1 - checked here (not just in the
+    // disabled prop below) so a handset that's still showing a stale round
+    // number can't sneak a Reverse play through after Round 1 has started.
+    if (cardType === "reverse" && roundNumber !== 1) return;
     setPlaying(cardType);
     const supabase = createSupabaseBrowserClient();
     // Re-check the live round rule at activation time so a handset with a
@@ -119,7 +123,9 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
         <div className="qi-player-card-rail" style={{ display: "flex", gap: 10 }}>
           {CARDS.map(card => {
             const isUsed = used.includes(card.type);
-            const isLocked = isUsed || !enabled;
+            // Reverse can only be played in Round 1.
+            const isReverseOutOfRound = card.type === "reverse" && roundNumber !== 1;
+            const isLocked = isUsed || !enabled || isReverseOutOfRound;
             const isPlaying = playing === card.type;
             const fb = FABLE[card.type] || { face: card.bg, ink: card.color, sig: card.emoji, cname: card.label.toUpperCase() };
             return (
@@ -170,7 +176,9 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
         {CARDS.map(card => {
           const isUsed = used.includes(card.type);
-          const isLocked = isUsed || !enabled;
+          // Reverse can only be played in Round 1.
+          const isReverseOutOfRound = card.type === "reverse" && roundNumber !== 1;
+          const isLocked = isUsed || !enabled || isReverseOutOfRound;
           const isPlaying = playing === card.type;
           return (
             <button

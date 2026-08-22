@@ -1536,7 +1536,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     <div className="fbl fbl-phone qi-player-state qi-player-waiting" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 14, textAlign: "center", position: "relative", zIndex: 2 }}>
-        <Crest initials={teamInitials(teamName)} size={88} photoUrl={getMediaUrl(teamPhotoUrl)} />
+        <Crest initials={teamInitials(teamName)} size={teamPhotoUrl ? 148 : 88} photoUrl={getMediaUrl(teamPhotoUrl)} />
         <div style={{ font: "800 clamp(22px,6.6vw,30px) 'Inter'", color: "#fff" }}>{teamName}</div>
         <div style={{ font: "600 clamp(15px,4.6vw,18px) 'Inter'", color: "#B9A8D9", lineHeight: 1.45 }}>
           Waiting for your host…

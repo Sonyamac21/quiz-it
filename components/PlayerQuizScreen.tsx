@@ -1011,20 +1011,33 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           </div>
         )}
 
-        {hardDeckCards.length > 0 && (
-          <div style={{ padding: "clamp(8px,3vw,16px)", borderRadius: 18, maxWidth: "96vw", boxSizing: "border-box" as const, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 16px rgba(0,0,0,0.4), 0 0 24px rgba(190,38,193,0.15)" }}>
-            {/* Card size is viewport-relative so all five cards fit across a phone
-                with no horizontal overflow/scroll. */}
-            <div style={{ display: "flex", gap: "clamp(4px,1.5vw,12px)", justifyContent: "center", flexWrap: "nowrap" as const }}>
-              {hardDeckCards.map((c, i) => (
-                <div key={i} style={{ width: "min(90px,16vw)", height: "min(128px,23vw)", flexShrink: 0, borderRadius: 12, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: "min(28px,5.5vw)", fontWeight: 900, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -8px 12px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)" }}>
-                  <div>{rankLabel(c.rank)}</div>
-                  <div style={{ fontSize: "min(34px,7vw)" }}>{c.suit}</div>
-                </div>
-              ))}
+        {hardDeckCards.length > 0 && (() => {
+          // Card size used to be a single fixed viewport-relative size tuned so
+          // all FIVE cards could eventually fit across a phone with no
+          // horizontal overflow - but that made it tiny and lost in empty
+          // space on gates 1-4, when only 1-4 cards are actually on screen.
+          // Scale the cap up as the count shrinks, so early gates get a much
+          // bigger card and only the full five-card spread uses the small size.
+          const n = hardDeckCards.length;
+          const widthCap = n <= 1 ? 190 : n === 2 ? 160 : n === 3 ? 130 : n === 4 ? 105 : 90;
+          const heightCap = Math.round(widthCap * 1.42);
+          const widthVw = n <= 1 ? 42 : n === 2 ? 34 : n === 3 ? 26 : n === 4 ? 20 : 16;
+          const heightVw = Math.round(widthVw * 1.42);
+          const rankFontCap = n <= 1 ? 56 : n === 2 ? 48 : n === 3 ? 38 : n === 4 ? 32 : 28;
+          const suitFontCap = Math.round(rankFontCap * 1.2);
+          return (
+            <div style={{ padding: "clamp(8px,3vw,16px)", borderRadius: 18, maxWidth: "96vw", boxSizing: "border-box" as const, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 16px rgba(0,0,0,0.4), 0 0 24px rgba(190,38,193,0.15)" }}>
+              <div style={{ display: "flex", gap: "clamp(4px,1.5vw,12px)", justifyContent: "center", flexWrap: "nowrap" as const }}>
+                {hardDeckCards.map((c, i) => (
+                  <div key={i} style={{ width: `min(${widthCap}px,${widthVw}vw)`, height: `min(${heightCap}px,${heightVw}vw)`, flexShrink: 0, borderRadius: 12, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: `min(${rankFontCap}px,${Math.round(widthVw*0.35)}vw)`, fontWeight: 900, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -8px 12px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)" }}>
+                    <div>{rankLabel(c.rank)}</div>
+                    <div style={{ fontSize: `min(${suitFontCap}px,${Math.round(widthVw*0.42)}vw)` }}>{c.suit}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {!isSelected && hardDeckStatus !== "wheel" && (
           <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.65)" }}>

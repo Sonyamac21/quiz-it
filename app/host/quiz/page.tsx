@@ -60,51 +60,57 @@ const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", te
 const cardColor: Record<string,string> = { block:"#38A8FF", reverse:"#FF3B4E", x2:"#FFC533" };
 const cardLabel: Record<string,string> = { block:"Time-Out", reverse:"Reverse", x2:"Boost" };
 
-const RULES = {
-  house: [
-    "Welcome to Quiz-It! Get your team ready on your phones \u2014 join with the PIN on screen.",
-    "Answers lock in the moment you submit \u2014 no changing your mind after.",
-    "You've got 15 seconds per question, so don't overthink it.",
-    "Each Power Card (Time-Out, Boost, Reverse) can be played once per quiz \u2014 use them wisely!",
-    "Have fun, play fair, and good luck!",
-  ],
-  regular: [
-    "Standard quiz questions \u2014 multiple choice, type-in, sequence, or tap-all-that-apply.",
-    "Fastest correct answer each question gets a speed bonus on top of normal points.",
-    "15 seconds per question. No answers accepted once the timer hits zero.",
-  ],
-  multi_tap: [
-    "Each question has several correct answers hidden among decoys.",
-    "Tap every option you think is correct \u2014 leaving a wrong option untapped scores exactly the same as tapping a correct one.",
-    "Fastest team to find ALL correct answers gets the speed bonus.",
-    "Watch out \u2014 in the last 5 questions of this round, a single wrong tap zeroes that question's score (Wipeout Mode).",
-  ],
-  music: [
-    "Listen to the track, then answer the question about it.",
-    "Same scoring as a normal round \u2014 fastest correct answer gets the speed bonus.",
-  ],
-  hard_deck: [
-    "One team gets picked by the wheel to play.",
-    "Guess Higher or Lower than the card shown \u2014 get it right, score points and keep going.",
-    "After the first card, you can Stick with your points or Gamble for more.",
-    "Wrong guess or a tie loses everything \u2014 bank it before it's too late!",
-  ],
-  spin_to_win: [
-    "A bonus feature the host can offer manually after any correct answer \u2014 usually saved for the final question, giving the fastest team one last chance to steal a prize!",
-    "Spin for a shot at big points... or a big penalty. Your choice \u2014 spin or pass!",
-  ],
-  pursuit: [
-    "Every team races through seven questions at the same time \u2014 each correct answer moves your runner forward one stage.",
-    "One wrong answer and you're out of the pursuit (you stay on the board, frozen). Multiple teams can finish.",
-    "Scoring climbs 10, 20, 30\u2026 up to a 100-point payout for clearing all seven.",
-  ],
-  hot_seat: [
-    "Every team starts with one large buzz button.",
-    "The first team to buzz takes the Hot Seat and has 15 seconds to answer on its handset.",
-    "A wrong answer or timeout locks that team out and reopens the buzz to the remaining teams.",
-    "A correct answer earns the full question points and ends the question.",
-  ],
-};
+// Rules text depends on this round's actual configured timer/points/bonus
+// (all host-adjustable, per round) rather than a hardcoded guess, so what's
+// shown here always matches what will actually happen once play starts.
+function buildRules(opts: { timerSeconds: number; pointsPerQ: number; timeBonus: number }): Record<string, string[]> {
+  const { timerSeconds, pointsPerQ, timeBonus } = opts;
+  return {
+    house: [
+      "Welcome to Quiz-It! Get your team ready on your phones \u2014 join with the PIN on screen.",
+      "Answers lock in the moment you submit \u2014 no changing your mind after.",
+      `You've got ${timerSeconds} seconds per question, so don't overthink it.`,
+      "Each Power Card (Time-Out, Boost, Reverse) can be played once per quiz \u2014 use them wisely!",
+      "Have fun, play fair, and good luck!",
+    ],
+    regular: [
+      "Standard quiz questions \u2014 multiple choice, type-in, sequence, or tap-all-that-apply.",
+      `${pointsPerQ} points for a correct answer. Fastest correct answer each question gets up to +${timeBonus} extra for speed.`,
+      `${timerSeconds} seconds per question. No answers accepted once the timer hits zero.`,
+    ],
+    multi_tap: [
+      "Each question has several correct answers hidden among decoys.",
+      "Tap every option you think is correct \u2014 leaving a wrong option untapped scores exactly the same as tapping a correct one.",
+      `Fastest team to find ALL correct answers gets up to +${timeBonus} extra for speed.`,
+      "Watch out \u2014 in the last 5 questions of this round, a single wrong tap zeroes that question's score (Wipeout Mode).",
+    ],
+    music: [
+      "Listen to the track, then answer the question about it.",
+      `Same scoring as a normal round \u2014 ${pointsPerQ} points for a correct answer, plus up to +${timeBonus} for the fastest.`,
+    ],
+    hard_deck: [
+      "One team gets picked by the wheel to play.",
+      "Guess Higher or Lower than the card shown \u2014 get it right, score points and keep going.",
+      "After the first card, you can Stick with your points or Gamble for more.",
+      "Wrong guess or a tie loses everything \u2014 bank it before it's too late!",
+    ],
+    spin_to_win: [
+      "A bonus feature the host can offer manually after any correct answer \u2014 usually saved for the final question, giving the fastest team one last chance to steal a prize!",
+      "Spin for a shot at big points... or a big penalty. Your choice \u2014 spin or pass!",
+    ],
+    pursuit: [
+      "Every team races through seven questions at the same time \u2014 each correct answer moves your runner forward one stage.",
+      "One wrong answer and you're out of the pursuit (you stay on the board, frozen). Multiple teams can finish.",
+      "Scoring climbs 10, 20, 30\u2026 up to a 100-point payout for clearing all seven.",
+    ],
+    hot_seat: [
+      "Every team starts with one large buzz button.",
+      `The first team to buzz takes the Hot Seat and has ${HOT_SEAT_ANSWER_SECONDS} seconds to answer on its handset.`,
+      "A wrong answer or timeout locks that team out and reopens the buzz to the remaining teams.",
+      "A correct answer earns the full question points and ends the question.",
+    ],
+  };
+}
 
 const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "TapType", music: "Music Round", hot_seat: "Hot Seat" };
 
@@ -1535,6 +1541,13 @@ function QuizControllerInner() {
   // Fable law: the console phase indicator speaks in purple (green reserved for
   // "correct" only). Live phases glow purple; idle phases sit neutral.
   const phaseLive = hostPhase!=="waiting" && hostPhase!=="quiz_end";
+  // Built fresh from this round's actual live settings so the on-screen rules
+  // text always matches what's really configured, not a hardcoded guess.
+  const rules = buildRules({
+    timerSeconds: selectedRound ? getTimerForQuestion(selectedRound.questions[qIdx] || selectedRound.questions[0], timerDuration) : timerDuration,
+    pointsPerQ: selectedRound?.points_per_question ?? pointsPerQ,
+    timeBonus: selectedRound?.max_time_bonus ?? timeBonus,
+  });
 
   return (
     <div className="fbh qi-mc-shell">
@@ -1566,7 +1579,7 @@ function QuizControllerInner() {
               <div style={{ marginBottom:20 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>HOUSE RULES</div>
                 <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
-                  {RULES.house.map((r,i) => <li key={i}>{r}</li>)}
+                  {rules.house.map((r,i) => <li key={i}>{r}</li>)}
                 </ul>
               </div>
 
@@ -1577,7 +1590,7 @@ function QuizControllerInner() {
                   <div style={{ marginBottom:20 }}>
                     <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>{(ROUND_TYPE_LABEL[key]||"GENERAL KNOWLEDGE").toUpperCase()} \u2014 CURRENT ROUND</div>
                     <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
-                      {RULES[key as keyof typeof RULES].map((r,i) => <li key={i}>{r}</li>)}
+                      {rules[key as keyof typeof rules].map((r,i) => <li key={i}>{r}</li>)}
                     </ul>
                   </div>
                 );
@@ -1587,7 +1600,7 @@ function QuizControllerInner() {
                 <div style={{ marginBottom:20 }}>
                   <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>THE HARD DECK</div>
                   <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
-                    {RULES.hard_deck.map((r,i) => <li key={i}>{r}</li>)}
+                    {rules.hard_deck.map((r,i) => <li key={i}>{r}</li>)}
                   </ul>
                 </div>
               )}
@@ -1596,7 +1609,7 @@ function QuizControllerInner() {
                 <div style={{ marginBottom:20 }}>
                   <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>SPIN TO WIN</div>
                   <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
-                    {RULES.spin_to_win.map((r,i) => <li key={i}>{r}</li>)}
+                    {rules.spin_to_win.map((r,i) => <li key={i}>{r}</li>)}
                   </ul>
                 </div>
               )}
@@ -1605,7 +1618,7 @@ function QuizControllerInner() {
                 <div>
                   <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>THE PURSUIT</div>
                   <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
-                    {RULES.pursuit.map((r,i) => <li key={i}>{r}</li>)}
+                    {rules.pursuit.map((r,i) => <li key={i}>{r}</li>)}
                   </ul>
                 </div>
               )}
@@ -1750,9 +1763,9 @@ function QuizControllerInner() {
               <div style={{ fontSize:16, letterSpacing:3, color:"#8A7AB0", marginBottom:10 }}>ROUND {roundNumber}</div>
               <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:48, color:"#fff", letterSpacing:".06em", marginBottom:12, textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>{selectedRound.name}</div>
               <div style={{ font:"700 22px 'Inter'", color:"#B9A8D9", marginBottom:28 }}>{selectedRound.round_type === "pursuit" ? "The Pursuit" : `${selectedRound.questions.length} question${selectedRound.questions.length===1?"":"s"}`}{selectedRound.round_type ? " · " + (ROUND_TYPE_LABEL[selectedRound.round_type] || selectedRound.round_type) : ""}</div>
-              {RULES[selectedRound.round_type as keyof typeof RULES] && (
+              {rules[selectedRound.round_type as keyof typeof rules] && (
                 <ul style={{ textAlign:"left" as const, margin:"0 auto 32px", paddingLeft:26, maxWidth:640, fontSize:20, lineHeight:1.8, color:"rgba(255,255,255,0.85)" }}>
-                  {RULES[selectedRound.round_type as keyof typeof RULES].map((r,i) => <li key={i} style={{ marginBottom:6 }}>{r}</li>)}
+                  {rules[selectedRound.round_type as keyof typeof rules].map((r,i) => <li key={i} style={{ marginBottom:6 }}>{r}</li>)}
                 </ul>
               )}
               <div style={{ display:"flex", gap:14, justifyContent:"center", flexWrap:"wrap" as const, marginBottom:12 }}>

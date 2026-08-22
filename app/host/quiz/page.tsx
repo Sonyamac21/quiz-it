@@ -229,6 +229,18 @@ function QuizControllerInner() {
   const [reelError, setReelError] = useState<string | null>(null);
   const [reelTip, setReelTip] = useState<string | null>(null);
   const lastDeltasRef = useRef<Record<string, number>>({});
+  // The team actually credited the speed bonus by autoScore, for THIS question.
+  // doCelebrate previously re-derived "fastest" from its own fresh answers
+  // query, run at a different moment (when the host clicks to celebrate,
+  // not when scoring happened at reveal). Any answer landing in that gap
+  // could flip who reads as fastest in that second query - so the "FASTEST
+  // CORRECT ANSWER" badge/song on screen could name a different team than
+  // the one who actually got the bonus points, or the badge itself could
+  // flip between two teams across a reveal/re-celebrate. Storing exactly
+  // who autoScore ranked #1 removes the second, independently-timed query
+  // entirely - the badge and the points now always come from the same
+  // determination, made once, at scoring time.
+  const scoredFastestTeamRef = useRef<string | null>(null);
   const roundQuestionsRef = useRef<Question[]>([]);
   // Always-current question index for the realtime answers handler, whose
   // channel callback otherwise closes over qIdx=0 from subscribe time. Without
@@ -640,6 +652,11 @@ function QuizControllerInner() {
     correctEntries.forEach((entry, idx) => {
       rankBonus[entry.teamName] = selectedRound?.round_type === "hot_seat" ? 0 : Math.max(0, timeBonus - idx);
     });
+    // Record whoever actually ranked #1 here - this IS the fastest-correct
+    // determination that decides the bonus points above, so it's also the
+    // only correct source for the celebration badge/song (see the comment on
+    // scoredFastestTeamRef's declaration).
+    scoredFastestTeamRef.current = correctEntries[0]?.teamName || null;
 
     for (const team of teamList) {
       const ans = getLatestAnswer(team.team_name);
@@ -1038,7 +1055,7 @@ function QuizControllerInner() {
     stopTickAudio();
     setQIdx(0);
     setAnswers([]);
-    setFastestTeam(null); fastestTeamRef.current = null;
+    setFastestTeam(null); fastestTeamRef.current = null; scoredFastestTeamRef.current = null;
     setFastestSong(null);
     setHotSeatStatus("idle");
     setHotSeatTeam(null);
@@ -1074,7 +1091,7 @@ function QuizControllerInner() {
     if (!selectedRound || !sessionId) return;
     setQIdx(idx);
     setAnswers([]);
-    setFastestTeam(null); fastestTeamRef.current = null;
+    setFastestTeam(null); fastestTeamRef.current = null; scoredFastestTeamRef.current = null;
     setFastestSong(null);
     setTimeLeft(getTimerForQuestion(selectedRound.questions[idx], timerDuration));
     setHostPhase("preview");
@@ -1237,26 +1254,17 @@ function QuizControllerInner() {
 
   async function doCelebrate() {
     if (!sessionId) return;
-    // Determine "fastest correct" from a fresh read scoped to THIS session and
-    // THIS question index, rather than the `answers` React state which can carry
-    // stale/late rows. Eligibility strictly requires: an answer was actually
-    // submitted (non-blank text), it is correct, it belongs to the current
-    // question index, and it belongs to the current session. Null/blank/missing/
-    // previous-question/other-session rows can never qualify.
-    let scopedAnswers: Answer[] = answers.filter(a => a.session_pin === sessionPin && a.question_index === qIdx);
-    if (sessionPin) {
-      const { data: freshCelebAnswers } = await scopedAnswersQuery(sessionPin, qIdx);
-      if (freshCelebAnswers) scopedAnswers = freshCelebAnswers as Answer[];
-    }
-    const correctAnswers = scopedAnswers.filter(a =>
-      currentQ &&
-      !!a.answer_text && a.answer_text.trim() !== "" &&
-      a.question_index === qIdx &&
-      a.session_pin === sessionPin &&
-      isAnswerCorrect(a, currentQ)
-    ).sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
-    const fastest = correctAnswers[0] || null;
-    const fastestTeamName = fastest?.team_name || null;
+    // "Fastest correct" comes from scoredFastestTeamRef - whoever autoScore
+    // actually ranked #1 and paid the speed bonus to - NOT a fresh re-query
+    // here. A fresh query run at celebrate-time (whenever the host clicks,
+    // which can be seconds after the reveal actually scored) used to be able
+    // to pick up a late-arriving answer that wasn't part of scoring at all,
+    // making the on-screen "FASTEST CORRECT ANSWER" name a DIFFERENT team
+    // than the one who was actually paid the bonus - the exact "fastest
+    // answer played twice for two different teams" report. Reusing the
+    // ref makes the badge/song and the points provably the same
+    // determination, computed once, at the moment scoring happened.
+    const fastestTeamName = scoredFastestTeamRef.current;
     const team = teams.find(t => t.team_name === fastestTeamName);
     const song = team?.victory_song || null;
     const fastestPoints = fastestTeamName ? (lastDeltasRef.current[fastestTeamName] ?? 0) : 0;

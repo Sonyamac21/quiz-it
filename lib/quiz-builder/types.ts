@@ -7,6 +7,10 @@ export type LibraryRound = {
   // Persisted so it survives reloads and every generation path (initial
   // generate, Generate All, and single-question SWAP) stays in agreement.
   theme: string | null;
+  // Host-chosen "how many questions should this round have" target, set via
+  // the Generate All panel (e.g. Hot Seat = 5). Persisted so it survives
+  // reloads - null means no explicit target has been set yet.
+  target_count: number | null;
   questions: Record<string, unknown>[];
   hide_leaderboard: boolean;
   allow_power_cards: boolean;

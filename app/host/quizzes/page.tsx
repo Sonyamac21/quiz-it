@@ -132,7 +132,7 @@ export default function QuizBuilderPage() {
     if (!selected) return;
     const initial: Record<string, { selected: boolean; count: number; theme: string; difficulty: string }> = {};
     selected.quiz_rounds.forEach(r => {
-      initial[r.id] = { selected: false, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.questions.length || 10), theme: r.theme ?? "", difficulty: r.difficulty || "mixed" };
+      initial[r.id] = { selected: false, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.target_count ?? r.questions.length ?? 10) || 10, theme: r.theme ?? "", difficulty: r.difficulty || "mixed" };
     });
     setBulkConfig(initial);
     setBulkProgress({});
@@ -140,6 +140,16 @@ export default function QuizBuilderPage() {
   }
   function updateBulkConfig(roundId: string, patch: Partial<{ selected: boolean; count: number; theme: string; difficulty: string }>) {
     setBulkConfig(prev => ({ ...prev, [roundId]: { ...prev[roundId], ...patch } }));
+    // Persist the target count itself (not just theme/difficulty, which were
+    // already saved elsewhere) the moment a host changes it, so "Hot Seat =
+    // 5" survives a reload instead of reverting to questions.length||10 -
+    // see the target_count migration/comment for the full story.
+    if (patch.count !== undefined && Number.isFinite(patch.count)) {
+      const count = patch.count;
+      const supabase = createSupabaseBrowserClient();
+      void supabase.from("quiz_rounds").update({ target_count: count }).eq("id", roundId);
+      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === roundId ? { ...r, target_count: count } : r) }));
+    }
   }
   const ROUND_TYPE_LABELS: Record<string, string> = {
     regular: "Regular",
@@ -501,6 +511,26 @@ export default function QuizBuilderPage() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  // Warn before closing/reloading the tab while AI generation is running.
+  // Each round already saves itself to the database the instant it finishes
+  // (see runBulkGenerate/generateMoreForRound below - nothing already
+  // generated is ever lost by leaving), but leaving mid-run orphans the
+  // in-flight request: it keeps generating in the background with no visible
+  // progress, and a host who doesn't realise that and clicks GENERATE again
+  // on the same round risks two overlapping runs racing to save, where
+  // whichever finishes last silently wins over the other's questions. This
+  // doesn't cover in-app link clicks (browsers don't allow blocking those),
+  // only closing/reloading/navigating away from the site entirely - the
+  // safest thing while generation is running is simply to wait for the
+  // status text to finish rather than click elsewhere in the app.
+  useEffect(() => {
+    const generating = bulkRunning || generatingMoreId !== null;
+    if (!generating) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [bulkRunning, generatingMoreId]);
+
   // Arriving here always used to land on the blank "+ New Quiz Plan" form
   // with nothing selected, and (coming from another page, e.g. the guided
   // duplicate flow) sometimes with the browser's scroll position stuck
@@ -795,7 +825,7 @@ export default function QuizBuilderPage() {
                 onClick={() => setBulkConfig(prev => {
                   const next = { ...prev };
                   selected.quiz_rounds.filter(r => GENERATABLE_ROUND_TYPES.has(r.round_type)).forEach(r => {
-                    next[r.id] = { selected: true, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (prev[r.id]?.count ?? (r.questions.length || 10)), theme: prev[r.id]?.theme ?? "", difficulty: prev[r.id]?.difficulty ?? "mixed" };
+                    next[r.id] = { selected: true, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (prev[r.id]?.count ?? (r.target_count ?? r.questions.length ?? 10) || 10), theme: prev[r.id]?.theme ?? "", difficulty: prev[r.id]?.difficulty ?? "mixed" };
                   });
                   return next;
                 })}
@@ -843,7 +873,7 @@ export default function QuizBuilderPage() {
           const activeRound = selected.quiz_rounds.find(r => r.id === activeRoundId) || selected.quiz_rounds[0];
           const activeIndex = selected.quiz_rounds.findIndex(r => r.id === activeRound.id);
           const isGeneratable = GENERATABLE_ROUND_TYPES.has(activeRound.round_type);
-          const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: activeRound.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (activeRound.questions.length || 10), theme: activeRound.theme ?? "", difficulty: activeRound.difficulty || "mixed" };
+          const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: activeRound.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (activeRound.target_count ?? activeRound.questions.length ?? 10) || 10, theme: activeRound.theme ?? "", difficulty: activeRound.difficulty || "mixed" };
           const progress = bulkProgress[activeRound.id];
           const settingsOpen = settingsOpenRoundId === activeRound.id;
           const addQuestionOpen = addQuestionOpenId === activeRound.id;

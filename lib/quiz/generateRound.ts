@@ -98,7 +98,13 @@ const VARIETY_ANGLES = [
 // every round generating in parallel shares this one queue/limit so the total
 // number of simultaneous Anthropic calls across ALL rounds never exceeds the
 // same cap the single-round generator already respects.
-const MAX_AI_CONCURRENCY = 3;
+// Was 3 - raised now that most calls per candidate (moderation/theme/
+// quality/balance) run on Haiku instead of Sonnet: those are faster and far
+// cheaper per call, so more of them can genuinely run at once without
+// pushing total token throughput anywhere near Anthropic's rate limits. If
+// this ever starts producing 429 rate-limit errors in the generation
+// status text, drop it back down.
+const MAX_AI_CONCURRENCY = 5;
 let activeAiRequests = 0;
 const aiRequestQueue: Array<() => void> = [];
 
@@ -1057,8 +1063,10 @@ export async function generateValidatedRound(
     // sequential and slow. Running 2 in parallel and taking whichever
     // resolves and validates first cuts that latency roughly in half; the
     // cost is an occasional wasted extra generation call near the very end
-    // of a round, which is cheap next to the host's time.
-    while (pending.length < 2 && attempts < maxAttempts) launchCandidate();
+    // of a round, which is cheap next to the host's time. Raised from 2 to
+    // 3 alongside the MAX_AI_CONCURRENCY increase above - more overlap per
+    // round now that the shared global slot count can actually support it.
+    while (pending.length < 3 && attempts < maxAttempts) launchCandidate();
   };
   refillPipeline();
 

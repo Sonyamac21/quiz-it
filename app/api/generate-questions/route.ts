@@ -65,7 +65,16 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Validate the prompt.
-    const { prompt, maxTokens, structuredOutput, webSearch } = await req.json();
+    const { prompt, maxTokens, structuredOutput, webSearch, model } = await req.json();
+    // Only two models are ever allowed through from the client - this is
+    // NOT a general passthrough (a caller can't ask the server to bill an
+    // arbitrary/expensive model), just a choice between the two this app
+    // actually uses: full-price Sonnet for the creative question-writing
+    // call, and cheaper Haiku for the simple pass/fail validation calls
+    // (moderation/theme/quality/balance) that make up the majority of
+    // requests per question generated.
+    const allowedModels = new Set(["claude-sonnet-4-6", "claude-haiku-4-5-20251001"]);
+    const resolvedModel = typeof model === "string" && allowedModels.has(model) ? model : "claude-sonnet-4-6";
     if (!prompt || typeof prompt !== "string") {
       return NextResponse.json({ error: { message: "Missing prompt" } }, { status: 400 });
     }
@@ -85,7 +94,7 @@ export async function POST(req: NextRequest) {
     }
 
     const requestBody: Record<string, unknown> = {
-      model: "claude-sonnet-4-6",
+      model: resolvedModel,
       max_tokens: tokenLimit,
       messages: [{ role: "user", content: prompt }],
     };

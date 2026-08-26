@@ -258,11 +258,21 @@ function registerAccepted(state: ExclusionState, q: Question) {
 
 // ── AI calls (copied verbatim, same /api/generate-questions server route) ──
 
-async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false) {
+// Sonnet is only actually needed for the creative writing call (the question
+// itself) - moderation/quality/balance are simple pass/fail judgment calls on
+// content that already exists, which Haiku handles just as reliably for a
+// fraction of the per-token cost. Since every candidate triggers 3-4 of
+// these calls (1 generation + up to 3 validation checks, each retried on
+// failed attempts), and validation was silently the majority of spend, this
+// is the single biggest lever on the Anthropic bill without touching output
+// quality - the part that actually needs the stronger model is untouched.
+const VALIDATION_MODEL = "claude-haiku-4-5-20251001";
+
+async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false, model?: string) {
   const res = await withAiRequestSlot(() => fetch("/api/generate-questions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch }),
+    body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch, model }),
   }));
   const rawText = await res.text();
   let data;
@@ -322,7 +332,7 @@ async function checkQuestion(q: Question, theme: string): Promise<{ ok: boolean;
   let firstError = "";
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const text = await callAPI(prompt, 300, true);
+      const text = await callAPI(prompt, 300, true, false, VALIDATION_MODEL);
       const parsed = parseModelJson<{ ok: boolean; note?: string }>(text, "object");
       return { ok: parsed.ok, note: parsed.note ?? (parsed.ok ? "OK" : "No reason given") };
     } catch (error) {
@@ -353,7 +363,7 @@ async function checkThemeRelevance(q: Question, activeTheme: string): Promise<{ 
     (options ? " | Options: " + options : "") +
     (subject ? " | Media subject (internal search query, not shown to players): " + subject : "");
   try {
-    const text = await callAPI(prompt, 300, true);
+    const text = await callAPI(prompt, 300, true, false, VALIDATION_MODEL);
     return parseModelJson<{ ok: boolean; note: string }>(text, "object");
   } catch {
     return { ok: true, note: "theme-check-unavailable" };
@@ -390,7 +400,7 @@ async function finalQualityCheck(q: Question, theme: string): Promise<{ ok: bool
     (options ? " | Options: " + options : "") +
     (subject ? " | Image/Audio subject (internal search query, not shown to players): " + subject : "");
   try {
-    const text = await callAPI(prompt, 300, true);
+    const text = await callAPI(prompt, 300, true, false, VALIDATION_MODEL);
     return parseModelJson<{ ok: boolean; note: string }>(text, "object");
   } catch {
     return { ok: true, note: "quality-check-unavailable" };
@@ -692,7 +702,7 @@ async function checkRoundBalance(q: Question, currentRound: Question[], theme: s
       ok?: boolean; note?: string; confidence?: string;
       candidate_subtopic?: string | null; candidate_entity?: string | null;
       conflict_index?: number | null; rejection_reason?: string;
-    }>(await callAPI(prompt, 350, true), "object");
+    }>(await callAPI(prompt, 350, true, false, VALIDATION_MODEL), "object");
     const conflictIndex = Number.isInteger(parsed.conflict_index) && (parsed.conflict_index as number) >= 1 && (parsed.conflict_index as number) <= currentRound.length
       ? parsed.conflict_index as number
       : null;
@@ -727,7 +737,7 @@ async function isDuplicateInMemory(q: Question, exclusions: ExclusionState): Pro
   try {
     const supabase = createSupabaseBrowserClient();
     const { data, error } = await supabase.rpc("check_question_memory", {
-      p_text: q.question_text,
+      p_text: memoryText(q),
       p_type: q.question_type,
       // 0.82 required near-total word-for-word similarity to trigger, which
       // let most paraphrased repeats straight through. 0.6 was tried next to
@@ -785,11 +795,29 @@ async function validateCandidate(
   return { ok: true, category: "Accepted", reason: "Passed every applicable validation stage", stages };
 }
 
+// Picture/audio questions share generic templated phrasing regardless of
+// subject ("Which country is this flag from?" is identical text for Japan,
+// France, Brazil...). The permanent memory table has a unique constraint on
+// (question_text, question_type), and check_question_memory matches on text
+// alone - so storing the raw templated text meant only the FIRST country/
+// animal/etc ever generated under a given template could ever occupy that
+// slot. Every other distinct subject silently failed to upsert (ignored as
+// a "duplicate" of a completely different answer) and got wrongly rejected
+// as a permanent-memory match on every later attempt, which is why the same
+// single answer (e.g. Japan) kept winning out and recurring across quiz
+// plans - it was the only flag question the system could ever successfully
+// remember. Suffixing the memory text with the answer for these two types
+// gives each distinct subject its own slot while leaving what's actually
+// shown to players (q.question_text) untouched.
+function memoryText(q: Question): string {
+  return ["picture", "audio"].includes(q.question_type) ? `${q.question_text} (${q.correct_answer})` : q.question_text;
+}
+
 async function commitToMemory(q: Question) {
   try {
     const supabase = createSupabaseBrowserClient();
     const libRow = {
-      question_text: q.question_text,
+      question_text: memoryText(q),
       correct_answer: q.correct_answer,
       option_a: ["picture", "audio"].includes(q.question_type) ? null : q.option_a,
       option_b: ["picture", "audio"].includes(q.question_type) ? null : q.option_b,
@@ -813,7 +841,7 @@ async function commitToMemory(q: Question) {
       const { data: existing } = await supabase
         .from("questions")
         .select("id")
-        .ilike("question_text", q.question_text)
+        .ilike("question_text", memoryText(q))
         .eq("question_type", q.question_type)
         .maybeSingle();
       if (existing?.id) q.id = existing.id;

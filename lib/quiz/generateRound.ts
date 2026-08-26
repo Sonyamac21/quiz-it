@@ -671,14 +671,27 @@ function duplicateRejectionReason(q: Question, currentRound: Question[], theme: 
   const themeTokens = (theme || "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
   const ignore = new Set<string>([...COMMON, ...themeTokens]);
   const sigWords = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
-  const normAnswer = (q.correct_answer || "").toLowerCase().trim();
+  // multiple_choice/multi_tap/sequence store correct_answer as a raw letter
+  // (a/b/c), not the answer text - comparing that directly across types
+  // would falsely collide any two questions that both happen to have "a" as
+  // the right option. resolveAnswerText() maps letter-types back to their
+  // real option text first; picture/text_answer/number already store the
+  // real answer directly, so it passes those through unchanged.
+  const normAnswer = resolveAnswerText(q).toLowerCase().trim();
   const fingerprint = questionFingerprint(q);
   if (exclusions.rejectedFingerprints.has(fingerprint)) return "blacklist";
   if (exclusions.usedFingerprints.has(fingerprint)) return "exact-question:used-or-history";
   if (currentRound.some(g => questionFingerprint(g) === fingerprint)) return "exact-question:current-round";
+  // Deliberately NOT scoped to matching question_type - a picture question
+  // about Niagara Falls and a text question about Niagara Falls are still
+  // the same subject asked twice in one round, which reads as repetitive to
+  // a host regardless of the two questions being differently formatted.
+  // Observed directly: two separate Niagara Falls questions (one picture,
+  // one not) both surviving in the same generated round because this check
+  // previously only ever compared questions of the identical type against
+  // each other.
   if (normAnswer && currentRound.some(g =>
-    g.question_type === q.question_type &&
-    (g.correct_answer || "").toLowerCase().trim() === normAnswer
+    resolveAnswerText(g).toLowerCase().trim() === normAnswer
   )) return "same-answer:current-round";
   const newWords = sigWords(q.question_text);
   if (newWords.length >= 2) {

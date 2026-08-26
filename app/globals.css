@@ -1461,6 +1461,24 @@ button, input, select, textarea { font: inherit; }
 .qi-display-spin-heading { position: relative; z-index: 2; text-align: center; margin-bottom: 3vh; flex-shrink: 0; }
 .qi-display-spin-title { font-size: clamp(48px,6vw,104px); text-shadow: 0 0 44px rgba(190,38,193,.5); }
 .qi-display-spin-winner { margin-top: 12px; color: #ded2f3; font-size: clamp(18px,1.8vw,30px); font-weight: 700; letter-spacing: .14em; }
+/* Matches the other winner screens' eyebrow-drop + name-shine treatment so
+   Spin to Win's own "fastest correct answer" heading reads as ONE reveal
+   moment consistent with the rest of the show, instead of a plain static
+   label sitting underneath a separate celebration screen that already
+   played the same announcement seconds earlier. */
+.qi-display-spin-winner-wrap { position: relative; margin-top: 10px; }
+.qi-display-spin-winner-name { position: relative; display: inline-block; margin-top: 6px; color: #fff; font-size: clamp(28px,3.2vw,52px); font-weight: 900; letter-spacing: -.02em; text-shadow: 0 8px 32px rgba(190,38,193,.5); animation: nameSlam .55s .15s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
+.qi-display-spin-winner-name::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,.75) 50%, transparent 60%); background-size: 250% 100%; background-position: 150% 0; mix-blend-mode: overlay; animation: nameShine 1s .65s ease-out both; pointer-events: none; }
+/* The "little extra" for Spin to Win specifically - a quick starburst of
+   sparkle glints behind the winner name, distinct from the plain photo/ring
+   treatment on the other winner screens since there's no team photo here. */
+.qi-display-spin-sparkle { position: absolute; inset: -20px -60px auto; height: 90px; pointer-events: none; background:
+    radial-gradient(circle, #ffd23f 0 3px, transparent 4px) 10% 30%,
+    radial-gradient(circle, #d94fdc 0 2px, transparent 3px) 30% 70%,
+    radial-gradient(circle, #ffd23f 0 2px, transparent 3px) 55% 15%,
+    radial-gradient(circle, #7c3aed 0 3px, transparent 4px) 75% 60%,
+    radial-gradient(circle, #ffd23f 0 2px, transparent 3px) 92% 35%;
+  background-repeat: no-repeat; opacity: 0; animation: qiSpinSparkle .9s .1s ease-out both; }
 /* width used to also be capped by 60vh (min(90vw,60vh,1100px)) to try to keep
    the machine from outgrowing the stage's height - but capping WIDTH by a
    HEIGHT unit doesn't scale the cabinet's actual (fixed-px) height at all,
@@ -1520,7 +1538,8 @@ button, input, select, textarea { font: inherit; }
 @keyframes qiRingSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes qiShockwave { 0% { opacity: .9; transform: scale(.7); } 100% { opacity: 0; transform: scale(1.35); } }
 @keyframes qiRingFadeIn { to { opacity: .55; } }
-@media (prefers-reduced-motion: reduce) { .qi-display-celebration-flash,.qi-display-fastest-eyebrow,.qi-display-fastest-team::after,.qi-display-fastest-photo::after,.qi-display-fastest-shockwave,.qi-display-fastest-photo img { animation: none; opacity: 1; } }
+@keyframes qiSpinSparkle { 0% { opacity: 0; transform: scale(.6); } 45% { opacity: 1; transform: scale(1.08); } 100% { opacity: 0; transform: scale(1.2); } }
+@media (prefers-reduced-motion: reduce) { .qi-display-celebration-flash,.qi-display-fastest-eyebrow,.qi-display-fastest-team::after,.qi-display-fastest-photo::after,.qi-display-fastest-shockwave,.qi-display-fastest-photo img,.qi-display-spin-winner-name,.qi-display-spin-winner-name::after,.qi-display-spin-sparkle { animation: none; opacity: 1; } }
 @keyframes qiGlowPulse { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
 @keyframes qiGuessPulse { 0% { transform: scale(.85); opacity: .4; } 60% { transform: scale(1.05); } 100% { transform: none; opacity: 1; } }
 @media (max-aspect-ratio: 4/3) {

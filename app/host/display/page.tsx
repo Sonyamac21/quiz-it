@@ -1403,8 +1403,10 @@ function DisplayScreenInner() {
             <span style={{ color:"#BE26C1" }}>SPIN</span> TO WIN
           </div>
           {fastestTeam && (
-            <div className="qi-display-spin-winner">
-              FASTEST CORRECT ANSWER: {fastestTeam.toUpperCase()}
+            <div key={"spin-winner-" + fastestTeam} className="qi-display-spin-winner-wrap">
+              <div className="qi-display-spin-sparkle" />
+              <div className="qi-display-eyebrow qi-display-fastest-eyebrow">FASTEST CORRECT ANSWER</div>
+              <div className="qi-display-spin-winner qi-display-spin-winner-name">{fastestTeam.toUpperCase()}</div>
             </div>
           )}
         </div>

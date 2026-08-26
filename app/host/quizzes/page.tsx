@@ -132,7 +132,7 @@ export default function QuizBuilderPage() {
     if (!selected) return;
     const initial: Record<string, { selected: boolean; count: number; theme: string; difficulty: string }> = {};
     selected.quiz_rounds.forEach(r => {
-      initial[r.id] = { selected: false, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.target_count ?? r.questions.length ?? 10) || 10, theme: r.theme ?? "", difficulty: r.difficulty || "mixed" };
+      initial[r.id] = { selected: false, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.target_count || r.questions.length || 10), theme: r.theme ?? "", difficulty: r.difficulty || "mixed" };
     });
     setBulkConfig(initial);
     setBulkProgress({});
@@ -825,7 +825,7 @@ export default function QuizBuilderPage() {
                 onClick={() => setBulkConfig(prev => {
                   const next = { ...prev };
                   selected.quiz_rounds.filter(r => GENERATABLE_ROUND_TYPES.has(r.round_type)).forEach(r => {
-                    next[r.id] = { selected: true, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (prev[r.id]?.count ?? (r.target_count ?? r.questions.length ?? 10) || 10), theme: prev[r.id]?.theme ?? "", difficulty: prev[r.id]?.difficulty ?? "mixed" };
+                    next[r.id] = { selected: true, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (prev[r.id]?.count || r.target_count || r.questions.length || 10), theme: prev[r.id]?.theme ?? "", difficulty: prev[r.id]?.difficulty ?? "mixed" };
                   });
                   return next;
                 })}
@@ -873,7 +873,7 @@ export default function QuizBuilderPage() {
           const activeRound = selected.quiz_rounds.find(r => r.id === activeRoundId) || selected.quiz_rounds[0];
           const activeIndex = selected.quiz_rounds.findIndex(r => r.id === activeRound.id);
           const isGeneratable = GENERATABLE_ROUND_TYPES.has(activeRound.round_type);
-          const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: activeRound.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (activeRound.target_count ?? activeRound.questions.length ?? 10) || 10, theme: activeRound.theme ?? "", difficulty: activeRound.difficulty || "mixed" };
+          const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: activeRound.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (activeRound.target_count || activeRound.questions.length || 10), theme: activeRound.theme ?? "", difficulty: activeRound.difficulty || "mixed" };
           const progress = bulkProgress[activeRound.id];
           const settingsOpen = settingsOpenRoundId === activeRound.id;
           const addQuestionOpen = addQuestionOpenId === activeRound.id;

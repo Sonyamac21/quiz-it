@@ -268,12 +268,32 @@ function registerAccepted(state: ExclusionState, q: Question) {
 // quality - the part that actually needs the stronger model is untouched.
 const VALIDATION_MODEL = "claude-haiku-4-5-20251001";
 
+// The server route already caps itself at 30s (maxDuration) so Vercel can't
+// silently kill the function with no response, but nothing on the CLIENT
+// side ever gave up on a request that hangs somewhere between here and
+// there (a stalled connection, a proxy that swallows the close signal,
+// etc). Without this, one stuck fetch holds its AI concurrency slot
+// (MAX_AI_CONCURRENCY above) forever, and everything queued behind it -
+// every other round, every other question - waits with it indefinitely.
+// Observed directly as "Checking question 4 of 5..." sitting frozen for
+// 5+ minutes with no error and no progress. 35s gives the server's own 30s
+// ceiling a little headroom before the client gives up on it too.
+const CLIENT_REQUEST_TIMEOUT_MS = 35_000;
+
 async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false, model?: string) {
-  const res = await withAiRequestSlot(() => fetch("/api/generate-questions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch, model }),
-  }));
+  const res = await withAiRequestSlot(() => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CLIENT_REQUEST_TIMEOUT_MS);
+    return fetch("/api/generate-questions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch, model }),
+      signal: controller.signal,
+    }).catch(e => {
+      if (e instanceof Error && e.name === "AbortError") throw new Error("Request to Anthropic timed out after 35s (no response) - retrying.");
+      throw e;
+    }).finally(() => clearTimeout(timer));
+  });
   const rawText = await res.text();
   let data;
   try {

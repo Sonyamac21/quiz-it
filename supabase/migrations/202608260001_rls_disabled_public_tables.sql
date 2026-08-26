@@ -16,9 +16,14 @@
 --                    at all, so it's fully locked down for reads (RLS
 --                    defaults to deny when no policy matches).
 --
---   media_assets  - written once by Music Prep when a trimmed audio clip is
---                    saved (app/host/music-prep/page.tsx), same as above -
---                    never read back anywhere. Same treatment.
+--   media_assets  - written by Music Prep, the Venues Media tab, and the
+--                    Question generator's image/video/audio uploaders
+--                    (all host-only). UNLIKE game_history, this IS read
+--                    back - AudioUploader.tsx's "browse previous uploads"
+--                    search and AudioRecorder.tsx's cache lookup both
+--                    select from it. Both call sites only render inside
+--                    host pages, never in the anonymous player/join flow,
+--                    so reads are authenticated-only too, not public.
 --
 --   venue_offers  - the one exception: it's written by the host (Venues
 --                    page CRUD) but also READ by anonymous players with no
@@ -43,6 +48,11 @@ create policy "Hosts can log media assets"
   on public.media_assets for insert
   to authenticated
   with check (true);
+drop policy if exists "Hosts can browse media assets" on public.media_assets;
+create policy "Hosts can browse media assets"
+  on public.media_assets for select
+  to authenticated
+  using (true);
 
 alter table public.venue_offers enable row level security;
 drop policy if exists "Anyone can read active venue offers" on public.venue_offers;

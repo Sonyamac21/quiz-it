@@ -1230,16 +1230,26 @@ function DisplayScreenInner() {
 
             {currentReelScene === "venue" && (
               <div className="lb-reel-scene lb-reel-venue">
+                {/* This animated title-card (logo pop, name sweep, tagline
+                    fade) always plays, whether or not a Hero Video/Image has
+                    been uploaded - it's the actual "animation at the
+                    beginning" a Hero Video/Image was never a substitute for.
+                    With media uploaded, it overlays the bottom of the frame
+                    over a gradient scrim so both are visible together;
+                    without media, it fills the frame over an animated
+                    branded glow background instead of a blank prompt. */}
                 {venueHeroVideoUrl ? (
                   <video key={venueHeroVideoUrl} className="lb-reel-media" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline />
                 ) : venueHeroImageUrl ? (
                   <img className="lb-reel-media" src={getMediaUrl(venueHeroImageUrl) || undefined} alt={venueName || "Venue"} />
                 ) : (
-                  <div className="lb-reel-fallback">
-                    <div className="lb-cardkicker">{venueName ? venueName.toUpperCase() : "QUIZ NIGHT"}</div>
-                    <div className="lb-tease">Add a Hero Video or Hero Image on this venue's Media tab to brand this screen.</div>
-                  </div>
+                  <div className="lb-venue-intro-bg" />
                 )}
+                <div className={"lb-venue-intro" + (venueHeroVideoUrl || venueHeroImageUrl ? " has-media" : "")}>
+                  {venueLogoUrl && <img className="lb-venue-intro-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
+                  <div className="lb-venue-intro-name">{venueName || "TONIGHT'S QUIZ"}</div>
+                  <div className="lb-venue-intro-tagline">Quiz Night · Hosted by Quiz-It</div>
+                </div>
               </div>
             )}
 
@@ -1536,9 +1546,12 @@ function DisplayScreenInner() {
         )}
         {/* Brand ambient glow */}
         <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 60% 50% at 50% 50%, rgba(190,38,193,0.12) 0%, transparent 70%)", pointerEvents:"none" }} />
+        {/* One-off flash burst, keyed to fastestTeam so it re-fires every
+            time a new round's celebration mounts, not just the first. */}
+        {fastestTeam && <div key={"flash-" + fastestTeam} className="qi-display-celebration-flash" />}
         {fastestTeam ? (
           <div className="qi-display-celebration-content">
-            <div className="qi-display-eyebrow">FASTEST CORRECT ANSWER</div>
+            <div className="qi-display-eyebrow qi-display-fastest-eyebrow">FASTEST CORRECT ANSWER</div>
             <div className="qi-display-fastest-team">
               {fastestTeam}
             </div>
@@ -1546,6 +1559,7 @@ function DisplayScreenInner() {
                 the 202607230002_photo_approval migration. */}
             {showWinnerPhoto && winnerTeam?.photo_url && winnerTeam?.photo_approved && (
               <div className="qi-display-fastest-photo">
+                <div className="qi-display-fastest-shockwave" />
                 <img src={winnerTeam.photo_url} alt={fastestTeam} />
               </div>
             )}

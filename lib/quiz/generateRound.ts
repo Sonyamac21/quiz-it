@@ -762,7 +762,7 @@ async function checkRoundBalance(q: Question, currentRound: Question[], theme: s
   }
 }
 
-async function isDuplicateInMemory(q: Question, exclusions: ExclusionState): Promise<boolean> {
+async function isDuplicateInMemory(q: Question, exclusions: ExclusionState, onDegraded?: () => void): Promise<boolean> {
   // The fingerprint check is exact-match only (normalized text + answer +
   // options) - it catches a question regenerated verbatim, but NOT a
   // paraphrase of one already used ("Which fashion house has two
@@ -794,10 +794,11 @@ async function isDuplicateInMemory(q: Question, exclusions: ExclusionState): Pro
       // longer treating routine templated phrasing as proof of duplication.
       p_threshold: 0.75,
     });
-    if (error) { console.error("Question Memory check unavailable (allowing question):", error.message); return false; }
+    if (error) { console.error("Question Memory check unavailable (allowing question):", error.message); onDegraded?.(); return false; }
     return data != null;
   } catch (e) {
     console.error("Question Memory check error (allowing question):", e);
+    onDegraded?.();
     return false;
   }
 }
@@ -808,13 +809,14 @@ async function validateCandidate(
   stages: ValidationResults,
   theme: string,
   exclusions: ExclusionState,
+  onMemoryDegraded?: () => void,
 ): Promise<{ ok: boolean; category: string; reason: string; stages: ValidationResults }> {
   const activeTheme = (theme || "").trim();
   const moderationPromise = checkQuestion(q, theme);
   const balancePromise = activeTheme
     ? Promise.resolve<Awaited<ReturnType<typeof checkRoundBalance>> | null>(null)
     : checkRoundBalance(q, currentRound, theme);
-  const memoryPromise = isDuplicateInMemory(q, exclusions);
+  const memoryPromise = isDuplicateInMemory(q, exclusions, onMemoryDegraded);
   const qualityPromise = finalQualityCheck(q, theme);
   const [moderation, balance, memoryDuplicate, quality] = await Promise.all([moderationPromise, balancePromise, memoryPromise, qualityPromise]);
   stages.moderation = { status: moderation.ok ? "passed" : "failed", note: moderation.note };
@@ -852,7 +854,7 @@ function memoryText(q: Question): string {
   return ["picture", "audio"].includes(q.question_type) ? `${q.question_text} (${q.correct_answer})` : q.question_text;
 }
 
-async function commitToMemory(q: Question) {
+async function commitToMemory(q: Question, onDegraded?: () => void) {
   try {
     const supabase = createSupabaseBrowserClient();
     const libRow = {
@@ -887,6 +889,7 @@ async function commitToMemory(q: Question) {
     }
   } catch (libErr) {
     console.error("Failed to save question to permanent memory:", libErr);
+    onDegraded?.();
   }
 }
 
@@ -933,6 +936,19 @@ export async function generateValidatedRound(
   // more than a full Pursuit round's worth, without discarding a
   // legitimately smaller top-up request.
   const count = roundType === "pursuit" ? Math.min(spec.count, PURSUIT_TOTAL_QUESTIONS) : spec.count;
+  // Codex pre-launch review, finding #9: the permanent Question Memory
+  // check/write "fails open" on a Supabase error - the candidate is allowed
+  // through (or accepted without being remembered) rather than blocking
+  // generation entirely on a transient infra blip, which was a deliberate
+  // tradeoff (see isDuplicateInMemory's own comments on an earlier version
+  // that failed closed and stalled entire rounds on unrelated errors). What
+  // was missing was ANY visibility into that happening - a run degraded
+  // this way looked identical to a fully healthy one. This counter surfaces
+  // it in the round's own finalStatus message instead.
+  let memoryDegradedCount = 0;
+  const degradedSuffix = () => memoryDegradedCount > 0
+    ? " (note: the permanent duplicate-memory check was unavailable for " + memoryDegradedCount + " question" + (memoryDegradedCount === 1 ? "" : "s") + " during this run - duplicate protection may be reduced for those.)"
+    : "";
   const report: GenerationReportEntry[] = [];
   const addReportEntry = (entry: Omit<GenerationReportEntry, "id">) => { report.push({ ...entry, id: genUid() }); };
   const reportGeneratedFailure = (context: GenerationContext, fallbackType: string) => {
@@ -981,6 +997,18 @@ export async function generateValidatedRound(
   const good: Question[] = [];
   let attempts = 0;
   const maxAttempts = count * 14;
+  // Codex pre-launch review, finding #11: maxAttempts alone (up to 140
+  // candidate attempts for a 10-question round, each spawning generation
+  // plus several AI validators) can still add up to hundreds of real API
+  // calls and a very long visible wait in a genuinely hard case, even
+  // though it's bounded in COUNT. A wall-clock budget bails out with
+  // whatever's been generated so far well before that, rather than the host
+  // just watching the same status message for minutes with no idea if it's
+  // still working or has effectively stalled. ~20s/question is generous
+  // headroom above the typical per-candidate round-trip time, with a 90s
+  // floor so a small round (count=1-2) still gets a fair number of retries.
+  const generationStartedAt = Date.now();
+  const wallClockBudgetMs = Math.max(90_000, count * 20_000);
   let i = 0;
   let consecutiveFailures = 0;
   let consecutiveCheckFailures = 0;
@@ -1084,6 +1112,11 @@ export async function generateValidatedRound(
   refillPipeline();
 
   while (good.length < count && pending.length > 0) {
+    if (Date.now() - generationStartedAt > wallClockBudgetMs) {
+      const finalStatus = "Generation stopped after " + Math.round((Date.now() - generationStartedAt) / 1000) + "s to avoid an excessive wait. Got " + good.length + " of " + count + " - use Generate More to top up the rest, or try a different/more specific theme." + degradedSuffix();
+      onProgress?.(finalStatus);
+      return { spec, questions: good, report, finalStatus, stoppedEarly: true };
+    }
     onProgress?.("Generating and checking question " + (good.length + 1) + " of " + count + "..." + (consecutiveFailures > 0 ? " (retry " + consecutiveFailures + ")" : ""));
     const current = pending.shift()!;
     const { type, context } = current;
@@ -1097,7 +1130,7 @@ export async function generateValidatedRound(
         || err.includes("not logged in") || err.includes("authentication") || err.includes("rate limit")
         || err.includes("too many requests") || consecutiveFailures >= 6;
       if (isPersistent) {
-        const finalStatus = "Generation failed after " + consecutiveFailures + " attempts: " + (context.error || "unknown error");
+        const finalStatus = "Generation failed after " + consecutiveFailures + " attempts: " + (context.error || "unknown error") + degradedSuffix();
         onProgress?.(finalStatus);
         return { spec, questions: good, report, finalStatus, stoppedEarly: true };
       }
@@ -1106,7 +1139,7 @@ export async function generateValidatedRound(
     }
     consecutiveFailures = 0;
     onProgress?.("Checking question " + (good.length + 1) + " of " + count + "...");
-    const validation = await validateCandidate(q, good, context.report.stages, theme, exclusions);
+    const validation = await validateCandidate(q, good, context.report.stages, theme, exclusions, () => { memoryDegradedCount++; });
     // validateCandidate's own duplicate check ran BEFORE the several awaited
     // moderation/quality/memory calls above - during that gap, a sibling
     // round generating at the same time (generateAllRounds runs every
@@ -1126,7 +1159,7 @@ export async function generateValidatedRound(
       continue;
     }
     if (validation.ok) {
-      await commitToMemory(q);
+      await commitToMemory(q, () => { memoryDegradedCount++; });
       good.push(q);
       acceptedCounts[type] = (acceptedCounts[type] || 0) + 1;
       registerAccepted(exclusions, q);
@@ -1137,7 +1170,7 @@ export async function generateValidatedRound(
     } else {
       if (validation.category === "Moderation unavailable") {
         addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
-        const finalStatus = "Generation stopped because moderation could not be reached. " + validation.reason;
+        const finalStatus = "Generation stopped because moderation could not be reached. " + validation.reason + degradedSuffix();
         onProgress?.(finalStatus);
         return { spec, questions: good, report, finalStatus, stoppedEarly: true };
       }
@@ -1155,7 +1188,7 @@ export async function generateValidatedRound(
       // random angle - that steering needs room to actually pay off instead
       // of the round giving up right as it starts working.
       if (consecutiveCheckFailures >= 45) {
-        const finalStatus = "Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + (validation.reason || "Unknown reason").substring(0, 60) + "). Got " + good.length + " of " + count + ". This topic/theme may be close to exhausted in your saved question history - try a different or more specific theme. See Generation Report for details.";
+        const finalStatus = "Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + (validation.reason || "Unknown reason").substring(0, 60) + "). Got " + good.length + " of " + count + ". This topic/theme may be close to exhausted in your saved question history - try a different or more specific theme. See Generation Report for details." + degradedSuffix();
         onProgress?.(finalStatus);
         return { spec, questions: good, report, finalStatus, stoppedEarly: true };
       }
@@ -1163,9 +1196,9 @@ export async function generateValidatedRound(
     refillPipeline();
   }
 
-  const finalStatus = good.length === count
+  const finalStatus = (good.length === count
     ? "Ready - " + good.length + " of " + count + " questions generated."
-    : good.length + " of " + count + " questions ready.";
+    : good.length + " of " + count + " questions ready.") + degradedSuffix();
   onProgress?.(finalStatus);
   return { spec, questions: good, report, finalStatus, stoppedEarly: good.length < count };
 }

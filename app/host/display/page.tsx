@@ -236,6 +236,12 @@ function DisplayScreenInner() {
   // filter to the current question without re-subscribing.
   const [lockedTeams, setLockedTeams] = useState<string[]>([]);
   const qIndexRef = useRef(0);
+  // Codex pre-launch review, finding #8: guards against an out-of-order
+  // session snapshot (e.g. a slow poll response landing after a newer
+  // realtime update already applied) overwriting the display with stale
+  // data - see applySession below and the sessions.updated_at trigger in
+  // supabase/migrations/202608270004_session_updated_at_ordering.sql.
+  const lastAppliedUpdatedAtRef = useRef(0);
   const lockedQuestionRef = useRef(-1);
   // Lobby Power-Card rules rotation (Time-Out · Boost · Reverse), one at a time.
   const [powerCardIdx, setPowerCardIdx] = useState(0);
@@ -563,6 +569,17 @@ function DisplayScreenInner() {
     setRoundCardPlays(data.map(c => ({ team_name: c.team_name, card_type: c.card_type, round_number: c.round_number ?? null })));
   }
   function applySession(data: Record<string, unknown>) {
+    // Discard this snapshot entirely if it's older than one we've already
+    // applied - a strict `<` (not `<=`) so the same event arriving twice
+    // (once via realtime, once via the next poll tick) still re-applies
+    // harmlessly rather than being treated as stale. Sessions without an
+    // updated_at yet (shouldn't happen post-migration, but defensively) fall
+    // through and apply as before.
+    const incomingUpdatedAt = data.updated_at ? new Date(data.updated_at as string).getTime() : null;
+    if (incomingUpdatedAt !== null) {
+      if (incomingUpdatedAt < lastAppliedUpdatedAtRef.current) return;
+      lastAppliedUpdatedAtRef.current = incomingUpdatedAt;
+    }
     const newPhase = (data.phase as Phase) || "waiting";
     const spinChoiceVal = (data.spin_choice as string) || null;
     const spinNonceVal = (data.spin_nonce as number) ?? null;

@@ -15,6 +15,7 @@ import { TeamPhotoUpload } from "@/components/player/TeamPhotoUpload";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { platformLogger } from "@/lib/platform/logger";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
+import { isAnswerCorrect } from "@/lib/quiz/answerScoring";
 
 type Question = {
   question_text: string;
@@ -1260,7 +1261,20 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           </>
         ) : (() => {
           const correctText = question ? getCorrectAnswerText(question) : "";
-          const myAnswerCorrect = !!mySubmittedDisplay && mySubmittedDisplay.trim().toLowerCase() === correctText.trim().toLowerCase();
+          // Codex #12: was a naive exact-string compare of the DISPLAY text
+          // against the correct DISPLAY text - only ever right for multiple
+          // choice by coincidence (where both sides happen to be the same
+          // option text), and wrong for multi_tap (which displays comma-
+          // joined option text but stores comma-joined keys) or anything
+          // fuzzy-matched by scoring (a typo'd but accepted text answer would
+          // show as "incorrect" here despite having scored points). Reuses
+          // the same isAnswerCorrect verdict as the main reveal screen above.
+          const submittedAnswerText = question
+            ? (question.question_type === "multiple_choice" ? selectedAnswer
+              : question.question_type === "multi_tap" ? tappedItems.join(",")
+              : mySubmittedDisplay)
+            : "";
+          const myAnswerCorrect = !!question && !!submittedAnswerText && isAnswerCorrect({ answer_text: submittedAnswerText }, question);
           return (
             <>
               {fastestTeamName && (
@@ -1325,31 +1339,45 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
   if ((phase === "answer" || (phase === "pursuit" && pursuitStatus === "reveal")) && question) {
     const correctText = getCorrectAnswerText(question);
-    // Authoritative verdict only for multiple choice, where the picked key vs the
-    // correct key is exactly what scoring compares — never a guessed/fuzzy verdict
-    // that could disagree with the score. Other types show the correct answer.
-    const isMC = question.question_type === "multiple_choice";
-    const mcVerdict = isMC && submitted && selectedAnswer
-      ? (selectedAnswer.toLowerCase() === (question.correct_answer || "").trim().toLowerCase())
+    // Codex #12: this used to compute an authoritative verdict ONLY for
+    // multiple choice (comparing the picked letter key to the correct key),
+    // and every other type — text/number/sequence/multi_tap/picture/audio —
+    // just showed the correct answer next to "Your answer: ..." with no
+    // CORRECT/INCORRECT verdict, leaving the player to work out for
+    // themselves whether they'd got it right. isAnswerCorrect is now the same
+    // function autoScore uses to award points (lib/quiz/answerScoring.ts), so
+    // reusing it here for every type can never disagree with the real score -
+    // it just needs the exact string that was actually submitted for
+    // answer_text, which differs by type (MC/multi_tap submit key(s), the
+    // rest submit the same display text shown in mySubmittedDisplay).
+    const submittedAnswerText = question.question_type === "multiple_choice"
+      ? selectedAnswer
+      : question.question_type === "multi_tap"
+        ? tappedItems.join(",")
+        : mySubmittedDisplay;
+    const verdict = submitted && submittedAnswerText
+      ? isAnswerCorrect({ answer_text: submittedAnswerText }, question)
       : null;
     return (
-      <div className={"fbl fbl-phone qi-player-state qi-player-answer" + (mcVerdict === true ? " is-correct" : mcVerdict === false ? " is-incorrect" : "")} style={{ minHeight: "100vh", display: "flex", flexDirection: "column", padding: 20 }}>
+      <div className={"fbl fbl-phone qi-player-state qi-player-answer" + (verdict === true ? " is-correct" : verdict === false ? " is-incorrect" : "")} style={{ minHeight: "100vh", display: "flex", flexDirection: "column", padding: 20 }}>
         <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
-        {mcVerdict === true ? (
+        {verdict === true ? (
           /* The player's whole moment: did I get it? — one dominant answer. */
           <div style={{ position: "relative", zIndex: 2, margin: "auto 0", textAlign: "center" }}>
             <PlayerResultBanner tone="correct" title="CORRECT">{correctText}</PlayerResultBanner>
           </div>
         ) : (
           <>
-            <div style={{ position: "relative", zIndex: 2, fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 14, letterSpacing: ".14em", color: "#B9A8D9", marginBottom: 12 }}>ANSWER REVEALED</div>
+            <div style={{ position: "relative", zIndex: 2, fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 14, letterSpacing: ".14em", color: "#B9A8D9", marginBottom: 12 }}>
+              {verdict === false ? "INCORRECT" : "ANSWER REVEALED"}
+            </div>
             <div style={{ position: "relative", zIndex: 2, font: "700 clamp(15px,4.2vw,17px) 'Inter'", lineHeight: 1.4, marginBottom: 16, color: "rgba(255,255,255,0.6)" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
             <div style={{ position: "relative", zIndex: 2, padding: "18px 20px", borderRadius: 16, background: "rgba(46,224,110,0.15)", border: "1px solid rgba(46,224,110,0.5)", marginBottom: 14 }}>
               <div style={{ font: "700 13px 'Inter'", color: "#2EE06E", letterSpacing: ".18em", marginBottom: 6 }}>CORRECT ANSWER</div>
               <div style={{ font: "800 clamp(24px,7vw,32px) 'Inter'", color: "#2EE06E" }}>{correctText}</div>
             </div>
             {submitted && (
-              <div style={{ position: "relative", zIndex: 2, font: "600 14px 'Inter'", color: mcVerdict === false ? "#FF3B4E" : "#B9A8D9", marginBottom: 12 }}>
+              <div style={{ position: "relative", zIndex: 2, font: "600 14px 'Inter'", color: verdict === false ? "#FF3B4E" : "#B9A8D9", marginBottom: 12 }}>
                 Your answer: {mySubmittedDisplay || "(no answer submitted)"}
               </div>
             )}

@@ -18,6 +18,7 @@ import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { FEATURE_FLAGS } from "@/lib/platform/featureFlags";
 import { platformLogger } from "@/lib/platform/logger";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
+import { isAnswerCorrect as sharedIsAnswerCorrect, getCorrectAnswerText as sharedGetCorrectAnswerText } from "@/lib/quiz/answerScoring";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
 
@@ -538,106 +539,17 @@ function QuizControllerInner() {
     loadScores(pin);
   }
 
-  function normalise(s: string): string {
-    return s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/^(the|a|an) /i, "").trim();
-  }
-
-  function levenshtein(a: string, b: string): number {
-    const m = a.length, n = b.length;
-    const dp: number[][] = Array.from({length: m+1}, (_,i) => Array.from({length: n+1}, (_,j) => i===0?j:j===0?i:0));
-    for (let i=1;i<=m;i++) for (let j=1;j<=n;j++)
-      dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
-    return dp[m][n];
-  }
-
-  function isFuzzyMatch(answer: string, correct: string, q?: Question): boolean {
-    // For multiple choice, also accept the letter key
-    if (q && q.question_type === "multiple_choice") {
-      const key = answer.trim().toLowerCase();
-      if (key === q.correct_answer.toLowerCase()) return true;
-    }
-    // Numbers must match exactly - no fuzzy/typo tolerance, a wrong digit is just wrong
-    if (q && q.question_type === "number") {
-      return answer.trim() === correct.trim();
-    }
-    const a = normalise(answer);
-    const b = normalise(correct);
-    if (a === b) return true;
-    if (a === "" || b === "") return false;
-    // Partial match: answer is contained in correct or vice versa - require a meaningful fraction, not just 3+ chars, to avoid false positives like "her" matching inside "Cher"
-    if (b.includes(a) && a.length >= 4 && a.length >= b.length * 0.6) return true;
-    if (a.includes(b) && b.length >= 4 && b.length >= a.length * 0.6) return true;
-    // Check each word of correct answer against answer
-    const bWords = b.split(" ");
-    if (bWords.length > 1) {
-      for (const word of bWords) {
-        if (word.length >= 4 && a === word) return true;
-      }
-    }
-    const maxDist = Math.max(1, Math.floor(b.length * 0.3));
-    return levenshtein(a, b) <= maxDist;
-  }
-
+  // Codex #12/#10: the actual matching logic now lives in
+  // lib/quiz/answerScoring.ts, shared with the player handset
+  // (components/PlayerQuizScreen.tsx) so the "did this team get it right"
+  // verdict shown to players can never disagree with what autoScore below
+  // actually used to award points. These wrappers just keep every call site
+  // in this file unchanged.
   function getCorrectAnswerText(q: Question): string {
-    if (q.question_type === "multiple_choice") {
-      const map: Record<string, string|null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
-      return map[q.correct_answer.toLowerCase()] || q.correct_answer;
-    }
-    if (q.question_type === "sequence") {
-      const map: Record<string, string|null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
-      const order = q.correct_answer.split(",").map(s => s.trim().toLowerCase());
-      const texts = order.map(key => map[key]).filter((t): t is string => !!t);
-      if (texts.length === order.length) return texts.join(", ");
-      return q.correct_answer;
-    }
-    if (q.question_type === "multi_tap") {
-      const map: Record<string, string|null|undefined> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d, e: q.option_e, f: q.option_f };
-      const keys = q.correct_answer.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
-      const texts = keys.map(key => map[key]).filter((t): t is string => !!t);
-      if (texts.length === keys.length) return texts.join(", ");
-      return q.correct_answer;
-    }
-    return q.correct_answer;
+    return sharedGetCorrectAnswerText(q);
   }
-
-  // Single source of truth for "did this team get the question right", used by
-  // BOTH autoScore (actual point-awarding) and doCelebrate (fastest-team display
-  // and victory song/bonus eligibility). Previously doCelebrate used isFuzzyMatch
-  // directly for every type, including Multi Tap - but Multi Tap answers are
-  // comma-separated tap-key lists ("a,c,e"), not plain text, so fuzzy text
-  // matching on them was essentially meaningless. That mismatch let a team that
-  // didn't tap all the correct items still show up as "fastest", while the
-  // actual scoring (correctly requiring all taps) could award them 0 points -
-  // exactly the "fastest team got 0 points" / "wrong team got fastest" reports.
   function isAnswerCorrect(ans: Answer, q: Question): boolean {
-    if (q.question_type === "multi_tap") {
-      const correctKeys = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
-      const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
-      const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
-      const wrongTaps = tappedKeys.filter(k => !correctKeys.includes(k));
-      // Exact match required both ways: every correct key tapped, AND no extra wrong taps -
-      // previously a team could tap every correct answer PLUS a wrong one and still be marked correct.
-      return correctTaps.length === correctKeys.length && wrongTaps.length === 0 && correctKeys.length > 0;
-    }
-    // Sequence: the player screen (SequenceQuestion) only ever submits the
-    // fixed option texts, tapped in whatever order the team chose, joined
-    // with ", " - never free-typed text. Order is the whole point of this
-    // question type, so it must be compared position-by-position, not as one
-    // fuzzy-matched blob. Comparing the full joined strings with isFuzzyMatch
-    // let a team that tapped every item RIGHT but in the WRONG order still
-    // read as "correct" (and even get credited as fastest correct answer),
-    // because word-transposition edit distance can land inside the generic
-    // 30%-of-length tolerance meant for typos, not reordering.
-    if (q.question_type === "sequence") {
-      const map: Record<string, string|null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
-      const order = (q.correct_answer||"").split(",").map(s => s.trim().toLowerCase());
-      const correctItems = order.map(key => map[key]).filter((t): t is string => !!t);
-      if (correctItems.length === 0 || correctItems.length !== order.length) return false;
-      const submittedItems = (ans.answer_text||"").split(",").map(s => s.trim());
-      if (submittedItems.length !== correctItems.length) return false;
-      return correctItems.every((item, i) => normalise(item) === normalise(submittedItems[i]||""));
-    }
-    return isFuzzyMatch(ans.answer_text, getCorrectAnswerText(q), q);
+    return sharedIsAnswerCorrect(ans, q);
   }
 
   async function autoScore(teamList: Team[], q: Question, currentAnswers: Answer[]) {

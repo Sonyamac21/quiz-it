@@ -223,6 +223,13 @@ function DisplayScreenInner() {
   const [phase, setPhase] = useState<Phase>("waiting");
   const [question, setQuestion] = useState<Question | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
+  // Same round-boundary timestamp the host page persists (see
+  // supabase/migrations/202608270002_session_round_started_at.sql) - used
+  // to scope the "Locked In" answers query below to THIS round only.
+  // Question indexes restart at 0 every round, so without this boundary an
+  // answer left over from a previous round with the same index could
+  // reappear as a currently-locked-in team.
+  const [roundStartedAt, setRoundStartedAt] = useState<string | null>(null);
   // Live "locked in" count: distinct teams that have submitted an answer for the
   // CURRENT question, driven by realtime answers INSERTs (not the post-reveal
   // answered_teams snapshot). qIndexRef lets the once-subscribed answers callback
@@ -567,6 +574,7 @@ function DisplayScreenInner() {
     }
     setQuestion((data.current_question as Question) || null);
     setQuestionIndex((data.current_question_index as number) ?? 0);
+    setRoundStartedAt((data.round_started_at as string) ?? null);
     qIndexRef.current = (data.current_question_index as number) ?? 0;
     if (data.picture_sub_phase === "question_visible" || data.picture_sub_phase === "image_only") {
       setPictureSubPhase(data.picture_sub_phase);
@@ -986,17 +994,20 @@ function DisplayScreenInner() {
     let active = true;
     const supabase = createSupabaseBrowserClient();
     const load = async () => {
-      const { data } = await supabase.from("answers")
+      let q = supabase.from("answers")
         .select("team_name")
         .eq("session_pin", sessionPin)
         .eq("question_index", questionIndex);
+      // Scope to the current round only - see roundStartedAt above.
+      if (roundStartedAt) q = q.gte("submitted_at", roundStartedAt);
+      const { data } = await q;
       if (!active || !data) return;
       setLockedTeams([...new Set(data.map(row => row.team_name).filter(Boolean))]);
     };
     load();
     const id = window.setInterval(load, PLATFORM_CONFIG.polling.displayScoreboardMilliseconds);
     return () => { active = false; window.clearInterval(id); };
-  }, [connected, sessionPin, phase, questionIndex]);
+  }, [connected, sessionPin, phase, questionIndex, roundStartedAt]);
 
   useEffect(() => {
     const pinFromUrl = searchParams.get("pin");

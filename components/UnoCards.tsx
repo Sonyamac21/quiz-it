@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { setScoreAbsolute } from "@/lib/quiz/scoreService";
 
 const CARDS = [
   { type: "block",   label: "Time-Out", emoji: "⏸",  color: "#60a5fa", bg: "rgba(59,130,246,0.25)", desc: "Freezes all other teams for 10 seconds — activates when the host starts the timer." },
@@ -56,19 +55,40 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       return;
     }
     const playedAt = new Date().toISOString();
-    // REVERSE needs an existing score to change. Check that before atomically
-    // consuming the card so a team never loses it without receiving its effect.
-    let reversedScore: number | null = null;
+    // REVERSE: consuming the card and reversing the score now happen in a
+    // single atomic database transaction (play_reverse_card RPC - see
+    // supabase/migrations/202608270001_atomic_score_functions.sql). This
+    // replaces the old sequence of "read score in JS, insert spent-card row,
+    // then separately write the reversed score" - which could overwrite a
+    // concurrent score change, or spend the card without its effect landing
+    // if the later write failed. The RPC reads the CURRENT score and
+    // consumes the card in the same transaction, so either both happen or
+    // neither does.
     if (cardType === "reverse" && sessionPin) {
-      const { data: existing } = await supabase.from("scores").select("total_points").eq("session_pin", sessionPin).eq("team_name", teamName).maybeSingle();
-      if (!existing) {
-        // No score row to reverse yet — do not consume the card, let the team keep it.
+      const { data, error } = await supabase.rpc("play_reverse_card", {
+        p_session_pin: sessionPin,
+        p_team_name: teamName,
+        p_round_number: roundNumber ?? null,
+        p_event_key: `reverse:${sessionPin}:${teamName}:${playedAt}`,
+      });
+      if (error) {
+        console.error("Reverse card failed:", error.message);
         setPlaying(null);
         return;
       }
-      const current = existing.total_points || 0;
-      const sign = current < 0 ? -1 : 1;
-      reversedScore = sign * parseInt(Math.abs(current).toString().split("").reverse().join("") || "0", 10);
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row?.applied) {
+        // card-already-used / no-score-row / already-applied - refetch so
+        // this handset reflects whatever actually happened rather than
+        // assuming the card is still available.
+        const { data: cards } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin);
+        if (cards) setUsed([...new Set(cards.map(d => d.card_type))]);
+        setPlaying(null);
+        return;
+      }
+      setUsed(prev => [...prev, cardType]);
+      setPlaying(null);
+      return;
     }
     const { error: consumeError } = await supabase.from("uno_cards").insert({
       team_name: teamName,
@@ -86,12 +106,6 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       if (data) setUsed([...new Set(data.map(d => d.card_type))]);
       setPlaying(null);
       return;
-    }
-    if (cardType === "reverse" && sessionPin && reversedScore != null) {
-      const result = await setScoreAbsolute(supabase, sessionPin, teamName, reversedScore, {
-        eventKey: `reverse:${sessionPin}:${teamName}:${playedAt}`,
-      });
-      if (result.scoreboardSyncError) console.error("Reverse card: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
     }
     if (cardType === "block" && sessionPin) {
       // Store as pending — the 10-second lockout activates when the HOST presses

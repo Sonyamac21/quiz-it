@@ -376,6 +376,11 @@ function QuizControllerInner() {
     }
     if (typeof data.current_question_index === "number") setQIdx(data.current_question_index);
     if (typeof data.round_number === "number") setRoundNumber(data.round_number);
+    // Restore the round-boundary timestamp so a refresh mid-round doesn't
+    // reset roundStartedRef back to 0, which would otherwise let an old
+    // answer from a previous round (same question index, since indexes
+    // restart each round) get pulled into current scoring/boost queries.
+    if (data.round_started_at) roundStartedRef.current = new Date(data.round_started_at as string).getTime();
     if (data.fastest_team) { setFastestTeam(data.fastest_team as string); fastestTeamRef.current = data.fastest_team as string; }
     if (data.fastest_song) setFastestSong(data.fastest_song as string);
     const hotSeat = readHotSeatState(data);
@@ -1088,13 +1093,23 @@ function QuizControllerInner() {
     setHotSeatAnswerStartedAt(null);
     setTimeLeft(getTimerForQuestion(selectedRound.questions[0], timerDuration));
     setHostPhase("round_start");
-    roundStartedRef.current = Date.now();
+    const roundStartedAt = Date.now();
+    roundStartedRef.current = roundStartedAt;
     playSound("round-start.mp3");
     const supabase = createSupabaseBrowserClient();
+    // round_started_at is persisted here (not just kept in roundStartedRef,
+    // a plain useRef) so a host browser refresh mid-round can restore it -
+    // see restoreSessionState below. Without this, a refresh reset the ref
+    // back to 0, which made every answer-scoping query below effectively
+    // unfiltered (submitted_at >= epoch matches everything), letting a
+    // leftover answer from an earlier round - with the same question index,
+    // since indexes restart at 0 each round - get pulled into the current
+    // round's scoring.
     await supabase.from("sessions").update({
       phase: "round_start",
       round_name: selectedRound.name,
       round_number: roundNumber,
+      round_started_at: new Date(roundStartedAt).toISOString(),
       fastest_team: null,
       fastest_song: null,
       hide_leaderboard: selectedRound.hide_leaderboard ?? false,

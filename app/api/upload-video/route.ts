@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,15 @@ const ACCEPTED_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 
 export async function POST(req: NextRequest) {
   try {
+    // Codex pre-launch review, finding #6: no auth check. Every real caller
+    // (venues page, VideoUploader) is a logged-in host page.
+    const res = new NextResponse();
+    const supabase = createSupabaseServerClient(req, res);
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user) {
+      return NextResponse.json({ error: { message: "Not logged in - please log in again." } }, { status: 401 });
+    }
+
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       return NextResponse.json(
         { error: { message: "Video storage isn't configured yet - BLOB_READ_WRITE_TOKEN is missing." } },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -8,6 +9,20 @@ const MAX_DIMENSION = 1600; // longest edge, px - plenty for a TV display, keeps
 
 export async function POST(req: NextRequest) {
   try {
+    // Codex pre-launch review, finding #6: this route had no auth check at
+    // all - anyone who found the URL could write into the paid Vercel Blob
+    // store. Every real caller (venues page, ImageUploader, Pixabay persist
+    // for question images) is a logged-in host page; the player-facing
+    // photo upload goes straight to Supabase Storage, never through this
+    // route - so requiring a host session here doesn't break anything that
+    // currently works.
+    const res = new NextResponse();
+    const supabase = createSupabaseServerClient(req, res);
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user) {
+      return NextResponse.json({ error: { message: "Not logged in - please log in again." } }, { status: 401 });
+    }
+
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       return NextResponse.json(
         { error: { message: "Image storage isn't configured yet - BLOB_READ_WRITE_TOKEN is missing. Create a Vercel Blob store for this project and redeploy." } },

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HostShell, HostButton, HostLoading, HostEmpty, TopSpacer } from "@/components/fable/HostConsole";
+import { useConfirmDialog, usePromptDialog } from "@/components/ui/quiz-it-ui";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
@@ -50,6 +51,8 @@ const ROUND_LAUNCHER_TYPES: { key: string; label: string }[] = [
 const selectStyle: React.CSSProperties = { flex: 1, padding: "9px 12px", borderRadius: 14, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", fontSize: 13, fontFamily: "'Inter',sans-serif", minWidth: 0, outline: "none" };
 
 export default function RoundsPage() {
+  const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
+  const { promptDialog, dialog: promptDialogEl } = usePromptDialog();
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
   const [openRound, setOpenRound] = useState<Round | null>(null);
@@ -66,9 +69,10 @@ export default function RoundsPage() {
   }, []);
 
   async function moveRoundToFolder(round: Round) {
-    const input = window.prompt(
-      "Move \"" + round.name + "\" to which folder? Leave blank for no folder (shows in All Rounds).",
-      round.folder || ""
+    const input = await promptDialog(
+      `Move "${round.name}" to which folder? Leave blank for no folder (shows in All Rounds).`,
+      round.folder || "",
+      { title: "Move round", confirmLabel: "Move", placeholder: "Folder name" }
     );
     if (input === null) return;
     const folder = input.trim() || null;
@@ -85,7 +89,7 @@ export default function RoundsPage() {
     setTimeout(() => setStatus(""), 2000);
   }
   async function deleteRound(id: string) {
-    if (!confirm("Delete this round?")) return;
+    if (!await confirmDialog("Delete this round?", { tone: "destructive", confirmLabel: "Delete" })) return;
     const supabase = createSupabaseBrowserClient();
     await supabase.from("rounds").delete().eq("id", id);
     setRounds(prev => prev.filter(r => r.id !== id));
@@ -164,6 +168,8 @@ export default function RoundsPage() {
 
   return (
     <HostShell>
+      {confirmDialogEl}
+      {promptDialogEl}
       <div style={{ minHeight: "100vh", background: STAGE_BG, color: "#fff", padding: "24px", maxWidth: 980, margin: "0 auto" }}>
         {/* TOP BAR */}
         <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 20 }}>

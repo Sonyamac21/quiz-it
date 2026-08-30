@@ -4,6 +4,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { encodeWavFromBuffer, sliceAudioBuffer } from "@/lib/audio/wavEncoder";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { HostShell, HostButton, HostLoading, HostEmpty, TopSpacer } from "@/components/fable/HostConsole";
+import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
 import { generateValidatedRound, quickExclusionState } from "@/lib/quiz/generateRound";
 
 const purple = "#BE26C1";
@@ -202,6 +203,7 @@ function WaveformEditor({
 }
 
 export default function MusicPrepPage() {
+  const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
   const [openRound, setOpenRound] = useState<Round | null>(null);
@@ -365,7 +367,7 @@ export default function MusicPrepPage() {
   }
 
   async function removeQuestion(round: Round, qIdx: number) {
-    if (!window.confirm("Remove this question from the round?")) return;
+    if (!(await confirmDialog("Remove this question from the round?", { tone: "destructive", confirmLabel: "Remove" }))) return;
     const newQuestions = round.questions.filter((_, i) => i !== qIdx);
     const { error } = await writeQuestions(round, newQuestions);
     if (error) {
@@ -505,6 +507,7 @@ export default function MusicPrepPage() {
 
   return (
     <HostShell>
+      {confirmDialogEl}
       <div style={{ minHeight: "100vh", background: STAGE_BG, color: "#fff", padding: "24px", maxWidth: 980, margin: "0 auto" }}>
         {/* TOP BAR */}
         <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 20 }}>

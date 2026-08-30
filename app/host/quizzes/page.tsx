@@ -7,6 +7,7 @@ import type { LibraryRound, QuizDefinition, QuizRound } from "@/lib/quiz-builder
 import { generateAllRounds, generateValidatedRound, quickExclusionState, type RoundGenerationSpec } from "@/lib/quiz/generateRound";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell, Toggle } from "@/components/fable/HostConsole";
+import { useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
@@ -32,6 +33,8 @@ type BankQuestion = {
 };
 
 export default function QuizBuilderPage() {
+  const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
+  const { showToast, toastEl } = useToastQueue();
   const [quizzes, setQuizzes] = useState<QuizDefinition[]>([]);
   const [rounds, setRounds] = useState<LibraryRound[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -330,7 +333,7 @@ export default function QuizBuilderPage() {
         exclusions,
       );
       if (result.questions.length === 0) {
-        window.alert("Couldn't generate a replacement question: " + result.finalStatus);
+        showToast("Couldn't generate a replacement question: " + result.finalStatus, "error", 7000);
         return;
       }
       const newQuestions = round.questions.map((q, i) => i === qIndex ? result.questions[0] : q);
@@ -394,7 +397,7 @@ export default function QuizBuilderPage() {
     const runTargets = targets.filter(r => shortfalls[r.id] > 0);
     if (!runTargets.length) {
       setBulkRunning(false);
-      window.alert("Every selected round already has at least as many questions as its target count - nothing to generate. Raise a round's count in its settings to generate more.");
+      showToast("Every selected round already has at least as many questions as its target count - nothing to generate. Raise a round's count in its settings to generate more.", "info", 7000);
       return;
     }
     const specs: RoundGenerationSpec[] = runTargets.map(r => ({
@@ -741,11 +744,11 @@ export default function QuizBuilderPage() {
     const supabase = createSupabaseBrowserClient();
     const { count } = await supabase.from("events").select("id", { count: "exact", head: true }).eq("quiz_definition_id", quiz.id);
     if (count) { setError("This Quiz Plan is assigned to an event. Archive it instead of deleting it."); return; }
-    if (!confirm(`Delete “${quiz.name}”?`)) return;
+    if (!await confirmDialog(`Delete "${quiz.name}"?`, { tone: "destructive", confirmLabel: "Delete" })) return;
     await supabase.from("quizzes").delete().eq("id", quiz.id); setSelectedId(null); await load();
   }
 
-  return <HostShell><main className="qi-bo-page" style={{ minHeight: "100vh", background: BG, color: "#fff" }}>
+  return <HostShell>{confirmDialogEl}{toastEl}<main className="qi-bo-page" style={{ minHeight: "100vh", background: BG, color: "#fff" }}>
     <header className="qi-bo-pagehead" style={{ marginBottom: 10 }}><div><p style={{ margin: "0 0 2px" }}>Programme planning</p><h1 style={{ fontSize: "clamp(18px,1.6vw,22px)" }}>Quiz Library</h1></div><div className="qi-bo-page-actions">
       <div style={{ position: "relative" }}>
         <HostButton onClick={() => setPlansPanelOpen(v => !v)} style={{ minHeight: 44, display: "flex", alignItems: "center", gap: 8 }}>

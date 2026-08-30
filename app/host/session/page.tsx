@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HostShell, HostButton, HostInput, HostLabel, HostFrame, HostBody, HostPad, HostCrest, HostLoading, TopSpacer, Pill } from "@/components/fable/HostConsole";
+import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
@@ -23,6 +24,7 @@ function generatePin(): string {
 const HOST_STORAGE_KEY = "quizit_host_session";
 
 export default function SessionPage() {
+  const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
   const [pin, setPin] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [status, setStatus] = useState<"waiting" | "active" | "finished">("waiting");
@@ -365,6 +367,7 @@ export default function SessionPage() {
 
   return (
     <HostShell>
+      {confirmDialogEl}
       <div style={{ minHeight: "100vh", background: STAGE_BG, color: "#fff", padding: "24px 32px" }}>
         {/* TOP BAR — wordmark · breadcrumb · fixed nav */}
         <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 24 }}>
@@ -496,7 +499,7 @@ export default function SessionPage() {
                 </HostButton>
               )}
               {status === "active" && (
-                <HostButton big onClick={() => { if (window.confirm("End the quiz for everyone? This closes the live session and cannot be undone.")) endQuiz(); }} style={{ flex: 1 }}>END QUIZ</HostButton>
+                <HostButton big onClick={async () => { if (await confirmDialog("End the quiz for everyone? This closes the live session and cannot be undone.", { tone: "destructive", confirmLabel: "End Quiz" })) endQuiz(); }} style={{ flex: 1 }}>END QUIZ</HostButton>
               )}
             </div>
           </div>

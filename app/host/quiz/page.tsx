@@ -10,7 +10,7 @@ import { PhotoApprovalPanel } from "@/components/PhotoApprovalPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc } from "@/lib/quiz/scoreService";
 import { TeamBadge } from "@/components/TeamBadge";
-import { BrandLockup, Button, Field, Input, StatusPill } from "@/components/ui/quiz-it-ui";
+import { BrandLockup, Button, Field, Input, StatusPill, useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 import { HostDiagnostics } from "@/components/HostDiagnostics";
 import { diagnosticTimestamp } from "@/lib/diagnostics/time";
@@ -140,6 +140,11 @@ function playSound(file: string, volume = 1.0) {
 
 function QuizControllerInner() {
   const searchParams = useSearchParams();
+  // Codex #13: replaces window.confirm() for Skip Round/Skip Question/End
+  // Quiz/Close Session, which used to be able to block the whole tab if a
+  // host didn't immediately notice the native dialog.
+  const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
+  const { showToast, toastEl } = useToastQueue();
   const [sessionPin, setSessionPin] = useState("");
   const [sessionId, setSessionId] = useState<string|null>(null);
   const [connected, setConnected] = useState(false);
@@ -457,7 +462,7 @@ function QuizControllerInner() {
     if (!pinInput.trim()) return;
     const supabase = createSupabaseBrowserClient();
     const { data } = await supabase.from("sessions").select("*").eq("pin", pinInput.trim()).single();
-    if (!data) { alert("Session not found!"); return; }
+    if (!data) { showToast("Session not found!", "error"); return; }
     setSessionPin(pinInput.trim());
     setSessionId(data.id); sessionIdRef.current = data.id;
     setConnectedAt(data.created_at ? new Date(data.created_at as string).getTime() : diagnosticTimestamp());
@@ -742,8 +747,12 @@ function QuizControllerInner() {
     if (!sessionPin || isNaN(delta) || delta === 0) return;
     const supabase = createSupabaseBrowserClient();
     const result = await applyScoreDelta(supabase, sessionPin, teamName, delta);
+    if (result.error) {
+      showToast(`Score change for ${teamName} did not go through (${result.error}). Nothing was applied - try again.`, "error", 7000);
+      return;
+    }
     if (result.scoreboardSyncError) {
-      alert(`Score for ${teamName} was updated, but the scoreboard failed to refresh (${result.scoreboardSyncError}). Display/handsets may show a stale total until the next score change.`);
+      showToast(`Score for ${teamName} was updated, but the scoreboard failed to refresh (${result.scoreboardSyncError}). Display/handsets may show a stale total until the next score change.`, "warning", 7000);
     }
     loadScores(sessionPin);
     setAdjustTeam(null);
@@ -793,7 +802,7 @@ function QuizControllerInner() {
   }
 
   async function doEndOfQuiz() {
-    if (!sessionId) { alert("Not connected to a session - cannot end quiz."); return; }
+    if (!sessionId) { showToast("Not connected to a session - cannot end quiz.", "error"); return; }
     quizEndRevealedRef.current = 0;
     const supabase = createSupabaseBrowserClient();
     // "End quiz" needs to do two different things depending on where the
@@ -811,14 +820,18 @@ function QuizControllerInner() {
       const { error } = await supabase.from("sessions").update({ status: "finished" }).eq("id", sessionId);
       if (error) {
         console.error("Closing session failed:", error);
-        alert("Failed to close the session: " + error.message);
+        showToast("Failed to close the session: " + error.message, "error", 7000);
         return;
       }
       if (sessionRow?.event_id) {
         await supabase.from("events").update({ status: "completed", updated_at: new Date().toISOString() }).eq("id", sessionRow.event_id);
       }
-      alert("Session closed. It'll now show up under Reports as completed.");
-      window.location.href = "/host/session";
+      showToast("Session closed. It'll now show up under Reports as completed.", "success");
+      // Was an alert() before - navigation only happened once the host
+      // dismissed the blocking dialog, which guaranteed they saw the
+      // message. A brief delay here keeps that same guarantee with the
+      // non-blocking toast instead of navigating away before it's visible.
+      setTimeout(() => { window.location.href = "/host/session"; }, 1200);
       return;
     }
     // scoreboard_data is kept fresh by the score service after every score
@@ -826,12 +839,12 @@ function QuizControllerInner() {
     const { data, error } = await supabase.from("sessions").update({ phase: "quiz_end", quiz_end_revealed_count: 0, quiz_end_trophy_visible: false }).eq("id", sessionId).select();
     if (error) {
       console.error("doEndOfQuiz failed:", error);
-      alert("Failed to end quiz: " + error.message);
+      showToast("Failed to end quiz: " + error.message, "error", 7000);
       return;
     }
     if (!data || data.length === 0) {
       console.error("doEndOfQuiz matched zero rows for sessionId:", sessionId);
-      alert("End Quiz didn't update - the session link may be stale. Try refreshing the host page.");
+      showToast("End Quiz didn't update - the session link may be stale. Try refreshing the host page.", "error", 7000);
       return;
     }
     setHostPhase("quiz_end");
@@ -1241,7 +1254,7 @@ function QuizControllerInner() {
       hot_seat_answer_started_at: null,
     }).eq("id", sessionId);
     if (error) {
-      alert("Hot Seat could not reopen. Check the connection and try again.");
+      showToast("Hot Seat could not reopen. Check the connection and try again.", "error", 7000);
       return;
     }
     setHotSeatStatus(nextStatus);
@@ -1447,7 +1460,7 @@ function QuizControllerInner() {
   }
 
   async function doDumpQuestion() {
-    if (!confirm("Skip this question without scoring it? It stays in the round for next time - it just won't be played tonight.")) return;
+    if (!await confirmDialog("Skip this question without scoring it? It stays in the round for next time - it just won't be played tonight.")) return;
     if (!selectedRound || !sessionId) return;
     const nextIdx = qIdx + 1;
     if (nextIdx >= selectedRound.questions.length) {
@@ -1614,6 +1627,8 @@ function QuizControllerInner() {
 
   return (
     <div className="fbh qi-mc-shell">
+      {confirmDialogEl}
+      {toastEl}
       {/* HEADER */}
       <header className="qi-mc-header">
         <div className="qi-mc-brand">
@@ -1711,9 +1726,9 @@ function QuizControllerInner() {
             other way forward. Always visible during a round (not just when
             stuck) so the host never has to hunt for it mid-show. */}
         {hostPhase !== "waiting" && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
-          <Button variant="secondary" onClick={() => { if (window.confirm("Skip the rest of this round and move on? Use this if the round is stuck (e.g. Space isn't doing anything).")) doEndRound(); }}>Skip Round</Button>
+          <Button variant="secondary" onClick={async () => { if (await confirmDialog("Skip the rest of this round and move on? Use this if the round is stuck (e.g. Space isn't doing anything).")) doEndRound(); }}>Skip Round</Button>
         )}
-        <Button variant="destructive" className="qi-mc-toolbar__end" onClick={() => { const closing = hostPhase === "quiz_end"; if (window.confirm(closing ? "Close this session for good? It'll be marked completed in Reports and cannot be reopened." : "End the quiz for everyone? This closes the live session and cannot be undone.")) doEndOfQuiz(); }}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
+        <Button variant="destructive" className="qi-mc-toolbar__end" onClick={async () => { const closing = hostPhase === "quiz_end"; if (await confirmDialog(closing ? "Close this session for good? It'll be marked completed in Reports and cannot be reopened." : "End the quiz for everyone? This closes the live session and cannot be undone.", { tone: "destructive", confirmLabel: closing ? "Close Session" : "End Quiz" })) doEndOfQuiz(); }}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
       </div>
 
       {/* DOMINANT NEXT-ACTION BAR — the one thing the host acts on next, huge and

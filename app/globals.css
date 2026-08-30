@@ -221,6 +221,14 @@ button, input, select, textarea { font: inherit; }
 .qi-drawer__header h2 { margin: 0; font-size: 1.25rem; }
 .qi-drawer__body { padding: var(--qi-space-5); overflow-y: auto; }
 
+/* Codex #13: replaces window.confirm(), which blocks the whole tab. */
+.qi-confirm { position: fixed; inset: 0; z-index: var(--qi-z-overlay); display: grid; place-items: center; padding: var(--qi-space-5); }
+.qi-confirm__scrim { position: absolute; inset: 0; border: 0; background: rgb(3 0 10 / 0.72); cursor: default; }
+.qi-confirm__panel { position: relative; width: min(92vw, 26rem); background: var(--qi-bg-surface-elevated); border: 1px solid var(--qi-border); border-radius: var(--qi-radius-md); box-shadow: var(--qi-shadow-md); padding: var(--qi-space-5); }
+.qi-confirm__panel h2 { margin: 0 0 var(--qi-space-2); font-size: 1.1rem; }
+.qi-confirm__panel p { margin: 0; color: var(--qi-text-secondary); line-height: 1.5; }
+.qi-confirm__actions { display: flex; justify-content: flex-end; gap: var(--qi-space-3); margin-top: var(--qi-space-5); }
+
 .qi-segments { display: inline-flex; max-width: 100%; padding: var(--qi-space-1); border: 1px solid var(--qi-border); border-radius: var(--qi-radius-md); background: var(--qi-bg-surface); overflow-x: auto; }
 .qi-segments button { min-height: 42px; border: 0; border-radius: calc(var(--qi-radius-md) - 4px); padding: 0 var(--qi-space-4); background: transparent; color: var(--qi-text-secondary); cursor: pointer; white-space: nowrap; }
 .qi-segments button[aria-pressed="true"] { background: var(--qi-accent); color: var(--qi-text-primary); font-weight: 750; }

@@ -1288,7 +1288,7 @@ export default function QuizBuilderPage() {
                                   />
                                 </div>
                               </div>
-                            ) : options.length > 0 ? (
+                            ) : (qType === "multiple_choice" || qType === "sequence" || qType === "multi_tap") && options.length > 0 ? (
                               <div style={{ display: "grid", gap: 4 }}>
                                 {options.map(o => (
                                   <div key={o.letter} style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1315,13 +1315,29 @@ export default function QuizBuilderPage() {
                                 <div style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Tap a letter to set the correct answer</div>
                               </div>
                             ) : (
-                              <input
-                                value={editDraft.correct_answer ?? ""}
-                                onChange={e => setEditDraft(d => ({ ...d, correct_answer: e.target.value }))}
-                                className="fbh-input"
-                                style={{ width: "100%", font: "400 12px 'Inter'" }}
-                                placeholder="Correct answer"
-                              />
+                              <>
+                                {/* Number questions store a HINT (e.g. "To the nearest year") in
+                                    option_a, not a real multiple-choice option - this used to fall
+                                    into the letter-picker branch above (options.length > 0 was true
+                                    for the hint alone), showing a nonsensical "tap a letter" picker
+                                    with a single lettered option instead of a plain hint field. */}
+                                {qType === "number" && (
+                                  <input
+                                    value={editDraft.option_a ?? ""}
+                                    onChange={e => setEditDraft(d => ({ ...d, option_a: e.target.value }))}
+                                    className="fbh-input"
+                                    style={{ width: "100%", font: "400 12px 'Inter'", marginBottom: 6 }}
+                                    placeholder="Hint (e.g. To the nearest 10)"
+                                  />
+                                )}
+                                <input
+                                  value={editDraft.correct_answer ?? ""}
+                                  onChange={e => setEditDraft(d => ({ ...d, correct_answer: e.target.value }))}
+                                  className="fbh-input"
+                                  style={{ width: "100%", font: "400 12px 'Inter'" }}
+                                  placeholder="Correct answer"
+                                />
+                              </>
                             )}
                             <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
                               <HostButton variant="pri" onClick={() => saveEditQuestion(activeRound, qi)} style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>SAVE</HostButton>
@@ -1350,17 +1366,32 @@ export default function QuizBuilderPage() {
                                 {photoQuery && <div style={{ color: "#6B5A8E", font: "400 11px 'Inter'", marginTop: 4 }}>{"Search: " + photoQuery}</div>}
                               </div>
                             )}
-                            {options.length > 0 ? (
-                              <div style={{ marginTop: 6, display: "grid", gap: 3 }}>
-                                {options.map(o => (
-                                  <div key={o.letter} style={{ font: "400 12px 'Inter'", color: correctAnswer.toLowerCase().includes(o.letter) || correctAnswer === o.value ? "#2EE06E" : "#B9A8D9" }}>
-                                    {o.letter.toUpperCase()}. {o.value}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div style={{ color: "#2EE06E", font: "600 12px 'Inter'", marginTop: 6 }}>{"-> "}{correctAnswer}</div>
-                            )}
+                            {/* Only multiple_choice/sequence/multi_tap actually use their
+                                lettered options AS the answer choices - Number questions
+                                store a HINT in option_a (e.g. "To the nearest year"), not a
+                                real option, so `options.length > 0` was true for them too and
+                                this always took the options-list branch below, which never
+                                shows correct_answer at all. That silently hid the correct
+                                answer for every Number question in this card. */}
+                            {(() => {
+                              const usesLetterOptionsAsAnswers = qType === "multiple_choice" || qType === "sequence" || qType === "multi_tap";
+                              return usesLetterOptionsAsAnswers && options.length > 0 ? (
+                                <div style={{ marginTop: 6, display: "grid", gap: 3 }}>
+                                  {options.map(o => (
+                                    <div key={o.letter} style={{ font: "400 12px 'Inter'", color: correctAnswer.toLowerCase().includes(o.letter) || correctAnswer === o.value ? "#2EE06E" : "#B9A8D9" }}>
+                                      {o.letter.toUpperCase()}. {o.value}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <>
+                                  {qType === "number" && options[0]?.value && (
+                                    <div style={{ color: "#6B5A8E", font: "400 11px 'Inter'", marginTop: 6 }}>{"Hint: " + options[0].value}</div>
+                                  )}
+                                  <div style={{ color: "#2EE06E", font: "600 12px 'Inter'", marginTop: 4 }}>{"-> "}{correctAnswer}</div>
+                                </>
+                              );
+                            })()}
                             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                               <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>EDIT</HostButton>
                               <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace with a new AI-generated question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>

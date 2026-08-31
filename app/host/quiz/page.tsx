@@ -64,26 +64,38 @@ const cardLabel: Record<string,string> = { block:"Time-Out", reverse:"Reverse", 
 // Rules text depends on this round's actual configured timer/points/bonus
 // (all host-adjustable, per round) rather than a hardcoded guess, so what's
 // shown here always matches what will actually happen once play starts.
-function buildRules(opts: { timerSeconds: number; pointsPerQ: number; timeBonus: number }): Record<string, string[]> {
-  const { timerSeconds, pointsPerQ, timeBonus } = opts;
+function buildRules(opts: { timerSeconds: number; timerRange?: [number, number]; pointsPerQ: number; timeBonus: number; wipeoutMode?: boolean }): Record<string, string[]> {
+  const { timerSeconds, timerRange, pointsPerQ, timeBonus, wipeoutMode } = opts;
+  // Regular rounds mix question types with DIFFERENT timers (Multiple
+  // Choice/Sequence/Number get 15s, Text Answer gets 30s - see
+  // TIMER_BY_TYPE), so quoting a single number here would be wrong for
+  // whichever type isn't the first question. Show a range whenever this
+  // round's questions don't all share one timer.
+  const timerLine = timerRange && timerRange[0] !== timerRange[1]
+    ? `${timerRange[0]}\u2013${timerRange[1]} seconds per question depending on question type \u2014 watch the on-screen clock. No answers accepted once time's up.`
+    : `${timerSeconds} seconds per question. No answers accepted once the timer hits zero.`;
   return {
     house: [
       "Welcome to Quiz-It! Get your team ready on your phones \u2014 join with the PIN on screen.",
       "Answers lock in the moment you submit \u2014 no changing your mind after.",
       `You've got ${timerSeconds} seconds per question, so don't overthink it.`,
-      "Each Power Card (Time-Out, Boost, Reverse) can be played once per quiz \u2014 use them wisely!",
+      "Each Power Card (Time-Out, Boost, Reverse) can be played once per quiz \u2014 use them wisely! Reverse can only be played in Round 1.",
       "Have fun, play fair, and good luck!",
     ],
     regular: [
-      "Standard quiz questions \u2014 multiple choice, type-in, sequence, or tap-all-that-apply.",
+      // Regular rounds draw from multiple_choice, text_answer, number, and
+      // sequence only \u2014 multi_tap ("tap-all-that-apply") is its own
+      // separate round type with its own rules (see below), never mixed in
+      // here (lib/quiz/generateRound.ts's regular type pool).
+      "Standard quiz questions \u2014 multiple choice, type-in text, numbers, or put-in-order sequence.",
       `${pointsPerQ} points for a correct answer. Fastest correct answer each question gets up to +${timeBonus} extra for speed.`,
-      `${timerSeconds} seconds per question. No answers accepted once the timer hits zero.`,
+      timerLine,
     ],
     multi_tap: [
       "Each question has several correct answers hidden among decoys.",
       "Tap every option you think is correct \u2014 leaving a wrong option untapped scores exactly the same as tapping a correct one.",
       `Fastest team to find ALL correct answers gets up to +${timeBonus} extra for speed.`,
-      "Watch out \u2014 in the last 5 questions of this round, a single wrong tap zeroes that question's score (Wipeout Mode).",
+      ...(wipeoutMode ? ["Watch out \u2014 in the last 5 questions of this round, a single wrong tap zeroes that question's score (Wipeout Mode)."] : []),
     ],
     music: [
       "Listen to the track, then answer the question about it.",
@@ -1531,10 +1543,13 @@ function QuizControllerInner() {
   const phaseLive = hostPhase!=="waiting" && hostPhase!=="quiz_end";
   // Built fresh from this round's actual live settings so the on-screen rules
   // text always matches what's really configured, not a hardcoded guess.
+  const roundTimerValues = selectedRound ? selectedRound.questions.map(q => getTimerForQuestion(q, timerDuration)) : [];
   const rules = buildRules({
     timerSeconds: selectedRound ? getTimerForQuestion(selectedRound.questions[qIdx] || selectedRound.questions[0], timerDuration) : timerDuration,
+    timerRange: roundTimerValues.length ? [Math.min(...roundTimerValues), Math.max(...roundTimerValues)] : undefined,
     pointsPerQ: selectedRound?.points_per_question ?? pointsPerQ,
     timeBonus: selectedRound?.max_time_bonus ?? timeBonus,
+    wipeoutMode,
   });
 
   return (

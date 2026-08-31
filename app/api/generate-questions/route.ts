@@ -11,7 +11,22 @@ export const maxDuration = 30;
 // --- very simple in-memory rate limiter ---
 // Resets on cold start and is per-instance only — a basic speed bump on
 // top of the auth check below, not a full replacement for it.
-const RATE_LIMIT = 60; // max requests
+//
+// Was 60/min. Since the Haiku validation split (moderation/theme/quality/
+// balance now each cost their own request instead of riding along with
+// generation) plus the concurrency increase (MAX_AI_CONCURRENCY 3->5,
+// per-round pipeline depth 2->3) landed, a single accepted question can cost
+// up to 5 requests instead of 1-2, and "Generate All Rounds" fires several
+// rounds' pipelines at once. That combination routinely blew past 60/min
+// during totally normal use, and the resulting 429 ("Too many requests, slow
+// down") is worded exactly like the persistent-failure patterns
+// generateRound.ts bails out on immediately - so a legitimate Generate All
+// burst looked identical to a real auth/quota failure and gave up after a
+// single attempt per round instead of just slowing down. Raised generously
+// for a single-host tool (this isn't multi-tenant abuse protection, just a
+// sanity ceiling) rather than tuned to the exact new call volume, since that
+// volume will keep shifting as generation logic changes.
+const RATE_LIMIT = 300; // max requests
 const WINDOW_MS = 60_000; // per 1 minute
 const requestLog = new Map<string, number[]>();
 

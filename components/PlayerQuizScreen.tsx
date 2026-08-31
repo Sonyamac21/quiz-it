@@ -259,13 +259,11 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
   const [roundNumber, setRoundNumber] = useState<number>(1);
-  // Host wants running points visible on the handset only for the first 3
-  // rounds - after that, teams shouldn't be able to see their own total (so
-  // late-round Reverse-card decisions, which flip your score's digits,
-  // aren't made with perfect information about exactly what you're
-  // reversing). Rounds beyond 3 behave as if it were the final round: no
-  // points shown, same as isFinalRound already does.
-  const myRunningPoints = (isFinalRound || roundNumber > 3) ? undefined : (phoneScoreboardData.find(s => s.team_name === teamName)?.total_points ?? 0);
+  // Host wants running points visible on the handset for every round except
+  // the final one - hidden only once isFinalRound is true, so the last
+  // round's result is the reveal moment rather than something teams can
+  // already see ticking up beforehand.
+  const myRunningPoints = isFinalRound ? undefined : (phoneScoreboardData.find(s => s.team_name === teamName)?.total_points ?? 0);
   const [roundName, setRoundName] = useState("");
   // The team's own photo (uploaded at join), shown in the status bar crest
   // instead of the initial-letter badge - but ONLY once a host has approved

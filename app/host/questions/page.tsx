@@ -99,7 +99,20 @@ function stageLabel(stage: ValidationStage): string {
 }
 
 const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife","recent entertainment news (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)"];
-const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","Christmas songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics"];
+const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","Christmas songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
+// Same permanent exclusion list as lib/quiz/generateRound.ts (see the
+// comment there) - this older single-round generator is a separate code
+// path (Codex #10 flagged the two as needing consolidation), so it needs
+// its own copy for now rather than silently missing the fix.
+const PERMANENT_EXCLUDED_FACTS = [
+  "How tall is the Burj Khalifa (world's tallest building)",
+  "Which country is this flag from? (Japan)",
+];
+// Matches lib/quiz/generateRound.ts's RECENCY_SIGNAL - a theme or randomly-
+// picked topic whose text itself asks for something current gets routed
+// through web search (see callAPI's webSearch param below) instead of the
+// model's own (dated) training knowledge.
+const RECENCY_SIGNAL = /\bnews\b|current affairs|pop culture|\brecent\b|trending|this year|last year|chart hits|latest hits|new release/i;
 
 // Random angle hints injected per question to push variety - without these, the AI
 // tends to default to the single most famous/obvious example for a topic every time
@@ -335,11 +348,11 @@ export default function QuestionsPage() {
     usedFingerprintsRef.current = fingerprints;
   }
 
-  async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false) {
+  async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false) {
     const res = await withAiRequestSlot(() => fetch("/api/generate-questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, maxTokens, structuredOutput }),
+      body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch }),
     }));
     // TEMPORARY DIAGNOSTIC - read as text first so we can see exactly what our own
     // API route actually returned, instead of res.json() crashing blind on an
@@ -511,6 +524,12 @@ export default function QuestionsPage() {
   }
 
   async function generateOne(type: string, topic: string, context: GenerationContext): Promise<Question|null> {
+    // Matches lib/quiz/generateRound.ts's isRecencyTopic - covers the two
+    // fixed recency topics plus any theme/topic text that itself signals it
+    // wants something current (see RECENCY_SIGNAL above).
+    const isRecencyTopic = topic === "recent entertainment news (last 1-3 years, no politics)"
+      || topic === "celebrity and pop culture moments (last 1-3 years, no politics)"
+      || RECENCY_SIGNAL.test(topic);
     context.error = "";
     context.report = {
       questionText: "",
@@ -540,6 +559,9 @@ export default function QuestionsPage() {
       ? " Do NOT generate any of these already-used questions: " + exclusions + "."
         + (usedAnswersList ? " Also do NOT use any of these already-used answers (even with different question wording): " + usedAnswersList + "." : "")
       : "";
+    // Permanently-banned overused facts (see PERMANENT_EXCLUDED_FACTS above) -
+    // always included, independent of this session's own exclusion list.
+    exclusionNote += " Never generate a question about any of these overused facts, worded any way: " + PERMANENT_EXCLUDED_FACTS.join("; ") + ".";
     // Keep enough room for the longest type instructions (picture/audio) and the
     // first-pass quality guidance under the API route's 8,000-character limit.
     if (exclusionNote.length > 2200) exclusionNote = exclusionNote.slice(0, 2200);
@@ -577,7 +599,9 @@ STRICT QUALITY RULES (every question must pass all of these):
 4. Wrong answer options must be plausible. Use well-known alternatives someone might genuinely confuse, not obviously wrong fillers.
 5. Every question must be answerable by a reasonably well-informed adult with no specialist training.
 6. UAE venue safe: no alcohol references, no pork, no sexual content, no religion, no LGBTQ+ content, no Iran or Israel political references.
-7. Use one stable, verifiable fact: nothing disputed, subjective, or invented. For the "recent entertainment news" and "celebrity and pop culture moments" topics only, you may use well-known entertainment, film/TV, music, sport or celebrity events from roughly the last 1-3 years (award wins, releases, retirements, records, headline pop-culture moments) - never politics, never anything from the last few months, and never anything you are not confident is still accurate.
+7. Use one stable, verifiable fact: nothing disputed, subjective, or invented.${isRecencyTopic
+      ? " This question is for the \"" + topic + "\" topic - you have a web_search tool available and MUST use it before writing the question. Search for a genuinely well-known, headline-level entertainment/celebrity/pop-culture/sport/music event from roughly the last 1-3 years (award win, major release, record, retirement, high-profile moment). Base the question and correct_answer strictly on what your search results actually confirm - do not fall back on memory alone or guess at a date, result or detail your search didn't verify. If search results are unclear or conflicting on a fact, pick a different, more clearly-confirmed event instead of guessing. Never write about politics, elections, war, or anything from the last few weeks (too recent to be common knowledge to a pub crowd yet)."
+      : " For the \"recent entertainment news\", \"celebrity and pop culture moments\", and \"current chart hits\" topics only, you may use well-known entertainment, film/TV, music, sport or celebrity events from roughly the last 1-3 years (award wins, releases, retirements, records, headline pop-culture moments) - never politics, never anything from the last few months, and never anything you are not confident is still accurate."}
 8. Wording must allow exactly one defensible, natural answer-not an abbreviation, fragment, trick or technicality.
 9. If the correct_answer is a person's name and only part of the full name (surname only, or first name only) will be stored as the answer, the question_text itself must explicitly state which part is required (e.g. "What is the SURNAME of the actress who played Katniss Everdeen?" with correct_answer "Lawrence", or "What is the FIRST NAME of the actor who played Iron Man?" with correct_answer "Robert"). Never ask an ambiguous full-name question and store only a partial name as the answer.
 10. The question must stand alone without its explanation and test one satisfying piece of knowledge.
@@ -589,7 +613,7 @@ Verify strict JSON before responding: one array item, every schema key present, 
 Return ONLY a valid JSON array with 1 item, no markdown:
 [{"question_text":"...","question_type":"${type}","option_a":"...","option_b":"...","option_c":"...","option_d":"...","option_e":"...","option_f":"...","correct_answer":"...","explanation":"...","difficulty":"${difficulty}","round_type":"${roundType}"}]`;
     try {
-      const text = await callAPI(prompt);
+      const text = await callAPI(prompt, 8000, false, isRecencyTopic);
       let q;
       try {
         q = parseModelJson<Array<Question & Record<string, unknown>>>(text, "array")[0];

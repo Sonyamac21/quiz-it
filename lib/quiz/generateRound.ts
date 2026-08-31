@@ -73,7 +73,23 @@ type GenerationContext = { error: string; report: CandidateReport };
 // ── Constants (copied verbatim) ─────────────────────────────────────────────
 
 const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife","recent entertainment news (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)"];
-const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","Christmas songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics"];
+const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","Christmas songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
+
+// A small, permanent "don't use this again" list, separate from the
+// per-session/per-round exclusion lists below - those only cover what THIS
+// generation run has already produced, so a well-known, obvious fact (Burj
+// Khalifa's height, Japan's flag) that got generated last week keeps coming
+// back on the next run, sometimes worded just differently enough to slip
+// past the trigram-similarity duplicate check. Entries here are always
+// included in every prompt's exclusion note, regardless of session, so the
+// model steers away from these specific facts on every single generation
+// from now on. Add to this list as repeats get reported - there's currently
+// no in-app UI for it, so it's a direct code edit (ask for that if you'd
+// rather manage it yourself from the host screens).
+const PERMANENT_EXCLUDED_FACTS = [
+  "How tall is the Burj Khalifa (world's tallest building)",
+  "Which country is this flag from? (Japan)",
+];
 // A picture-type candidate's photo query is restricted (see generateOne's
 // picture instructions) to only: a famous landmark/building, an animal or
 // species, a national flag, a well-known food/dish, or a sports venue/
@@ -460,17 +476,32 @@ async function generateOne(
       + (usedAnswersList ? " Also do NOT use any of these already-used answers (even with different question wording): " + usedAnswersList + "." : "")
     : "";
   if (exclusionNote.length > 1200) exclusionNote = exclusionNote.slice(0, 1200);
-  // These two topics are the only ones allowed to touch anything from the
-  // last few years - everything else in TOPICS is evergreen trivia that the
-  // model already knows solidly. For these two specifically, ungrounded
-  // generation was producing stale or occasionally wrong "recent" facts,
-  // since the model only knows whatever was true as of its training cutoff,
-  // not what's actually current. Routing just these through Claude's live
-  // web search tool (wired in app/api/generate-questions/route.ts) fixes
-  // that at the source instead of relying on the model to "remember"
-  // correctly.
+  // Permanently-banned overused facts (see PERMANENT_EXCLUDED_FACTS above) -
+  // always included, independent of this session's own exclusion list, and
+  // appended AFTER the 1200-char truncation above so a long session
+  // exclusion list can never crowd these out.
+  exclusionNote += " Never generate a question about any of these overused facts, worded any way: " + PERMANENT_EXCLUDED_FACTS.join("; ") + ".";
+  // Only topics that actually need something from the last few years should
+  // get routed through Claude's live web search tool - everything else in
+  // TOPICS/MUSIC_TOPICS is evergreen trivia the model already knows solidly,
+  // and ungrounded generation was producing stale or occasionally wrong
+  // "recent" facts for anything genuinely current, since the model only
+  // knows whatever was true as of its training cutoff.
+  //
+  // This USED to only match the exact random-pick topic strings below, which
+  // meant it only ever fired for a randomly-chosen unthemed question (about
+  // 1 in 32 chance) and NEVER fired when a host actually typed a theme like
+  // "news", "current affairs", or "pop culture" - a theme becomes `topic`
+  // verbatim (see launchCandidate()'s `theme || ...` fallback above), so an
+  // explicit ask for current content was silently generating stale,
+  // ungrounded trivia instead. Now any theme or topic whose text itself
+  // signals "wants something current" gets web search too - covers the two
+  // original recency topics, a host-typed theme like "current affairs" or
+  // "pop culture", and the new "current chart hits" music topic.
+  const RECENCY_SIGNAL = /\bnews\b|current affairs|pop culture|\brecent\b|trending|this year|last year|chart hits|latest hits|new release/i;
   const isRecencyTopic = topic === "recent entertainment news (last 1-3 years, no politics)"
-    || topic === "celebrity and pop culture moments (last 1-3 years, no politics)";
+    || topic === "celebrity and pop culture moments (last 1-3 years, no politics)"
+    || RECENCY_SIGNAL.test(topic);
   // A long-running account's permanent Question Memory eventually holds
   // most of the OBVIOUS mainstream facts for a common topic (the ones a
   // random angle pick keeps re-discovering) - so a run of consecutive

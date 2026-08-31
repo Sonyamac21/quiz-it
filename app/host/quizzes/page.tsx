@@ -127,6 +127,15 @@ export default function QuizBuilderPage() {
   // status state so it doesn't fight with or get hidden by that panel.
   const [generatingMoreId, setGeneratingMoreId] = useState<string | null>(null);
   const [generatingMoreStatus, setGeneratingMoreStatus] = useState("");
+  // Separate from generatingMoreId/generatingMoreStatus above: those two also
+  // control the "GENERATE WITH AI" button's disabled state (see the render),
+  // so leaving them set to keep a shortfall/failure message on screen would
+  // lock the host out of retrying. This map instead just remembers the last
+  // OUTCOME message per round, shown independently of whether generation is
+  // still in flight, and cleared only when a new generation starts for that
+  // round - so a "stopped after 90s, got 0 of 8" explanation actually stays
+  // readable instead of vanishing after a flat 4s (see generateMoreForRound).
+  const [lastGenerateMoreResult, setLastGenerateMoreResult] = useState<Record<string, string>>({});
   // How many more questions to request per round, shown as a visible,
   // editable inline field next to "+ GENERATE WITH AI" (see
   // generateMoreForRound above for why this replaced a window.prompt()).
@@ -477,6 +486,10 @@ export default function QuizBuilderPage() {
     if (roomLeft !== null && n > roomLeft) n = roomLeft;
     setGeneratingMoreId(round.id);
     setGeneratingMoreStatus("Queued..." + capNote);
+    // Starting a fresh run - clear any stale result message left over from a
+    // previous attempt on this round so it can't be mistaken for this run's
+    // outcome.
+    setLastGenerateMoreResult(prev => { const next = { ...prev }; delete next[round.id]; return next; });
     const supabase = createSupabaseBrowserClient();
     const cfg = bulkConfig[round.id];
     try {
@@ -488,11 +501,21 @@ export default function QuizBuilderPage() {
       await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id);
       setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) }));
       if (selected) void syncRoundToLibrary(round, mergedQuestions, selected.name);
-      setGeneratingMoreStatus(result.questions.length < n ? `Only generated ${result.questions.length} of ${n} requested: ${result.finalStatus}` : `Added ${result.questions.length} question${result.questions.length === 1 ? "" : "s"}.`);
-      setTimeout(() => setGeneratingMoreId(id => id === round.id ? null : id), 4000);
-    } catch {
-      setGeneratingMoreStatus("Generation failed - please try again.");
-      setTimeout(() => setGeneratingMoreId(id => id === round.id ? null : id), 4000);
+      const shortfall = result.questions.length < n;
+      // This used to only live in generatingMoreStatus, which is rendered
+      // ONLY while generatingMoreId === this round's id - and that got
+      // cleared after a flat 4s regardless of outcome, so a shortfall/failure
+      // explanation (e.g. "stopped after 90s to avoid an excessive wait, got
+      // 0 of 8") vanished before a host reading it after a long generation
+      // run could actually see it, leaving the screen looking exactly like
+      // nothing had happened. lastGenerateMoreResult persists independently
+      // of the in-flight/button-disabled state until the next run starts.
+      setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: shortfall ? `Only generated ${result.questions.length} of ${n} requested: ${result.finalStatus}` : `Added ${result.questions.length} question${result.questions.length === 1 ? "" : "s"}.` }));
+    } catch (e) {
+      setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: "Generation failed - please try again." + (e instanceof Error ? " (" + e.message + ")" : "") }));
+    } finally {
+      setGeneratingMoreId(id => id === round.id ? null : id);
+      setGeneratingMoreStatus("");
     }
   }
 
@@ -1082,6 +1105,7 @@ export default function QuizBuilderPage() {
                   <div className="fbh-lbl" style={{ margin: 0 }}>Questions</div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     {generatingMoreId === activeRound.id && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{generatingMoreStatus}</span>}
+                    {generatingMoreId !== activeRound.id && lastGenerateMoreResult[activeRound.id] && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{lastGenerateMoreResult[activeRound.id]}</span>}
                     {isGeneratable && (
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <input

@@ -459,7 +459,7 @@ async function generateOne(
   context.error = "";
   context.report = { questionText: "", questionType: type, stages: emptyValidationResults(Boolean(theme.trim()), type === "picture" || type === "audio") };
   const typeInstructions: Record<string, string> = {
-    multi_tap: "multi_tap: exactly 6 options in option_a through option_f. Some are correct answers, some are decoys (wrong). Mix the count - between 2 and 4 of the 6 should be correct. correct_answer must be a comma-separated list of the correct option letters in order, e.g. \"b,d,f\" or \"a,c\". Make decoys plausible, not obviously wrong.",
+    multi_tap: "multi_tap: exactly 6 options in option_a through option_f, ALL SIX FILLED IN (never leave an option blank/null). Some are correct answers, some are decoys (wrong). The number of correct answers can be ANY count from 1 up to all 6 - vary it question to question, don't default to the same count every time. correct_answer must be a comma-separated list of the correct option letters in order, e.g. \"b,d,f\" or \"a,c\" or just \"e\" or \"a,b,c,d,e,f\". Make decoys plausible, not obviously wrong.",
     multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
     text_answer: "text_answer: the correct_answer MUST be a SINGLE word - no spaces, no commas, no \"and\", no \"&\", no \"/\", no multiple names, no multiple items, no hyphen-joined names. If the natural answer would be more than one word, choose a different question whose answer is a single word. All options must be null.",
     number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
@@ -647,10 +647,24 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     }
     if (q && q.question_type === "multi_tap") {
       const letters = ["a", "b", "c", "d", "e", "f"];
-      const items = letters.map(l => q["option_" + l]).filter((t: unknown) => t !== null && t !== undefined && t !== "");
+      // Bug fixed here: this used to build `items` by filtering nulls out of
+      // the a-f option values, then separately compute `wasCorrect` against
+      // "the first N letters" (a, b, c...) rather than the ORIGINAL letter
+      // each surviving item actually came from. Those only lined up when the
+      // AI happened to leave options unfilled from the END (e.g. only
+      // option_f null) - if a MIDDLE slot was empty (e.g. option_c), every
+      // item after it shifted left while "usedLetters" didn't, silently
+      // pairing the wrong correctness flag with the wrong option text after
+      // shuffling. Tracking (letter, value) pairs together removes the
+      // possibility of that misalignment regardless of which slot the AI
+      // left empty.
+      const filledPairs = letters
+        .map(l => ({ letter: l, value: q["option_" + l] }))
+        .filter((p): p is { letter: string; value: string } => p.value !== null && p.value !== undefined && p.value !== "");
+      const items = filledPairs.map(p => p.value);
       const correctLetters = (q.correct_answer || "").split(",").map((s: string) => s.trim().toLowerCase());
       const usedLetters = letters.slice(0, items.length);
-      const wasCorrect = usedLetters.map(l => correctLetters.includes(l));
+      const wasCorrect = filledPairs.map(p => correctLetters.includes(p.letter));
       const shuffledLetters = shuffle(usedLetters);
       const newOptions: Record<string, unknown> = {};
       const newCorrect: string[] = [];

@@ -98,7 +98,10 @@ function stageLabel(stage: ValidationStage): string {
   } satisfies Record<ValidationStage, string>)[stage];
 }
 
-const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife","recent entertainment news (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)"];
+// Same 3x weighting as lib/quiz/generateRound.ts's TOPICS (see comment
+// there) - repeated so an unthemed round lands on current content roughly 1
+// in 6 questions instead of 1 in 16.
+const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife","recent entertainment news (last 1-3 years, no politics)","recent entertainment news (last 1-3 years, no politics)","recent entertainment news (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)"];
 const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","Christmas songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
 // Same permanent exclusion list as lib/quiz/generateRound.ts (see the
 // comment there) - this older single-round generator is a separate code
@@ -107,6 +110,8 @@ const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","cla
 const PERMANENT_EXCLUDED_FACTS = [
   "How tall is the Burj Khalifa (world's tallest building)",
   "Which country is this flag from? (Japan)",
+  "What is the name of Fred Flintstone's pet dinosaur? (Dino)",
+  "Which car brand has a logo featuring a prancing horse? (Ferrari)",
 ];
 // Matches lib/quiz/generateRound.ts's RECENCY_SIGNAL - a theme or randomly-
 // picked topic whose text itself asks for something current gets routed

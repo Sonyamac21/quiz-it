@@ -72,7 +72,16 @@ type GenerationContext = { error: string; report: CandidateReport };
 
 // ── Constants (copied verbatim) ─────────────────────────────────────────────
 
-const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife","recent entertainment news (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)"];
+// The two recency topics are deliberately listed 3x each (not once) - an
+// unthemed round draws uniformly at random from this whole array, so with
+// only one entry each they landed on "something current" for roughly 1 in 16
+// questions, which reads as "recent content basically never shows up" even
+// though it's technically wired in. Repeating them raises that to roughly 1
+// in 6 without needing a host to type an explicit theme every time. A host
+// who wants GUARANTEED current content on a round should still type a theme
+// like "current pop culture" directly - that's the only way to force it on
+// every question rather than just make it more likely.
+const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife","recent entertainment news (last 1-3 years, no politics)","recent entertainment news (last 1-3 years, no politics)","recent entertainment news (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)"];
 const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","Christmas songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
 
 // A small, permanent "don't use this again" list, separate from the
@@ -89,6 +98,8 @@ const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","cla
 const PERMANENT_EXCLUDED_FACTS = [
   "How tall is the Burj Khalifa (world's tallest building)",
   "Which country is this flag from? (Japan)",
+  "What is the name of Fred Flintstone's pet dinosaur? (Dino)",
+  "Which car brand has a logo featuring a prancing horse? (Ferrari)",
 ];
 // A picture-type candidate's photo query is restricted (see generateOne's
 // picture instructions) to only: a famous landmark/building, an animal or
@@ -1052,7 +1063,7 @@ export async function generateValidatedRound(
   // completed 1 of 4, well before the same budget would ever bind for other
   // types. Multi Tap gets a larger allowance on both axes so it actually has
   // room to reach its target instead of reliably timing out short.
-  const maxAttempts = roundType === "multi_tap" ? count * 24 : count * 14;
+  const maxAttempts = roundType === "multi_tap" ? count * 24 : count * 18;
   // Codex pre-launch review, finding #11: maxAttempts alone (up to 140
   // candidate attempts for a 10-question round, each spawning generation
   // plus several AI validators) can still add up to hundreds of real API
@@ -1063,10 +1074,15 @@ export async function generateValidatedRound(
   // still working or has effectively stalled. ~20s/question is generous
   // headroom above the typical per-candidate round-trip time, with a 90s
   // floor so a small round (count=1-2) still gets a fair number of retries.
+  //
+  // The general 90s floor also got hit on a Hot Seat top-up (91s, 2 of 4) -
+  // not just Multi Tap - so the floor itself was too tight across the board,
+  // not just for one type. Raised generally to 120s/25s-per-question, on top
+  // of Multi Tap's own larger allowance above.
   const generationStartedAt = Date.now();
   const wallClockBudgetMs = roundType === "multi_tap"
     ? Math.max(150_000, count * 35_000)
-    : Math.max(90_000, count * 20_000);
+    : Math.max(120_000, count * 25_000);
   let i = 0;
   let consecutiveFailures = 0;
   let consecutiveCheckFailures = 0;

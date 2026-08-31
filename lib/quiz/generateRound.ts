@@ -1041,7 +1041,18 @@ export async function generateValidatedRound(
   const shuffledPictureTopics = shuffle(PICTURE_TOPICS);
   const good: Question[] = [];
   let attempts = 0;
-  const maxAttempts = count * 14;
+  // Multi Tap candidates fail/retry far more often than other types in
+  // practice - crafting 6 balanced options with the correct answer key
+  // referencing exactly the right filled letters, for a variable 1-to-6
+  // correct count, is a harder generation task than a 4-option multiple
+  // choice question, and the extra keyValid check (see the multi_tap
+  // post-processing block below) adds its own rejection path on top of the
+  // normal moderation/theme/balance/quality gates. Observed directly: a
+  // 4-question Multi Tap top-up hit the wall-clock budget at 92s having only
+  // completed 1 of 4, well before the same budget would ever bind for other
+  // types. Multi Tap gets a larger allowance on both axes so it actually has
+  // room to reach its target instead of reliably timing out short.
+  const maxAttempts = roundType === "multi_tap" ? count * 24 : count * 14;
   // Codex pre-launch review, finding #11: maxAttempts alone (up to 140
   // candidate attempts for a 10-question round, each spawning generation
   // plus several AI validators) can still add up to hundreds of real API
@@ -1053,7 +1064,9 @@ export async function generateValidatedRound(
   // headroom above the typical per-candidate round-trip time, with a 90s
   // floor so a small round (count=1-2) still gets a fair number of retries.
   const generationStartedAt = Date.now();
-  const wallClockBudgetMs = Math.max(90_000, count * 20_000);
+  const wallClockBudgetMs = roundType === "multi_tap"
+    ? Math.max(150_000, count * 35_000)
+    : Math.max(90_000, count * 20_000);
   let i = 0;
   let consecutiveFailures = 0;
   let consecutiveCheckFailures = 0;
@@ -1136,7 +1149,18 @@ export async function generateValidatedRound(
     const context = createGenerationContext(type, Boolean(theme.trim()));
     attempts++;
     inFlightCounts[type] = (inFlightCounts[type] || 0) + 1;
-    pending.push({ type, context, promise: generateOne(type, topic, context, { theme, difficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 }) });
+    // forceObscure used to ONLY trigger reactively, after 4 consecutive
+    // duplicate/memory rejections in a row - i.e. only once a topic was
+    // already close to exhausted. That does nothing for the more general "it
+    // keeps reaching for the same handful of famous facts" feeling across
+    // otherwise-successful generations, since a candidate that passes
+    // validation on its FIRST try never gets a reason to reach for a less
+    // obvious angle. Now also fires proactively on a portion of candidates
+    // from the start (independent of any failures), so a meaningful share of
+    // every round leans toward a deeper cut by default rather than only
+    // after the well-trodden facts have already started colliding.
+    const proactiveObscure = Math.random() < 0.3;
+    pending.push({ type, context, promise: generateOne(type, topic, context, { theme, difficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure }) });
   };
   const refillPipeline = () => {
     // Deliberately keeps up to 2 candidates in flight even once `count` is

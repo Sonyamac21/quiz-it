@@ -446,6 +446,9 @@ function DisplayScreenInner() {
     ...(venuePrizeInfo ? ["prizes"] : []),
     ...(venueScheduleText ? ["schedule"] : []),
     ...(venueHostName ? ["host"] : []),
+    // Always shown - this is Mac Entertainment's own handle for players to tag
+    // when they post, not tied to whether a venue has its own social links set.
+    "tag-us",
     ...(venueWebsite || Object.keys(venueSocialLinks).length > 0 ? ["social"] : []),
     "cards",
     ...(approvedCustomerPhotos.length > 0 ? ["photos"] : []),
@@ -1314,6 +1317,14 @@ function DisplayScreenInner() {
                 <div className="lb-cardkicker">FIND US</div>
                 {venueWebsite && <div className="lb-reel-brand-headline">{venueWebsite.replace(/^https?:\/\/(www\.)?/i, "")}</div>}
                 <div className="lb-reel-brand-body">{Object.entries(venueSocialLinks).map(([k]) => k).join(" · ")}</div>
+              </div>
+            )}
+
+            {currentReelScene === "tag-us" && (
+              <div className="lb-reel-scene lb-reel-brand">
+                <div className="lb-cardkicker">SHARE THE NIGHT</div>
+                <div className="lb-reel-brand-headline">@macentertainmentuae</div>
+                <div className="lb-reel-brand-body">Tag us in your posts and stories!</div>
               </div>
             )}
 

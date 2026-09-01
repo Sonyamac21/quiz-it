@@ -101,6 +101,8 @@ const PERMANENT_EXCLUDED_FACTS = [
   "What is the name of Fred Flintstone's pet dinosaur? (Dino)",
   "Which car brand has a logo featuring a prancing horse? (Ferrari)",
   "Which movie features a character who can see dead people? (The Sixth Sense)",
+  "Which comedian played the character David Brent in the original UK version of The Office? (Ricky Gervais)",
+  "What is the surname of the chef who created the 'Naked Chef' TV persona? (Oliver / Jamie Oliver)",
 ];
 // A picture-type candidate's photo query is restricted (see generateOne's
 // picture instructions) to only: a famous landmark/building, an animal or

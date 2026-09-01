@@ -113,6 +113,8 @@ const PERMANENT_EXCLUDED_FACTS = [
   "What is the name of Fred Flintstone's pet dinosaur? (Dino)",
   "Which car brand has a logo featuring a prancing horse? (Ferrari)",
   "Which movie features a character who can see dead people? (The Sixth Sense)",
+  "Which comedian played the character David Brent in the original UK version of The Office? (Ricky Gervais)",
+  "What is the surname of the chef who created the 'Naked Chef' TV persona? (Oliver / Jamie Oliver)",
 ];
 // Matches lib/quiz/generateRound.ts's RECENCY_SIGNAL - a theme or randomly-
 // picked topic whose text itself asks for something current gets routed

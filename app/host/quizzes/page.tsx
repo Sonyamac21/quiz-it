@@ -909,7 +909,7 @@ export default function QuizBuilderPage() {
           const activeRound = selected.quiz_rounds.find(r => r.id === activeRoundId) || selected.quiz_rounds[0];
           const activeIndex = selected.quiz_rounds.findIndex(r => r.id === activeRound.id);
           const isGeneratable = GENERATABLE_ROUND_TYPES.has(activeRound.round_type);
-          const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: activeRound.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (activeRound.target_count || activeRound.questions.length || 10), theme: activeRound.theme ?? "", difficulty: activeRound.difficulty || "mixed" };
+          const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: activeRound.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (activeRound.target_count || 10), theme: activeRound.theme ?? "", difficulty: activeRound.difficulty || "mixed" };
           const progress = bulkProgress[activeRound.id];
           const settingsOpen = settingsOpenRoundId === activeRound.id;
           const addQuestionOpen = addQuestionOpenId === activeRound.id;

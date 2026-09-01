@@ -131,7 +131,7 @@ const VARIETY_ANGLES = [
 // pushing total token throughput anywhere near Anthropic's rate limits. If
 // this ever starts producing 429 rate-limit errors in the generation
 // status text, drop it back down.
-const MAX_AI_CONCURRENCY = 5;
+const MAX_AI_CONCURRENCY = 8;
 let activeAiRequests = 0;
 const aiRequestQueue: Array<() => void> = [];
 
@@ -977,6 +977,17 @@ export async function generateValidatedRound(
   exclusions: ExclusionState,
   onProgress?: (status: string) => void,
   onAccept?: (q: Question) => void,
+  // How many OTHER rounds are generating at the same time as this one, in the
+  // same browser tab. Every round shares the one global MAX_AI_CONCURRENCY
+  // slot pool (see withAiRequestSlot above), so a "Generate All" for a full
+  // 10-round quiz gives each round a fraction of the throughput a single
+  // round gets on its own - the wall-clock budget below was tuned assuming
+  // near-exclusive access, so under real contention most rounds spent their
+  // entire budget queued waiting for an AI slot and bailed out with 0-1
+  // questions despite Include-in-Generate-All being checked. Scaling the
+  // budget by how contended the slot pool actually is fixes that without
+  // giving a single round generated on its own any extra time it doesn't need.
+  wallClockScale = 1,
 ): Promise<RoundGenerationResult> {
   const { roundType, difficulty, theme } = spec;
   // The Pursuit is always exactly 7 gates total, never host-configurable -
@@ -1080,9 +1091,12 @@ export async function generateValidatedRound(
   // not just for one type. Raised generally to 120s/25s-per-question, on top
   // of Multi Tap's own larger allowance above.
   const generationStartedAt = Date.now();
-  const wallClockBudgetMs = roundType === "multi_tap"
+  const baseWallClockBudgetMs = roundType === "multi_tap"
     ? Math.max(150_000, count * 35_000)
     : Math.max(120_000, count * 25_000);
+  // Capped at 5x - a Generate All with many rounds still needs to finish in
+  // a bounded, sane amount of real time, not scale unboundedly with quiz size.
+  const wallClockBudgetMs = Math.round(baseWallClockBudgetMs * Math.min(5, Math.max(1, wallClockScale)));
   let i = 0;
   let consecutiveFailures = 0;
   let consecutiveCheckFailures = 0;
@@ -1328,6 +1342,24 @@ export async function generateAllRounds(
       if (normAnswer) state.usedAnswers = [...state.usedAnswers, normAnswer];
     });
   };
+  // Every round shares the same MAX_AI_CONCURRENCY slot pool (see
+  // withAiRequestSlot above), so the more rounds are generating at once, the
+  // less real throughput each one actually gets - roughly proportional to
+  // specs.length once there are more rounds than concurrency slots. Without
+  // this, a full "Generate All" on a 10-round quiz gave each round the same
+  // tight wall-clock budget as if it had the whole AI slot pool to itself,
+  // so most rounds spent the entire budget queued and bailed with 0-1
+  // questions - this is the "used to generate a whole quiz at once, now it
+  // doesn't" regression.
+  // Each round tries to keep up to 3 candidates in flight at once (see
+  // "pending.length < 3" below), so total demand across a Generate All is
+  // roughly specs.length * 3 requests competing for MAX_AI_CONCURRENCY slots
+  // - a plain specs.length/MAX_AI_CONCURRENCY ratio badly understated the
+  // real contention (a 10-round quiz only scored 1.25x when the actual
+  // slowdown is closer to 3-4x), which is why the earlier, smaller version
+  // of this scale still left most rounds timing out.
+  const ROUND_PIPELINE_DEPTH = 3;
+  const wallClockScale = Math.max(1, (specs.length * ROUND_PIPELINE_DEPTH) / MAX_AI_CONCURRENCY);
   return Promise.all(
     specs.map(async (spec, idx) => {
       // A single round throwing (network hiccup, unexpected API shape, etc.)
@@ -1337,7 +1369,7 @@ export async function generateAllRounds(
       // saved. Catch here so this round reports itself as failed while every
       // other round keeps running and saving independently.
       try {
-        const result = await generateValidatedRound(spec, perRoundExclusions[idx], status => onProgress?.(idx, status), q => broadcastAccept(idx, q));
+        const result = await generateValidatedRound(spec, perRoundExclusions[idx], status => onProgress?.(idx, status), q => broadcastAccept(idx, q), wallClockScale);
         onRoundComplete?.(idx, result);
         return result;
       } catch (e) {

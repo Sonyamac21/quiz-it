@@ -757,6 +757,13 @@ button, input, select, textarea { font: inherit; }
 .fbl .hd-rung{font:800 clamp(11px,1.6vw,21px) 'Inter';color:var(--text3);font-variant-numeric:tabular-nums;letter-spacing:.1em;}
 .fbl .hd-rung.won{color:var(--text2);}
 .fbl .hd-rung.now{color:var(--purple-b);text-shadow:0 0 16px rgba(217,79,220,.7);}
+/* Holds every revealed card for the turn (was a single card that got
+   replaced on each reveal, losing the sense of progression through the
+   round) plus a trailing face-down card while the turn is still live. Sized
+   with clamp() against the viewport rather than a percentage of this row,
+   since the row's own width grows with card count. */
+.fbl .hd-cards-row{position:relative;z-index:2;display:flex;align-items:center;gap:1.4%;flex:0 0 auto;}
+.fbl .hd-cards-row .bigcard{width:clamp(56px,9.5vw,150px);}
 .fbl .bigcard{position:relative;z-index:2;width:17%;aspect-ratio:2/3;border-radius:4.5%/3%;background:linear-gradient(158deg,#f7f4ee,#d9d4c8 75%);color:#141020;box-shadow:0 30px 90px rgba(0,0,0,.85),0 0 60px rgba(190,38,193,.25);display:flex;flex-direction:column;padding:6% 8%;}
 .fbl .bigcard .cv{font:800 clamp(26px,5vw,66px) 'Inter';line-height:1;}
 .fbl .bigcard .cs{font-size:clamp(16px,3vw,40px);line-height:1;margin-top:2%;}
@@ -780,6 +787,21 @@ button, input, select, textarea { font: inherit; }
 /* Whose turn — the single most important context on the Hard Deck stage. */
 .fbl .hd-crowd{position:absolute;bottom:5%;left:0;right:0;text-align:center;font:800 clamp(17px,2.6vw,38px) 'Inter';color:var(--text);letter-spacing:.06em;z-index:3;text-shadow:0 0 24px rgba(190,38,193,.4);}
 .fbl .hd-crowd b{color:var(--purple-b);}
+/* Transient "DOUBLED! -> N" / "+N POINTS" callout - fires on a correct
+   gamble (pot survives to the next rung) and again when the team banks at
+   the end of their turn, so those two moments get their own beat instead of
+   just a static number changing in the pot. */
+@keyframes hdCelebratePop{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.5);}
+  14%{opacity:1;transform:translate(-50%,-50%) scale(1.12);}
+  24%{transform:translate(-50%,-50%) scale(1);}
+  78%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.06);}
+}
+.fbl .hd-celebrate{position:absolute;left:50%;top:22%;z-index:4;display:flex;align-items:baseline;gap:.35em;padding:.5em .9em;border-radius:20px;font:800 clamp(20px,3.4vw,44px) 'Inter';letter-spacing:.08em;white-space:nowrap;animation:hdCelebratePop 2.1s cubic-bezier(.2,.9,.25,1) forwards;pointer-events:none;}
+.fbl .hd-celebrate.correct{color:#fff;background:rgba(190,38,193,.22);border:1px solid rgba(217,79,220,.7);box-shadow:0 0 40px rgba(217,79,220,.5);}
+.fbl .hd-celebrate.won{color:#0b2411;background:rgba(74,222,128,.9);border:1px solid rgba(255,255,255,.4);box-shadow:0 0 46px rgba(74,222,128,.55);}
+.fbl .hd-celebrate-amount{font-size:1.15em;}
 
 /* 8 · WINNER CEREMONY */
 .fbl .wc{position:relative;z-index:2;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.5%;overflow:hidden;}

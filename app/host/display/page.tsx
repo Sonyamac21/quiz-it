@@ -305,6 +305,11 @@ function DisplayScreenInner() {
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number|null>(null);
   const [hardDeckWheelSpinning, setHardDeckWheelSpinning] = useState(false);
   const prevHardDeckStatusRef = useRef<string>("idle");
+  // Transient "DOUBLED!" / "+N POINTS" callouts, keyed so the CSS animation
+  // restarts each time even if the same status repeats across a fresh Hard
+  // Deck turn (React won't replay a keyframe animation on an unchanged key).
+  const [hdCelebration, setHdCelebration] = useState<{ type: "correct" | "won"; amount: number; key: number } | null>(null);
+  const hdCelebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [venueRecordId, setVenueRecordId] = useState<string | null>(null);
   const [approvedCustomerPhotos, setApprovedCustomerPhotos] = useState<string[]>([]);
   // Poll approved customer photos only while actually on the intermission
@@ -738,6 +743,9 @@ function DisplayScreenInner() {
           // silent between the win/lose sounds, which read as dead air
           // through most of the round.
           playSound("correct-chime.mp3", 0.55);
+          if (hdCelebrationTimerRef.current) clearTimeout(hdCelebrationTimerRef.current);
+          setHdCelebration({ type: "correct", amount: newHDPotential, key: Date.now() });
+          hdCelebrationTimerRef.current = setTimeout(() => setHdCelebration(null), 2200);
         } else if (newHDStatus === "won") {
           // Previously only the max-pot win (>=40) got any sound at all
           // (an airhorn) - every other win, and EVERY win regardless of pot
@@ -755,6 +763,9 @@ function DisplayScreenInner() {
           } else {
             playSound("crowd-cheer.mp3", 0.6);
           }
+          if (hdCelebrationTimerRef.current) clearTimeout(hdCelebrationTimerRef.current);
+          setHdCelebration({ type: "won", amount: newHDPotential, key: Date.now() });
+          hdCelebrationTimerRef.current = setTimeout(() => setHdCelebration(null), 2600);
         } else if (newHDStatus === "lost") {
           playSound("sad-trombone.mp3", 0.9);
         }
@@ -1139,10 +1150,12 @@ function DisplayScreenInner() {
   if (phase === "hard_deck") {
     const rankLabels: Record<number,string> = { 1:"A", 11:"J", 12:"Q", 13:"K" };
     const rankLabel = (r: number) => rankLabels[r] || String(r);
-    const cur = hardDeckCards.length > 0 ? hardDeckCards[hardDeckCards.length - 1] : null;
-    const curRed = !!cur && (cur.suit === "♥" || cur.suit === "♦");
-    const LADDER = [5, 10, 20, 40];
-    const nextRung = LADDER.find(v => v > hardDeckPotential) ?? 40;
+    // Matches HardDeckPanel's actual POINTS_LADDER - this was previously its
+    // own hardcoded [5,10,20,40], so the ladder markers the room saw never
+    // matched the real payout amounts the host panel was tracking.
+    const LADDER = [10, 25, 50, 100];
+    const nextRung = LADDER.find(v => v > hardDeckPotential) ?? LADDER[LADDER.length - 1];
+    const inProgress = hardDeckStatus !== "idle" && hardDeckStatus !== "won" && hardDeckStatus !== "lost" && hardDeckStatus !== "wheel";
     return (
       <div className="fbl fbl-stage qi-display-stage qi-display-lobby">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
@@ -1159,15 +1172,25 @@ function DisplayScreenInner() {
                   <div key={v} className={"hd-rung" + (v < hardDeckPotential ? " won" : v === hardDeckPotential ? " now" : "")}>{v}</div>
                 ))}
               </div>
-              {cur ? (
-                <div className={"bigcard" + (curRed ? " red" : "")}>
-                  <div className="cv">{rankLabel(cur.rank)}</div>
-                  <div className="cs">{cur.suit}</div>
-                  <div className="cvb">{rankLabel(cur.rank)}{cur.suit}</div>
-                </div>
-              ) : (
-                <div className="bigcard back"><div className="q">?</div></div>
-              )}
+              {/* All revealed cards stay on screen so the room can see the
+                  full progression through the round, not just whichever card
+                  just flipped - the previous version replaced the single
+                  visible card every reveal, losing that story. */}
+              <div className="hd-cards-row">
+                {hardDeckCards.map((c, i) => {
+                  const red = c.suit === "♥" || c.suit === "♦";
+                  return (
+                    <div key={i} className={"bigcard" + (red ? " red" : "")}>
+                      <div className="cv">{rankLabel(c.rank)}</div>
+                      <div className="cs">{c.suit}</div>
+                      <div className="cvb">{rankLabel(c.rank)}{c.suit}</div>
+                    </div>
+                  );
+                })}
+                {inProgress && (
+                  <div className="bigcard back"><div className="q">?</div></div>
+                )}
+              </div>
               <div className="hd-mid">
                 <div className="hd-pot"><small>THE POT</small><div className="tnum">{hardDeckPotential}</div></div>
                 {hardDeckStatus === "decision" && (
@@ -1185,7 +1208,13 @@ function DisplayScreenInner() {
                 {hardDeckStatus === "won" && <div style={{ font: "800 clamp(16px,2.4vw,30px) Inter", color: "var(--green)", letterSpacing: "0.06em" }}>WON {hardDeckPotential} POINTS</div>}
                 {hardDeckStatus === "lost" && <div style={{ font: "800 clamp(16px,2.4vw,30px) Inter", color: "var(--red)", letterSpacing: "0.14em" }}>BUST</div>}
               </div>
-              <div className="bigcard back"><div className="q">?</div></div>
+              {hdCelebration && (
+                <div key={hdCelebration.key} className={"hd-celebrate " + hdCelebration.type}>
+                  {hdCelebration.type === "correct" ? "DOUBLED! →" : "+"}
+                  <span className="hd-celebrate-amount">{hdCelebration.amount}</span>
+                  {hdCelebration.type === "correct" ? "" : " POINTS"}
+                </div>
+              )}
               {hardDeckTeam && (
                 <div className="hd-crowd">
                   <b>{hardDeckTeam.toUpperCase()}</b>{

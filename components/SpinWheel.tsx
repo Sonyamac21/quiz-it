@@ -14,11 +14,16 @@ const DEFAULT_SEGS: WheelSegment[] = [
   { label:"Last Place",type:"last",  bg:"#200A0A", accent:"#991B1B", text:"#FCA5A5" },
 ];
 
+// Approved direction (after several rounds of mockups): a clean, modern
+// cabinet in the app's own purple/magenta family only - no rainbow of team
+// colours, no gold/bulbs. Segments cycle through tonal purples (dark to
+// bright magenta) so teams are still distinguishable by position/shade
+// without turning the drum into a mismatched rainbow.
 const TEAM_PALETTE: { bg: string; accent: string; text: string }[] = [
-  { bg:"#BE26C1", accent:"#FF6EFF", text:"#fff" },
-  { bg:"#7C3AED", accent:"#C4A2FF", text:"#fff" },
-  { bg:"#0EA5E9", accent:"#7DD3FC", text:"#fff" },
-  { bg:"#E0309F", accent:"#FFA6E0", text:"#fff" },
+  { bg:"#2E1A52", accent:"#D94FDC", text:"#fff" },
+  { bg:"#4A2470", accent:"#D94FDC", text:"#fff" },
+  { bg:"#6B2F9E", accent:"#F0A6F2", text:"#fff" },
+  { bg:"#8A1B8D", accent:"#F0A6F2", text:"#fff" },
 ];
 
 export function buildTeamSegments(teamNames: string[]): WheelSegment[] {
@@ -94,15 +99,18 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
       ctx.beginPath(); ctx.rect(CX-DW/2, cTop, DW, cBot-cTop); ctx.clip();
       ctx.globalAlpha = shade * 0.7 + 0.3;
       ctx.fillStyle = seg.bg; ctx.fillRect(CX-DW/2, cTop, DW, cBot-cTop);
-      const shine = ctx.createLinearGradient(CX-DW/2, 0, CX+DW/2, 0);
-      shine.addColorStop(0, "rgba(0,0,0,0.5)");
-      shine.addColorStop(0.5, "rgba(255,255,255,0.08)");
-      shine.addColorStop(1, "rgba(0,0,0,0.5)");
-      ctx.fillStyle = shine; ctx.fillRect(CX-DW/2, cTop, DW, cBot-cTop);
-      ctx.globalAlpha = shade * 0.8;
-      ctx.strokeStyle = seg.accent + "CC"; ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.moveTo(CX-DW/2+10, segTop+0.5); ctx.lineTo(CX+DW/2-10, segTop+0.5); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(CX-DW/2+10, segBot-0.5); ctx.lineTo(CX+DW/2-10, segBot-0.5); ctx.stroke();
+      // Soft top highlight / bottom shadow per chip (approximates the CSS
+      // inset box-shadow look from the approved mockup) instead of the old
+      // full-width diagonal metal-shine gradient, which read as a cheap
+      // slot-machine effect rather than a premium flat "chip".
+      const topHi = ctx.createLinearGradient(0, segTop, 0, segTop + SH*0.35);
+      topHi.addColorStop(0, "rgba(255,255,255,0.14)");
+      topHi.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = topHi; ctx.fillRect(CX-DW/2, cTop, DW, cBot-cTop);
+      const botSh = ctx.createLinearGradient(0, segBot - SH*0.4, 0, segBot);
+      botSh.addColorStop(0, "rgba(0,0,0,0)");
+      botSh.addColorStop(1, "rgba(0,0,0,0.22)");
+      ctx.fillStyle = botSh; ctx.fillRect(CX-DW/2, cTop, DW, cBot-cTop);
       ctx.globalAlpha = shade;
       const fs = Math.max(14, Math.round(16 + 10 * shade));
       ctx.font = "900 " + fs + "px sans-serif";
@@ -127,24 +135,20 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
     ctx.fillStyle = botFade; ctx.fillRect(CX-DW/2, dy+DH*0.8, DW, DH*0.2);
     ctx.restore();
 
+    // Selection window: a soft glowing rounded band across the middle,
+    // matching the approved mockup, rather than gold rim ellipses + a
+    // pulsing bulb chase (dropped along with the rest of the bulb chrome).
     ctx.save();
-    ctx.shadowColor = "#BE26C1"; ctx.shadowBlur = 16;
-    ctx.strokeStyle = "rgba(190,38,193,0.9)"; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.ellipse(CX, dy, RX, 14, 0, 0, Math.PI*2); ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(CX, dy+DH, RX, 14, 0, 0, Math.PI*2); ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = "rgba(190,38,193,0.65)"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(CX-DW/2, dy); ctx.lineTo(CX-DW/2, dy+DH); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(CX+DW/2, dy); ctx.lineTo(CX+DW/2, dy+DH); ctx.stroke();
-    const t = Date.now()/320;
-    for (let i = 0; i < 16; i++) {
-      const px = CX-DW/2 + i*(DW/15);
-      const pulse = 0.25 + 0.75*Math.abs(Math.sin(t + i*0.55));
-      ctx.beginPath(); ctx.arc(px, dy-12, 5, 0, Math.PI*2);
-      ctx.fillStyle = i%2===0 ? "rgba(190,38,193,"+pulse+")" : "rgba(224,80,227,"+(pulse*0.5)+")";
-      ctx.fill();
-      ctx.beginPath(); ctx.arc(px, dy+DH+12, 5, 0, Math.PI*2); ctx.fill();
-    }
+    const bandH = SH * 1.02, bandY = CY - bandH/2;
+    const bandGrad = ctx.createLinearGradient(0, bandY, 0, bandY+bandH);
+    bandGrad.addColorStop(0, "rgba(217,79,220,0.05)");
+    bandGrad.addColorStop(0.5, "rgba(217,79,220,0.14)");
+    bandGrad.addColorStop(1, "rgba(217,79,220,0.05)");
+    ctx.fillStyle = bandGrad;
+    ctx.fillRect(CX-DW/2, bandY, DW, bandH);
+    ctx.shadowColor = "rgba(217,79,220,0.55)"; ctx.shadowBlur = 14;
+    ctx.strokeStyle = "rgba(217,79,220,0.7)"; ctx.lineWidth = 1.5;
+    ctx.strokeRect(CX-DW/2+2, bandY, DW-4, bandH);
     ctx.restore();
   }
 
@@ -206,58 +210,49 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
     requestAnimationFrame(tick);
   }
 
-  // Cabinet chrome matches the Spin to Win slot machine (components/SlotReels.tsx)
-  // - graphite/chrome shell, gold trim, illuminated purple border, bulb rows and
-  // the same "QUIZ-IT" header plate - so the Hard Deck picker no longer looks like
-  // a separate, unstyled leftover next to every other reskinned show graphic.
-  // Only this wrapper is new; the canvas drum drawing/animation above is untouched.
-  const renderBulbRow = () => (
-    <div style={{ display: "flex", alignItems: "center", padding: "10px 16px 8px", gap: 4, background: "#0d0818" }}>
-      {Array.from({ length: 20 }).map((_, i) => (
-        <div key={i} style={{ display: "contents" }}>
-          {i > 0 && <div style={{ flex: 1, height: 1, background: "#2a0a3a" }} />}
-          <div style={{ width: 16, height: 16, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.85), #BE26C1 55%, #BE26C1 100%)", border: "1px solid rgba(180,185,200,0.4)", flexShrink: 0, boxShadow: "0 0 8px #BE26C1, inset 0 1px 1px rgba(255,255,255,0.35), inset 0 -1px 2px rgba(0,0,0,0.5)" }} />
-        </div>
-      ))}
-    </div>
-  );
-
+  // Cabinet chrome: clean, modern, Quiz-It purple/magenta only - no gold trim,
+  // no bulb rows. Approved after several rounds of mockups: an ambient purple
+  // glow behind a dark rounded card, a diagonal glass highlight over the
+  // drum window, and refined Inter/Bruno Ace SC typography rather than
+  // casino/slot-machine chrome. Only this wrapper + the glass overlay below
+  // are new; the canvas drum drawing/animation above is untouched apart from
+  // the segment-colour and selection-window changes noted there.
   return (
     <div style={{
-      position: "relative", width: "100%", maxWidth: W + 60, borderRadius: 26,
-      background: "linear-gradient(145deg, #2E1A52 0%, #231543 8%, #1D1140 20%, #150A2E 34%, #0A0118 55%)",
-      padding: 10,
-      boxShadow: "0 24px 70px rgba(0,0,0,0.75), 0 0 0 1px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.35), inset 0 -2px 6px rgba(0,0,0,0.5)",
+      position: "relative", width: "100%", maxWidth: W + 60, borderRadius: 32,
+      background: "linear-gradient(160deg, #1D1140, #12081F)",
+      padding: 18,
+      boxShadow: "0 30px 60px rgba(0,0,0,0.55), 0 0 90px rgba(190,38,193,0.14), inset 0 1px 0 rgba(255,255,255,0.06)",
     }}>
-      <div style={{ position: "absolute", inset: -4, borderRadius: 30, boxShadow: "0 0 18px 2px rgba(190,38,193,0.4), 0 0 40px 6px rgba(190,38,193,0.22), 0 0 70px 14px rgba(190,38,193,0.08)", pointerEvents: "none" as const }} />
-      <div style={{ position: "absolute", inset: 0, borderRadius: 26, border: "1px solid rgba(212,175,90,0.55)", pointerEvents: "none" as const }} />
-      <div style={{ textAlign: "center", marginBottom: 10 }}>
-        <div style={{ display: "inline-block", padding: "6px 24px", borderRadius: 999, background: "linear-gradient(180deg, #180429, #0a0116)", border: "1px solid rgba(212,175,90,0.55)", boxShadow: "0 3px 10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
+      <div style={{ textAlign: "center", marginBottom: 16 }}>
+        <div style={{ display: "inline-block", padding: "6px 24px", borderRadius: 999, background: "rgba(217,79,220,0.08)", border: "1px solid rgba(217,79,220,0.35)" }}>
           <span style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 16, letterSpacing: ".05em" }}>
             <span style={{ color: "#BE26C1" }}>QUIZ-</span><span style={{ color: "#ffffff" }}>IT</span>
           </span>
         </div>
       </div>
-      <div style={{ background: "#07030f", borderRadius: 18, border: "1px solid rgba(0,0,0,0.6)", overflow: "hidden", position: "relative", width: "100%", boxShadow: "inset 0 3px 16px rgba(0,0,0,0.85), inset 0 0 1px rgba(255,255,255,0.05)" }}>
-        {renderBulbRow()}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "18px 16px", background: "#08050f", boxShadow: "inset 0 4px 14px rgba(0,0,0,0.6), inset 0 -4px 14px rgba(0,0,0,0.5)" }}>
-          <div style={{ position:"relative" }}>
-            <div style={{ position:"absolute", left:-18, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"20px solid transparent", borderBottom:"20px solid transparent", borderLeft:"34px solid #BE26C1", filter:"drop-shadow(0 0 10px rgba(190,38,193,0.9))", zIndex:10 }} />
-            <div style={{ position:"absolute", right:-18, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"20px solid transparent", borderBottom:"20px solid transparent", borderRight:"34px solid #BE26C1", filter:"drop-shadow(0 0 10px rgba(190,38,193,0.9))", zIndex:10 }} />
-            <div style={{ position:"absolute", left:0, right:0, top:"50%", height:2, background:"linear-gradient(90deg,transparent,rgba(190,38,193,0.6),transparent)", transform:"translateY(-50%)", zIndex:5 }} />
-            <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", maxWidth:"85vw" }} />
-          </div>
-          {/* The manual spin button is HOST-ONLY. Passive surfaces (player handsets
-              and the venue display) pass allowManualSpin={false} and drive the wheel
-              purely via autoSpin/forceResultIndex, so only the host can start the
-              Hard Deck team-selection spin. */}
-          {allowManualSpin && !autoSpin && (
-            <button onClick={spin} disabled={spinning} style={{ padding:"14px 52px", background:spinning?"#1a1a2e":"linear-gradient(180deg,#D94FDC,#8A1B8D)", color:"#fff", border: spinning ? "1px solid #2E1A52" : "1px solid #D94FDC", borderRadius:50, fontSize:16, fontWeight:800, fontFamily:"'Inter',sans-serif", letterSpacing:3, cursor:spinning?"not-allowed":"pointer", boxShadow:spinning?"none":"0 0 24px rgba(190,38,193,0.5)", opacity:spinning?0.4:1, transition:"all 0.2s" }}>
-              {spinning ? "Spinning..." : "Spin The Wheel"}
-            </button>
-          )}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 22, padding: "4px 4px 0" }}>
+        <div style={{
+          position: "relative", borderRadius: 24, overflow: "hidden",
+          boxShadow: "inset 0 2px 0 rgba(255,255,255,0.03), inset 0 12px 24px rgba(0,0,0,0.6), inset 0 -12px 24px rgba(0,0,0,0.6)",
+        }}>
+          <div style={{ position:"absolute", left:-18, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"20px solid transparent", borderBottom:"20px solid transparent", borderLeft:"34px solid #D94FDC", filter:"drop-shadow(0 0 10px rgba(217,79,220,0.6))", zIndex:10 }} />
+          <div style={{ position:"absolute", right:-18, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"20px solid transparent", borderBottom:"20px solid transparent", borderRight:"34px solid #D94FDC", filter:"drop-shadow(0 0 10px rgba(217,79,220,0.6))", zIndex:10 }} />
+          <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", maxWidth:"85vw", background: "#0D0618" }} />
+          {/* Glass highlight sweep - a static diagonal gloss over the drum
+              window, the detail that reads as "premium material" rather than
+              a flat coloured rectangle. */}
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(115deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 22%, rgba(255,255,255,0) 40%)" }} />
         </div>
-        {renderBulbRow()}
+        {/* The manual spin button is HOST-ONLY. Passive surfaces (player handsets
+            and the venue display) pass allowManualSpin={false} and drive the wheel
+            purely via autoSpin/forceResultIndex, so only the host can start the
+            Hard Deck team-selection spin. */}
+        {allowManualSpin && !autoSpin && (
+          <button onClick={spin} disabled={spinning} style={{ padding:"13px 44px", background:spinning?"#1a1a2e":"linear-gradient(180deg,#D94FDC,#9A1F9E)", color:"#fff", border: "none", borderRadius:16, fontSize:13, fontWeight:700, fontFamily:"'Inter',sans-serif", letterSpacing:1.5, cursor:spinning?"not-allowed":"pointer", boxShadow:spinning?"none":"0 8px 20px rgba(190,38,193,0.35), inset 0 1px 0 rgba(255,255,255,0.25)", opacity:spinning?0.4:1, transition:"all 0.2s" }}>
+            {spinning ? "SPINNING..." : "SPIN"}
+          </button>
+        )}
       </div>
     </div>
   );

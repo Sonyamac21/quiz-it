@@ -411,8 +411,23 @@ export default function QuizBuilderPage() {
     // 0 if that fresh batch happened to fail entirely, and any round with
     // existing questions lost them the moment a regenerate only partially
     // succeeded. Rounds already at/above target are skipped outright.
+    // A round created via COPY (duplicateRound) never gets a bulkConfig entry
+    // seeded the way "+ ADD ROUND" does - checking its box then produces
+    // bulkConfig[r.id] = { selected: true } with no `count` at all. That made
+    // `bulkConfig[r.id].count - r.questions.length` evaluate to `undefined -
+    // 0` = NaN, and `NaN > 0` is false, so a round sitting at 0 questions got
+    // silently swept into "already has enough" with no error and no visible
+    // reason why. Falling back to the round's own saved target_count (or 10)
+    // whenever bulkConfig's count is missing/invalid closes this regardless
+    // of which path created the round.
     const shortfalls: Record<string, number> = {};
-    targets.forEach(r => { shortfalls[r.id] = Math.max(0, bulkConfig[r.id].count - r.questions.length); });
+    targets.forEach(r => {
+      const cfgCount = bulkConfig[r.id]?.count;
+      const effectiveTarget = Number.isFinite(cfgCount) && (cfgCount as number) > 0
+        ? (cfgCount as number)
+        : (r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.target_count || 10));
+      shortfalls[r.id] = Math.max(0, effectiveTarget - r.questions.length);
+    });
     const runTargets = targets.filter(r => shortfalls[r.id] > 0);
     if (!runTargets.length) {
       setBulkRunning(false);
@@ -421,15 +436,15 @@ export default function QuizBuilderPage() {
     }
     const specs: RoundGenerationSpec[] = runTargets.map(r => ({
       roundType: r.round_type,
-      difficulty: bulkConfig[r.id].difficulty,
-      theme: bulkConfig[r.id].theme,
+      difficulty: bulkConfig[r.id]?.difficulty || r.difficulty || "mixed",
+      theme: bulkConfig[r.id]?.theme ?? r.theme ?? "",
       count: shortfalls[r.id],
     }));
     // Persist the theme/difficulty each round is being generated with right
     // away, so it survives a reload and SWAP picks it back up later instead
     // of silently generating untargeted content.
-    await Promise.all(runTargets.map(r => supabase.from("quiz_rounds").update({ theme: bulkConfig[r.id].theme || null, difficulty: bulkConfig[r.id].difficulty }).eq("id", r.id)));
-    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => runTargets.some(t2 => t2.id === r.id) ? { ...r, theme: bulkConfig[r.id].theme || null, difficulty: bulkConfig[r.id].difficulty } : r) }));
+    await Promise.all(runTargets.map(r => supabase.from("quiz_rounds").update({ theme: (bulkConfig[r.id]?.theme ?? r.theme) || null, difficulty: bulkConfig[r.id]?.difficulty || r.difficulty || "mixed" }).eq("id", r.id)));
+    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => runTargets.some(t2 => t2.id === r.id) ? { ...r, theme: (bulkConfig[r.id]?.theme ?? r.theme) || null, difficulty: bulkConfig[r.id]?.difficulty || r.difficulty || "mixed" } : r) }));
     setBulkProgress(Object.fromEntries(runTargets.map(r => [r.id, "Queued..."])));
     try {
       await generateAllRounds(

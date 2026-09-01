@@ -100,6 +100,7 @@ const PERMANENT_EXCLUDED_FACTS = [
   "Which country is this flag from? (Japan)",
   "What is the name of Fred Flintstone's pet dinosaur? (Dino)",
   "Which car brand has a logo featuring a prancing horse? (Ferrari)",
+  "Which movie features a character who can see dead people? (The Sixth Sense)",
 ];
 // A picture-type candidate's photo query is restricted (see generateOne's
 // picture instructions) to only: a famous landmark/building, an animal or
@@ -540,7 +541,7 @@ Music, movies, TV shows, celebrities, football, world geography, famous brands, 
 WHAT TO NEVER WRITE ABOUT:
 Mathematics, advanced science, chemistry, physics, medicine, rare diseases, engineering, obscure geography, scientific terminology, specialist vocabulary, academic concepts, anything requiring university-level knowledge
 STRICT QUALITY RULES (every question must pass all of these):
-1. The answer must NOT appear anywhere inside the question text. Never give away or hint at the answer in the question itself.
+1. The answer must NOT appear anywhere inside the question text, including inside a show/film/song/book title, brand name, or other proper noun quoted in the question. Never give away or hint at the answer in the question itself. Example that MUST fail: "In which country is the reality show 'MasterChef Australia' filmed and set?" answer "Australia" (the country name is written right there in the show's title) - pick a different fact about the show, or a different question, instead.
 2. No words that are difficult to pronounce aloud at speed. A host reads this live to a noisy room.
 3. No specialist terminology. If an average person would not know the word, do not use it.
 4. Wrong answer options must be plausible. Use well-known alternatives someone might genuinely confuse, not obviously wrong fillers.

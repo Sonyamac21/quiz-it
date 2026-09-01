@@ -112,6 +112,7 @@ const PERMANENT_EXCLUDED_FACTS = [
   "Which country is this flag from? (Japan)",
   "What is the name of Fred Flintstone's pet dinosaur? (Dino)",
   "Which car brand has a logo featuring a prancing horse? (Ferrari)",
+  "Which movie features a character who can see dead people? (The Sixth Sense)",
 ];
 // Matches lib/quiz/generateRound.ts's RECENCY_SIGNAL - a theme or randomly-
 // picked topic whose text itself asks for something current gets routed
@@ -598,7 +599,7 @@ WHAT TO NEVER WRITE ABOUT:
 Mathematics, advanced science, chemistry, physics, medicine, rare diseases, engineering, obscure geography, scientific terminology, specialist vocabulary, academic concepts, anything requiring university-level knowledge
 
 STRICT QUALITY RULES (every question must pass all of these):
-1. The answer must NOT appear anywhere inside the question text. Never give away or hint at the answer in the question itself.
+1. The answer must NOT appear anywhere inside the question text, including inside a show/film/song/book title, brand name, or other proper noun quoted in the question. Never give away or hint at the answer in the question itself. Example that MUST fail: "In which country is the reality show 'MasterChef Australia' filmed and set?" answer "Australia" (the country name is written right there in the show's title) - pick a different fact about the show, or a different question, instead.
 2. No words that are difficult to pronounce aloud at speed. A host reads this live to a noisy room.
 3. No specialist terminology. If an average person would not know the word, do not use it.
 4. Wrong answer options must be plausible. Use well-known alternatives someone might genuinely confuse, not obviously wrong fillers.
@@ -1194,20 +1195,27 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         ["multiple_choice", "text_answer", "number", "sequence"][i % 4]
       ));
     } else {
-      const mcCount = Math.round(count * 0.25);
-      const taCount = Math.round(count * 0.20);
-      const numCount = Math.round(count * 0.15);
-      const seqCount = Math.round(count * 0.10);
-      const picCount = Math.round(count * 0.20);
-      const audCount = count - mcCount - taCount - numCount - seqCount - picCount;
-      types = shuffle([
-        ...Array(mcCount).fill("multiple_choice"),
-        ...Array(taCount).fill("text_answer"),
-        ...Array(numCount).fill("number"),
-        ...Array(seqCount).fill("sequence"),
-        ...Array(Math.max(0,picCount)).fill("picture"),
-        ...Array(Math.max(0,audCount)).fill("audio"),
-      ]);
+      // Largest-remainder allocation instead of independently Math.round()-ing
+      // each category then giving audio whatever's left over. Rounding every
+      // OTHER category up first could already overshoot the full count (e.g.
+      // count=10: mc round(2.5)=3, ta round(2)=2, num round(1.5)=2, seq
+      // round(1)=1, pic round(2)=2 - that's 10 already), leaving audio's
+      // subtraction at exactly 0 - so a whole category (and sometimes two)
+      // silently vanished from every round while multiple_choice kept its
+      // full share, which is exactly why hosts were seeing mostly multiple
+      // choice with picture/audio/sequence barely showing up. Mirrors the fix
+      // already applied in lib/quiz/generateRound.ts - see that file's
+      // comment for the full explanation.
+      const weights: [string, number][] = [
+        ["multiple_choice", 0.25], ["text_answer", 0.20], ["number", 0.15],
+        ["sequence", 0.10], ["picture", 0.20], ["audio", 0.10],
+      ];
+      const raw = weights.map(([, w]) => w * count);
+      const base = raw.map(Math.floor);
+      let remainder = count - base.reduce((a, b) => a + b, 0);
+      const order = raw.map((r, i) => ({ i, frac: r - base[i] })).sort((a, b) => b.frac - a.frac);
+      for (const { i } of order) { if (remainder <= 0) break; base[i]++; remainder--; }
+      types = shuffle(weights.flatMap(([type], i) => Array(base[i]).fill(type)));
     }
     const shuffledTopics = shuffle(TOPICS);
     const shuffledMusicTopics = shuffle(MUSIC_TOPICS);

@@ -462,12 +462,27 @@ export default function QuizBuilderPage() {
           // failure now just means "got fewer new ones than hoped", never
           // "lost the ones that were already there".
           const round = runTargets[idx];
-          const mergedQuestions = [...round.questions, ...result.questions];
-          supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id).then(() => {
-            setQuizzes(prev => prev.map(q => {
+          // Merging against `round.questions` - a snapshot captured when this
+          // whole batch was LAUNCHED - was a real bug: if a host deleted or
+          // edited a question in this round anytime while generation was
+          // still running (which can take minutes), that snapshot predates
+          // the deletion. Saving mergedQuestions built from the stale
+          // snapshot silently overwrote the database with the pre-deletion
+          // question list plus the new ones, resurrecting exactly what the
+          // host had just removed. Reading the CURRENT live question list
+          // from React state at the moment generation actually completes
+          // (not from the moment it started) fixes this regardless of what
+          // else the host did to the round in between.
+          let mergedQuestions = [...round.questions, ...result.questions];
+          setQuizzes(prev => {
+            const liveRound = prev.find(q => q.id === selected.id)?.quiz_rounds.find(r => r.id === round.id);
+            mergedQuestions = [...(liveRound ? liveRound.questions : round.questions), ...result.questions];
+            return prev.map(q => {
               if (q.id !== selected.id) return q;
               return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) };
-            }));
+            });
+          });
+          supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id).then(() => {
             void syncRoundToLibrary(round, mergedQuestions, selected.name);
           });
         },
@@ -522,9 +537,18 @@ export default function QuizBuilderPage() {
         [{ roundType: round.round_type, difficulty: cfg?.difficulty || round.difficulty || "mixed", theme: cfg?.theme ?? round.theme ?? "", count: n }],
         (_idx, status) => setGeneratingMoreStatus(status + capNote),
       );
-      const mergedQuestions = [...round.questions, ...result.questions];
+      // Same stale-snapshot bug as runBulkGenerate above: `round` here is
+      // whatever was passed in when this button was clicked, which can be
+      // minutes stale by the time generation actually finishes. Read the
+      // CURRENT live question list at completion time so a deletion/edit the
+      // host made while this was running doesn't get silently undone.
+      let mergedQuestions = [...round.questions, ...result.questions];
+      setQuizzes(prev => {
+        const liveRound = prev.find(q => q.id === selected?.id)?.quiz_rounds.find(r => r.id === round.id);
+        mergedQuestions = [...(liveRound ? liveRound.questions : round.questions), ...result.questions];
+        return prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) });
+      });
       await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id);
-      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) }));
       if (selected) void syncRoundToLibrary(round, mergedQuestions, selected.name);
       const shortfall = result.questions.length < n;
       // This used to only live in generatingMoreStatus, which is rendered
@@ -987,7 +1011,20 @@ export default function QuizBuilderPage() {
                       </label>
                     )}
                     <span style={{ font: "700 13px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{index + 1}. {round.name}</span>
-                    {roundProgress && <span title={roundProgress} style={{ color: "#2EE06E", font: "600 11px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{roundProgress}</span>}
+                    {/* A native `title` tooltip only appears on hover-and-wait and
+                        never on click/tap, so a host clicking straight at this
+                        truncated text (as reported) saw nothing happen - no
+                        tooltip "window" ever opened. Clicking now shows the full
+                        message via the app's own toast instead of relying on
+                        that unreliable native behavior. */}
+                    {roundProgress && (
+                      <span
+                        onClick={e => { e.stopPropagation(); showToast(roundProgress, "info", 10000); }}
+                        style={{ color: "#2EE06E", font: "600 11px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline dotted" }}
+                      >
+                        {roundProgress}
+                      </span>
+                    )}
                     <span style={{ color: "#6B5A8E", font: "400 11px 'Inter'" }}>{round.questions.length} Q - {round.round_type}</span>
                     {/* A round with audio questions still needs each one's
                         actual clip saved in Music Prep before the quiz can go

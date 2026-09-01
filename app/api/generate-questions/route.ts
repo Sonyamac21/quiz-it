@@ -88,8 +88,14 @@ export async function POST(req: NextRequest) {
     // call, and cheaper Haiku for the simple pass/fail validation calls
     // (moderation/theme/quality/balance) that make up the majority of
     // requests per question generated.
-    const allowedModels = new Set(["claude-sonnet-4-6", "claude-haiku-4-5-20251001"]);
-    const resolvedModel = typeof model === "string" && allowedModels.has(model) ? model : "claude-sonnet-4-6";
+    // "claude-sonnet-4-6" was a stale/invalid model string - not one of
+    // Anthropic's actual current model IDs. Anthropic's API can silently
+    // accept an unrecognised model alias and route it to a fallback/older
+    // snapshot rather than hard-erroring, which would explain question
+    // quality being noticeably weaker than expected from "the strong model"
+    // despite no errors ever surfacing. Corrected to the real current model.
+    const allowedModels = new Set(["claude-sonnet-5", "claude-haiku-4-5-20251001"]);
+    const resolvedModel = typeof model === "string" && allowedModels.has(model) ? model : "claude-sonnet-5";
     if (!prompt || typeof prompt !== "string") {
       return NextResponse.json({ error: { message: "Missing prompt" } }, { status: 400 });
     }

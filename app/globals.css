@@ -308,6 +308,17 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-connect__action { width: 100%; min-height: 58px; margin-top: var(--qi-space-5); font-size: 1.075rem; }
 
 .qi-mc-header {
+  /* Was missing sticky positioning entirely, unlike .qi-bo-header and
+     .qi-site-header elsewhere in the app which both already do this - the
+     whole host control bar (brand, session PIN, nav including the Photos
+     approval button/badge, Open Display) just scrolled away with the rest
+     of the page. Reported directly: a photo approval could arrive while
+     scrolled down into the question/answer content and go unnoticed because
+     the badge was off-screen with no way to see it without scrolling back
+     up. Sticky keeps it visible at all times regardless of scroll position. */
+  position: sticky;
+  top: 0;
+  z-index: var(--qi-z-sticky, 30);
   display: grid;
   grid-template-columns: minmax(230px, auto) minmax(330px, 1fr) auto;
   align-items: center;
@@ -368,8 +379,18 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-rail { min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: rgb(16 5 34 / 0.56); }
 .qi-mc-settings { padding: var(--qi-space-4) var(--qi-space-5); border-bottom: 1px solid var(--qi-border); background: rgb(29 17 64 / 0.5); }
 .qi-mc-settings .fbh-btn { min-height: 40px; }
-.qi-mc-teams { min-height: 0; flex: 1; padding: var(--qi-space-4) var(--qi-space-5); overflow-y: auto; }
-.qi-mc-teams__header { position: sticky; top: calc(var(--qi-space-4) * -1); z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: var(--qi-space-3); margin: calc(var(--qi-space-4) * -1) calc(var(--qi-space-5) * -1) var(--qi-space-4); padding: var(--qi-space-4) var(--qi-space-5); border-bottom: 1px solid var(--qi-border); background: rgb(16 5 34 / 0.96); }
+/* Multi-column team roster (matches the SpeedQuizzing layout this app is
+   replacing) - a single vertical column of team cards ran off the bottom of
+   the rail with a large team count, forcing a host to scroll the roster
+   mid-show to see teams further down (and easy to lose track of who's
+   answered). auto-fit packs as many ~170px-minimum columns as the rail's
+   ACTUAL width allows (usually 2 at typical laptop rail widths) rather than
+   a viewport-width media query, which would guess wrong whenever the rail's
+   own width doesn't move in lockstep with the viewport (it's a vw-based
+   fraction of the workspace, not a fixed size) - this falls back to a single
+   column on its own if the rail is ever genuinely too narrow for two. */
+.qi-mc-teams { min-height: 0; flex: 1; padding: var(--qi-space-4) var(--qi-space-5); overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); align-content: start; gap: 0 var(--qi-space-3); }
+.qi-mc-teams__header { grid-column: 1 / -1; position: sticky; top: calc(var(--qi-space-4) * -1); z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: var(--qi-space-3); margin: calc(var(--qi-space-4) * -1) calc(var(--qi-space-5) * -1) var(--qi-space-4); padding: var(--qi-space-4) var(--qi-space-5); border-bottom: 1px solid var(--qi-border); background: rgb(16 5 34 / 0.96); }
 .qi-mc-teams__header > div { display: grid; }
 .qi-mc-teams .fbh-crest { width: 28px !important; height: 28px !important; font-size: 9px !important; }
 .qi-mc-round-picker { max-width: 62rem; margin: var(--qi-space-8) auto 0; }
@@ -464,7 +485,14 @@ button, input, select, textarea { font: inherit; }
 
 @media (max-width: 860px) {
   .qi-mc-shell { overflow: visible; }
-  .qi-mc-header { position: static; grid-template-columns: 1fr; }
+  /* Was `position: static` here, which completely cancelled the header's
+     sticky positioning at exactly the screen widths a host is most likely
+     to actually be using (tablet/small laptop) - the Photos approval badge
+     and everything else in the header scrolled away with the page on the
+     narrower screens this rule targets, which is the opposite of what it
+     should do. Kept sticky; only the column layout changes for narrow
+     screens. */
+  .qi-mc-header { position: sticky; top: 0; grid-template-columns: 1fr; }
   .qi-mc-brand__section { display: none; }
   .qi-mc-session { justify-content: flex-start; overflow-x: auto; }
   .qi-mc-nav { grid-column: auto; flex-wrap: wrap; }

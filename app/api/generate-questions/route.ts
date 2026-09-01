@@ -81,13 +81,10 @@ export async function POST(req: NextRequest) {
 
     // 3. Validate the prompt.
     const { prompt, maxTokens, structuredOutput, webSearch, model } = await req.json();
-    // Only two models are ever allowed through from the client - this is
-    // NOT a general passthrough (a caller can't ask the server to bill an
-    // arbitrary/expensive model), just a choice between the two this app
-    // actually uses: full-price Sonnet for the creative question-writing
-    // call, and cheaper Haiku for the simple pass/fail validation calls
-    // (moderation/theme/quality/balance) that make up the majority of
-    // requests per question generated.
+    // Only approved models are allowed through from the client; this is not
+    // a general model passthrough. Quiz generation now explicitly requests
+    // Haiku for both writing and validation to minimise commercial running
+    // cost, while Sonnet remains an allowed fallback for controlled testing.
     // "claude-sonnet-4-6" was a stale/invalid model string - not one of
     // Anthropic's actual current model IDs. Anthropic's API can silently
     // accept an unrecognised model alias and route it to a fallback/older
@@ -154,7 +151,9 @@ export async function POST(req: NextRequest) {
       requestBody.tools = [{
         type: "web_search_20250305",
         name: "web_search",
-        max_uses: 3,
+        // One stable quiz fact only needs one focused search. Each additional
+        // search has a separate Anthropic tool charge as well as token cost.
+        max_uses: 1,
       }];
     }
 

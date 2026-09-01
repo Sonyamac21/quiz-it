@@ -98,10 +98,6 @@ function stageLabel(stage: ValidationStage): string {
   } satisfies Record<ValidationStage, string>)[stage];
 }
 
-// Same 3x weighting as lib/quiz/generateRound.ts's TOPICS (see comment
-// there) - repeated so an unthemed round lands on current content roughly 1
-// in 6 questions instead of 1 in 16.
-const TOPICS = ["music","movies","TV shows","sport","football","food and drink","celebrities","geography","famous landmarks","logos and brands","travel","social media and internet","simple history","famous people","animals","classic cartoons","video games","awards and records","fashion and style","comedy and humour","reality TV","theatre and musicals","UK culture","US culture","international culture","childhood and nostalgia","royals and politics","crime and mystery","cars and transport","nature and wildlife","recent entertainment news (last 1-3 years, no politics)","recent entertainment news (last 1-3 years, no politics)","recent entertainment news (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)","celebrity and pop culture moments (last 1-3 years, no politics)"];
 const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","Christmas songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
 // Same permanent exclusion list as lib/quiz/generateRound.ts (see the
 // comment there) - this older single-round generator is a separate code
@@ -125,6 +121,28 @@ const PERMANENT_EXCLUDED_FACTS = [
 // on retries rather than producing usable questions. Deliberately a small,
 // curated pool of actually-photographable subjects.
 const PICTURE_TOPICS = ["famous landmarks","world flags","animals and wildlife","iconic buildings","national dishes and cuisine","famous bridges","sports stadiums","big cats and safari animals","dog and cat breeds","famous mountains and natural wonders","tropical destinations","classic desserts and sweets","famous rivers and waterfalls","farm animals","street food dishes"];
+const REGULAR_TYPE_WEIGHTS: [string, number][] = [
+  ["multiple_choice", 0.25], ["text_answer", 0.20], ["number", 0.15],
+  ["sequence", 0.10], ["picture", 0.20], ["audio", 0.10],
+];
+const REQUIRED_REGULAR_TYPES = ["multiple_choice", "text_answer", "number", "picture", "audio"];
+
+function allocateRegularTypes(count: number): string[] {
+  const allocated = count >= REQUIRED_REGULAR_TYPES.length ? [...REQUIRED_REGULAR_TYPES] : [];
+  const remaining = count - allocated.length;
+  if (remaining <= 0) return shuffle(allocated);
+  const raw = REGULAR_TYPE_WEIGHTS.map(([, weight]) => weight * remaining);
+  const base = raw.map(Math.floor);
+  let remainder = remaining - base.reduce((sum, value) => sum + value, 0);
+  const order = raw.map((value, index) => ({ index, fraction: value - base[index] }))
+    .sort((a, b) => b.fraction - a.fraction);
+  for (const { index } of order) {
+    if (remainder <= 0) break;
+    base[index]++;
+    remainder--;
+  }
+  return shuffle([...allocated, ...REGULAR_TYPE_WEIGHTS.flatMap(([type], index) => Array(base[index]).fill(type))]);
+}
 // Bucketed, round-robin topic picker so an unthemed round guarantees a
 // spread across news/showbiz, movies/TV, music/culture, geography, history,
 // sport, and everyday-life categories instead of drawing purely at random
@@ -137,14 +155,15 @@ const PICTURE_TOPICS = ["famous landmarks","world flags","animals and wildlife",
 // logic - topUp used to have its own, much weaker random topic draw with no
 // category guarantee at all.
 const TOPIC_BUCKETS: string[][] = [
-  ["recent entertainment news (last 1-3 years, no politics)", "celebrity and pop culture moments (last 1-3 years, no politics)"],
+  ["breaking and trending mainstream headlines from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent entertainment news from the last 3-12 months", "celebrity and pop culture moments from the last 3-12 months"],
   ["movies", "TV shows", "celebrities", "awards and records", "reality TV", "theatre and musicals"],
-  ["music", "video games", "comedy and humour", "social media and internet", "fashion and style"],
+  ["music", "video games", "comedy and humour", "social media and internet", "consumer technology and digital life", "fashion and style"],
   ["geography", "famous landmarks", "travel", "UK culture", "US culture", "international culture"],
-  ["simple history", "childhood and nostalgia", "crime and mystery", "royals and politics"],
+  ["simple history", "books and literature", "art and culture", "childhood and nostalgia", "crime and mystery", "royals and politics"],
   ["sport", "football"],
-  ["food and drink", "logos and brands", "animals", "classic cartoons", "cars and transport", "nature and wildlife"],
+  ["food and drink", "logos and brands", "accessible science and space", "animals", "classic cartoons", "cars and transport", "nature and wildlife"],
 ];
+const TOPICS = TOPIC_BUCKETS.flat();
 function createGeneralTopicPicker(): (launchIndex: number) => string {
   const shuffledBuckets = TOPIC_BUCKETS.map(shuffle);
   const tried = new Set<string>();
@@ -203,6 +222,7 @@ const MAX_AI_CONCURRENCY = 8;
 // price for checks that cost a fraction as much on Haiku. Matching that fix
 // here.
 const VALIDATION_MODEL = "claude-haiku-4-5-20251001";
+const GENERATION_MODEL = VALIDATION_MODEL;
 let activeAiRequests = 0;
 const aiRequestQueue: Array<() => void> = [];
 
@@ -601,9 +621,7 @@ export default function QuestionsPage() {
     // Matches lib/quiz/generateRound.ts's isRecencyTopic - covers the two
     // fixed recency topics plus any theme/topic text that itself signals it
     // wants something current (see RECENCY_SIGNAL above).
-    const isRecencyTopic = topic === "recent entertainment news (last 1-3 years, no politics)"
-      || topic === "celebrity and pop culture moments (last 1-3 years, no politics)"
-      || RECENCY_SIGNAL.test(topic);
+    const isRecencyTopic = RECENCY_SIGNAL.test(topic);
     context.error = "";
     context.report = {
       questionText: "",
@@ -661,10 +679,10 @@ TONE AND STYLE:
 - Use plain everyday English, no jargon
 
 WHAT TO WRITE ABOUT (high priority):
-Music, movies, TV shows, celebrities, football, world geography, famous brands, logos, food and drink, famous landmarks, travel destinations, pop culture, social media, simple history, famous people, famous companies, sport, everyday life
+Music, movies, TV shows, celebrities, showbiz, football, world geography, famous brands, food and drink, famous landmarks, travel, pop culture, social media, consumer technology, accessible science and space, books, art and culture, simple history, sport, nature and everyday life
 
 WHAT TO NEVER WRITE ABOUT:
-Mathematics, advanced science, chemistry, physics, medicine, rare diseases, engineering, obscure geography, scientific terminology, specialist vocabulary, academic concepts, anything requiring university-level knowledge
+Mathematics, advanced or specialist science, medicine, rare diseases, engineering detail, obscure geography, scientific terminology, specialist vocabulary, academic concepts, anything requiring university-level knowledge
 
 STRICT QUALITY RULES (every question must pass all of these):
 1. The answer must NOT appear anywhere inside the question text, including inside a show/film/song/book title, brand name, or other proper noun quoted in the question. Never give away or hint at the answer in the question itself. Example that MUST fail: "In which country is the reality show 'MasterChef Australia' filmed and set?" answer "Australia" (the country name is written right there in the show's title) - pick a different fact about the show, or a different question, instead.
@@ -674,8 +692,8 @@ STRICT QUALITY RULES (every question must pass all of these):
 5. Every question must be answerable by a reasonably well-informed adult with no specialist training.
 6. UAE venue safe: no alcohol references, no pork, no sexual content, no religion, no LGBTQ+ content, no Iran or Israel political references. This is a UAE venue with an international, mostly-expat crowd, NOT a UK pub - do not default to UK-only framing or phrasing ("UK hit", "UK number one", "as seen on British TV", assuming a British reader). Prefer facts and entities that are globally/internationally recognisable (worldwide chart hits, globally famous films/shows/people) over ones that are only well-known in the UK specifically. Frame chart/hit questions in globally neutral terms (e.g. "a global hit" or naming the artist/year) rather than labelling them by a single country's chart unless the topic is explicitly about that country's culture.
 7. Use one stable, verifiable fact: nothing disputed, subjective, or invented.${isRecencyTopic
-      ? " This question is for the \"" + topic + "\" topic - you have a web_search tool available and MUST use it before writing the question. Search for a genuinely well-known, headline-level entertainment/celebrity/pop-culture/sport/music event from roughly the last 1-3 years (award win, major release, record, retirement, high-profile moment). Base the question and correct_answer strictly on what your search results actually confirm - do not fall back on memory alone or guess at a date, result or detail your search didn't verify. If search results are unclear or conflicting on a fact, pick a different, more clearly-confirmed event instead of guessing. Never write about politics, elections, war, or anything from the last few weeks (too recent to be common knowledge to a pub crowd yet)."
-      : " For the \"recent entertainment news\", \"celebrity and pop culture moments\", and \"current chart hits\" topics only, you may use well-known entertainment, film/TV, music, sport or celebrity events from roughly the last 1-3 years (award wins, releases, retirements, records, headline pop-culture moments) - never politics, never anything from the last few months, and never anything you are not confident is still accurate."}
+      ? " This question is for the \"" + topic + "\" topic - you have a web_search tool available and MUST use it before writing the question. Search for a genuinely well-known breaking or trending entertainment, showbiz, music, sport, technology or culture headline from roughly the last 1-12 months. Use only a completed, stable fact confirmed by reliable search results; never ask about a developing story, prediction, rumour or detail likely to change. If sources are unclear or conflicting, choose a different story. Never use politics, elections, war, crime, tragedy or disaster."
+      : " For current or trending topics only, use well-known, completed entertainment, showbiz, music, sport, technology or culture events confirmed by live search - never politics, developing stories, rumours or facts likely to change."}
 8. Wording must allow exactly one defensible, natural answer-not an abbreviation, fragment, trick or technicality.
 9. If the correct_answer is a person's name and only part of the full name (surname only, or first name only) will be stored as the answer, the question_text itself must explicitly state which part is required (e.g. "What is the SURNAME of the actress who played Katniss Everdeen?" with correct_answer "Lawrence", or "What is the FIRST NAME of the actor who played Iron Man?" with correct_answer "Robert"). Never ask an ambiguous full-name question and store only a partial name as the answer.
 10. The question must stand alone without its explanation and test one satisfying piece of knowledge.
@@ -688,7 +706,7 @@ Your entire reply must be ONLY the JSON array itself - no preamble, no "checking
 Return ONLY a valid JSON array with 1 item, no markdown:
 [{"question_text":"...","question_type":"${type}","option_a":"...","option_b":"...","option_c":"...","option_d":"...","option_e":"...","option_f":"...","correct_answer":"...","explanation":"...","difficulty":"${difficulty}","round_type":"${roundType}"}]`;
     try {
-      const text = await callAPI(prompt, 8000, false, isRecencyTopic);
+      const text = await callAPI(prompt, 1200, false, isRecencyTopic, GENERATION_MODEL);
       let q;
       try {
         q = parseModelJson<Array<Question & Record<string, unknown>>>(text, "array")[0];
@@ -1112,31 +1130,31 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     reason: string;
     stages: ValidationResults;
   }> {
-    // These validators are logically independent: none mutates the candidate or
-    // depends on another validator's result. Running them one after another made
-    // every question pay for three model round-trips plus the database lookup in
-    // series. Start them together, then apply their results in the established
-    // gate order below so acceptance behaviour and rejection priority do not
-    // change. The local duplicate check remains synchronous and authoritative.
     const activeTheme = (theme || "").trim();
-    const moderationPromise = checkQuestion(q);
-    const balancePromise = activeTheme
-      ? Promise.resolve<Awaited<ReturnType<typeof checkRoundBalance>> | null>(null)
-      : checkRoundBalance(q, currentRound);
-    const memoryPromise = isDuplicateInMemory(q);
-    const qualityPromise = finalQualityCheck(q);
-
-    const [moderation, balance, memoryDuplicate, quality] = await Promise.all([
-      moderationPromise,
-      balancePromise,
-      memoryPromise,
-      qualityPromise,
-    ]);
-    stages.moderation = { status: moderation.ok ? "passed" : "failed", note: moderation.note };
     const duplicateReason = duplicateRejectionReason(q, currentRound);
     stages.duplicate = duplicateReason
       ? { status: "failed", note: duplicateReason }
       : { status: "passed", note: "No session or round duplicate" };
+    if (duplicateReason) return { ok: false, category: "Duplicate", reason: duplicateReason, stages };
+
+    const memoryDuplicate = await isDuplicateInMemory(q);
+    stages.memory = memoryDuplicate
+      ? { status: "failed", note: "Matched permanent Question Memory" }
+      : { status: "passed", note: "No permanent-memory match" };
+    if (memoryDuplicate) return { ok: false, category: "Permanent memory", reason: stages.memory.note, stages };
+
+    const moderationPromise = checkQuestion(q);
+    const balancePromise = activeTheme
+      ? Promise.resolve<Awaited<ReturnType<typeof checkRoundBalance>> | null>(null)
+      : checkRoundBalance(q, currentRound);
+    const qualityPromise = finalQualityCheck(q);
+
+    const [moderation, balance, quality] = await Promise.all([
+      moderationPromise,
+      balancePromise,
+      qualityPromise,
+    ]);
+    stages.moderation = { status: moderation.ok ? "passed" : "failed", note: moderation.note };
     if (!activeTheme) {
       if (!balance) throw new Error("Round Balance result was unavailable");
       stages.balance = {
@@ -1145,9 +1163,6 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         details: balance.details,
       };
     }
-    stages.memory = memoryDuplicate
-      ? { status: "failed", note: "Matched permanent Question Memory" }
-      : { status: "passed", note: "No permanent-memory match" };
     stages.quality = { status: quality.ok ? "passed" : "failed", note: quality.note };
 
     // Preserve the established rejection priority even though the independent
@@ -1158,9 +1173,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       reason: moderation.note,
       stages,
     };
-    if (duplicateReason) return { ok: false, category: "Duplicate", reason: duplicateReason, stages };
     if (balance && !balance.ok) return { ok: false, category: "Round balance", reason: balance.note, stages };
-    if (memoryDuplicate) return { ok: false, category: "Permanent memory", reason: stages.memory.note, stages };
     if (!quality.ok) return { ok: false, category: "Final quality", reason: quality.note, stages };
 
     return { ok: true, category: "Accepted", reason: "Passed every applicable validation stage", stages };
@@ -1263,6 +1276,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         ["multiple_choice", "text_answer", "number", "sequence"][i % 4]
       ));
     } else {
+      // Guarantee the five commercial core formats once a round has at least
+      // five questions, then distribute remaining slots by largest remainder.
+      // This prevents a short regular round from silently omitting music or a
+      // number answer because percentage rounding happened to favour another
+      // category.
       // Largest-remainder allocation instead of independently Math.round()-ing
       // each category then giving audio whatever's left over. Rounding every
       // OTHER category up first could already overshoot the full count (e.g.
@@ -1274,16 +1292,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       // choice with picture/audio/sequence barely showing up. Mirrors the fix
       // already applied in lib/quiz/generateRound.ts - see that file's
       // comment for the full explanation.
-      const weights: [string, number][] = [
-        ["multiple_choice", 0.25], ["text_answer", 0.20], ["number", 0.15],
-        ["sequence", 0.10], ["picture", 0.20], ["audio", 0.10],
-      ];
-      const raw = weights.map(([, w]) => w * count);
-      const base = raw.map(Math.floor);
-      let remainder = count - base.reduce((a, b) => a + b, 0);
-      const order = raw.map((r, i) => ({ i, frac: r - base[i] })).sort((a, b) => b.frac - a.frac);
-      for (const { i } of order) { if (remainder <= 0) break; base[i]++; remainder--; }
-      types = shuffle(weights.flatMap(([type], i) => Array(base[i]).fill(type)));
+      types = allocateRegularTypes(count);
     }
     const pickGeneralTopic = createGeneralTopicPicker();
     const pickPictureTopic = createPictureTopicPicker();

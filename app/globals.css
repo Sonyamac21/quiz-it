@@ -1660,11 +1660,11 @@ button, input, select, textarea { font: inherit; }
    clamps lets rows compress on shorter viewports / more options instead of
    overflowing, so the safety-net scroll goes back to being a rare fallback. */
 .qi-player-question-text { font-size: clamp(20px,6.6vw,34px); font-weight: 850; line-height: 1.2; letter-spacing: -.018em; margin: clamp(2px,0.6dvh,4px) 0 clamp(8px,1.8dvh,18px); text-wrap: balance; }
-.qi-player-question-screen .fbl .opt { min-height: clamp(46px,7.5dvh,68px); margin-bottom: clamp(6px,1.2dvh,10px); border-radius: 18px; padding: clamp(8px,1.6dvh,14px) 16px; background: var(--qi-player-raised); border-color: rgba(217,79,220,.25); font-size: clamp(15px,4.7vw,21px); line-height: 1.2; touch-action: manipulation; }
+.qi-player-question-screen .fbl .opt { min-height: clamp(46px,9dvh,92px); margin-bottom: clamp(6px,1.4dvh,12px); border-radius: 18px; padding: clamp(8px,2dvh,18px) 18px; background: var(--qi-player-raised); border-color: rgba(217,79,220,.25); font-size: clamp(15px,5.6vw,28px); line-height: 1.2; touch-action: manipulation; }
 .qi-player-question-screen .fbl .opt.sel { background: rgba(190,38,193,.27); border: 2px solid #d94fdc; box-shadow: 0 0 0 4px rgba(217,79,220,.1); }
-.qi-player-question-screen .fbl .opt .chip { width: 38px; height: 38px; border-radius: 11px; font-size: 14px; flex-shrink: 0; }
-.qi-player-question-screen .fbl .lockbar { min-height: clamp(44px,6.5dvh,62px); border-radius: 18px; margin-top: clamp(8px,1.8dvh,14px); font-size: 16px; letter-spacing: .12em; touch-action: manipulation; }
-.qi-player-answer-button { min-height: clamp(46px,7.5dvh,68px) !important; border-radius: 18px !important; background: var(--qi-player-raised) !important; font-size: clamp(17px,4.6vw,21px) !important; line-height: 1.2; touch-action: manipulation; }
+.qi-player-question-screen .fbl .opt .chip { width: clamp(32px,7dvh,52px); height: clamp(32px,7dvh,52px); border-radius: 12px; font-size: clamp(14px,3dvh,22px); flex-shrink: 0; }
+.qi-player-question-screen .fbl .lockbar { min-height: clamp(44px,8dvh,80px); border-radius: 18px; margin-top: clamp(8px,2dvh,16px); font-size: clamp(16px,3.6dvh,24px); letter-spacing: .12em; touch-action: manipulation; }
+.qi-player-answer-button { min-height: clamp(46px,9dvh,92px) !important; border-radius: 18px !important; background: var(--qi-player-raised) !important; font-size: clamp(17px,5.6vw,28px) !important; font-weight: 700; font-family: 'Inter', sans-serif; line-height: 1.2; touch-action: manipulation; }
 .qi-player-answer-button.is-selected { background: rgba(190,38,193,.27) !important; border: 2px solid #d94fdc !important; box-shadow: 0 0 0 4px rgba(217,79,220,.1) !important; }
 .qi-player-result { width: 100%; padding: 20px; border-radius: 20px; text-align: center; border: 2px solid rgba(217,79,220,.45); background: rgba(190,38,193,.13); margin: auto 0 16px; }
 .qi-player-result strong { display: block; font-family: var(--font-logo),"Bruno Ace SC",sans-serif; font-size: clamp(25px,8vw,38px); letter-spacing: .08em; }

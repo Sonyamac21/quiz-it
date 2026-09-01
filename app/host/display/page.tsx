@@ -419,6 +419,11 @@ function DisplayScreenInner() {
   const [venueName, setVenueName] = useState<string | null>(null);
   const [venueHeroImageUrl, setVenueHeroImageUrl] = useState<string | null>(null);
   const [venueHeroVideoUrl, setVenueHeroVideoUrl] = useState<string | null>(null);
+  // If the uploaded hero video fails to load/play (bad file, network hiccup,
+  // codec the TV/browser can't decode), fall back to the hero image if one
+  // exists, or the animated branded background - rather than leaving a blank/
+  // broken video element on the pre-show screen the moment doors open.
+  const [venueHeroVideoFailed, setVenueHeroVideoFailed] = useState(false);
   const [venueLogoUrl, setVenueLogoUrl] = useState<string | null>(null);
   // Auto-generated "venue experience" pre-show scenes - built entirely from
   // fields already on the venue profile (no separate video upload needed),
@@ -1266,14 +1271,14 @@ function DisplayScreenInner() {
                     over a gradient scrim so both are visible together;
                     without media, it fills the frame over an animated
                     branded glow background instead of a blank prompt. */}
-                {venueHeroVideoUrl ? (
-                  <video key={venueHeroVideoUrl} className="lb-reel-media" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline />
+                {venueHeroVideoUrl && !venueHeroVideoFailed ? (
+                  <video key={venueHeroVideoUrl} className="lb-reel-media" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline onError={() => setVenueHeroVideoFailed(true)} onLoadedData={() => setVenueHeroVideoFailed(false)} />
                 ) : venueHeroImageUrl ? (
                   <img className="lb-reel-media" src={getMediaUrl(venueHeroImageUrl) || undefined} alt={venueName || "Venue"} />
                 ) : (
                   <div className="lb-venue-intro-bg" />
                 )}
-                <div className={"lb-venue-intro" + (venueHeroVideoUrl || venueHeroImageUrl ? " has-media" : "")}>
+                <div className={"lb-venue-intro" + ((venueHeroVideoUrl && !venueHeroVideoFailed) || venueHeroImageUrl ? " has-media" : "")}>
                   {venueLogoUrl && <img className="lb-venue-intro-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
                   <div className="lb-venue-intro-name">{venueName || "TONIGHT'S QUIZ"}</div>
                   <div className="lb-venue-intro-tagline">Quiz Night · Hosted by Quiz-It</div>

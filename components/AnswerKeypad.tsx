@@ -22,12 +22,12 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
   const keyStyle = {
     flex: 1,
     minWidth: 0,
-    padding: isCompact ? "clamp(8px, 1.6vh, 18px) 0" : "clamp(14px, 2.6vh, 22px) 0",
+    padding: isCompact ? "clamp(8px, 2.2vh, 24px) 0" : "clamp(14px, 3.4vh, 30px) 0",
     borderRadius: 12,
     background: "rgba(255,255,255,0.08)",
     border: "1px solid rgba(255,255,255,0.15)",
     color: "#fff",
-    fontSize: isCompact ? "clamp(14px, 2.6vh, 22px)" : "clamp(18px, 3.2vh, 24px)",
+    fontSize: isCompact ? "clamp(14px, 3.4vh, 28px)" : "clamp(18px, 4vh, 32px)",
     fontWeight: 700 as const,
     fontFamily: font,
     cursor: "pointer",
@@ -47,11 +47,11 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
       <div className="qi-player-keypad__value" aria-live="polite" style={{
         padding: isCompact ? "10px 14px" : "14px 16px", borderRadius: 12,
         background: "rgba(255,255,255,0.06)", border: "1.5px solid " + purple,
-        minHeight: isCompact ? 44 : 58, display: "flex", alignItems: "center",
-        fontSize: isCompact ? 22 : 28, fontWeight: 800, fontFamily: font, color: "#fff", letterSpacing: 1,
+        minHeight: isCompact ? 52 : 66, display: "flex", alignItems: "center",
+        fontSize: isCompact ? 26 : 32, fontWeight: 800, fontFamily: font, color: "#fff", letterSpacing: 1,
         wordBreak: "break-word" as const,
       }}>
-        {value || <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 15, fontWeight: 400 }}>Tap letters to answer…</span>}
+        {value || <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 17, fontWeight: 400 }}>Tap letters to answer…</span>}
       </div>
 
       {mode === "number" ? (
@@ -94,11 +94,11 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
 
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
         <button type="button" className="qi-player-keypad__delete" onClick={backspace} disabled={!value}
-          style={{ flex: 1, padding: isCompact ? "clamp(10px, 1.8vh, 18px)" : "18px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: value ? "#fff" : "rgba(255,255,255,0.3)", fontSize: 15, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
+          style={{ flex: 1, padding: isCompact ? "clamp(10px, 2.2vh, 22px)" : "22px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: value ? "#fff" : "rgba(255,255,255,0.3)", fontSize: 17, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
           {"\u232B"} DELETE
         </button>
         <button type="button" className="qi-player-keypad__submit" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}
-          style={{ flex: 2, padding: isCompact ? "clamp(12px, 2vh, 20px)" : "20px", borderRadius: 12, background: value.trim() ? purple : "#150A2E", color: value.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: value.trim() ? "1px solid #D94FDC" : "1px solid #2E1A52", fontSize: 18, fontWeight: 800, fontFamily: font, letterSpacing: 2, boxShadow: value.trim() ? "0 0 20px rgba(190,38,193,0.35)" : "none", cursor: value.trim() ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
+          style={{ flex: 2, padding: isCompact ? "clamp(12px, 2.6vh, 26px)" : "26px", borderRadius: 12, background: value.trim() ? purple : "#150A2E", color: value.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: value.trim() ? "1px solid #D94FDC" : "1px solid #2E1A52", fontSize: 22, fontWeight: 800, fontFamily: font, letterSpacing: 2, boxShadow: value.trim() ? "0 0 20px rgba(190,38,193,0.35)" : "none", cursor: value.trim() ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
           LOCK IT IN
         </button>
       </div>

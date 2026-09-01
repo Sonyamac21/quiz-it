@@ -555,7 +555,8 @@ STRICT QUALITY RULES (every question must pass all of these):
 11. Stay on TOPIC but use a genuinely different entity and narrow subtopic from the exclusions.
 ${varietyNote}${exclusionNote}
 Include a 1-2 sentence explanation of the answer in the explanation field.
-Verify strict JSON before responding: one array item, every schema key present, unused options null, exact requested type and answer format, with no markdown or extra text.
+Silently check before writing: one array item, every schema key present, unused options null, exact requested type and answer format. Do not write out that checking process - it must not appear anywhere in your reply.
+Your entire reply must be ONLY the JSON array itself - no preamble, no "checking..." notes, no explanation of your reasoning, no markdown, nothing before the opening [ or after the closing ]. The very first character of your reply must be [.
 Return ONLY a valid JSON array with 1 item, no markdown:
 [{"question_text":"...","question_type":"${type}","option_a":"...","option_b":"...","option_c":"...","option_d":"...","option_e":"...","option_f":"...","correct_answer":"...","explanation":"...","difficulty":"${difficulty}","round_type":"${roundType}"}]`;
   const safePrompt = prompt.length > 7500 ? prompt.slice(0, 7500) : prompt;

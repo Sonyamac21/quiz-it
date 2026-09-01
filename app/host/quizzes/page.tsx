@@ -1017,14 +1017,19 @@ export default function QuizBuilderPage() {
                         tooltip "window" ever opened. Clicking now shows the full
                         message via the app's own toast instead of relying on
                         that unreliable native behavior. */}
-                    {roundProgress && (
-                      <span
-                        onClick={e => { e.stopPropagation(); showToast(roundProgress, "info", 10000); }}
-                        style={{ color: "#2EE06E", font: "600 11px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline dotted" }}
-                      >
-                        {roundProgress}
-                      </span>
-                    )}
+                    {roundProgress && (() => {
+                      const failed = /failed|stopped|only generated|got 0 of/i.test(roundProgress);
+                      return (
+                        <button
+                          type="button"
+                          aria-label={`${round.name}: ${roundProgress}`}
+                          onClick={e => { e.stopPropagation(); showToast(roundProgress, failed ? "error" : "info", 15000); }}
+                          style={{ padding: 0, border: 0, background: "transparent", color: failed ? "#FF667A" : "#2EE06E", font: "700 11px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", textAlign: "left", textDecoration: "underline" }}
+                        >
+                          {failed ? "Generation failed — View details" : roundProgress}
+                        </button>
+                      );
+                    })()}
                     <span style={{ color: "#6B5A8E", font: "400 11px 'Inter'" }}>{round.questions.length} Q - {round.round_type}</span>
                     {/* A round with audio questions still needs each one's
                         actual clip saved in Music Prep before the quiz can go
@@ -1061,6 +1066,21 @@ export default function QuizBuilderPage() {
                   </div>
                 )}
               </div>
+
+              {selected.quiz_rounds.some(round => /failed|stopped|only generated|got 0 of/i.test(bulkProgress[round.id] || "")) && (
+                <div role="alert" style={{ display: "grid", gap: 8, marginBottom: 12, padding: 14, borderRadius: 12, border: "1px solid #A92E4B", background: "rgba(169,46,75,0.14)" }}>
+                  <strong style={{ color: "#FF8A9A", font: "700 14px 'Inter'" }}>Some rounds could not be generated</strong>
+                  {selected.quiz_rounds.map((round, index) => {
+                    const message = bulkProgress[round.id] || "";
+                    if (!/failed|stopped|only generated|got 0 of/i.test(message)) return null;
+                    return (
+                      <div key={round.id} style={{ color: "#F4DDE3", font: "400 13px/1.5 'Inter'", overflowWrap: "anywhere" }}>
+                        <strong>{index + 1}. {round.name}:</strong> {message}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="fbh-panel" style={{ padding: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>

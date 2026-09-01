@@ -506,16 +506,16 @@ async function generateOne(
   let exclusionsText = [...rejectedList, ...exclusions.used.slice(-25)].map((q, i) => (i + 1) + ". " + q).join("; ");
   if (exclusionsText.length > 1800) exclusionsText = exclusionsText.slice(0, 1800);
   const usedAnswersList = exclusions.usedAnswers.slice(-20).filter(Boolean).join(", ");
-  let exclusionNote = (exclusionsText || usedAnswersList)
+  let sessionExclusionNote = (exclusionsText || usedAnswersList)
     ? " Do NOT generate any of these already-used questions: " + exclusionsText + "."
       + (usedAnswersList ? " Also do NOT use any of these already-used answers (even with different question wording): " + usedAnswersList + "." : "")
     : "";
-  if (exclusionNote.length > 1200) exclusionNote = exclusionNote.slice(0, 1200);
+  if (sessionExclusionNote.length > 1200) sessionExclusionNote = sessionExclusionNote.slice(0, 1200);
   // Permanently-banned overused facts (see PERMANENT_EXCLUDED_FACTS above) -
   // always included, independent of this session's own exclusion list, and
   // appended AFTER the 1200-char truncation above so a long session
   // exclusion list can never crowd these out.
-  exclusionNote += " Never generate a question about any of these overused facts, worded any way: " + PERMANENT_EXCLUDED_FACTS.join("; ") + ".";
+  const permanentExclusionNote = " Never generate a question about any of these overused facts, worded any way: " + PERMANENT_EXCLUDED_FACTS.join("; ") + ".";
   // Only topics that actually need something from the last few years should
   // get routed through Claude's live web search tool - everything else in
   // TOPICS/MUSIC_TOPICS is evergreen trivia the model already knows solidly,
@@ -576,13 +576,21 @@ STRICT QUALITY RULES (every question must pass all of these):
 9. If the correct_answer is a person's name and only part of the full name (surname only, or first name only) will be stored as the answer, the question_text itself must explicitly state which part is required (e.g. "What is the SURNAME of the actress who played Katniss Everdeen?" with correct_answer "Lawrence", or "What is the FIRST NAME of the actor who played Iron Man?" with correct_answer "Robert"). Never ask an ambiguous full-name question and store only a partial name as the answer.
 10. The question must stand alone without its explanation and test one satisfying piece of knowledge.
 11. Stay on TOPIC but use a genuinely different entity and narrow subtopic from the exclusions.
-${varietyNote}${exclusionNote}
+${varietyNote}${sessionExclusionNote}${permanentExclusionNote}
 Include a 1-2 sentence explanation of the answer in the explanation field.
 Silently check before writing: one array item, every schema key present, unused options null, exact requested type and answer format. Do not write out that checking process - it must not appear anywhere in your reply.
 Your entire reply must be ONLY the JSON array itself - no preamble, no "checking..." notes, no explanation of your reasoning, no markdown, nothing before the opening [ or after the closing ]. The very first character of your reply must be [.
 Return ONLY a valid JSON array with 1 item, no markdown:
 [{"question_text":"...","question_type":"${type}","option_a":"...","option_b":"...","option_c":"...","option_d":"...","option_e":"...","option_f":"...","correct_answer":"...","explanation":"...","difficulty":"${difficulty}","round_type":"${roundType}"}]`;
-  const safePrompt = prompt.length > 7500 ? prompt.slice(0, 7500) : prompt;
+  // Never truncate the completed prompt: its final lines contain the JSON
+  // contract. Once the quality guidance grew beyond 7,500 characters, the
+  // old slice() removed that contract and Haiku returned prose/incomplete
+  // JSON, causing every candidate to fail parsing. If the prompt needs
+  // shrinking, remove only optional recent-session exclusions; permanent
+  // exclusions and the output schema always survive intact.
+  const promptWithoutSessionExclusions = prompt.replace(sessionExclusionNote, "");
+  const allowedSessionExclusionLength = Math.max(0, 7900 - promptWithoutSessionExclusions.length);
+  const safePrompt = prompt.replace(sessionExclusionNote, sessionExclusionNote.slice(0, allowedSessionExclusionLength));
   try {
     // Web-search-grounded calls need more token headroom than a plain
     // generation call - the search results themselves, plus the model's

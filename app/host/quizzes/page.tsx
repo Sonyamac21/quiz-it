@@ -144,7 +144,7 @@ export default function QuizBuilderPage() {
     if (!selected) return;
     const initial: Record<string, { selected: boolean; count: number; theme: string; difficulty: string }> = {};
     selected.quiz_rounds.forEach(r => {
-      initial[r.id] = { selected: false, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.target_count || r.questions.length || 10), theme: r.theme ?? "", difficulty: r.difficulty || "mixed" };
+      initial[r.id] = { selected: false, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.target_count || 10), theme: r.theme ?? "", difficulty: r.difficulty || "mixed" };
     });
     setBulkConfig(initial);
     setBulkProgress({});
@@ -199,6 +199,16 @@ export default function QuizBuilderPage() {
       round_type: roundType,
       difficulty: "mixed",
       questions: [],
+      // Persisted immediately (not just held in the in-memory bulkConfig state
+      // below) - previously this only lived in bulkConfig, so reopening the
+      // Generate All panel later (or a page reload) re-read the round from the
+      // DB, found target_count null, and fell back to r.questions.length as
+      // the "target" - which for a freshly-created or partially-generated
+      // round is exactly the round's CURRENT (short) count, making the
+      // shortfall always compute to 0 and silently blocking generation
+      // forever with no indication why. Saving the real intended target here
+      // keeps it correct across reloads.
+      target_count: roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : 10,
       hide_leaderboard: false,
       allow_power_cards: true,
       points_per_question: null,
@@ -851,7 +861,7 @@ export default function QuizBuilderPage() {
                 onClick={() => setBulkConfig(prev => {
                   const next = { ...prev };
                   selected.quiz_rounds.filter(r => GENERATABLE_ROUND_TYPES.has(r.round_type)).forEach(r => {
-                    next[r.id] = { selected: true, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (prev[r.id]?.count || r.target_count || r.questions.length || 10), theme: prev[r.id]?.theme ?? "", difficulty: prev[r.id]?.difficulty ?? "mixed" };
+                    next[r.id] = { selected: true, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (prev[r.id]?.count || r.target_count || 10), theme: prev[r.id]?.theme ?? "", difficulty: prev[r.id]?.difficulty ?? "mixed" };
                   });
                   return next;
                 })}

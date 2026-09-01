@@ -5,6 +5,7 @@ import { ImageUploader } from "@/components/ImageUploader";
 import { AudioUploader } from "@/components/AudioUploader";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
+import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pixabayMatch";
 import { HostShell, HostButton, HostInput, Chip, TopSpacer } from "@/components/fable/HostConsole";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -768,21 +769,26 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         }
         try {
           const pixabayKey = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
+          const pixabayQuery = buildPixabaySearchQuery(q.option_a);
           const pixRes = await fetch(
             "https://pixabay.com/api/?key=" + pixabayKey +
-            "&q=" + encodeURIComponent(q.option_a) +
+            "&q=" + encodeURIComponent(pixabayQuery) +
             "&image_type=photo&per_page=5&safesearch=true"
           );
           const pixData = await pixRes.json();
-          const hit = pixData?.hits?.[0];
+          const hit = selectMatchingPixabayHit(pixData?.hits || [], q.option_a);
           if (hit) {
             const pixabayUrl = hit.webformatURL || hit.largeImageURL;
+            if (!pixabayUrl) {
+              context.report.stages.media = { status: "failed", note: "Matched Pixabay result had no usable image URL" };
+              return null;
+            }
             // Re-host in our own storage - Pixabay's hotlink URLs are not
             // guaranteed permanent and have been observed going dead over time.
             q.option_b = await persistPixabayImage(pixabayUrl);
             context.report.stages.media = { status: "passed", note: "Pixabay image found" };
           } else {
-            context.report.stages.media = { status: "failed", note: "No Pixabay image found" };
+            context.report.stages.media = { status: "failed", note: "No Pixabay image matched the requested subject" };
             return null;
           }
         } catch {

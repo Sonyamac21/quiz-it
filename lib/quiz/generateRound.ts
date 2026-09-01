@@ -24,6 +24,7 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
+import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pixabayMatch";
 
 // ── Types (copied from app/host/questions/page.tsx) ────────────────────────
 
@@ -649,21 +650,26 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       }
       try {
         const pixabayKey = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
+        const pixabayQuery = buildPixabaySearchQuery(q.option_a);
         const pixRes = await fetch(
           "https://pixabay.com/api/?key=" + pixabayKey +
-          "&q=" + encodeURIComponent(q.option_a) +
+          "&q=" + encodeURIComponent(pixabayQuery) +
           "&image_type=photo&per_page=5&safesearch=true"
         );
         const pixData = await pixRes.json();
-        const hit = pixData?.hits?.[0];
+        const hit = selectMatchingPixabayHit(pixData?.hits || [], q.option_a);
         if (hit) {
           const pixabayUrl = hit.webformatURL || hit.largeImageURL;
+          if (!pixabayUrl) {
+            context.report.stages.media = { status: "failed", note: "Matched Pixabay result had no usable image URL" };
+            return null;
+          }
           // Re-host in our own storage - Pixabay's hotlink URLs are not
           // guaranteed permanent and have been observed going dead over time.
           q.option_b = await persistPixabayImage(pixabayUrl);
           context.report.stages.media = { status: "passed", note: "Pixabay image found" };
         } else {
-          context.report.stages.media = { status: "failed", note: "No Pixabay image found" };
+          context.report.stages.media = { status: "failed", note: "No Pixabay image matched the requested subject" };
           return null;
         }
       } catch {
@@ -997,6 +1003,9 @@ export type RoundGenerationSpec = {
   difficulty: string;
   theme: string;
   count: number;
+  // Questions already present in this Quiz Plan round. They are validation
+  // context only: never returned as newly generated questions.
+  existingQuestions?: Array<Question | Record<string, unknown>>;
 };
 
 export type RoundGenerationResult = {
@@ -1031,6 +1040,7 @@ export async function generateValidatedRound(
   wallClockScale = 1,
 ): Promise<RoundGenerationResult> {
   const { roundType, difficulty, theme } = spec;
+  const existingQuestions = (spec.existingQuestions || []) as Question[];
   // The Pursuit is always exactly 7 gates total, never host-configurable -
   // but this used to force count to the FULL 7 regardless of what was asked
   // for, on every call. That was fine back when spec.count always meant "the
@@ -1314,7 +1324,7 @@ export async function generateValidatedRound(
     }
     consecutiveFailures = 0;
     onProgress?.("Checking question " + (good.length + 1) + " of " + count + "...");
-    const validation = await validateCandidate(q, good, context.report.stages, theme, exclusions, () => { memoryDegradedCount++; });
+    const validation = await validateCandidate(q, [...existingQuestions, ...good], context.report.stages, theme, exclusions, () => { memoryDegradedCount++; });
     // validateCandidate's own duplicate check ran BEFORE the several awaited
     // moderation/quality/memory calls above - during that gap, a sibling
     // round generating at the same time (generateAllRounds runs every
@@ -1403,6 +1413,13 @@ export async function generateAllRounds(
     rejectedFingerprints: new Set(baseExclusions.rejectedFingerprints),
     rejectedTexts: new Set(baseExclusions.rejectedTexts),
   }));
+  // quiz_rounds is a live Quiz Plan snapshot and is not guaranteed to have
+  // been copied into the permanent library yet. Seed each request with its
+  // own existing questions so a top-up cannot recreate an answer/fact that
+  // is already visibly present in that same round.
+  specs.forEach((spec, idx) => {
+    (spec.existingQuestions || []).forEach(question => registerAccepted(perRoundExclusions[idx], question as Question));
+  });
   // Broadcasts a just-accepted question from one round into every OTHER
   // round's exclusion bundle immediately, so two rounds generating at the
   // same time can't both land the same brand-new question (e.g. two rounds

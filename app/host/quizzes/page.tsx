@@ -348,7 +348,7 @@ export default function QuizBuilderPage() {
       // regardless, so this doesn't weaken duplicate protection.
       const exclusions = quickExclusionState(round.questions as Record<string, unknown>[]);
       const result = await generateValidatedRound(
-        { roundType: round.round_type, difficulty, theme, count: 1 },
+        { roundType: round.round_type, difficulty, theme, count: 1, existingQuestions: round.questions.filter((_q, i) => i !== qIndex) },
         exclusions,
       );
       if (result.questions.length === 0) {
@@ -439,6 +439,7 @@ export default function QuizBuilderPage() {
       difficulty: bulkConfig[r.id]?.difficulty || r.difficulty || "mixed",
       theme: bulkConfig[r.id]?.theme ?? r.theme ?? "",
       count: shortfalls[r.id],
+      existingQuestions: r.questions,
     }));
     // Persist the theme/difficulty each round is being generated with right
     // away, so it survives a reload and SWAP picks it back up later instead
@@ -534,7 +535,7 @@ export default function QuizBuilderPage() {
     const cfg = bulkConfig[round.id];
     try {
       const [result] = await generateAllRounds(
-        [{ roundType: round.round_type, difficulty: cfg?.difficulty || round.difficulty || "mixed", theme: cfg?.theme ?? round.theme ?? "", count: n }],
+        [{ roundType: round.round_type, difficulty: cfg?.difficulty || round.difficulty || "mixed", theme: cfg?.theme ?? round.theme ?? "", count: n, existingQuestions: round.questions }],
         (_idx, status) => setGeneratingMoreStatus(status + capNote),
       );
       // Same stale-snapshot bug as runBulkGenerate above: `round` here is

@@ -1062,7 +1062,46 @@ export async function generateValidatedRound(
     types = shuffle(weights.flatMap(([type], i) => Array(base[i]).fill(type)));
   }
 
-  const shuffledTopics = shuffle(TOPICS);
+  // A round with NO host-supplied theme used to draw its topic purely at
+  // random from the full flat TOPICS list every launch (shuffledTopics[i %
+  // length]). With 34 entries and only 3 slots for "recent entertainment
+  // news" and 3 for "celebrity and pop culture moments", pure random draw
+  // could easily (and did, per host reports) clump on movies/music several
+  // times in one round while geography, history, and current news never
+  // came up at all - "a mix" was never actually guaranteed, just possible.
+  // Bucketing TOPICS into categories and cycling ROUND-ROBIN through the
+  // buckets (picking a random not-yet-used topic within whichever bucket is
+  // due next) guarantees every category gets a fair, spread-out share of
+  // every unthemed round, the same way pickPictureTopic already guarantees
+  // no picture topic repeats early. A host who wants ONLY news/showbiz (or
+  // ONLY movies) should still type an explicit theme - this only fixes the
+  // default "mixed general knowledge" case.
+  const TOPIC_BUCKETS: string[][] = [
+    ["recent entertainment news (last 1-3 years, no politics)", "celebrity and pop culture moments (last 1-3 years, no politics)"],
+    ["movies", "TV shows", "celebrities", "awards and records", "reality TV", "theatre and musicals"],
+    ["music", "video games", "comedy and humour", "social media and internet", "fashion and style"],
+    ["geography", "famous landmarks", "travel", "UK culture", "US culture", "international culture"],
+    ["simple history", "childhood and nostalgia", "crime and mystery", "royals and politics"],
+    ["sport", "football"],
+    ["food and drink", "logos and brands", "animals", "classic cartoons", "cars and transport", "nature and wildlife"],
+  ];
+  const shuffledBuckets = TOPIC_BUCKETS.map(shuffle);
+  const triedGeneralTopics = new Set<string>();
+  const pickGeneralTopic = (launchIndex: number): string => {
+    const bucket = shuffledBuckets[launchIndex % shuffledBuckets.length];
+    for (let offset = 0; offset < bucket.length; offset++) {
+      const candidate = bucket[(Math.floor(launchIndex / shuffledBuckets.length) + offset) % bucket.length];
+      if (!triedGeneralTopics.has(candidate)) { triedGeneralTopics.add(candidate); return candidate; }
+    }
+    // Every topic in this bucket already tried this round - fall back to any
+    // untried topic across all buckets rather than forcing an exact repeat.
+    for (const b of shuffledBuckets) {
+      for (const candidate of b) {
+        if (!triedGeneralTopics.has(candidate)) { triedGeneralTopics.add(candidate); return candidate; }
+      }
+    }
+    return bucket[launchIndex % bucket.length];
+  };
   const shuffledMusicTopics = shuffle(MUSIC_TOPICS);
   const shuffledPictureTopics = shuffle(PICTURE_TOPICS);
   const good: Question[] = [];
@@ -1178,7 +1217,7 @@ export async function generateValidatedRound(
     const topic = theme || (
       type === "audio" ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
       : type === "picture" ? pickPictureTopic(launchIndex)
-      : shuffledTopics[launchIndex % shuffledTopics.length]
+      : pickGeneralTopic(launchIndex)
     );
     const context = createGenerationContext(type, Boolean(theme.trim()));
     attempts++;

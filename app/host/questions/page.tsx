@@ -1219,7 +1219,38 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       for (const { i } of order) { if (remainder <= 0) break; base[i]++; remainder--; }
       types = shuffle(weights.flatMap(([type], i) => Array(base[i]).fill(type)));
     }
-    const shuffledTopics = shuffle(TOPICS);
+    // Bucketed, round-robin topic picker so an unthemed round guarantees a
+    // spread across news/showbiz, movies/TV, music/culture, geography,
+    // history, sport, and everyday-life categories instead of drawing purely
+    // at random from one flat 34-entry list (which could clump on
+    // movies/music for an entire round while geography/history/current news
+    // never came up). See lib/quiz/generateRound.ts's identical fix for the
+    // full explanation. A host who wants ONLY one category should still type
+    // an explicit theme - this only fixes the default "mixed" case.
+    const TOPIC_BUCKETS: string[][] = [
+      ["recent entertainment news (last 1-3 years, no politics)", "celebrity and pop culture moments (last 1-3 years, no politics)"],
+      ["movies", "TV shows", "celebrities", "awards and records", "reality TV", "theatre and musicals"],
+      ["music", "video games", "comedy and humour", "social media and internet", "fashion and style"],
+      ["geography", "famous landmarks", "travel", "UK culture", "US culture", "international culture"],
+      ["simple history", "childhood and nostalgia", "crime and mystery", "royals and politics"],
+      ["sport", "football"],
+      ["food and drink", "logos and brands", "animals", "classic cartoons", "cars and transport", "nature and wildlife"],
+    ];
+    const shuffledBuckets = TOPIC_BUCKETS.map(shuffle);
+    const triedGeneralTopics = new Set<string>();
+    const pickGeneralTopic = (launchIndex: number): string => {
+      const bucket = shuffledBuckets[launchIndex % shuffledBuckets.length];
+      for (let offset = 0; offset < bucket.length; offset++) {
+        const candidate = bucket[(Math.floor(launchIndex / shuffledBuckets.length) + offset) % bucket.length];
+        if (!triedGeneralTopics.has(candidate)) { triedGeneralTopics.add(candidate); return candidate; }
+      }
+      for (const b of shuffledBuckets) {
+        for (const candidate of b) {
+          if (!triedGeneralTopics.has(candidate)) { triedGeneralTopics.add(candidate); return candidate; }
+        }
+      }
+      return bucket[launchIndex % bucket.length];
+    };
     const shuffledMusicTopics = shuffle(MUSIC_TOPICS);
     const good: Question[] = [];
     // Always generate fresh AI questions - the Phase 1 library-first selection
@@ -1273,7 +1304,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       const type = pickNextType();
       const topic = theme || (type === "audio"
         ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
-        : shuffledTopics[launchIndex % shuffledTopics.length]);
+        : pickGeneralTopic(launchIndex));
       const context = createGenerationContext(type, Boolean(theme.trim()));
       attempts++;
       inFlightCounts[type] = (inFlightCounts[type] || 0) + 1;

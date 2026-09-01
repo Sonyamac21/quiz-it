@@ -96,7 +96,12 @@ export async function POST(req: NextRequest) {
     if (!prompt || typeof prompt !== "string") {
       return NextResponse.json({ error: { message: "Missing prompt" } }, { status: 400 });
     }
-    if (prompt.length > 8000) {
+    // The commercial quality brief plus the mandatory JSON schema is now a
+    // little over 8,000 characters even before optional duplicate-history
+    // examples are added. The old 8k guard rejected that legitimate prompt
+    // locally, before Anthropic saw it. 12k remains a conservative abuse/
+    // cost ceiling while allowing the complete validated generation prompt.
+    if (prompt.length > 12000) {
       return NextResponse.json({ error: { message: "Prompt too long" } }, { status: 400 });
     }
     // Clamp to a sane range - the fact-check call only needs a short JSON verdict

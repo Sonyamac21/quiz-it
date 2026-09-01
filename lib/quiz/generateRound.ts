@@ -589,7 +589,10 @@ Return ONLY a valid JSON array with 1 item, no markdown:
   // shrinking, remove only optional recent-session exclusions; permanent
   // exclusions and the output schema always survive intact.
   const promptWithoutSessionExclusions = prompt.replace(sessionExclusionNote, "");
-  const allowedSessionExclusionLength = Math.max(0, 7900 - promptWithoutSessionExclusions.length);
+  // Match the API route's 12k ceiling with headroom for future transport
+  // metadata. The complete base instructions are already above the former
+  // 8k limit, so targeting 7.9k could not possibly make a valid request.
+  const allowedSessionExclusionLength = Math.max(0, 11500 - promptWithoutSessionExclusions.length);
   const safePrompt = prompt.replace(sessionExclusionNote, sessionExclusionNote.slice(0, allowedSessionExclusionLength));
   try {
     // Web-search-grounded calls need more token headroom than a plain
@@ -1301,7 +1304,7 @@ export async function generateValidatedRound(
       const err = context.error.toLowerCase();
       const isPersistent = err.includes("api_key") || err.includes("api key") || err.includes("unauthorized")
         || err.includes("not logged in") || err.includes("authentication") || err.includes("rate limit")
-        || err.includes("too many requests") || consecutiveFailures >= 6;
+        || err.includes("too many requests") || err.includes("prompt too long") || consecutiveFailures >= 6;
       if (isPersistent) {
         const finalStatus = "Generation failed after " + consecutiveFailures + " attempts: " + (context.error || "unknown error") + degradedSuffix();
         onProgress?.(finalStatus);

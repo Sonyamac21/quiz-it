@@ -13,6 +13,7 @@ const navigation = [
   // It's a distinct prep step of its own (uploading/trimming the actual
   // audio clips), same tier as Media/Question Library, so it belongs here.
   ["Music Prep", "/host/music-prep"],
+  ["Victory Songs", "/host/victory-songs"],
   ["Media", "/host/media"], ["Reports", "/host/reports"], ["Settings", "/host/settings"],
 ] as const;
 

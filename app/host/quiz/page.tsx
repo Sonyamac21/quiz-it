@@ -11,7 +11,7 @@ import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc } from "@/lib/quiz/scoreService";
 import { TeamBadge } from "@/components/TeamBadge";
 import { BrandLockup, Button, Field, Input, StatusPill, useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
-import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
+import { playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 import { HostDiagnostics } from "@/components/HostDiagnostics";
 import { diagnosticTimestamp } from "@/lib/diagnostics/time";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
@@ -1011,7 +1011,7 @@ function QuizControllerInner() {
 
   function playVictorySong(songFile: string) {
     stopVictorySong();
-    const audio = playShowAudio(encodeURIComponent(songFile) + ".mp3", { channel: "music", volume: 0.8 });
+    const audio = playShowAudio(victorySongAudioFile(songFile), { channel: "music", volume: 0.8 });
     victorySongRef.current = audio;
   }
 
@@ -1032,7 +1032,10 @@ function QuizControllerInner() {
     setHostPhase("round_start");
     const roundStartedAt = Date.now();
     roundStartedRef.current = roundStartedAt;
-    playSound("round-start.mp3");
+    // Not played here - app/host/display/page.tsx already plays round-start.mp3
+    // for the room off the same "intro" status change. Playing it again here
+    // meant the host's own laptop speakers doubled up with the venue TV/
+    // speakers on every single round start.
     const supabase = createSupabaseBrowserClient();
     // round_started_at is persisted here (not just kept in roundStartedRef,
     // a plain useRef) so a host browser refresh mid-round can restore it -
@@ -1372,6 +1375,10 @@ function QuizControllerInner() {
     stopVictorySong();
     stopTickAudio();
     setHostPhase("round_end");
+    // Unlike round-start, the display screen has NO round-end cue of its own
+    // (checked app/host/display/page.tsx - only "round_start" triggers a
+    // sound on the "intro" status), so this one genuinely needs to stay here
+    // to be heard by the room at all.
     playSound("round-end.mp3");
     const supabase = createSupabaseBrowserClient();
     if (selectedRound) {

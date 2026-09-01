@@ -2,77 +2,18 @@
 import { PlayerQuizScreen } from "@/components/PlayerQuizScreen";
 import { useState, useEffect, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
+import { playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 import { prepareParticipantPhoto } from "@/lib/images/prepareParticipantPhoto";
 
 const STORAGE_KEY = "quizit_player_session";
 
-const SONGS = [
-  "BELIEVE-Cher-",
-  "BREAKEVEN-The Script SQS",
-  "Basement Jax Where's your head at SQS",
-  "Be my Lover-La Bouche SQS",
-  "Boom Boom Boom-Outhere Brothers SQS",
-  "Boomfunk Freestyler SQS",
-  "CC American GIrls SQS",
-  "COCO JAMBO-MR PRESIDENT-",
-  "Capella U Got 2 Let The Music SQS",
-  "Cardi B I Like it Like That SQS",
-  "Castles In The Sky - Ian Van Dahl SQS",
-  "Chemical Bros Hey Boy Hey Girl SQS",
-  "Come On Eileen-Dexys Midnight Runners-",
-  "D Bedd Gotta Get Through This SQS",
-  "DANGER ZONE-KENNY LOGGINS-",
-  "DISTURBIA-Rihanna-",
-  "Destiny's Child Bootylicious SQS",
-  "Drake - Massive SQS",
-  "Drake Fancy SQS",
-  "Dua Be the One SQS",
-  "Ed Sheeran - Shivers SQS",
-  "Elton John & Dua Lipa - Cold Heart SQS",
-  "Eve Who that girl SQS",
-  "Ezra Blame it on me SQS",
-  "FINAL COUNTDOWN-EUROPE-",
-  "GETTIN JIGGY WIT IT-Will Smith-",
-  "GHETTO SUPERSTAR-MYA, Wyclef Jean-",
-  "Gala Freed from Desire SQS",
-  "Get Ur Freak On-MISSY ELLIOTT-",
-  "Girlfriend-AVRIL LAVIGNE SQS",
-  "Guetta Just one last time SQS",
-  "Hey Baby-DJ Otzi-",
-  "I Dont Feel Like Dancin-Scissor Sisters SQS",
-  "I Want You Back-NSync-",
-  "IVE HAD THE TIME OF MY LIFE-BILL MEDLEY, JENNIFER WARNES-",
-  "Imagine Dragons Thunder SQS",
-  "JAI HO-PUSSYCAT DOLLS-",
-  "Just Dance-Lady Gaga SQS",
-  "KYGO & Whitney Higher Love",
-  "Karma Chameleon-CULTURE CLUB-",
-  "King of my Castle-Wamdue Project SQS",
-  "LOVIN EACH DAY-Ronan Keating-",
-  "Lizzo Good as Hell",
-  "MAMBO NO 5-LOU BEGA-",
-  "MAN I FEEL LIKE A WOMAN-Shania Twain-",
-  "MARIA MARIA-SANTANA, THE PRODUCT GB-",
-  "MC Hammer Cant touch this SQS",
-  "MMMBOP-HANSON-",
-  "OMI Cheerleader",
-  "Outhere Bros Boom Boom Boom SQS",
-  "Pink Trouble SQS",
-  "Played Alive-Safri-Duo SQS",
-  "Pretty Green Eyes",
-  "Raise your glass-Pink SQS",
-  "Rui Da Silva Touch me SQS",
-  "SET YOU FREE-N-Trance-",
-  "SHM Don't you worry child SQS",
-  "Sash Equador SQS",
-  "Shakira Whenever, Wherever SQS",
-  "Tina Turner It Takes Two SQS",
-];
-
-function cleanName(filename: string) {
-  return filename.replace(/\s*SQS\s*$/i, "").replace(/[-_]+$/, "").replace(/[-_]/g, " ").trim();
-}
+// The victory song list used to be hardcoded here, with several garbled
+// legacy-filename titles (e.g. "CC American GIrls SQS") and no way to fix a
+// title or add a new track without a code change. It now lives in the
+// victory_songs table, managed from the Victory Songs page in Host tools -
+// see app/host/victory-songs/page.tsx. `file_ref` is what actually gets
+// played/stored on the team row; `title` is what the player sees.
+type VictorySong = { id: string; title: string; file_ref: string };
 
 export function JoinForm() {
   const [step, setStep] = useState<"pin" | "name" | "song" | "photo">("pin");
@@ -95,6 +36,18 @@ export function JoinForm() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [takenSongs, setTakenSongs] = useState<string[]>([]);
+  const [songs, setSongs] = useState<VictorySong[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await createSupabaseBrowserClient()
+        .from("victory_songs")
+        .select("id,title,file_ref")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      setSongs((data || []) as VictorySong[]);
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -129,7 +82,7 @@ export function JoinForm() {
     })();
   }, []);
 
-  const filtered = SONGS.filter(s => !takenSongs.includes(s) && cleanName(s).toLowerCase().includes(search.toLowerCase()));
+  const filtered = songs.filter(s => !takenSongs.includes(s.file_ref) && s.title.toLowerCase().includes(search.toLowerCase()));
 
   async function handlePinNext(value: string = pin) {
     if (!value.trim() || value.length !== 4) { setPinError("Please enter a 4-digit PIN"); return; }
@@ -195,9 +148,9 @@ export function JoinForm() {
     setStep("song");
   }
 
-  function playPreview(song: string) {
+  function playPreview(fileRef: string) {
     if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
-    playShowAudio(encodeURIComponent(song) + ".mp3", { channel: "music", volume: 0.5 });
+    playShowAudio(victorySongAudioFile(fileRef), { channel: "music", volume: 0.5 });
     previewTimerRef.current = setTimeout(() => stopShowAudio("music"), 8000);
   }
 
@@ -417,17 +370,17 @@ export function JoinForm() {
         {filtered.map(song => (
           <button
             type="button"
-            key={song}
-            onClick={() => { setSelectedSong(song); playPreview(song); }}
-            aria-pressed={selectedSong === song}
+            key={song.id}
+            onClick={() => { setSelectedSong(song.file_ref); playPreview(song.file_ref); }}
+            aria-pressed={selectedSong === song.file_ref}
             style={{
               width:"100%",
               textAlign:"left",
               padding:"12px 16px",
               borderRadius:10,
-              background: selectedSong === song ? "rgba(190,38,193,0.2)" : "#0f0f1a",
-              border: selectedSong === song ? "1px solid #BE26C1" : "1px solid rgba(255,255,255,0.07)",
-              color: selectedSong === song ? "#fff" : "rgba(255,255,255,0.6)",
+              background: selectedSong === song.file_ref ? "rgba(190,38,193,0.2)" : "#0f0f1a",
+              border: selectedSong === song.file_ref ? "1px solid #BE26C1" : "1px solid rgba(255,255,255,0.07)",
+              color: selectedSong === song.file_ref ? "#fff" : "rgba(255,255,255,0.6)",
               fontFamily:"'Inter',sans-serif",
               fontSize:16,
               letterSpacing:1,
@@ -435,12 +388,12 @@ export function JoinForm() {
               display:"flex",
               alignItems:"center",
               justifyContent:"space-between",
-              boxShadow: selectedSong === song ? "0 0 12px rgba(190,38,193,0.3)" : "none",
+              boxShadow: selectedSong === song.file_ref ? "0 0 12px rgba(190,38,193,0.3)" : "none",
               transition:"all 0.15s",
             }}
           >
-            <span>{cleanName(song)}</span>
-            {selectedSong === song && <span style={{ color:"#BE26C1", fontSize:14 }}>♪</span>}
+            <span>{song.title}</span>
+            {selectedSong === song.file_ref && <span style={{ color:"#BE26C1", fontSize:14 }}>♪</span>}
           </button>
         ))}
       </div>

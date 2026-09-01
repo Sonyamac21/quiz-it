@@ -22,7 +22,22 @@ function emitAudioState() { const state = getShowAudioState(); listeners.forEach
 export function subscribeShowAudio(listener: (state: ShowAudioState) => void) { listeners.add(listener); listener(getShowAudioState()); return () => { listeners.delete(listener); }; }
 
 function soundUrl(file: string) {
-  return file.startsWith("/") ? file : `/sounds/${file}`;
+  if (file.startsWith("/")) return file;
+  // Host-uploaded victory songs are stored as full Vercel Blob URLs (private,
+  // so they need the authenticated media-proxy route) rather than filenames
+  // bundled under public/sounds - everything else keeps the old behaviour.
+  if (/^https?:\/\//i.test(file)) {
+    return file.includes("blob.vercel-storage.com") ? "/api/media-proxy?url=" + encodeURIComponent(file) : file;
+  }
+  return `/sounds/${file}`;
+}
+
+// Victory songs can be either a bundled filename (played from /sounds/, the
+// legacy SpeedQuizzing-era pack, always suffixed .mp3 with no real extension
+// stored) or a full URL a host uploaded via the Victory Songs manager (which
+// already has its own extension and must not be re-encoded/suffixed).
+export function victorySongAudioFile(raw: string): string {
+  return /^https?:\/\//i.test(raw) ? raw : encodeURIComponent(raw) + ".mp3";
 }
 
 export function preloadShowAudio(files: string[]) {

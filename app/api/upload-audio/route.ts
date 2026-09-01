@@ -4,15 +4,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // generous for a ~30s WAV clip
+// Victory songs are full tracks (unlike the short venue hero video clips),
+// so this is a bigger cap - still well under Vercel's request body limit.
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+const ACCEPTED_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a"];
 
 export async function POST(req: NextRequest) {
   try {
-    // Codex pre-launch review, finding #6: no auth check, and no content
-    // type validation - a file was labelled "audio/wav" and stored with
-    // that content type regardless of what it actually was. Every real
-    // caller (Music Prep, AudioUploader, AudioRecorder) is a logged-in host
-    // page.
     const res = new NextResponse();
     const supabase = createSupabaseServerClient(req, res);
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -33,23 +31,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: { message: "No file provided" } }, { status: 400 });
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-      return NextResponse.json({ error: { message: "Clip too large - max 15MB" } }, { status: 400 });
+      return NextResponse.json({ error: { message: "Audio file too large - max 15MB." } }, { status: 400 });
     }
-    // The client-side recorder/trimmer always produces a real audio Blob, so
-    // this is a sanity check against a mislabelled/arbitrary upload, not a
-    // deep format validation - it's still stored/served as audio/wav either
-    // way (the client controls the actual encoding), but at least rejects
-    // something that isn't audio at all (e.g. an uploaded script or image
-    // renamed to look like a clip).
-    if (file.type && !file.type.startsWith("audio/") && file.type !== "application/octet-stream") {
-      return NextResponse.json({ error: { message: "Only audio files are supported" } }, { status: 400 });
-    }
+    const contentType = ACCEPTED_TYPES.includes(file.type) ? file.type : "audio/mpeg";
+    const ext = contentType.includes("wav") ? "wav" : contentType.includes("m4a") || contentType.includes("mp4") ? "m4a" : "mp3";
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const fileName = "question-audio/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".wav";
+    const fileName = "victory-song/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + ext;
     const blob = await put(fileName, buffer, {
       access: "private",
-      contentType: "audio/wav",
+      contentType,
     });
 
     return NextResponse.json({

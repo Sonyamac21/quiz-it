@@ -10,7 +10,7 @@ import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, purs
 import { PursuitBoard } from "@/components/PursuitBoard";
 import { teamInitials } from "@/components/TeamBadge";
 import { RoundStart, RoundEnd, Intermission, IntermissionGallery, WaitingForHost } from "@/components/fable/DisplayStates";
-import { playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
+import { playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 
@@ -544,7 +544,7 @@ function DisplayScreenInner() {
     // play to its natural end - no forced stop timer, so it is never cut short.
     stopShowAudio("music");
     if (winnerTeam?.victory_song) {
-      playShowAudio(encodeURIComponent(winnerTeam.victory_song) + ".mp3", { channel: "music", volume: 0.9 });
+      playShowAudio(victorySongAudioFile(winnerTeam.victory_song), { channel: "music", volume: 0.9 });
     }
   }
   function handleRevealNext(nextCount: number) {
@@ -679,7 +679,7 @@ function DisplayScreenInner() {
         const song = teamsRef.current.find(t => t.team_name === teamName)?.victory_song;
         if (!song) return;
         const t = setTimeout(() => {
-          playShowAudio(encodeURIComponent(song) + ".mp3", { channel: "music", volume: 0.7 });
+          playShowAudio(victorySongAudioFile(song), { channel: "music", volume: 0.7 });
         }, i * SONG_SLOT_MS);
         revealSongsTimeoutsRef.current.push(t);
       });
@@ -748,7 +748,7 @@ function DisplayScreenInner() {
           const wonTeam = teamsRef.current.find(t => t.team_name === newHDTeam);
           if (wonTeam?.victory_song) {
             stopShowAudio("music");
-            playShowAudio(encodeURIComponent(wonTeam.victory_song) + ".mp3", { channel: "music", volume: 0.85 });
+            playShowAudio(victorySongAudioFile(wonTeam.victory_song), { channel: "music", volume: 0.85 });
           }
           if (newHDPotential >= 40) {
             playSound("airhorn.mp3", 1.0);
@@ -1316,7 +1316,7 @@ function DisplayScreenInner() {
               <div className="lb-reel-scene lb-reel-brand">
                 <div className="lb-cardkicker">FIND US</div>
                 {venueWebsite && <div className="lb-reel-brand-headline">{venueWebsite.replace(/^https?:\/\/(www\.)?/i, "")}</div>}
-                <div className="lb-reel-brand-body">{Object.entries(venueSocialLinks).map(([k]) => k).join(" · ")}</div>
+                <div className="lb-reel-brand-body">{Object.entries(venueSocialLinks).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(" · ")}</div>
               </div>
             )}
 
@@ -1845,7 +1845,18 @@ function DisplayScreenInner() {
     );
   }
 
-  return null;
+  // No phase/scene matched above - rather than showing a dead black screen to
+  // the whole room (e.g. a brief window where the session updates before
+  // current_question is populated), show a neutral branded holding screen so
+  // it always reads as "still working" rather than "broken/frozen".
+  return (
+    <div className="fbl fbl-stage qi-display-stage" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: "clamp(22px,4vw,34px)", letterSpacing: ".1em", color: "rgba(255,255,255,0.6)" }}>ONE MOMENT...</div>
+      </div>
+      <QuizItBadge />
+    </div>
+  );
 }
 
 export default function DisplayScreen() {

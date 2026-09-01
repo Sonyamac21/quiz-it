@@ -2,15 +2,21 @@
 import { useEffect, useRef, useState } from "react";
 import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 
+// Recoloured to the same jewel-tone, purple-led palette as the Hard Deck
+// wheel (components/SpinWheel.tsx) - deep purples/magenta for the wins,
+// muted wine reds for the losses - instead of the old carnival mix of
+// bright gold/orange/red/silver. Win vs. loss still reads instantly (warm
+// magenta/green glow vs. dark red), it just no longer clashes with the rest
+// of the show's colour language.
 export const SLOT_SEGS = [
-  { label: "1st Place",  color: "#1a1200", bg: "#F5C842", positive: true  },
-  { label: "-10 Points", color: "#ffffff", bg: "#DC2626", positive: false },
-  { label: "2nd Place",  color: "#1a1a2e", bg: "#A8B4D8", positive: true  },
-  { label: "-20 Points", color: "#1a0e00", bg: "#FB923C", positive: false },
-  { label: "3rd Place",  color: "#2a0535", bg: "#E879F9", positive: true  },
-  { label: "-30 Points", color: "#ffffff", bg: "#B91C1C", positive: false },
-  { label: "+50 Points", color: "#042010", bg: "#4ADE80", positive: true  },
-  { label: "Last Place", color: "#ffffff", bg: "#991B1B", positive: false },
+  { label: "1st Place",  color: "#fff",    bg: "#D94FDC", positive: true  },
+  { label: "-10 Points", color: "#ffe3e6", bg: "#7A1B2E", positive: false },
+  { label: "2nd Place",  color: "#fff",    bg: "#8A1B8D", positive: true  },
+  { label: "-20 Points", color: "#ffe3e6", bg: "#5C1522", positive: false },
+  { label: "3rd Place",  color: "#fff",    bg: "#6B2F9E", positive: true  },
+  { label: "-30 Points", color: "#ffe3e6", bg: "#7A1B2E", positive: false },
+  { label: "+50 Points", color: "#04150a", bg: "#4ADE80", positive: true  },
+  { label: "Last Place", color: "#ffe3e6", bg: "#5C1522", positive: false },
 ];
 
 const SEG_H = 120;
@@ -43,9 +49,6 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
   const reelRefs = [r0, r1, r2];
   const reelTops = useRef([0, 0, 0]);
   const [overlay, setOverlay] = useState<Seg | null>(null);
-  const [bulbTick, setBulbTick] = useState(0);
-  const [bulbGolden, setBulbGolden] = useState(false);
-  const bulbRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fwCanvasRef = useRef<HTMLCanvasElement>(null);
   const lastHandledTarget = useRef<number | string | null>(null);
 
@@ -82,20 +85,6 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
     reelTops.current = [INITIAL_TOP, INITIAL_TOP, INITIAL_TOP];
     reelRefs.forEach((r) => { if (r.current) r.current.style.top = INITIAL_TOP + "px"; });
   }, []);
-
-  const stopBulbs = () => {
-    if (bulbRef.current) clearInterval(bulbRef.current);
-    bulbRef.current = null;
-    setBulbTick(-99);
-    setBulbGolden(false);
-  };
-  const startBulbs = (golden: boolean) => {
-    stopBulbs();
-    setBulbGolden(golden);
-    let t = 0;
-    bulbRef.current = setInterval(() => { t++; setBulbTick(t); }, golden ? 120 : 250);
-  };
-  useEffect(() => () => { stopBulbs(); }, []);
 
   const startSpinSound = () => {
     if (!audioEnabled) return;
@@ -236,7 +225,6 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
     lastHandledTarget.current = spinKey;
 
     setOverlay(null);
-    startBulbs(false);
     startSpinSound();
 
     const winSegIdx = targetIdx;
@@ -263,9 +251,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
             const rebelStart = reelTops.current[rebelReel];
             const rebelTarget = landReelOn(winSegIdx, rng, REEL_H);
             animReel(rebelReel, rebelStart, rebelTarget, 2000, 0, 2, () => {
-              stopBulbs();
               const actualResult = SLOT_SEGS[winSegIdx];
-              if (actualResult.positive) startBulbs(true);
               setTimeout(() => {
                 setOverlay(actualResult);
                 if (actualResult.positive) {
@@ -284,78 +270,51 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetIdx, spinNonce]);
 
-  const BC = size === "compact" ? 10 : 20;
-  const bulbColor = (i: number) => {
-    const on = i % 2 === ((bulbTick + 1) % 2);
-    if (!on) return "#2a0a3a";
-    if (bulbGolden) return bulbTick % 4 < 2 ? "#F5C842" : "#BE26C1";
-    return "#BE26C1";
-  };
-  const bulbShadow = (i: number) => {
-    const on = i % 2 === ((bulbTick + 1) % 2);
-    if (!on) return "none";
-    if (bulbGolden) return bulbTick % 4 < 2 ? "0 0 8px #F5C842" : "0 0 8px #BE26C1";
-    return "0 0 8px #BE26C1";
-  };
-  const renderBulbRow = (bottom = false) => (
-    <div style={{ display: "flex", alignItems: "center", padding: bottom ? "8px 16px 10px" : "10px 16px 8px", gap: 4, background: "#0d0818" }}>
-      {Array.from({ length: BC }).map((_, i) => (
-        <div key={i} style={{ display: "contents" }}>
-          {i > 0 && <div style={{ flex: 1, height: 1, background: "#2a0a3a" }} />}
-          <div style={{ width: size === "compact" ? 10 : 16, height: size === "compact" ? 10 : 16, borderRadius: "50%", background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.85), ${bulbColor(i)} 55%, ${bulbColor(i)} 100%)`, border: "1px solid rgba(180,185,200,0.4)", flexShrink: 0, boxShadow: `${bulbShadow(i)}, inset 0 1px 1px rgba(255,255,255,0.35), inset 0 -1px 2px rgba(0,0,0,0.5)`, transition: "background .15s, box-shadow .15s" }} />
-        </div>
-      ))}
-    </div>
-  );
-
+  // Cabinet chrome upgraded to match the Hard Deck wheel's approved look:
+  // dark rounded card, ambient purple glow, glass highlight sweep, no gold
+  // trim or marquee bulb rows. The reels/spin mechanic below is untouched -
+  // this is a colour/material pass only, not a redesign of the slot
+  // machine itself.
   return (
     <div style={{
-      position: "relative", width: "100%", borderRadius: 26,
-      background: "linear-gradient(145deg, #2E1A52 0%, #231543 8%, #1D1140 20%, #150A2E 34%, #0A0118 55%)",
-      padding: size === "compact" ? 6 : 10,
-      boxShadow: "0 24px 70px rgba(0,0,0,0.75), 0 0 0 1px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.35), inset 0 -2px 6px rgba(0,0,0,0.5)",
+      position: "relative", width: "100%", borderRadius: 32,
+      background: "linear-gradient(160deg, #1D1140, #12081F)",
+      padding: size === "compact" ? 10 : 18,
+      boxShadow: "0 30px 60px rgba(0,0,0,0.55), 0 0 90px rgba(190,38,193,0.14), inset 0 1px 0 rgba(255,255,255,0.06)",
     }}>
-      {/* Illuminated cabinet border - static purple glow ring, purely decorative */}
-      <div style={{ position: "absolute", inset: -4, borderRadius: 30, boxShadow: "0 0 18px 2px rgba(190,38,193,0.4), 0 0 40px 6px rgba(190,38,193,0.22), 0 0 70px 14px rgba(190,38,193,0.08)", pointerEvents: "none" as const }} />
-
-      {/* Gold trim accent - thin edge highlight only, cabinet body stays graphite/chrome/black */}
-      <div style={{ position: "absolute", inset: 0, borderRadius: 26, border: "1px solid rgba(212,175,90,0.55)", pointerEvents: "none" as const }} />
-
       {/* Cabinet header plate - Quiz-It branding only */}
-      <div style={{ textAlign: "center", marginBottom: size === "compact" ? 6 : 10 }}>
-        <div style={{ display: "inline-block", padding: size === "compact" ? "4px 16px" : "6px 24px", borderRadius: 999, background: "linear-gradient(180deg, #180429, #0a0116)", border: "1px solid rgba(212,175,90,0.55)", boxShadow: "0 3px 10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
+      <div style={{ textAlign: "center", marginBottom: size === "compact" ? 8 : 14 }}>
+        <div style={{ display: "inline-block", padding: size === "compact" ? "4px 16px" : "6px 24px", borderRadius: 999, background: "rgba(217,79,220,0.08)", border: "1px solid rgba(217,79,220,0.35)" }}>
           <span style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: size === "compact" ? 12 : 16, letterSpacing: ".05em" }}>
             <span style={{ color: "#BE26C1" }}>QUIZ-</span><span style={{ color: "#ffffff" }}>IT</span>
           </span>
         </div>
       </div>
 
-      {/* Inner cabinet panel - unchanged content below, only this wrapper's own border/shadow enriched */}
-      <div style={{ background: "#07030f", borderRadius: 18, border: "1px solid rgba(0,0,0,0.6)", overflow: "hidden", position: "relative", width: "100%", boxShadow: "inset 0 3px 16px rgba(0,0,0,0.85), inset 0 0 1px rgba(255,255,255,0.05)", display: size === "compact" ? undefined : "flex", flexDirection: size === "compact" ? undefined : "column", flex: size === "compact" ? undefined : "1 1 0", minHeight: size === "compact" ? undefined : 0 }}>
+      {/* Inner cabinet panel */}
+      <div style={{ background: "#0D0618", borderRadius: 20, overflow: "hidden", position: "relative", width: "100%", boxShadow: "inset 0 2px 0 rgba(255,255,255,0.03), inset 0 12px 24px rgba(0,0,0,0.6), inset 0 -12px 24px rgba(0,0,0,0.6)", display: size === "compact" ? undefined : "flex", flexDirection: size === "compact" ? undefined : "column", flex: size === "compact" ? undefined : "1 1 0", minHeight: size === "compact" ? undefined : 0 }}>
       <canvas ref={fwCanvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 60 }} />
-      {renderBulbRow()}
-      <div style={{ textAlign: "center", fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", padding: size === "compact" ? "6px 0 4px" : "10px 0 8px", fontSize: size === "compact" ? "clamp(14px,3vw,22px)" : "clamp(22px,3.6vw,50px)", letterSpacing: size === "compact" ? ".12em" : ".14em", color: "#fff", textShadow: "0 0 24px rgba(190,38,193,0.7)" }}>
+      <div style={{ textAlign: "center", fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", padding: size === "compact" ? "10px 0 4px" : "16px 0 8px", fontSize: size === "compact" ? "clamp(14px,3vw,22px)" : "clamp(22px,3.6vw,50px)", letterSpacing: size === "compact" ? ".12em" : ".14em", color: "#fff", textShadow: "0 0 24px rgba(190,38,193,0.7)" }}>
         <span style={{ color: "#BE26C1" }}>SPIN</span> TO WIN
       </div>
-      <div ref={reelRowRef} style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: size === "compact" ? "8px 12px" : "16px 24px", gap: size === "compact" ? 8 : 16, background: "#08050f", boxShadow: "inset 0 4px 14px rgba(0,0,0,0.6), inset 0 -4px 14px rgba(0,0,0,0.5)", flex: size === "compact" ? undefined : "1 1 0", minHeight: 0 }}>
+      <div ref={reelRowRef} style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: size === "compact" ? "8px 12px" : "16px 24px", gap: size === "compact" ? 8 : 16, flex: size === "compact" ? undefined : "1 1 0", minHeight: 0 }}>
         {[0, 1, 2].map((i) => (
-          <div key={i} style={{ flex: 1, height: size === "compact" ? REEL_H : "100%", overflow: "hidden", position: "relative", border: "1px solid rgba(10,4,20,0.9)", borderRadius: 12, background: "#06040f", boxShadow: "inset 0 3px 10px rgba(5,0,13,0.85), inset 0 -3px 10px rgba(5,0,13,0.7), inset 0 0 0 2px rgba(140,120,185,0.3), 0 3px 10px rgba(5,0,13,0.6), 0 0 0 1px rgba(212,175,90,0.25)" }}>
-            <div style={{ position: "absolute", left: 0, right: 0, top: "50%", transform: "translateY(-50%)", height: SEG_H, background: "rgba(100,10,120,0.3)", borderTop: "2px solid #BE26C1", borderBottom: "2px solid #BE26C1", pointerEvents: "none", zIndex: 3 }} />
+          <div key={i} style={{ flex: 1, height: size === "compact" ? REEL_H : "100%", overflow: "hidden", position: "relative", borderRadius: 16, background: "#06040f", boxShadow: "inset 0 3px 10px rgba(5,0,13,0.85), inset 0 -3px 10px rgba(5,0,13,0.7)" }}>
+            <div style={{ position: "absolute", left: 0, right: 0, top: "50%", transform: "translateY(-50%)", height: SEG_H, borderRadius: 12, border: "1px solid rgba(217,79,220,0.55)", boxShadow: "0 0 0 1px rgba(217,79,220,0.12) inset, 0 0 24px rgba(217,79,220,0.22)", pointerEvents: "none", zIndex: 3 }} />
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 60, background: "linear-gradient(to bottom, #06040f, transparent)", zIndex: 4, pointerEvents: "none" }} />
             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 60, background: "linear-gradient(to top, #06040f, transparent)", zIndex: 4, pointerEvents: "none" }} />
             <div ref={reelRefs[i]} style={{ position: "absolute", width: "100%", top: 0, display: "flex", flexDirection: "column" }}>
               {STRIP.map((s, j) => (
-                <div key={j} style={{ height: SEG_H, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size === "compact" ? "clamp(10px,1.5vw,16px)" : "clamp(18px,2.6vw,34px)", letterSpacing: 2, textAlign: "center", padding: "0 8px", lineHeight: 1.2, color: s.color, background: s.bg, fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                <div key={j} style={{ height: SEG_H, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size === "compact" ? "clamp(10px,1.5vw,16px)" : "clamp(18px,2.6vw,34px)", letterSpacing: 2, textAlign: "center", padding: "0 8px", lineHeight: 1.2, color: s.color, background: s.bg, fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                   {s.label}
                 </div>
               ))}
             </div>
-            {/* Glass covering - very subtle tempered-glass reflection, purely decorative, non-interactive */}
-            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(115deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.01) 25%, transparent 50%, rgba(255,255,255,0.02) 75%, transparent 100%)", pointerEvents: "none" as const, zIndex: 5 }} />
+            {/* Glass highlight sweep - same treatment as the Hard Deck wheel window */}
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(115deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 22%, rgba(255,255,255,0) 40%)", pointerEvents: "none" as const, zIndex: 5 }} />
           </div>
         ))}
       </div>
-      {renderBulbRow(true)}
 
       {overlay && (
         <div style={{ position: "fixed", inset: 0, background: overlay.positive ? "radial-gradient(circle at 50% 45%, #0c1912 0%, #030805 75%)" : "radial-gradient(circle at 50% 45%, #1c0808 0%, #060202 75%)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>

@@ -116,6 +116,63 @@ const PERMANENT_EXCLUDED_FACTS = [
   "Which comedian played the character David Brent in the original UK version of The Office? (Ricky Gervais)",
   "What is the surname of the chef who created the 'Naked Chef' TV persona? (Oliver / Jamie Oliver)",
 ];
+// Matches lib/quiz/generateRound.ts's PICTURE_TOPICS/pickPictureTopic - this
+// page never got that fix, so picture candidates here were drawing from the
+// general topic bucket picker (movies, celebrities, logos, video games,
+// etc.), most of which aren't photographable subjects a real image search
+// can safely match. That mismatch means picture questions from this screen
+// have been failing moderation/quality most of the time, wasting API spend
+// on retries rather than producing usable questions. Deliberately a small,
+// curated pool of actually-photographable subjects.
+const PICTURE_TOPICS = ["famous landmarks","world flags","animals and wildlife","iconic buildings","national dishes and cuisine","famous bridges","sports stadiums","big cats and safari animals","dog and cat breeds","famous mountains and natural wonders","tropical destinations","classic desserts and sweets","famous rivers and waterfalls","farm animals","street food dishes"];
+// Bucketed, round-robin topic picker so an unthemed round guarantees a
+// spread across news/showbiz, movies/TV, music/culture, geography, history,
+// sport, and everyday-life categories instead of drawing purely at random
+// from one flat 34-entry list (which could clump on movies/music for an
+// entire round while geography/history/current news never came up). See
+// lib/quiz/generateRound.ts's identical fix for the full explanation. A host
+// who wants ONLY one category should still type an explicit theme - this
+// only fixes the default "mixed" case. Module-level factory functions (not
+// inline in generate()) so both generate() AND topUp() share the exact same
+// logic - topUp used to have its own, much weaker random topic draw with no
+// category guarantee at all.
+const TOPIC_BUCKETS: string[][] = [
+  ["recent entertainment news (last 1-3 years, no politics)", "celebrity and pop culture moments (last 1-3 years, no politics)"],
+  ["movies", "TV shows", "celebrities", "awards and records", "reality TV", "theatre and musicals"],
+  ["music", "video games", "comedy and humour", "social media and internet", "fashion and style"],
+  ["geography", "famous landmarks", "travel", "UK culture", "US culture", "international culture"],
+  ["simple history", "childhood and nostalgia", "crime and mystery", "royals and politics"],
+  ["sport", "football"],
+  ["food and drink", "logos and brands", "animals", "classic cartoons", "cars and transport", "nature and wildlife"],
+];
+function createGeneralTopicPicker(): (launchIndex: number) => string {
+  const shuffledBuckets = TOPIC_BUCKETS.map(shuffle);
+  const tried = new Set<string>();
+  return (launchIndex: number): string => {
+    const bucket = shuffledBuckets[launchIndex % shuffledBuckets.length];
+    for (let offset = 0; offset < bucket.length; offset++) {
+      const candidate = bucket[(Math.floor(launchIndex / shuffledBuckets.length) + offset) % bucket.length];
+      if (!tried.has(candidate)) { tried.add(candidate); return candidate; }
+    }
+    for (const b of shuffledBuckets) {
+      for (const candidate of b) {
+        if (!tried.has(candidate)) { tried.add(candidate); return candidate; }
+      }
+    }
+    return bucket[launchIndex % bucket.length];
+  };
+}
+function createPictureTopicPicker(): (launchIndex: number) => string {
+  const shuffledPictureTopics = shuffle(PICTURE_TOPICS);
+  const tried = new Set<string>();
+  return (launchIndex: number): string => {
+    for (let offset = 0; offset < shuffledPictureTopics.length; offset++) {
+      const candidate = shuffledPictureTopics[(launchIndex + offset) % shuffledPictureTopics.length];
+      if (!tried.has(candidate)) { tried.add(candidate); return candidate; }
+    }
+    return shuffledPictureTopics[launchIndex % shuffledPictureTopics.length];
+  };
+}
 // Matches lib/quiz/generateRound.ts's RECENCY_SIGNAL - a theme or randomly-
 // picked topic whose text itself asks for something current gets routed
 // through web search (see callAPI's webSearch param below) instead of the
@@ -136,7 +193,16 @@ const typeLabel: Record<string,string> = { multi_tap:"Multi Tap", multiple_choic
 // Candidate generation and independent validators may overlap, but sending every
 // request at once can exhaust both Anthropic's concurrency allowance and our own
 // per-host API rate limit. Keep a small shared client-side queue across the page.
-const MAX_AI_CONCURRENCY = 3;
+const MAX_AI_CONCURRENCY = 8;
+// The moderation/theme/quality/balance checks below are simple pass/fail
+// judgments on already-written content, not creative writing - they never
+// needed the full-price generation model. lib/quiz/generateRound.ts already
+// routes these to Haiku for exactly that reason; this page's copy of the
+// same four validators was never updated to match, so every single-round
+// generate/regenerate/top-up on this screen has been paying full Sonnet
+// price for checks that cost a fraction as much on Haiku. Matching that fix
+// here.
+const VALIDATION_MODEL = "claude-haiku-4-5-20251001";
 let activeAiRequests = 0;
 const aiRequestQueue: Array<() => void> = [];
 
@@ -356,11 +422,11 @@ export default function QuestionsPage() {
     usedFingerprintsRef.current = fingerprints;
   }
 
-  async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false) {
+  async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false, model?: string) {
     const res = await withAiRequestSlot(() => fetch("/api/generate-questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch }),
+      body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch, model }),
     }));
     // TEMPORARY DIAGNOSTIC - read as text first so we can see exactly what our own
     // API route actually returned, instead of res.json() crashing blind on an
@@ -434,7 +500,7 @@ export default function QuestionsPage() {
     let firstError = "";
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const text = await callAPI(prompt, 300, true);
+        const text = await callAPI(prompt, 300, true, false, VALIDATION_MODEL);
         return parseModelJson<{ok: boolean; note: string}>(text, "object");
       } catch (error) {
         const reason = error instanceof Error ? error.message : "Unknown moderation error";
@@ -476,7 +542,7 @@ export default function QuestionsPage() {
       (options ? " | Options: " + options : "") +
       (subject ? " | Media subject (internal search query, not shown to players): " + subject : "");
     try {
-      const text = await callAPI(prompt, 300, true);
+      const text = await callAPI(prompt, 300, true, false, VALIDATION_MODEL);
       return parseModelJson<{ok: boolean; note: string}>(text, "object");
     } catch {
       // Fail open - never let a verification hiccup stall a themed round.
@@ -523,7 +589,7 @@ export default function QuestionsPage() {
       (options ? " | Options: " + options : "") +
       (subject ? " | Image/Audio subject (internal search query, not shown to players): " + subject : "");
     try {
-      const text = await callAPI(prompt, 300, true);
+      const text = await callAPI(prompt, 300, true, false, VALIDATION_MODEL);
       return parseModelJson<{ok: boolean; note: string}>(text, "object");
     } catch {
       // Fail open - never let a verification hiccup stall generation.
@@ -980,7 +1046,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         candidate_entity?: string | null;
         conflict_index?: number | null;
         rejection_reason?: string;
-      }>(await callAPI(prompt, 350, true), "object");
+      }>(await callAPI(prompt, 350, true, false, VALIDATION_MODEL), "object");
       const conflictIndex = Number.isInteger(parsed.conflict_index) && (parsed.conflict_index as number) >= 1 && (parsed.conflict_index as number) <= currentRound.length
         ? parsed.conflict_index as number
         : null;
@@ -1219,38 +1285,8 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       for (const { i } of order) { if (remainder <= 0) break; base[i]++; remainder--; }
       types = shuffle(weights.flatMap(([type], i) => Array(base[i]).fill(type)));
     }
-    // Bucketed, round-robin topic picker so an unthemed round guarantees a
-    // spread across news/showbiz, movies/TV, music/culture, geography,
-    // history, sport, and everyday-life categories instead of drawing purely
-    // at random from one flat 34-entry list (which could clump on
-    // movies/music for an entire round while geography/history/current news
-    // never came up). See lib/quiz/generateRound.ts's identical fix for the
-    // full explanation. A host who wants ONLY one category should still type
-    // an explicit theme - this only fixes the default "mixed" case.
-    const TOPIC_BUCKETS: string[][] = [
-      ["recent entertainment news (last 1-3 years, no politics)", "celebrity and pop culture moments (last 1-3 years, no politics)"],
-      ["movies", "TV shows", "celebrities", "awards and records", "reality TV", "theatre and musicals"],
-      ["music", "video games", "comedy and humour", "social media and internet", "fashion and style"],
-      ["geography", "famous landmarks", "travel", "UK culture", "US culture", "international culture"],
-      ["simple history", "childhood and nostalgia", "crime and mystery", "royals and politics"],
-      ["sport", "football"],
-      ["food and drink", "logos and brands", "animals", "classic cartoons", "cars and transport", "nature and wildlife"],
-    ];
-    const shuffledBuckets = TOPIC_BUCKETS.map(shuffle);
-    const triedGeneralTopics = new Set<string>();
-    const pickGeneralTopic = (launchIndex: number): string => {
-      const bucket = shuffledBuckets[launchIndex % shuffledBuckets.length];
-      for (let offset = 0; offset < bucket.length; offset++) {
-        const candidate = bucket[(Math.floor(launchIndex / shuffledBuckets.length) + offset) % bucket.length];
-        if (!triedGeneralTopics.has(candidate)) { triedGeneralTopics.add(candidate); return candidate; }
-      }
-      for (const b of shuffledBuckets) {
-        for (const candidate of b) {
-          if (!triedGeneralTopics.has(candidate)) { triedGeneralTopics.add(candidate); return candidate; }
-        }
-      }
-      return bucket[launchIndex % bucket.length];
-    };
+    const pickGeneralTopic = createGeneralTopicPicker();
+    const pickPictureTopic = createPictureTopicPicker();
     const shuffledMusicTopics = shuffle(MUSIC_TOPICS);
     const good: Question[] = [];
     // Always generate fresh AI questions - the Phase 1 library-first selection
@@ -1264,7 +1300,16 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     // the generate button.
     const usedLibraryIds = new Set<number>();
     let attempts = 0;
-    const maxAttempts = count * 8;
+    // This screen's retry ceiling was noticeably tighter than the bulk
+    // generator's (count*8/consecutiveCheckFailures>=15 here vs. count*18-24
+    // and 45 there) with no wall-clock bail-out at all - so a host could be
+    // watching "Checking question X..." indefinitely on a genuinely slow
+    // request with no time-based safety net, while also giving up sooner
+    // than necessary on a recoverable retry streak. Matching both to
+    // generateRound.ts's tuned values.
+    const maxAttempts = count * 18;
+    const generationStartedAt = Date.now();
+    const wallClockBudgetMs = Math.max(120_000, count * 25_000);
     let i = 0;
     let consecutiveFailures = 0;
     let consecutiveCheckFailures = 0;
@@ -1302,9 +1347,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     const launchCandidate = () => {
       const launchIndex = i++;
       const type = pickNextType();
-      const topic = theme || (type === "audio"
-        ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
-        : pickGeneralTopic(launchIndex));
+      const topic = theme || (
+        type === "audio" ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
+        : type === "picture" ? pickPictureTopic(launchIndex)
+        : pickGeneralTopic(launchIndex)
+      );
       const context = createGenerationContext(type, Boolean(theme.trim()));
       attempts++;
       inFlightCounts[type] = (inFlightCounts[type] || 0) + 1;
@@ -1318,6 +1365,18 @@ Return ONLY a valid JSON array with 1 item, no markdown:
 
     refillPipeline();
     while (good.length < count && pending.length > 0) {
+      // No time-based safety net previously existed here at all - only a
+      // candidate-count ceiling (maxAttempts) and a consecutive-failure
+      // streak counter, neither of which bounds real wall-clock time if
+      // individual requests are just slow rather than failing outright. A
+      // host could be watching this status line for minutes with no idea if
+      // it's still working or effectively stalled. Matches generateRound.ts's
+      // budget so this screen can't hang indefinitely either.
+      if (Date.now() - generationStartedAt > wallClockBudgetMs) {
+        setStatus("Generation stopped after " + Math.round((Date.now() - generationStartedAt) / 1000) + "s to avoid an excessive wait. Got " + good.length + " of " + count + " - use Top Up to fill the rest.");
+        setLoading(false);
+        return;
+      }
       setStatus("Generating and checking question " + (good.length + 1) + " of " + count + "..." + (consecutiveFailures > 0 ? " (retry " + consecutiveFailures + ")" : ""));
       const current = pending.shift()!;
       const { type, context } = current;
@@ -1515,19 +1574,26 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     setStatus("Topping up " + needed + " question(s)...");
     // Must match the same round-type-aware type selection used in generate() -
     // otherwise Music/Multi Tap rounds get topped up with generic mixed question
-    // types instead of the correct format for that round.
+    // types instead of the correct format for that round. This previously
+    // claimed to match generate()'s type mix but actually excluded
+    // picture/audio entirely for Regular rounds (generate() gives them a real
+    // 20%/10% share) - a host topping up a Regular round could never get a
+    // picture or audio question that way, only the four text-based types.
     const types =
       roundType === "music" ? ["audio"] :
       roundType === "multi_tap" ? ["multi_tap"] :
-      ["multiple_choice","text_answer","number","sequence"];
-    const topicList = shuffle(TOPICS);
+      ["multiple_choice","multiple_choice","text_answer","text_answer","number","sequence","picture","picture","audio"];
     const musicTopicList = shuffle(MUSIC_TOPICS);
+    const pickGeneralTopic = createGeneralTopicPicker();
+    const pickPictureTopic = createPictureTopicPicker();
     const added: Question[] = [];
     let attempts = 0;
     while (added.length < needed && attempts < needed * 6) {
       attempts++;
       const type = types[attempts % types.length];
-      const topic = type === "audio" ? musicTopicList[attempts % musicTopicList.length] : topicList[attempts % topicList.length];
+      const topic = type === "audio" ? musicTopicList[attempts % musicTopicList.length]
+        : type === "picture" ? pickPictureTopic(attempts)
+        : pickGeneralTopic(attempts);
       const context = createGenerationContext(type, Boolean(theme.trim()));
       const q = await generateOne(type, topic, context);
       if (!q) { reportGeneratedFailure(context, type); continue; }

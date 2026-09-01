@@ -124,7 +124,11 @@ const VARIETY_ANGLES = [
   "from a different decade than you'd first think of", "that most people would NOT guess first",
 ];
 
-// Shared AI concurrency queue. A module-level singleton, same as the page's -
+// Shared AI concurrency queue. A module-level singleton - the older
+// app/host/questions/page.tsx generator used to be stuck at 3 (with a
+// comment here incorrectly claiming parity), which meant retries paced very
+// differently between the two screens even after other fixes were mirrored
+// across both. Matched to 8 in that file too -
 // every round generating in parallel shares this one queue/limit so the total
 // number of simultaneous Anthropic calls across ALL rounds never exceeds the
 // same cap the single-round generator already respects.

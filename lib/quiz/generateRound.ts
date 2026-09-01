@@ -214,7 +214,7 @@ function emptyValidationResults(hasTheme: boolean, isMedia: boolean): Validation
     moderation: { status: "not_run", note: "" },
     theme: { status: hasTheme ? "not_run" : "not_applicable", note: "" },
     duplicate: { status: "not_run", note: "" },
-    balance: { status: hasTheme ? "not_applicable" : "not_run", note: "" },
+    balance: { status: "not_run", note: "" },
     memory: { status: "not_run", note: "" },
     quality: { status: "not_run", note: "" },
     media: { status: isMedia ? "not_run" : "not_applicable", note: "" },
@@ -499,8 +499,12 @@ async function generateOne(
     text_answer: "text_answer: the correct_answer MUST be a SINGLE word - no spaces, no commas, no \"and\", no \"&\", no \"/\", no multiple names, no multiple items, no hyphen-joined names. If the natural answer would be more than one word, choose a different question whose answer is a single word. All options must be null.",
     number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
     sequence: "sequence: 4 items that have a definite correct chronological/logical order, written into option_a/b/c/d in that correct order. correct_answer must be exactly \"a,b,c,d\" (the order will be randomized programmatically afterward, so always write them in true correct order here).",
-    picture: "picture: this generates a PICTURE ROUND question. There are two SEPARATE pieces of information you must produce - do not mix them: (1) option_a is an internal media search query, NEVER shown to players, used only to fetch a stock photo - a short, generic Google Images search query (3-5 words), e.g. \"Eiffel Tower Paris\" or \"red panda animal\" or \"Italian flag\". The subject MUST be one of: a famous landmark or building, an animal or species, a national flag, a well-known food or dish, or a sports venue/stadium. Do NOT use company/brand logos, famous people, movie stills, album covers, TV characters, or any copyrighted artwork or photography - these will not be found on stock photo sites (Pixabay specifically does not carry trademarked logos, so brand questions always return an unrelated photo). (2) question_text is the actual question shown to players underneath the image - it must be a short, generic question ABOUT the image itself, e.g. \"Name this landmark\", \"Which country is this flag from?\", \"What animal is this?\", \"Which city is this stadium in?\". question_text must NEVER contain the words \"Show teams this image\", must NEVER name or describe the actual subject (that would give away the answer), and must NEVER be an unrelated trivia question - it must always be directly answerable by looking at the image. option_b/c/d must be null. correct_answer is the specific answer to question_text (the landmark name, the country, the animal, etc).",
-    audio: "audio: this generates a MUSIC ROUND question. There are two SEPARATE pieces of information you must produce - do not mix them: (1) option_a is an internal media search query, NEVER shown to players, used only to help find/reference the source track - a YouTube search query, e.g. \"Bohemian Rhapsody Queen official\". (2) question_text is the actual question shown to players after the clip plays - it must be a short, generic question ABOUT the song, e.g. \"Name this song\", \"Which artist performs this song?\", \"What year was this song released?\", \"Finish the lyric: ...\". question_text must NEVER state the song title or artist directly (that would give away the answer) and must NEVER be unrelated trivia - it must always be something a listener could only answer by having heard the clip. option_b/c/d must be null. correct_answer is the specific answer to question_text (the song title, the artist name, the year, etc - matching whatever question_text actually asks).",
+    picture: theme.trim()
+      ? `picture: create a THEMED picture question for "${theme.trim()}". option_a is a short internal Pixabay search query for a stock-safe REAL subject (landmark/building, animal, flag, food/dish, or stadium); never use logos, people, film stills, characters, album covers or copyrighted artwork. question_text is shown with that image and MUST require specific knowledge of "${theme.trim()}" to answer—the stock image is a meaningful clue, not the answer itself. Example pattern: an image of Neuschwanstein Castle with "This castle inspired the royal home in which Disney film?" Do NOT ask generic identification such as "What animal is this?"; that tests general knowledge rather than the theme. Never write "Show teams this image" or reveal the answer. option_b/c/d null; correct_answer must answer the themed question.`
+      : "picture: option_a is a short internal Pixabay query for a stock-safe subject: landmark/building, animal, flag, food/dish, or stadium. Never use logos, famous people, film stills, characters, album covers or copyrighted artwork. question_text is a short visual-identification question such as 'Name this landmark' or 'What animal is this?', without naming the subject or saying 'Show teams this image'. option_b/c/d null; correct_answer identifies what is shown.",
+    audio: theme.trim()
+      ? `audio: create a THEMED music-clip question for "${theme.trim()}". option_a is an internal YouTube search query identifying the exact track. question_text is shown after the clip and MUST require specific knowledge of "${theme.trim()}"—for example "Which animated film features this song?"—rather than merely naming a song that happens to be associated with the theme. Do not reveal the song, artist or answer. option_b/c/d null; correct_answer must answer the themed question.`
+      : "audio: option_a is an internal YouTube search query identifying the exact track. question_text is a short question answerable from the clip, such as 'Name this song', 'Which artist performs this song?' or 'What year was it released?'. Do not reveal the title or artist. option_b/c/d null; correct_answer must match what question_text asks.",
   };
   const rejectedList = Array.from(exclusions.rejectedTexts);
   let exclusionsText = [...rejectedList, ...exclusions.used.slice(-25)].map((q, i) => (i + 1) + ". " + q).join("; ");
@@ -804,8 +808,8 @@ async function checkRoundBalance(q: Question, currentRound: Question[], theme: s
   details: RoundBalanceDetails;
 }> {
   const emptyDetails: RoundBalanceDetails = { candidate_subtopic: null, candidate_entity: null, conflict_index: null, rejection_reason: "" };
-  if ((theme || "").trim()) return { ok: true, note: "Themed rounds allow repeated subject matter", details: emptyDetails };
   if (currentRound.length === 0) return { ok: true, note: "First accepted question in round", details: emptyDetails };
+  const activeTheme = (theme || "").trim();
   const candidate = {
     type: q.question_type,
     question: q.question_text || "",
@@ -820,8 +824,9 @@ async function checkRoundBalance(q: Question, currentRound: Question[], theme: s
     internal_media_lookup: ["picture", "audio"].includes(existing.question_type) ? (existing.option_a || "None") : "None",
   }));
   const prompt =
-    "You are an experienced professional pub-quiz host checking the balance of an UNTHEMED general-knowledge round. " +
+    "You are an experienced professional pub-quiz host checking the balance of " + (activeTheme ? `a round themed "${activeTheme}". ` : "an UNTHEMED general-knowledge round. ") +
     "Compare ONE candidate only with the already accepted questions supplied below. Reject only with HIGH confidence when an experienced host would consider the round noticeably repetitive because: (1) the same primary entity appears twice; (2) the same narrow subtopic appears twice; or (3) both questions effectively test the same underlying knowledge - even if the specific fact, clue, or answer is different. " +
+    (activeTheme ? `The shared theme "${activeTheme}" is intentional and MUST NOT itself count as repetition. But a broad theme still needs variety inside it: for "kids movies", two questions about Frozen, Shrek, or the same franchise must be rejected. If the theme itself explicitly names one work/entity (for example "Frozen"), allow that named entity but require different characters, scenes, songs, production facts or narrow subtopics. ` : "") +
     "Examples that should be rejected: two tennis questions, two Beatles questions, two volcano questions, or two 'identify this car brand from a clue' questions (e.g. one from its logo, one from its slogan - different facts, but the player's actual task both times is 'name this car brand', which is repetitive even with different answers). " +
     "Allow broad-category overlap such as two different sports or two different music subjects where the actual knowledge being tested differs each time (a football history fact vs a tennis rules fact), not just the same recurring task with a different answer plugged in. Allow incidental or weak relationships. Do NOT reject merely because two questions mention or concern the same country; reject only if they also share a genuinely narrow subtopic, primary entity, or underlying knowledge test. " +
     "Be conservative: uncertainty MUST pass. The candidate must be judged against accepted questions only. conflict_index is the 1-based index of the accepted question it conflicts with, otherwise null. " +
@@ -902,7 +907,6 @@ async function validateCandidate(
   exclusions: ExclusionState,
   onMemoryDegraded?: () => void,
 ): Promise<{ ok: boolean; category: string; reason: string; stages: ValidationResults }> {
-  const activeTheme = (theme || "").trim();
   // Run the free deterministic duplicate gate before any paid AI validators.
   // Previously an exact/near duplicate still incurred moderation, balance and
   // quality calls even though it was guaranteed to be rejected afterwards.
@@ -917,16 +921,11 @@ async function validateCandidate(
   if (memoryDuplicate) return { ok: false, category: "Permanent memory", reason: stages.memory.note, stages };
 
   const moderationPromise = checkQuestion(q, theme);
-  const balancePromise = activeTheme
-    ? Promise.resolve<Awaited<ReturnType<typeof checkRoundBalance>> | null>(null)
-    : checkRoundBalance(q, currentRound, theme);
+  const balancePromise = checkRoundBalance(q, currentRound, theme);
   const qualityPromise = finalQualityCheck(q, theme);
   const [moderation, balance, quality] = await Promise.all([moderationPromise, balancePromise, qualityPromise]);
   stages.moderation = { status: moderation.ok ? "passed" : "failed", note: moderation.note };
-  if (!activeTheme) {
-    if (!balance) throw new Error("Round Balance result was unavailable");
-    stages.balance = { status: balance.ok ? "passed" : "failed", note: balance.note, details: balance.details };
-  }
+  stages.balance = { status: balance.ok ? "passed" : "failed", note: balance.note, details: balance.details };
   stages.quality = { status: quality.ok ? "passed" : "failed", note: quality.note };
   if (!moderation.ok) return { ok: false, category: moderation.unavailable ? "Moderation unavailable" : "Moderation", reason: moderation.note, stages };
   if (balance && !balance.ok) return { ok: false, category: "Round balance", reason: balance.note, stages };

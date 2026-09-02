@@ -351,6 +351,11 @@ function registerAccepted(state: ExclusionState, q: Question) {
 // is the single biggest lever on the Anthropic bill without touching output
 // quality - the part that actually needs the stronger model is untouched.
 const VALIDATION_MODEL = "claude-haiku-4-5-20251001";
+// Final factual/quality judgment needs stronger reasoning than formatting,
+// moderation and theme classification. A single consolidated Sonnet check is
+// still cheaper than the former three separate validator calls, while avoiding
+// confident nonsense such as calling Wimbledon's trophy simply "Venus".
+const FACT_CHECK_MODEL = "claude-sonnet-5";
 // Cost-first commercial configuration: Haiku writes the candidate as well as
 // validating it. Sonnet produced good questions, but costs twice as much per
 // input and output token; the existing moderation, memory, balance and final
@@ -500,7 +505,7 @@ async function finalQualityCheck(q: Question, theme: string): Promise<{ ok: bool
     "You are an experienced professional pub quiz host performing FINAL quality control on ONE question before it goes live. " +
     "Ask yourself: \"Would an experienced professional quiz host WILLINGLY use this EXACT question in a live pub quiz?\" Pass ONLY if the answer is an unequivocal YES. " +
     "Reject (ok:false) if it suffers from ANY of: (1) unnatural wording; (2) awkward grammar; (3) artificially restricted answers; (4) an answer that is technically correct but not what a player would naturally type; (5) it depends on the explanation to make sense; (6) trivial or pointless; (7) poor quiz design; (8) misleading; (9) a generic question disguised as themed; (10) an image that does not directly represent the answer; (11) it gives the answer away; (12) it could reasonably have multiple correct answers; (13) it requires excessive interpretation; (14) it doesn't feel enjoyable to play; (15) anything a competent quiz writer would immediately rewrite. " +
-    "Examples that MUST fail: Text Answer 'In which movie does a boy say \"I see dead people\"?' answer 'Sixth' (nobody naturally types 'Sixth'). Number 'How many teams are in the Premier League? To the nearest 5' (the 'nearest 5' is pointless). A picture of a real bear asking 'What animal is Yogi Bear?' (the image gives away 'bear'). Disney-themed 'What animal is this?' over a real chameleon (not actually a Disney question). " +
+    "Examples that MUST fail: Text Answer 'In which movie does a boy say \"I see dead people\"?' answer 'Sixth' (nobody naturally types 'Sixth'). 'What trophy is awarded to the winner of Wimbledon?' answer 'Venus' (factually wrong, truncated, and ambiguous between events: women receive the Venus Rosewater Dish; men receive the Gentlemen's Singles Trophy). Number 'How many teams are in the Premier League? To the nearest 5' (the 'nearest 5' is pointless). A picture of a real bear asking 'What animal is Yogi Bear?' (the image gives away 'bear'). Disney-themed 'What animal is this?' over a real chameleon (not actually a Disney question). " +
     "Judge the question exactly as a player would experience it. DO NOT rely on the explanation to make it make sense. " +
     "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"short reason\"}. " +
     "Type: " + q.question_type + " | Theme: " + (activeTheme || "none") +
@@ -509,7 +514,7 @@ async function finalQualityCheck(q: Question, theme: string): Promise<{ ok: bool
     (options ? " | Options: " + options : "") +
     (subject ? " | Image/Audio subject (internal search query, not shown to players): " + subject : "");
   try {
-    const text = await callAPI(prompt, 300, true, false, VALIDATION_MODEL);
+    const text = await callAPI(prompt, 300, true, false, FACT_CHECK_MODEL);
     return parseModelJson<{ ok: boolean; note: string }>(text, "object");
   } catch {
     return { ok: true, note: "quality-check-unavailable" };
@@ -950,7 +955,7 @@ async function runCombinedValidation(q: Question, currentRound: Question[], them
     "Perform three INDEPENDENT checks on one commercial pub-quiz question and return all three verdicts in one tool call. " +
     "MODERATION: Judge only player-visible Question, Options, Answer and explicitly described player-visible media. Internal media lookup is private metadata: use its literal title/artist/subject only to identify and fact-check the answer. Never infer or analyse lyrics, plot, themes, subtext, artist history or character history. Allow mainstream commercial music, films, books and TV unless the actual presented title/content is inappropriate. A neutral factual alcohol reference is allowed; promotion is not. Reject only genuinely explicit sexual material, crude anatomical language, illegal-drug promotion, pork promotion, religious or LGBTQ+ advocacy or sensitive discussion, Iran or Israel political content, hate speech, slurs, harassment, discrimination, graphic violence, or clearly offensive/prohibited presented content. 'Name this song' with lookup 'Mr. Brightside - The Killers' must pass. Also verify the answer is factually correct. " +
     "ROUND BALANCE: Compare only with accepted questions. Reject only with HIGH confidence for the same primary entity, same narrow subtopic, or effectively the same underlying knowledge. Broad-category overlap is allowed; incidental/weak relationships pass; never reject merely for the same country. If themed, the shared theme is intentional, but repeated franchises/entities inside it are not. conflict_index is the 1-based accepted-question index, otherwise null. " +
-    "FINAL QUALITY: Pass only if an experienced professional host would willingly use the exact question. Reject unnatural/ambiguous/trivial/misleading wording, answers players would not naturally give, answer giveaways, multiple reasonable answers, poor quiz design, or media that does not directly support the question. Do not rely on the explanation. " +
+    "FINAL QUALITY AND FACTUAL ACCURACY: Independently verify that the exact answer is a real, complete, factually correct answer to the exact wording. Pass only if an experienced professional host would willingly use it. Reject invented or truncated names, unnatural/ambiguous/trivial/misleading wording, answers players would not naturally give, answer giveaways, multiple reasonable answers, category/event/gender ambiguity, poor quiz design, or media that does not directly support the question. Example that MUST fail: 'What trophy is awarded to the winner of Wimbledon?' answer 'Venus'—there is no trophy called Venus, and the event is unspecified; the women's trophy is the Venus Rosewater Dish and the men's is the Gentlemen's Singles Trophy. Do not rely on the explanation. " +
     "Return moderation_ok/note, balance_ok/note/confidence, quality_ok/note, candidate_subtopic, candidate_entity, conflict_index and rejection_reason. Uncertainty in balance must pass. " +
     "Candidate labelled fields: " + JSON.stringify(candidate) + " | Accepted questions: " + JSON.stringify(accepted);
   try {
@@ -960,7 +965,7 @@ async function runCombinedValidation(q: Question, currentRound: Question[], them
       quality_ok?: boolean; quality_note?: string;
       candidate_subtopic?: string | null; candidate_entity?: string | null;
       conflict_index?: number | null; rejection_reason?: string;
-    }>(await callAPI(prompt, 550, true, false, VALIDATION_MODEL, true), "object");
+    }>(await callAPI(prompt, 550, true, false, FACT_CHECK_MODEL, true), "object");
     const conflictIndex = Number.isInteger(parsed.conflict_index) && (parsed.conflict_index as number) >= 1 && (parsed.conflict_index as number) <= currentRound.length
       ? parsed.conflict_index as number
       : null;

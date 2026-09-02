@@ -812,6 +812,10 @@ function duplicateRejectionReason(q: Question, currentRound: Question[], theme: 
   const themeTokens = (theme || "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
   const ignore = new Set<string>([...COMMON, ...themeTokens]);
   const sigWords = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
+  const sigPairs = (s: string) => {
+    const words = sigWords(s);
+    return new Set(words.slice(0, -1).map((word, index) => word + " " + words[index + 1]));
+  };
   // multiple_choice/multi_tap/sequence store correct_answer as a raw letter
   // (a/b/c), not the answer text - comparing that directly across types
   // would falsely collide any two questions that both happen to have "a" as
@@ -837,10 +841,13 @@ function duplicateRejectionReason(q: Question, currentRound: Question[], theme: 
   )) return "same-answer:current-round";
   if (normAnswer && exclusions.usedAnswers.includes(normAnswer)) return "same-answer:quiz-plan";
   const newWords = sigWords(q.question_text);
+  const newPairs = sigPairs(q.question_text);
   if (newWords.length >= 2) {
     for (const usedText of exclusions.used.slice(-100)) {
       const usedWords = sigWords(usedText);
       if (usedWords.length < 2) continue;
+      const usedPairs = sigPairs(usedText);
+      if ([...newPairs].some(pair => usedPairs.has(pair))) return "same-primary-entity:quiz-or-history";
       const shared = newWords.filter(w => usedWords.includes(w)).length;
       if (shared >= 2 && shared / Math.min(newWords.length, usedWords.length) >= 0.75) return "same-fact-reworded:quiz-or-history";
     }
@@ -1500,12 +1507,16 @@ export async function generateValidatedRound(
     // broadcast it into this round's exclusions mid-flight. That broadcast
     // was landing too late to matter, since this candidate had already
     // cleared the earlier check - which is exactly how the same question
-    // could reach two different rounds of the same quiz. Re-checking the
-    // fingerprint one last time, synchronously, right before commit, closes
-    // that window: exclusions.usedFingerprints reflects every accept from
-    // every round up to THIS exact instant, no `await` in between.
-    if (validation.ok && exclusions.usedFingerprints.has(questionFingerprint(q))) {
-      addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: "Duplicate", reason: "Matched a question accepted by another round moments earlier", stages: context.report.stages });
+    // could reach two different rounds of the same quiz. Re-running the FULL
+    // duplicate comparison one last time, synchronously, right before commit
+    // closes that window. This includes repeated entities and reworded facts,
+    // not only exact fingerprints: two simultaneous questions about the
+    // Statue of Liberty must conflict even when they ask for different facts.
+    const finalDuplicateReason = validation.ok
+      ? duplicateRejectionReason(q, [...existingQuestions, ...good], theme, exclusions)
+      : null;
+    if (validation.ok && finalDuplicateReason) {
+      addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: "Duplicate", reason: "Late cross-round conflict: " + finalDuplicateReason, stages: context.report.stages });
       consecutiveCheckFailures++;
       consecutiveMemoryFailures++;
       refillPipeline();

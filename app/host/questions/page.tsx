@@ -631,7 +631,7 @@ export default function QuestionsPage() {
       stages: emptyValidationResults(Boolean(theme.trim()), type === "picture" || type === "audio"),
     };
     const typeInstructions: Record<string,string> = {
-      multi_tap: `multi_tap: exactly 6 options in option_a through option_f, ALL SIX FILLED IN (never leave an option blank/null). This question MUST have EXACTLY ${multiTapCorrectCount ?? 3} correct option${multiTapCorrectCount === 1 ? "" : "s"}; the remaining options must be wrong decoys. correct_answer must list exactly those ${multiTapCorrectCount ?? 3} correct option letters, comma-separated and in letter order. Make every decoy plausible, not obviously wrong.`,
+      multi_tap: `multi_tap: this MUST be a genuine SELECT-ALL set-membership question with MULTIPLE correct answers, never an ordinary single-answer trivia question padded to 6 choices. Begin question_text with "Which of these..." or "Select all..." and ask which options independently belong to a clearly defined category, have a stated property, or satisfy a condition. BAD and forbidden: "Which country landed on the Moon?", "Which band released American Idiot?", "Who won...?", "What is...?", or any fact that logically has one unique answer. GOOD: "Which of these countries have hosted the Summer Olympics?" or "Select all artists who have won Album of the Year." Exactly 6 options in option_a through option_f, ALL SIX FILLED IN. This question MUST have EXACTLY ${multiTapCorrectCount ?? 3} correct options; the remaining options must be wrong decoys. correct_answer must list exactly those ${multiTapCorrectCount ?? 3} correct option letters, comma-separated and in letter order. Make every decoy plausible, not obviously wrong.`,
       multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
       text_answer: "text_answer: the correct_answer MUST be a SINGLE word - no spaces, no commas, no \"and\", no \"&\", no \"/\", no multiple names, no multiple items, no hyphen-joined names. If the natural answer would be more than one word, choose a different question whose answer is a single word. All options must be null.",
       number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
@@ -832,6 +832,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         q.correct_answer = shuffledLetters.join(",");
       }
       if (q && q.question_type === "multi_tap") {
+        const multiTapStem = (q.question_text || "").trim().toLowerCase();
+        if (!/^(which of (these|the following)|select all|select each|tap all)/.test(multiTapStem)) {
+          context.error = "Multi Tap must be a genuine select-all category question, not single-answer trivia - retrying";
+          return null;
+        }
         const letters = ["a", "b", "c", "d", "e", "f"];
         // Bug fixed here (same fix as lib/quiz/generateRound.ts): `items` was
         // built by filtering nulls out of a-f, but `wasCorrect` was computed
@@ -1345,7 +1350,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     const acceptedCounts: Record<string, number> = {};
     const inFlightCounts: Record<string, number> = {};
     const multiTapAnswerPlan = roundType === "multi_tap"
-      ? shuffle(Array.from({ length: count }, (_, index) => (index % 6) + 1))
+      ? shuffle(Array.from({ length: count }, (_, index) => (index % 5) + 2))
       : [];
     const multiTapTargets: Record<number, number> = {};
     multiTapAnswerPlan.forEach(answerCount => { multiTapTargets[answerCount] = (multiTapTargets[answerCount] || 0) + 1; });
@@ -1365,7 +1370,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     };
     const pickNextMultiTapCount = (): number | undefined => {
       if (roundType !== "multi_tap") return undefined;
-      let best = 1;
+      let best = 2;
       let bestDeficit = -Infinity;
       for (const rawCount of Object.keys(multiTapTargets)) {
         const answerCount = Number(rawCount);

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 
@@ -23,18 +23,22 @@ export default function VictorySongsPage() {
   const { confirm, dialog: confirmDialogEl } = useConfirmDialog();
   const { showToast, toastEl } = useToastQueue();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await createSupabaseBrowserClient()
+  useEffect(() => {
+    let cancelled = false;
+    void createSupabaseBrowserClient()
       .from("victory_songs")
       .select("id,title,file_ref,sort_order,is_active")
-      .order("sort_order", { ascending: true });
-    if (error) showToast("Couldn't load songs: " + error.message, "error");
-    setSongs((data || []) as VictorySong[]);
-    setLoading(false);
-  }, [showToast]);
-
-  useEffect(() => { void load(); }, [load]);
+      .order("sort_order", { ascending: true })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) showToast("Couldn't load songs: " + error.message, "error");
+        setSongs((data || []) as VictorySong[]);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+    // The catalogue is loaded once when this management page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function saveRename(id: string) {
     const title = editTitle.trim();
@@ -89,7 +93,9 @@ export default function VictorySongsPage() {
     }
   }
 
-  const filtered = songs.filter(s => s.title.toLowerCase().includes(search.toLowerCase()));
+  const normaliseSearch = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const searchNeedle = normaliseSearch(search);
+  const filtered = songs.filter(s => !searchNeedle || normaliseSearch(s.title).includes(searchNeedle));
 
   return (
     <main className="qi-bo-page">
@@ -103,12 +109,9 @@ export default function VictorySongsPage() {
         </div>
       </header>
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
-        <input className="qi-bo-input" style={{ marginBottom: 0, flex: "1 1 260px" }} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search songs" aria-label="Search songs" />
-      </div>
-
       <div className="fbh-panel" style={{ padding: 16, marginBottom: 24 }}>
         <div className="fbh-lbl" style={{ margin: "0 0 10px" }}>Add a new song</div>
+        <p style={{ margin: "0 0 12px", color: "rgba(255,255,255,.62)", fontSize: 13 }}>Enter the title, then select the audio file from this device. This adds a new choice; it does not search Spotify or the web.</p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <input
             className="qi-bo-input"
@@ -131,10 +134,15 @@ export default function VictorySongsPage() {
         </div>
       </div>
 
+      <div style={{ marginBottom: 20 }}>
+        <label className="fbh-lbl" htmlFor="victory-song-filter" style={{ display: "block", margin: "0 0 8px" }}>Filter saved songs</label>
+        <input id="victory-song-filter" className="qi-bo-input" style={{ marginBottom: 0, width: "100%" }} value={search} onChange={e => setSearch(e.target.value)} placeholder="Type a title or artist, e.g. Pink" />
+      </div>
+
       {loading ? (
         <div className="qi-bo-empty"><strong>Loading…</strong></div>
       ) : filtered.length === 0 ? (
-        <div className="qi-bo-empty"><strong>No songs found</strong><span>Try a different search, or add one above.</span></div>
+        <div className="qi-bo-empty"><strong>{songs.length === 0 ? "No victory songs have been saved" : "No saved songs match this filter"}</strong><span>{songs.length === 0 ? "Add a title and audio file above." : "Clear the filter or try the artist's name without punctuation."}</span></div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.map(song => (

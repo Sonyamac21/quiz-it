@@ -13,6 +13,13 @@ import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
+const HOT_SEAT_TOTAL_QUESTIONS = 5;
+
+function targetQuestionCount(roundType: string, savedTarget?: number | null): number {
+  if (roundType === "pursuit") return PURSUIT_TOTAL_QUESTIONS;
+  if (roundType === "hot_seat") return HOT_SEAT_TOTAL_QUESTIONS;
+  return savedTarget && savedTarget > 0 ? savedTarget : 10;
+}
 
 function validQuestionsForRound<T extends Record<string, unknown> | Question>(roundType: string, questions: T[]): T[] {
   if (roundType !== "multi_tap") return questions;
@@ -32,6 +39,8 @@ type BankQuestion = {
   option_b: string | null;
   option_c: string | null;
   option_d: string | null;
+  option_e: string | null;
+  option_f: string | null;
   correct_answer: string;
   difficulty: string;
   round_type: string;
@@ -149,7 +158,7 @@ export default function QuizBuilderPage() {
     if (!selected) return;
     const initial: Record<string, { selected: boolean; count: number; theme: string; difficulty: string }> = {};
     selected.quiz_rounds.forEach(r => {
-      initial[r.id] = { selected: false, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.target_count || 10), theme: r.theme ?? "", difficulty: r.difficulty || "mixed" };
+      initial[r.id] = { selected: false, count: targetQuestionCount(r.round_type, r.target_count), theme: r.theme ?? "", difficulty: r.difficulty || "mixed" };
     });
     setBulkConfig(initial);
     setBulkProgress({});
@@ -213,7 +222,7 @@ export default function QuizBuilderPage() {
       // shortfall always compute to 0 and silently blocking generation
       // forever with no indication why. Saving the real intended target here
       // keeps it correct across reloads.
-      target_count: roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : 10,
+      target_count: targetQuestionCount(roundType),
       hide_leaderboard: false,
       allow_power_cards: true,
       points_per_question: null,
@@ -225,7 +234,7 @@ export default function QuizBuilderPage() {
     const newRound = data as QuizRound;
     setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, quiz_rounds: [...q.quiz_rounds, newRound] } : q));
     if (GENERATABLE_ROUND_TYPES.has(roundType)) {
-      setBulkConfig(prev => ({ ...prev, [newRound.id]: { selected: true, count: roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : 10, theme: "", difficulty: "mixed" } }));
+      setBulkConfig(prev => ({ ...prev, [newRound.id]: { selected: true, count: targetQuestionCount(roundType), theme: "", difficulty: "mixed" } }));
       setBulkOpen(true);
     }
   }
@@ -237,11 +246,17 @@ export default function QuizBuilderPage() {
     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
     setManualQText(""); setManualAText("");
   }
-  async function loadLibraryQuestions(roundType: string, search: string) {
+  async function loadLibraryQuestions(search: string) {
     setLibraryLoading(true);
     const supabase = createSupabaseBrowserClient();
-    let query = supabase.from("question_bank").select("*").eq("round_type", roundType).order("created_at", { ascending: false }).limit(25);
-    if (search.trim()) query = query.ilike("question_text", "%" + search.trim() + "%");
+    // The Question Library is reusable across round types. Filtering by the
+    // saved round_type made a question appear to vanish when the host opened
+    // the picker from a different round, even though it still existed.
+    let query = supabase.from("question_bank").select("*").order("created_at", { ascending: false }).limit(100);
+    if (search.trim()) {
+      const term = search.trim().replace(/[%_,]/g, " ");
+      query = query.or(`question_text.ilike.%${term}%,correct_answer.ilike.%${term}%,topic.ilike.%${term}%`);
+    }
     const { data } = await query;
     setLibraryResults((data || []) as BankQuestion[]);
     setLibraryLoading(false);
@@ -249,18 +264,30 @@ export default function QuizBuilderPage() {
   async function addLibraryQuestion(round: QuizRound, bankQ: BankQuestion) {
     const newQuestions = [...round.questions, {
       question_text: bankQ.question_text, question_type: bankQ.question_type,
-      option_a: bankQ.option_a, option_b: bankQ.option_b, option_c: bankQ.option_c, option_d: bankQ.option_d,
+      option_a: bankQ.option_a, option_b: bankQ.option_b, option_c: bankQ.option_c, option_d: bankQ.option_d, option_e: bankQ.option_e, option_f: bankQ.option_f,
       correct_answer: bankQ.correct_answer, difficulty: bankQ.difficulty,
     }];
     const supabase = createSupabaseBrowserClient();
     await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
-    // Remove it from the Question Library once used, same as the existing
-    // "add to round" behaviour on the Question Library page itself - using a
-    // question moves it into the round rather than leaving a copy sitting in
-    // the library, so the library doesn't fill up with already-used items.
-    await supabase.from("question_bank").delete().eq("id", bankQ.id);
     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
-    setLibraryResults(prev => prev.filter(q => q.id !== bankQ.id));
+    showToast("Question copied into the round. It remains available in the library.", "success", 3500);
+  }
+  async function deleteLibraryQuestion(bankQ: BankQuestion) {
+    const confirmed = await confirmDialog(
+      `Delete “${bankQ.question_text}” from the Question Library? Questions already copied into Quiz Plans will not be affected.`,
+      {
+      title: "Delete library question?",
+      confirmLabel: "Delete question",
+      tone: "destructive",
+    });
+    if (!confirmed) return;
+    const { error } = await createSupabaseBrowserClient().from("question_bank").delete().eq("id", bankQ.id);
+    if (error) {
+      showToast("Could not delete the question: " + error.message, "error", 6000);
+      return;
+    }
+    setLibraryResults(prev => prev.filter(question => question.id !== bankQ.id));
+    showToast("Question deleted from the library.", "success", 3000);
   }
   async function removeRoundQuestion(round: QuizRound, qIndex: number) {
     const newQuestions = round.questions.filter((_, i) => i !== qIndex);
@@ -306,6 +333,8 @@ export default function QuizBuilderPage() {
       option_b: q.option_b ?? null,
       option_c: q.option_c ?? null,
       option_d: q.option_d ?? null,
+      option_e: q.option_e ?? null,
+      option_f: q.option_f ?? null,
       correct_answer: q.correct_answer ?? "",
       difficulty: q.difficulty ?? round.difficulty ?? "mixed",
       round_type: round.round_type,
@@ -434,9 +463,11 @@ export default function QuizBuilderPage() {
     const shortfalls: Record<string, number> = {};
     targets.forEach(r => {
       const cfgCount = bulkConfig[r.id]?.count;
-      const effectiveTarget = Number.isFinite(cfgCount) && (cfgCount as number) > 0
+      const effectiveTarget = r.round_type === "hot_seat" || r.round_type === "pursuit"
+        ? targetQuestionCount(r.round_type)
+        : Number.isFinite(cfgCount) && (cfgCount as number) > 0
         ? (cfgCount as number)
-        : (r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.target_count || 10));
+        : targetQuestionCount(r.round_type, r.target_count);
       shortfalls[r.id] = Math.max(0, effectiveTarget - validQuestionsForRound(r.round_type, r.questions).length);
     });
     const runTargets = targets.filter(r => shortfalls[r.id] > 0);
@@ -465,7 +496,7 @@ export default function QuizBuilderPage() {
           const round = runTargets[idx];
           setBulkProgress(prev => ({ ...prev, [round.id]: status }));
         },
-        (idx, result) => {
+        async (idx, result) => {
           // Save THIS round the instant it finishes, independent of every
           // other round in the batch - a slow, crashed, or failed round
           // elsewhere can never cause an already-successful round's
@@ -485,18 +516,20 @@ export default function QuizBuilderPage() {
           // from React state at the moment generation actually completes
           // (not from the moment it started) fixes this regardless of what
           // else the host did to the round in between.
-          let mergedQuestions = [...validQuestionsForRound(round.round_type, round.questions), ...validQuestionsForRound(round.round_type, result.questions)];
-          setQuizzes(prev => {
-            const liveRound = prev.find(q => q.id === selected.id)?.quiz_rounds.find(r => r.id === round.id);
-            mergedQuestions = [...validQuestionsForRound(round.round_type, liveRound ? liveRound.questions : round.questions), ...validQuestionsForRound(round.round_type, result.questions)];
-            return prev.map(q => {
-              if (q.id !== selected.id) return q;
-              return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) };
-            });
-          });
-          supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id).then(() => {
-            void syncRoundToLibrary(round, mergedQuestions, selected.name);
-          });
+          // Read the database at completion time, then filter BEFORE saving.
+          // The previous implementation assigned mergedQuestions inside a
+          // React state updater, but immediately saved the old value before
+          // React ran that updater. That race is why invalid single-answer
+          // Multi Tap questions survived despite the UI filter.
+          const { data: liveRow } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
+          const liveQuestions = (liveRow?.questions || round.questions) as Record<string, unknown>[];
+          const mergedQuestions = [...validQuestionsForRound(round.round_type, liveQuestions), ...validQuestionsForRound(round.round_type, result.questions)];
+          await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id);
+          setQuizzes(prev => prev.map(q => {
+            if (q.id !== selected.id) return q;
+            return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) };
+          }));
+          void syncRoundToLibrary(round, mergedQuestions, selected.name);
         },
       );
     } finally {
@@ -530,11 +563,12 @@ export default function QuizBuilderPage() {
     // clamp here too, not just inside generateValidatedRound, so a host
     // asking for more than the round has room for gets told plainly instead
     // of the request silently getting cut down with no explanation.
-    const roomLeft = round.round_type === "pursuit" ? Math.max(0, PURSUIT_TOTAL_QUESTIONS - round.questions.length) : null;
-    if (roomLeft === 0) { setGeneratingMoreStatus(`"${round.name}" already has the full ${PURSUIT_TOTAL_QUESTIONS} Pursuit gates.`); return; }
+    const fixedTotal = round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS : null;
+    const roomLeft = fixedTotal === null ? null : Math.max(0, fixedTotal - round.questions.length);
+    if (roomLeft === 0) { setGeneratingMoreStatus(`"${round.name}" already has its full ${fixedTotal} questions.`); return; }
     let n = Math.max(0, Math.floor(requested));
     if (!n) return;
-    const capNote = roomLeft !== null && n > roomLeft ? ` (capped to ${roomLeft} - Pursuit is always exactly ${PURSUIT_TOTAL_QUESTIONS} gates total)` : "";
+    const capNote = roomLeft !== null && n > roomLeft ? ` (capped to ${roomLeft} - this round is fixed at ${fixedTotal} questions total)` : "";
     if (roomLeft !== null && n > roomLeft) n = roomLeft;
     setGeneratingMoreId(round.id);
     setGeneratingMoreStatus("Queued..." + capNote);
@@ -554,13 +588,11 @@ export default function QuizBuilderPage() {
       // minutes stale by the time generation actually finishes. Read the
       // CURRENT live question list at completion time so a deletion/edit the
       // host made while this was running doesn't get silently undone.
-      let mergedQuestions = [...validQuestionsForRound(round.round_type, round.questions), ...validQuestionsForRound(round.round_type, result.questions)];
-      setQuizzes(prev => {
-        const liveRound = prev.find(q => q.id === selected?.id)?.quiz_rounds.find(r => r.id === round.id);
-        mergedQuestions = [...validQuestionsForRound(round.round_type, liveRound ? liveRound.questions : round.questions), ...validQuestionsForRound(round.round_type, result.questions)];
-        return prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) });
-      });
+      const { data: liveRow } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
+      const liveQuestions = (liveRow?.questions || round.questions) as Record<string, unknown>[];
+      const mergedQuestions = [...validQuestionsForRound(round.round_type, liveQuestions), ...validQuestionsForRound(round.round_type, result.questions)];
       await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id);
+      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) }));
       if (selected) void syncRoundToLibrary(round, mergedQuestions, selected.name);
       const shortfall = result.questions.length < n;
       // This used to only live in generatingMoreStatus, which is rendered
@@ -912,7 +944,7 @@ export default function QuizBuilderPage() {
                 onClick={() => setBulkConfig(prev => {
                   const next = { ...prev };
                   selected.quiz_rounds.filter(r => GENERATABLE_ROUND_TYPES.has(r.round_type)).forEach(r => {
-                    next[r.id] = { selected: true, count: r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (prev[r.id]?.count || r.target_count || 10), theme: prev[r.id]?.theme ?? "", difficulty: prev[r.id]?.difficulty ?? "mixed" };
+                    next[r.id] = { selected: true, count: targetQuestionCount(r.round_type, prev[r.id]?.count || r.target_count), theme: prev[r.id]?.theme ?? "", difficulty: prev[r.id]?.difficulty ?? "mixed" };
                   });
                   return next;
                 })}
@@ -960,7 +992,7 @@ export default function QuizBuilderPage() {
           const activeRound = selected.quiz_rounds.find(r => r.id === activeRoundId) || selected.quiz_rounds[0];
           const activeIndex = selected.quiz_rounds.findIndex(r => r.id === activeRound.id);
           const isGeneratable = GENERATABLE_ROUND_TYPES.has(activeRound.round_type);
-          const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: activeRound.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (activeRound.target_count || 10), theme: activeRound.theme ?? "", difficulty: activeRound.difficulty || "mixed" };
+          const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: targetQuestionCount(activeRound.round_type, activeRound.target_count), theme: activeRound.theme ?? "", difficulty: activeRound.difficulty || "mixed" };
           const progress = bulkProgress[activeRound.id];
           const settingsOpen = settingsOpenRoundId === activeRound.id;
           const addQuestionOpen = addQuestionOpenId === activeRound.id;
@@ -1172,8 +1204,8 @@ export default function QuizBuilderPage() {
                         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Questions
-                            {activeRound.round_type === "pursuit"
-                              ? <span style={{ color: "#fff" }}>7 (fixed)</span>
+                            {activeRound.round_type === "pursuit" || activeRound.round_type === "hot_seat"
+                              ? <span style={{ color: "#fff" }}>{targetQuestionCount(activeRound.round_type)} (fixed)</span>
                               : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(activeRound.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
                           </label>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
@@ -1216,7 +1248,7 @@ export default function QuizBuilderPage() {
                         </HostButton>
                       </div>
                     )}
-                    <HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); loadLibraryQuestions(activeRound.round_type, ""); } return next; }); setAddQuestionOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
+                    <HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); loadLibraryQuestions(""); } return next; }); setAddQuestionOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
                     <HostButton onClick={() => { setAddQuestionOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); }}>{addQuestionOpen ? "CLOSE" : "+ ADD QUESTION"}</HostButton>
                   </div>
                 </div>
@@ -1224,18 +1256,21 @@ export default function QuizBuilderPage() {
                   <div style={{ display: "grid", gap: 8, padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
                     <input
                       value={librarySearch}
-                      onChange={e => { setLibrarySearch(e.target.value); loadLibraryQuestions(activeRound.round_type, e.target.value); }}
-                      placeholder={"Search " + activeRound.round_type + " questions..."}
+                      onChange={e => { setLibrarySearch(e.target.value); loadLibraryQuestions(e.target.value); }}
+                      placeholder="Search all saved questions and answers..."
                       className="fbh-input"
                       style={{ width: "100%" }}
                     />
                     {libraryLoading && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>Searching...</div>}
-                    {!libraryLoading && libraryResults.length === 0 && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>No saved {activeRound.round_type} questions found in the Question Library.</div>}
+                    {!libraryLoading && libraryResults.length === 0 && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>No saved questions found in the Question Library.</div>}
                     <div style={{ display: "grid", gap: 6, maxHeight: 260, overflowY: "auto" }}>
                       {libraryResults.map(bq => (
                         <div key={bq.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52" }}>
                           <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2" }}>{bq.question_text} <span style={{ color: "#2EE06E" }}>{"-> " + bq.correct_answer}</span></div>
-                          <HostButton onClick={() => addLibraryQuestion(activeRound, bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12, flexShrink: 0 }}>ADD</HostButton>
+                          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                            <HostButton onClick={() => addLibraryQuestion(activeRound, bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12 }}>ADD</HostButton>
+                            <HostButton onClick={() => deleteLibraryQuestion(bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12, color: "#ff8f9a" }}>DELETE</HostButton>
+                          </div>
                         </div>
                       ))}
                     </div>

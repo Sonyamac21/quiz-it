@@ -327,7 +327,7 @@ export default function QuestionsPage() {
   // The Pursuit is always exactly 7 gates. The generator reads this single `count`
   // value, so Pursuit runs the identical pipeline with the length fixed inline —
   // no separate effect or second code path.
-  const count = roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : questionCount;
+  const count = roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : roundType === "hot_seat" ? 5 : questionCount;
   const [questions, setQuestions] = useState<Question[]>([]);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualType, setManualType] = useState("multiple_choice");
@@ -1730,8 +1730,8 @@ Return ONLY a valid JSON array with 1 item, no markdown:
             </div>
             <div>
               <div className="fbh-lbl">Questions</div>
-              {roundType === "pursuit" ? (
-                <div style={{ ...fableSelect, color:"#6B5A8E" }}>7 questions (fixed)</div>
+              {roundType === "pursuit" || roundType === "hot_seat" ? (
+                <div style={{ ...fableSelect, color:"#6B5A8E" }}>{roundType === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : 5} questions (fixed)</div>
               ) : (
                 <select value={count} onChange={e => setQuestionCount(parseInt(e.target.value))} style={fableSelect}>
                   {[5,10,15].map(c => <option key={c} value={c}>{c} questions</option>)}

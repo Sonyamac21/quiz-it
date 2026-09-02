@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HostShell, HostButton, HostInput, HostLoading, Chip } from "@/components/fable/HostConsole";
+import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
@@ -14,6 +15,8 @@ type BankQuestion = {
   option_b: string | null;
   option_c: string | null;
   option_d: string | null;
+  option_e: string | null;
+  option_f: string | null;
   correct_answer: string;
   difficulty: string;
   round_type: string;
@@ -23,11 +26,12 @@ type BankQuestion = {
 
 type Round = { id: string; name: string; };
 
-const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence" };
+const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", multi_tap:"Multi Tap", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture", audio:"Music" };
 const PAGE_SIZE = 20;
 const selectStyle: React.CSSProperties = { minHeight: 56, padding: "0 14px", borderRadius: 12, background: "#150A2E", color: "#F4EFFF", border: "1px solid #4D3175", fontSize: 18, fontFamily: "'Inter',sans-serif", cursor: "pointer", outline: "none" };
 
 export default function QuestionBankPage() {
+  const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
   const [questions, setQuestions] = useState<BankQuestion[]>([]);
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,8 +76,11 @@ export default function QuestionBankPage() {
   }
 
   async function deleteQuestion(id: string) {
+    const question = questions.find(item => item.id === id);
+    if (!await confirmDialog(`Delete “${question?.question_text || "this question"}” from the Question Library? Questions already copied into rounds will not be affected.`, { title: "Delete library question?", tone: "destructive", confirmLabel: "Delete question" })) return;
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("question_bank").delete().eq("id", id);
+    const { error } = await supabase.from("question_bank").delete().eq("id", id);
+    if (error) { setStatus("Could not delete question: " + error.message); return; }
     setQuestions(prev => prev.filter(q => q.id !== id));
   }
 
@@ -83,13 +90,11 @@ export default function QuestionBankPage() {
     if (!round) return;
     const newQs = [...(round.questions || []), {
       question_text: q.question_text, question_type: q.question_type,
-      option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
+      option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d, option_e: q.option_e, option_f: q.option_f,
       correct_answer: q.correct_answer, difficulty: q.difficulty, round_type: q.round_type,
     }];
     await supabase.from("rounds").update({ questions: newQs }).eq("id", roundId);
-    await supabase.from("question_bank").delete().eq("id", q.id);
-    setQuestions(prev => prev.filter(x => x.id !== q.id));
-    setStatus("Question added to round!");
+    setStatus("Question copied to round and kept in the library.");
     setTimeout(() => setStatus(""), 2000);
   }
 
@@ -148,7 +153,7 @@ export default function QuestionBankPage() {
         />
 
         <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-          {["all", "multiple_choice", "text_answer", "number", "sequence"].map(f => (
+          {["all", "multiple_choice", "multi_tap", "text_answer", "number", "sequence", "picture", "audio"].map(f => (
             <Chip key={f} on={filter === f} onClick={() => { setFilter(f); setPage(1); }}>{f === "all" ? "All questions" : typeLabel[f]}</Chip>
           ))}
         </div>
@@ -201,6 +206,7 @@ export default function QuestionBankPage() {
         ))}
         {!loading && filtered.length > PAGE_SIZE && <nav className="qi-bo-pagination" aria-label="Question pages"><HostButton disabled={page === 1} onClick={() => setPage(value => Math.max(1, value - 1))}>Previous</HostButton><span>Page {page} of {pageCount}</span><HostButton disabled={page === pageCount} onClick={() => setPage(value => Math.min(pageCount, value + 1))}>Next</HostButton></nav>}
       </main>
+      {confirmDialogEl}
     </HostShell>
   );
 }

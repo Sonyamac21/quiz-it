@@ -1586,7 +1586,7 @@ export async function generateValidatedRound(
 export async function generateAllRounds(
   specs: RoundGenerationSpec[],
   onProgress?: (roundIndex: number, status: string) => void,
-  onRoundComplete?: (roundIndex: number, result: RoundGenerationResult) => void,
+  onRoundComplete?: (roundIndex: number, result: RoundGenerationResult) => void | Promise<void>,
 ): Promise<RoundGenerationResult[]> {
   const baseExclusions = await loadUsedQuestions();
   // Give each round its own copy of the shared history so concurrent mutation
@@ -1650,7 +1650,7 @@ export async function generateAllRounds(
       // other round keeps running and saving independently.
       try {
         const result = await generateValidatedRound(spec, perRoundExclusions[idx], status => onProgress?.(idx, status), q => broadcastAccept(idx, q), wallClockScale);
-        onRoundComplete?.(idx, result);
+        await onRoundComplete?.(idx, result);
         return result;
       } catch (e) {
         const failResult: RoundGenerationResult = {

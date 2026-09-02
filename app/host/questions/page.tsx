@@ -619,7 +619,7 @@ export default function QuestionsPage() {
     }
   }
 
-  async function generateOne(type: string, topic: string, context: GenerationContext): Promise<Question|null> {
+  async function generateOne(type: string, topic: string, context: GenerationContext, multiTapCorrectCount?: number): Promise<Question|null> {
     // Matches lib/quiz/generateRound.ts's isRecencyTopic - covers the two
     // fixed recency topics plus any theme/topic text that itself signals it
     // wants something current (see RECENCY_SIGNAL above).
@@ -631,7 +631,7 @@ export default function QuestionsPage() {
       stages: emptyValidationResults(Boolean(theme.trim()), type === "picture" || type === "audio"),
     };
     const typeInstructions: Record<string,string> = {
-      multi_tap: "multi_tap: exactly 6 options in option_a through option_f, ALL SIX FILLED IN (never leave an option blank/null). Some are correct answers, some are decoys (wrong). The number of correct answers can be ANY count from 1 up to all 6 - vary it question to question, don't default to the same count every time. correct_answer must be a comma-separated list of the correct option letters in order, e.g. \"b,d,f\" or \"a,c\" or just \"e\" or \"a,b,c,d,e,f\". Make decoys plausible, not obviously wrong.",
+      multi_tap: `multi_tap: exactly 6 options in option_a through option_f, ALL SIX FILLED IN (never leave an option blank/null). This question MUST have EXACTLY ${multiTapCorrectCount ?? 3} correct option${multiTapCorrectCount === 1 ? "" : "s"}; the remaining options must be wrong decoys. correct_answer must list exactly those ${multiTapCorrectCount ?? 3} correct option letters, comma-separated and in letter order. Make every decoy plausible, not obviously wrong.`,
       multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
       text_answer: "text_answer: the correct_answer MUST be a SINGLE word - no spaces, no commas, no \"and\", no \"&\", no \"/\", no multiple names, no multiple items, no hyphen-joined names. If the natural answer would be more than one word, choose a different question whose answer is a single word. All options must be null.",
       number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
@@ -845,7 +845,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           .map(l => ({ letter: l, value: q["option_" + l] }))
           .filter((p): p is { letter: string; value: string } => p.value !== null && p.value !== undefined && p.value !== "");
         const items = filledPairs.map(p => p.value);
-        const correctLetters = (q.correct_answer || "").split(",").map((s: string) => s.trim().toLowerCase());
+      const correctLetters = (q.correct_answer || "").split(",").map((s: string) => s.trim().toLowerCase());
+      if (multiTapCorrectCount && new Set(correctLetters).size !== multiTapCorrectCount) {
+        context.error = "Multi Tap required exactly " + multiTapCorrectCount + " correct answers (got " + new Set(correctLetters).size + ") - retrying";
+        return null;
+      }
         const usedLetters = letters.slice(0, items.length);
         const wasCorrect = filledPairs.map(p => correctLetters.includes(p.letter));
         const shuffledLetters = shuffle(usedLetters);
@@ -983,7 +987,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     const ignore = new Set<string>([...COMMON, ...themeTokens]);
     const sigWords = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
 
-    const normAnswer = (q.correct_answer || "").toLowerCase().trim();
+    const normAnswer = resolveAnswerText(q).toLowerCase().trim();
     const fingerprint = questionFingerprint(q);
 
     // a0) Blacklisted earlier this session - never allow the exact same question back.
@@ -992,6 +996,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     // a) Exact playable-question duplicate. Generic stems are intentionally not
     // identities on their own; options/answer/media subject form the fingerprint.
     if (usedFingerprintsRef.current.has(fingerprint)) return "exact-question:used-or-history";
+    if (usedRef.current.some(text => normalizeQuestionText(text) === normalizeQuestionText(q.question_text))) return "same-question-text:used-or-history";
     if (currentRound.some(g => questionFingerprint(g) === fingerprint)) return "exact-question:current-round";
 
     // b) Same answer already used IN THE CURRENT ROUND (genuinely repetitive).
@@ -999,9 +1004,9 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     //    which accumulates answers from older generation sessions/historical state
     //    and would otherwise make themed replacement impossible.
     if (normAnswer && currentRound.some(g =>
-      g.question_type === q.question_type &&
-      (g.correct_answer || "").toLowerCase().trim() === normAnswer
+      resolveAnswerText(g).toLowerCase().trim() === normAnswer
     )) return "same-answer:current-round";
+    if (normAnswer && usedAnswersRef.current.includes(normAnswer)) return "same-answer:current-generation";
 
     // c) Near-identical wording - high overlap on DISTINCTIVE words only (theme
     //    and common words already stripped). Requires at least 2 shared
@@ -1226,7 +1231,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
   function registerAccepted(q: Question) {
     usedRef.current = [...usedRef.current, q.question_text];
     usedFingerprintsRef.current.add(questionFingerprint(q));
-    const normAnswer = (q.correct_answer || "").toLowerCase().trim();
+    const normAnswer = resolveAnswerText(q).toLowerCase().trim();
     if (normAnswer) usedAnswersRef.current = [...usedAnswersRef.current, normAnswer];
   }
 
@@ -1339,6 +1344,13 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     types.forEach(t => { targetCounts[t] = (targetCounts[t] || 0) + 1; });
     const acceptedCounts: Record<string, number> = {};
     const inFlightCounts: Record<string, number> = {};
+    const multiTapAnswerPlan = roundType === "multi_tap"
+      ? shuffle(Array.from({ length: count }, (_, index) => (index % 6) + 1))
+      : [];
+    const multiTapTargets: Record<number, number> = {};
+    multiTapAnswerPlan.forEach(answerCount => { multiTapTargets[answerCount] = (multiTapTargets[answerCount] || 0) + 1; });
+    const acceptedMultiTapCounts: Record<number, number> = {};
+    const inFlightMultiTapCounts: Record<number, number> = {};
     const pickNextType = (): string => {
       let best: string | null = null;
       let bestDeficit = 0;
@@ -1351,8 +1363,20 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       }
       return best;
     };
+    const pickNextMultiTapCount = (): number | undefined => {
+      if (roundType !== "multi_tap") return undefined;
+      let best = 1;
+      let bestDeficit = -Infinity;
+      for (const rawCount of Object.keys(multiTapTargets)) {
+        const answerCount = Number(rawCount);
+        const deficit = multiTapTargets[answerCount] - (acceptedMultiTapCounts[answerCount] || 0) - (inFlightMultiTapCounts[answerCount] || 0);
+        if (deficit > bestDeficit) { bestDeficit = deficit; best = answerCount; }
+      }
+      return best;
+    };
     type PendingCandidate = {
       type: string;
+      multiTapCorrectCount?: number;
       context: GenerationContext;
       promise: Promise<Question | null>;
     };
@@ -1360,6 +1384,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     const launchCandidate = () => {
       const launchIndex = i++;
       const type = pickNextType();
+      const multiTapCorrectCount = pickNextMultiTapCount();
       const topic = theme || (
         type === "audio" ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
         : type === "picture" ? pickPictureTopic(launchIndex)
@@ -1368,7 +1393,8 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       const context = createGenerationContext(type, Boolean(theme.trim()));
       attempts++;
       inFlightCounts[type] = (inFlightCounts[type] || 0) + 1;
-      pending.push({ type, context, promise: generateOne(type, topic, context) });
+      if (multiTapCorrectCount) inFlightMultiTapCounts[multiTapCorrectCount] = (inFlightMultiTapCounts[multiTapCorrectCount] || 0) + 1;
+      pending.push({ type, multiTapCorrectCount, context, promise: generateOne(type, topic, context, multiTapCorrectCount) });
     };
     const refillPipeline = () => {
       while (pending.length < 2 && attempts < maxAttempts && good.length + pending.length < count) {
@@ -1392,9 +1418,10 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       }
       setStatus("Generating and checking question " + (good.length + 1) + " of " + count + "..." + (consecutiveFailures > 0 ? " (retry " + consecutiveFailures + ")" : ""));
       const current = pending.shift()!;
-      const { type, context } = current;
+      const { type, multiTapCorrectCount, context } = current;
       const q = await current.promise;
       inFlightCounts[type] = Math.max(0, (inFlightCounts[type] || 0) - 1);
+      if (multiTapCorrectCount) inFlightMultiTapCounts[multiTapCorrectCount] = Math.max(0, (inFlightMultiTapCounts[multiTapCorrectCount] || 0) - 1);
       if (!q) {
         reportGeneratedFailure(context, type);
         consecutiveFailures++;
@@ -1427,6 +1454,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         await commitToMemory(q); // accepted -> becomes part of permanent memory
         good.push(q);
         acceptedCounts[type] = (acceptedCounts[type] || 0) + 1;
+        if (multiTapCorrectCount) acceptedMultiTapCounts[multiTapCorrectCount] = (acceptedMultiTapCounts[multiTapCorrectCount] || 0) + 1;
         registerAccepted(q);
         // Append functionally to the LIVE list instead of replacing it with a
         // snapshot of `good`. A full `setQuestions([...good])` here would resurrect

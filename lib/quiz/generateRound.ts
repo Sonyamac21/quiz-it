@@ -319,7 +319,7 @@ function blacklistRejected(state: ExclusionState, q: Question) {
 function registerAccepted(state: ExclusionState, q: Question) {
   state.used = [...state.used, q.question_text];
   state.usedFingerprints.add(questionFingerprint(q));
-  const normAnswer = (q.correct_answer || "").toLowerCase().trim();
+  const normAnswer = resolveAnswerText(q).toLowerCase().trim();
   if (normAnswer) state.usedAnswers = [...state.usedAnswers, normAnswer];
 }
 
@@ -503,13 +503,13 @@ async function generateOne(
   type: string,
   topic: string,
   context: GenerationContext,
-  opts: { theme: string; difficulty: string; roundType: string; exclusions: ExclusionState; forceObscure?: boolean },
+  opts: { theme: string; difficulty: string; roundType: string; exclusions: ExclusionState; forceObscure?: boolean; multiTapCorrectCount?: number },
 ): Promise<Question | null> {
-  const { theme, difficulty, roundType, exclusions, forceObscure } = opts;
+  const { theme, difficulty, roundType, exclusions, forceObscure, multiTapCorrectCount } = opts;
   context.error = "";
   context.report = { questionText: "", questionType: type, stages: emptyValidationResults(Boolean(theme.trim()), type === "picture" || type === "audio") };
   const typeInstructions: Record<string, string> = {
-    multi_tap: "multi_tap: exactly 6 options in option_a through option_f, ALL SIX FILLED IN (never leave an option blank/null). Some are correct answers, some are decoys (wrong). The number of correct answers can be ANY count from 1 up to all 6 - vary it question to question, don't default to the same count every time. correct_answer must be a comma-separated list of the correct option letters in order, e.g. \"b,d,f\" or \"a,c\" or just \"e\" or \"a,b,c,d,e,f\". Make decoys plausible, not obviously wrong.",
+    multi_tap: `multi_tap: exactly 6 options in option_a through option_f, ALL SIX FILLED IN (never leave an option blank/null). This question MUST have EXACTLY ${multiTapCorrectCount ?? 3} correct option${multiTapCorrectCount === 1 ? "" : "s"}; the remaining options must be wrong decoys. correct_answer must list exactly those ${(multiTapCorrectCount ?? 3)} correct option letters, comma-separated and in letter order. Make every decoy plausible, not obviously wrong.`,
     multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
     text_answer: "text_answer: the correct_answer MUST be a SINGLE word - no spaces, no commas, no \"and\", no \"&\", no \"/\", no multiple names, no multiple items, no hyphen-joined names. If the natural answer would be more than one word, choose a different question whose answer is a single word. All options must be null.",
     number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
@@ -733,6 +733,10 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         .filter((p): p is { letter: string; value: string } => p.value !== null && p.value !== undefined && p.value !== "");
       const items = filledPairs.map(p => p.value);
       const correctLetters = (q.correct_answer || "").split(",").map((s: string) => s.trim().toLowerCase());
+      if (multiTapCorrectCount && new Set(correctLetters).size !== multiTapCorrectCount) {
+        context.error = "Multi Tap required exactly " + multiTapCorrectCount + " correct answers (got " + new Set(correctLetters).size + ") - retrying";
+        return null;
+      }
       const usedLetters = letters.slice(0, items.length);
       const wasCorrect = filledPairs.map(p => correctLetters.includes(p.letter));
       const shuffledLetters = shuffle(usedLetters);
@@ -796,6 +800,7 @@ function duplicateRejectionReason(q: Question, currentRound: Question[], theme: 
   const fingerprint = questionFingerprint(q);
   if (exclusions.rejectedFingerprints.has(fingerprint)) return "blacklist";
   if (exclusions.usedFingerprints.has(fingerprint)) return "exact-question:used-or-history";
+  if (exclusions.used.some(text => normalizeQuestionText(text) === normalizeQuestionText(q.question_text))) return "same-question-text:quiz-or-history";
   if (currentRound.some(g => questionFingerprint(g) === fingerprint)) return "exact-question:current-round";
   // Deliberately NOT scoped to matching question_type - a picture question
   // about Niagara Falls and a text question about Niagara Falls are still
@@ -808,8 +813,15 @@ function duplicateRejectionReason(q: Question, currentRound: Question[], theme: 
   if (normAnswer && currentRound.some(g =>
     resolveAnswerText(g).toLowerCase().trim() === normAnswer
   )) return "same-answer:current-round";
+  if (normAnswer && exclusions.usedAnswers.includes(normAnswer)) return "same-answer:quiz-plan";
   const newWords = sigWords(q.question_text);
   if (newWords.length >= 2) {
+    for (const usedText of exclusions.used.slice(-100)) {
+      const usedWords = sigWords(usedText);
+      if (usedWords.length < 2) continue;
+      const shared = newWords.filter(w => usedWords.includes(w)).length;
+      if (shared >= 2 && shared / Math.min(newWords.length, usedWords.length) >= 0.75) return "same-fact-reworded:quiz-or-history";
+    }
     for (const g of currentRound) {
       const existWords = sigWords(g.question_text);
       if (existWords.length < 2) continue;
@@ -1330,6 +1342,18 @@ export async function generateValidatedRound(
   difficultyPlan.forEach(level => { difficultyTargets[level] = (difficultyTargets[level] || 0) + 1; });
   const acceptedDifficultyCounts: Record<string, number> = {};
   const inFlightDifficultyCounts: Record<string, number> = {};
+  // A Multi Tap round is only meaningfully different from ordinary multiple
+  // choice when the number of correct selections varies. Spread the target
+  // counts across 1..6, then enforce the assigned count on every candidate.
+  // For ten questions this produces all six counts, with four counts repeated,
+  // instead of allowing the model to default almost every question to one.
+  const multiTapAnswerPlan = roundType === "multi_tap"
+    ? shuffle(Array.from({ length: count }, (_, index) => (index % 6) + 1))
+    : [];
+  const multiTapTargets: Record<number, number> = {};
+  multiTapAnswerPlan.forEach(answerCount => { multiTapTargets[answerCount] = (multiTapTargets[answerCount] || 0) + 1; });
+  const acceptedMultiTapCounts: Record<number, number> = {};
+  const inFlightMultiTapCounts: Record<number, number> = {};
   const pickNextType = (): string => {
     let best: string | null = null;
     let bestDeficit = 0;
@@ -1355,13 +1379,25 @@ export async function generateValidatedRound(
     }
     return best;
   };
+  const pickNextMultiTapCount = (): number | undefined => {
+    if (roundType !== "multi_tap") return undefined;
+    let best = 1;
+    let bestDeficit = -Infinity;
+    for (const rawCount of Object.keys(multiTapTargets)) {
+      const answerCount = Number(rawCount);
+      const deficit = multiTapTargets[answerCount] - (acceptedMultiTapCounts[answerCount] || 0) - (inFlightMultiTapCounts[answerCount] || 0);
+      if (deficit > bestDeficit) { bestDeficit = deficit; best = answerCount; }
+    }
+    return best;
+  };
 
-  type PendingCandidate = { type: string; candidateDifficulty: string; context: GenerationContext; promise: Promise<Question | null> };
+  type PendingCandidate = { type: string; candidateDifficulty: string; multiTapCorrectCount?: number; context: GenerationContext; promise: Promise<Question | null> };
   const pending: PendingCandidate[] = [];
   const launchCandidate = () => {
     const launchIndex = i++;
     const type = pickNextType();
     const candidateDifficulty = pickNextDifficulty();
+    const multiTapCorrectCount = pickNextMultiTapCount();
     const topic = theme || (
       type === "audio" ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
       : type === "picture" ? pickPictureTopic(launchIndex)
@@ -1371,6 +1407,7 @@ export async function generateValidatedRound(
     attempts++;
     inFlightCounts[type] = (inFlightCounts[type] || 0) + 1;
     inFlightDifficultyCounts[candidateDifficulty] = (inFlightDifficultyCounts[candidateDifficulty] || 0) + 1;
+    if (multiTapCorrectCount) inFlightMultiTapCounts[multiTapCorrectCount] = (inFlightMultiTapCounts[multiTapCorrectCount] || 0) + 1;
     // forceObscure used to ONLY trigger reactively, after 4 consecutive
     // duplicate/memory rejections in a row - i.e. only once a topic was
     // already close to exhausted. That does nothing for the more general "it
@@ -1382,7 +1419,7 @@ export async function generateValidatedRound(
     // every round leans toward a deeper cut by default rather than only
     // after the well-trodden facts have already started colliding.
     const proactiveObscure = Math.random() < 0.3;
-    pending.push({ type, candidateDifficulty, context, promise: generateOne(type, topic, context, { theme, difficulty: candidateDifficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure }) });
+    pending.push({ type, candidateDifficulty, multiTapCorrectCount, context, promise: generateOne(type, topic, context, { theme, difficulty: candidateDifficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure, multiTapCorrectCount }) });
   };
   const refillPipeline = () => {
     // Deliberately keeps up to 2 candidates in flight even once `count` is
@@ -1410,10 +1447,11 @@ export async function generateValidatedRound(
     }
     onProgress?.("Generating and checking question " + (good.length + 1) + " of " + count + "..." + (consecutiveFailures > 0 ? " (retry " + consecutiveFailures + ")" : ""));
     const current = pending.shift()!;
-    const { type, candidateDifficulty, context } = current;
+    const { type, candidateDifficulty, multiTapCorrectCount, context } = current;
     const q = await current.promise;
     inFlightCounts[type] = Math.max(0, (inFlightCounts[type] || 0) - 1);
     inFlightDifficultyCounts[candidateDifficulty] = Math.max(0, (inFlightDifficultyCounts[candidateDifficulty] || 0) - 1);
+    if (multiTapCorrectCount) inFlightMultiTapCounts[multiTapCorrectCount] = Math.max(0, (inFlightMultiTapCounts[multiTapCorrectCount] || 0) - 1);
     if (!q) {
       reportGeneratedFailure(context, type);
       consecutiveFailures++;
@@ -1455,6 +1493,7 @@ export async function generateValidatedRound(
       good.push(q);
       acceptedCounts[type] = (acceptedCounts[type] || 0) + 1;
       acceptedDifficultyCounts[candidateDifficulty] = (acceptedDifficultyCounts[candidateDifficulty] || 0) + 1;
+      if (multiTapCorrectCount) acceptedMultiTapCounts[multiTapCorrectCount] = (acceptedMultiTapCounts[multiTapCorrectCount] || 0) + 1;
       registerAccepted(exclusions, q);
       onAccept?.(q);
       addReportEntry({ outcome: "accepted", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
@@ -1525,8 +1564,9 @@ export async function generateAllRounds(
   // been copied into the permanent library yet. Seed each request with its
   // own existing questions so a top-up cannot recreate an answer/fact that
   // is already visibly present in that same round.
-  specs.forEach((spec, idx) => {
-    (spec.existingQuestions || []).forEach(question => registerAccepted(perRoundExclusions[idx], question as Question));
+  const allExistingQuestions = specs.flatMap(spec => spec.existingQuestions || []);
+  specs.forEach((_spec, idx) => {
+    allExistingQuestions.forEach(question => registerAccepted(perRoundExclusions[idx], question as Question));
   });
   // Broadcasts a just-accepted question from one round into every OTHER
   // round's exclusion bundle immediately, so two rounds generating at the
@@ -1539,7 +1579,7 @@ export async function generateAllRounds(
       if (j === fromIdx) return;
       state.used = [...state.used, q.question_text];
       state.usedFingerprints.add(questionFingerprint(q));
-      const normAnswer = (q.correct_answer || "").toLowerCase().trim();
+      const normAnswer = resolveAnswerText(q).toLowerCase().trim();
       if (normAnswer) state.usedAnswers = [...state.usedAnswers, normAnswer];
     });
   };

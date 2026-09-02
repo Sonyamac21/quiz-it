@@ -477,10 +477,19 @@ export default function MusicPrepPage() {
       );
       const supabase = createSupabaseBrowserClient();
       const table = round.source === "quiz_plan" ? "quiz_rounds" : "rounds";
-      await supabase.from(table).update({ questions: updatedQuestions }).eq("id", round.id);
+      const { data: savedRound, error: saveError } = await supabase.from(table)
+        .update({ questions: updatedQuestions })
+        .eq("id", round.id)
+        .select("questions")
+        .single();
+      if (saveError) throw new Error("The clip uploaded, but the round could not be updated: " + saveError.message);
+      const persistedQuestions = (savedRound?.questions || []) as Question[];
+      if (persistedQuestions[qIdx]?.option_b !== uploadData.url) {
+        throw new Error("The clip uploaded, but the saved round did not contain it. Please try again.");
+      }
 
       // Log to media_assets
-      await supabase.from("media_assets").insert({
+      const { error: mediaLogError } = await supabase.from("media_assets").insert({
         file_name: qs.selectedCandidate.title + ".wav",
         media_type: "audio",
         file_url: uploadData.url,
@@ -493,10 +502,18 @@ export default function MusicPrepPage() {
         category: "Music Round",
         source_type: "deezer_preview",
       });
+      // The round is already safely saved at this point. A secondary media
+      // catalogue failure must not make the host repeat the prep or disguise
+      // a successful question save.
+      if (mediaLogError) console.error("Music Prep: clip saved but media catalogue logging failed:", mediaLogError);
 
-      setOpenRound(prev => prev ? { ...prev, questions: updatedQuestions } : null);
+      setOpenRound(prev => prev ? { ...prev, questions: persistedQuestions } : null);
+      // Keep the round-list summary in sync too. Previously only openRound
+      // changed, so returning to All Rounds immediately showed the old
+      // unprepared count even after a successful database save.
+      setRounds(prev => prev.map(item => item.id === round.id && item.source === round.source ? { ...item, questions: persistedQuestions } : item));
       setState(qIdx, { phase: "done", savedUrl: uploadData.url });
-      setStatus(`Saved: ${qs.selectedCandidate.title}`);
+      setStatus(`Saved and verified: ${qs.selectedCandidate.title}`);
       setTimeout(() => setStatus(""), 3000);
     } catch (e) {
       setState(qIdx, { phase: "trim", error: e instanceof Error ? e.message : "Save failed" });

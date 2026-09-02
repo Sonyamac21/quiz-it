@@ -26,6 +26,11 @@ function validQuestionsForRound<T extends Record<string, unknown> | Question>(ro
   return questions.filter(question => !multiTapSuitabilityError(question as Question));
 }
 
+function questionKey(question: { question_text?: unknown; correct_answer?: unknown }): string {
+  const normalise = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return `${normalise(question.question_text)}|${normalise(question.correct_answer)}`;
+}
+
 type GuidedIntent = "create" | "duplicate" | "assign";
 type GuidedEvent = { id: string; label: string };
 const VALID_INTENTS: GuidedIntent[] = ["create", "duplicate", "assign"];
@@ -126,6 +131,7 @@ export default function QuizBuilderPage() {
   const [librarySearch, setLibrarySearch] = useState("");
   const [libraryResults, setLibraryResults] = useState<BankQuestion[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryAddingId, setLibraryAddingId] = useState<string | null>(null);
   // Bulk/parallel question generation ("Generate All Rounds"). Lives alongside
   // the existing per-round generator at /host/questions - this does not replace
   // it, it lets a host configure several rounds at once and generate them all
@@ -262,15 +268,40 @@ export default function QuizBuilderPage() {
     setLibraryLoading(false);
   }
   async function addLibraryQuestion(round: QuizRound, bankQ: BankQuestion) {
-    const newQuestions = [...round.questions, {
+    if (libraryAddingId) return;
+    setLibraryAddingId(bankQ.id);
+    const libraryQuestion = {
       question_text: bankQ.question_text, question_type: bankQ.question_type,
       option_a: bankQ.option_a, option_b: bankQ.option_b, option_c: bankQ.option_c, option_d: bankQ.option_d, option_e: bankQ.option_e, option_f: bankQ.option_f,
       correct_answer: bankQ.correct_answer, difficulty: bankQ.difficulty,
-    }];
+    };
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
-    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
-    showToast("Question copied into the round. It remains available in the library.", "success", 3500);
+    try {
+      // Read immediately before writing so a library add cannot overwrite a
+      // question generated or edited since this panel was opened.
+      const { data: liveRow, error: readError } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
+      if (readError) throw readError;
+      const liveQuestions = (liveRow?.questions || []) as Record<string, unknown>[];
+      if (liveQuestions.some(question => questionKey(question) === questionKey(libraryQuestion))) {
+        setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: liveQuestions } : r) }));
+        showToast("That question is already in this round.", "info", 3500);
+        return;
+      }
+      const { data: savedRow, error: saveError } = await supabase.from("quiz_rounds")
+        .update({ questions: [...liveQuestions, libraryQuestion] })
+        .eq("id", round.id)
+        .select("questions")
+        .single();
+      if (saveError) throw saveError;
+      const persistedQuestions = (savedRow?.questions || []) as Record<string, unknown>[];
+      if (!persistedQuestions.some(question => questionKey(question) === questionKey(libraryQuestion))) throw new Error("The saved round did not contain the selected question.");
+      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: persistedQuestions } : r) }));
+      showToast(`Question added. Round now has ${persistedQuestions.length}.`, "success", 3500);
+    } catch (error) {
+      showToast("Question was not added: " + (error instanceof Error ? error.message : "database save failed"), "error", 6500);
+    } finally {
+      setLibraryAddingId(null);
+    }
   }
   async function deleteLibraryQuestion(bankQ: BankQuestion) {
     const confirmed = await confirmDialog(
@@ -1271,15 +1302,17 @@ export default function QuizBuilderPage() {
                     {libraryLoading && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>Searching...</div>}
                     {!libraryLoading && libraryResults.length === 0 && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>No saved questions found in the Question Library.</div>}
                     <div style={{ display: "grid", gap: 6, maxHeight: 260, overflowY: "auto" }}>
-                      {libraryResults.map(bq => (
+                      {libraryResults.map(bq => {
+                        const alreadyAdded = activeRound.questions.some(question => questionKey(question) === questionKey(bq));
+                        return (
                         <div key={bq.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52" }}>
                           <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2" }}>{bq.question_text} <span style={{ color: "#2EE06E" }}>{"-> " + bq.correct_answer}</span></div>
                           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                            <HostButton onClick={() => addLibraryQuestion(activeRound, bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12 }}>ADD</HostButton>
+                            <HostButton disabled={alreadyAdded || libraryAddingId !== null} onClick={() => addLibraryQuestion(activeRound, bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12 }}>{alreadyAdded ? "ADDED" : libraryAddingId === bq.id ? "ADDING…" : "ADD"}</HostButton>
                             <HostButton onClick={() => deleteLibraryQuestion(bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12, color: "#ff8f9a" }}>DELETE</HostButton>
                           </div>
                         </div>
-                      ))}
+                      );})}
                     </div>
                   </div>
                 )}

@@ -29,6 +29,10 @@ type Round = { id: string; name: string; };
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", multi_tap:"Multi Tap", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture", audio:"Music" };
 const PAGE_SIZE = 20;
 const selectStyle: React.CSSProperties = { minHeight: 56, padding: "0 14px", borderRadius: 12, background: "#150A2E", color: "#F4EFFF", border: "1px solid #4D3175", fontSize: 18, fontFamily: "'Inter',sans-serif", cursor: "pointer", outline: "none" };
+const questionKey = (question: { question_text?: unknown; correct_answer?: unknown }) => {
+  const normalise = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return `${normalise(question.question_text)}|${normalise(question.correct_answer)}`;
+};
 
 export default function QuestionBankPage() {
   const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
@@ -86,15 +90,20 @@ export default function QuestionBankPage() {
 
   async function addToRound(q: BankQuestion, roundId: string) {
     const supabase = createSupabaseBrowserClient();
-    const { data: round } = await supabase.from("rounds").select("questions").eq("id", roundId).single();
-    if (!round) return;
+    const { data: round, error: readError } = await supabase.from("rounds").select("questions").eq("id", roundId).single();
+    if (readError || !round) { setStatus("Could not open that round."); return; }
+    const currentQuestions = (round.questions || []) as BankQuestion[];
+    if (currentQuestions.some(question => questionKey(question) === questionKey(q))) { setStatus("That question is already in this round."); return; }
     const newQs = [...(round.questions || []), {
       question_text: q.question_text, question_type: q.question_type,
       option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d, option_e: q.option_e, option_f: q.option_f,
       correct_answer: q.correct_answer, difficulty: q.difficulty, round_type: q.round_type,
     }];
-    await supabase.from("rounds").update({ questions: newQs }).eq("id", roundId);
-    setStatus("Question copied to round and kept in the library.");
+    const { data: saved, error: saveError } = await supabase.from("rounds").update({ questions: newQs }).eq("id", roundId).select("questions").single();
+    if (saveError) { setStatus("Question was not added: " + saveError.message); return; }
+    const persistedQuestions = (saved?.questions || []) as BankQuestion[];
+    setFullRounds(prev => prev.map(item => item.id === roundId ? { ...item, questions: persistedQuestions } : item));
+    setStatus(`Question added. Round now has ${persistedQuestions.length}.`);
     setTimeout(() => setStatus(""), 2000);
   }
 
@@ -174,7 +183,11 @@ export default function QuestionBankPage() {
               {rounds.length > 0 && (
                 <select onChange={e => { if (e.target.value) { addToRound(q, e.target.value); } e.target.value = ""; }} style={selectStyle}>
                   <option value="">Add to round…</option>
-                  {rounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  {rounds.map(r => {
+                    const fullRound = fullRounds.find(item => item.id === r.id);
+                    const alreadyAdded = fullRound?.questions.some(question => questionKey(question) === questionKey(q));
+                    return <option key={r.id} value={r.id} disabled={alreadyAdded}>{r.name}{alreadyAdded ? " — already added" : ""}</option>;
+                  })}
                 </select>
               )}
               <HostButton onClick={() => deleteQuestion(q.id)}>Delete</HostButton>

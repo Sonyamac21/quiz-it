@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HostShell, HostButton, HostInput, HostLabel, HostFrame, HostBody, HostPad, HostCrest, HostLoading, TopSpacer, Pill } from "@/components/fable/HostConsole";
 import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
+import { getQuizPreflight } from "@/lib/quiz/planStatus";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
@@ -14,7 +15,7 @@ type Team = {
   created_at: string;
 };
 
-type QuizOption = { id: string; name: string; quiz_rounds: { id: string }[] };
+type QuizOption = { id: string; name: string; quiz_rounds: { id: string; name: string; round_type: string; questions: unknown[] }[] };
 type PreparedEvent = { id: string; event_name: string; event_date: string; start_time: string; end_time: string | null; venue_record_id: string | null; quiz_definition_id: string; brand_kit: string | null; music_pack: string | null; sponsors: string[]; prizes: string | null; notes: string | null; special_offers: string | null; overrides: Record<string, unknown>; venue: { venue_name: string; venue_logo_url: string | null; address: string | null; hero_image_url?: string | null; hero_video_url?: string | null; gallery_images?: string[]; google_maps_url?: string | null; contact_name?: string | null; contact_email?: string | null; contact_phone?: string | null; website?: string | null; social_links?: Record<string,string>; food_offers?: string | null; drink_offers?: string | null; happy_hour?: string | null; prize_information?: string | null; sponsors?: string[]; brand_colours?: Record<string,string>; display_slides?: string[]; display_adverts?: string[]; default_brand_kit?: string | null; default_music_pack?: string | null } | null };
 
 function generatePin(): string {
@@ -65,7 +66,7 @@ export default function SessionPage() {
   }, [selectedQuizId, quizzes, venues, preparedEvent]);
 
   useEffect(() => {
-    createSupabaseBrowserClient().from("quizzes").select("id,name,quiz_rounds(id)").eq("archived", false).order("updated_at", { ascending: false }).then(({ data }) => setQuizzes((data ?? []) as QuizOption[]));
+    createSupabaseBrowserClient().from("quizzes").select("id,name,quiz_rounds(id,name,round_type,questions)").eq("archived", false).order("updated_at", { ascending: false }).then(({ data }) => setQuizzes((data ?? []) as QuizOption[]));
     createSupabaseBrowserClient().from("venues").select("id,venue_name,day_of_week").order("venue_name").then(({ data }) => {
       const list = (data ?? []) as { id: string; venue_name: string; day_of_week: number }[];
       setVenues(list);
@@ -174,6 +175,9 @@ export default function SessionPage() {
 
   async function createSession() {
     if (!selectedQuizId) { setCreateError("Select a quiz before creating the live session."); return; }
+    const plan = quizzes.find(quiz => quiz.id === selectedQuizId);
+    const preflight = getQuizPreflight(plan);
+    if (!preflight.ready) { setCreateError("This Quiz Plan is not ready: " + preflight.blockers.map(issue => issue.message).join(" ")); return; }
     setCreating(true);
     setCreateError("");
     const newPin = generatePin();
@@ -354,6 +358,8 @@ export default function SessionPage() {
 
   const textareaStyle: React.CSSProperties = { width: "100%", padding: "11px 14px", borderRadius: 14, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", fontSize: 13, fontFamily: "'Inter',sans-serif", marginBottom: 10, outline: "none", resize: "vertical" };
   const host = typeof window !== "undefined" ? window.location.host : "quiz-it.macentertainmentuae.com";
+  const selectedQuiz = quizzes.find(quiz => quiz.id === selectedQuizId);
+  const selectedQuizPreflight = selectedQuizId ? getQuizPreflight(selectedQuiz) : null;
 
   if (restoringHost) {
     return (
@@ -404,9 +410,17 @@ export default function SessionPage() {
                         {venues.map(v => <option key={v.id} value={v.id}>{v.venue_name}</option>)}
                       </select>
                       <div className="fbh-lbl" style={{ fontSize: 14 }}>Quiz Plan</div>
-                      <select value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)} className="fbh-input" style={{ width: "100%", minHeight: 52, fontSize: 16 }}><option value="">Select a prepared Quiz Plan…</option>{quizzes.map(quiz => <option key={quiz.id} value={quiz.id} disabled={!quiz.quiz_rounds.length}>{quiz.name} ({quiz.quiz_rounds.length} rounds)</option>)}</select>
+                      <select value={selectedQuizId} onChange={e => { setSelectedQuizId(e.target.value); setCreateError(""); }} className="fbh-input" style={{ width: "100%", minHeight: 52, fontSize: 16 }}><option value="">Select a prepared Quiz Plan…</option>{quizzes.map(quiz => { const check = getQuizPreflight(quiz); return <option key={quiz.id} value={quiz.id}>{quiz.name} ({quiz.quiz_rounds.length} rounds){check.ready ? " — ready" : " — needs prep"}</option>; })}</select>
                     </div>}
-                  <HostButton variant="pri" big onClick={createSession} disabled={creating || !selectedQuizId}>
+                  {selectedQuizPreflight && !selectedQuizPreflight.ready && (
+                    <div className="qi-bo-alert" role="alert" style={{ width: "100%", maxWidth: 620, marginBottom: 14, textAlign: "left" }}>
+                      <strong>Complete before launch</strong>
+                      <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>{selectedQuizPreflight.blockers.slice(0, 8).map((issue, index) => <li key={`${issue.code}-${issue.roundId || index}-${index}`}>{issue.message}</li>)}</ul>
+                      {selectedQuizPreflight.blockers.length > 8 && <div style={{ marginTop: 6 }}>And {selectedQuizPreflight.blockers.length - 8} more issue{selectedQuizPreflight.blockers.length - 8 === 1 ? "" : "s"}.</div>}
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><a className="fbh-btn" href="/host/quizzes">Open Quiz Plan</a>{selectedQuizPreflight.blockers.some(issue => issue.code === "music-unprepped") && <a className="fbh-btn" href="/host/music-prep">Open Music Prep</a>}</div>
+                    </div>
+                  )}
+                  <HostButton variant="pri" big onClick={createSession} disabled={creating || !selectedQuizId || selectedQuizPreflight?.ready === false}>
                     {creating ? "PREPARING…" : "PREPARE JOIN SCREEN"}
                   </HostButton>
                   {createError && <div role="alert" style={{ color: "#D94FDC", marginTop: 10 }}>{createError}</div>}

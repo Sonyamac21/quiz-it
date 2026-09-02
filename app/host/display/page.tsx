@@ -61,12 +61,9 @@ function QuizItBadge() {
 function LiveAudioPlayer({ question }: { question: Question }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [manualPlayed, setManualPlayed] = useState(false);
+  const [needsManualPlay, setNeedsManualPlay] = useState(false);
   const url = getMediaUrl(question.option_b);
   const isLegacyYouTube = !!url && url.includes("youtube.com");
-
-  useEffect(() => {
-    setManualPlayed(false);
-  }, [url]);
 
   useEffect(() => {
     const el = audioRef.current;
@@ -89,6 +86,10 @@ function LiveAudioPlayer({ question }: { question: Question }) {
 
     if (question.fade_in) rampVolume(1, fadeMs);
 
+    if (question.playback_mode !== "manual") {
+      void el.play().catch(() => setNeedsManualPlay(true));
+    }
+
     if (question.fade_out && el.duration) {
       const onTimeUpdate = () => {
         if (el.duration - el.currentTime <= fadeMs / 1000 && !el.loop) {
@@ -98,7 +99,7 @@ function LiveAudioPlayer({ question }: { question: Question }) {
       el.addEventListener("timeupdate", onTimeUpdate);
       return () => el.removeEventListener("timeupdate", onTimeUpdate);
     }
-  }, [url, question.fade_in, question.fade_out, question.replay_mode, isLegacyYouTube]);
+  }, [url, question.fade_in, question.fade_out, question.replay_mode, question.playback_mode, isLegacyYouTube]);
 
   if (!url || isLegacyYouTube) return null;
 
@@ -111,14 +112,16 @@ function LiveAudioPlayer({ question }: { question: Question }) {
         src={url}
         preload="auto"
         autoPlay={!isManualMode}
+        onPlay={() => setNeedsManualPlay(false)}
+        onError={() => setNeedsManualPlay(true)}
         style={{ display: "none" }}
       />
-      {isManualMode && !manualPlayed && (
+      {((isManualMode && !manualPlayed) || needsManualPlay) && (
         <button
-          onClick={() => { audioRef.current?.play(); setManualPlayed(true); }}
+          onClick={() => { void audioRef.current?.play().then(() => { setManualPlayed(true); setNeedsManualPlay(false); }).catch(() => setNeedsManualPlay(true)); }}
           style={{ padding: "14px 28px", borderRadius: 14, background: "rgba(190,38,193,0.25)", border: "2px solid #BE26C1", color: "#fff", fontSize: 20, fontWeight: 700, cursor: "pointer" }}
         >
-          \u25b6 Play Track
+          {needsManualPlay ? "\u25b6 Audio blocked \u2014 play track" : "\u25b6 Play Track"}
         </button>
       )}
     </div>
@@ -883,7 +886,7 @@ function DisplayScreenInner() {
       if (celebrationPlayingForRef.current !== ft) {
         celebrationPlayingForRef.current = ft;
         stopShowAudio("music");
-        playShowAudio(encodeURIComponent(fs) + ".mp3", { channel: "music", volume: 0.8 });
+        playShowAudio(victorySongAudioFile(fs), { channel: "music", volume: 0.8 });
       }
     } else if (newPhase === "celebration" && !ft) {
       // Nobody got this one right - previously this played no sound at all, which
@@ -1640,7 +1643,7 @@ function DisplayScreenInner() {
             )}
           </div>
         ) : (
-          <div className="qi-display-no-winner">{question?.question_type === "multi_tap" ? "Nobody got all answers correct." : "No correct answers this round"}</div>
+          <div className="qi-display-no-winner">{question?.question_type === "multi_tap" ? "Nobody got all answers correct." : "No correct answers for this question"}</div>
         )}
         {/* Brand */}
         <div style={{ position:"absolute", bottom:22, textAlign:"center", zIndex:2 }}>
@@ -1855,7 +1858,7 @@ function DisplayScreenInner() {
             </div>
           )}
           {question.question_type === "audio" && (
-            <div style={{ margin: "2% 6%" }}><LiveAudioPlayer question={question} /></div>
+            <div style={{ margin: "2% 6%" }}><LiveAudioPlayer key={`${questionIndex}-${question.option_b || "audio"}`} question={question} /></div>
           )}
           {!isMulti && !isMultiTap && question.question_type !== "audio" && (
             <div style={{ textAlign: "center", margin: "2% 6%", color: "var(--text2)", fontSize: "clamp(12px,1.6vw,20px)", fontWeight: 600, letterSpacing: "0.1em" }}>ANSWER ON YOUR PHONE</div>

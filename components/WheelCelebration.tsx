@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
+import { playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 
 type Props = { teamName: string; victorySong: string; type: "positive" | "negative"; onDone: () => void; resultLabel?: string; };
 
@@ -22,7 +22,7 @@ export function WheelCelebration({ teamName, victorySong, type, onDone, resultLa
 
   function playVictorySong() {
     if (!victorySong) return;
-    playShowAudio(victorySong + ".mp3", { channel: "music" });
+    playShowAudio(victorySongAudioFile(victorySong), { channel: "music" });
   }
 
   function playAirHorn() {

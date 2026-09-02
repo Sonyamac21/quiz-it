@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
+import { playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 
 // Recoloured to the same jewel-tone, purple-led palette as the Hard Deck
 // wheel (components/SpinWheel.tsx) - deep purples/magenta for the wins,
@@ -169,7 +169,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
   const playPositiveSounds = (songFile?: string) => {
     if (!audioEnabled) return;
     playShowAudio("airhorn.mp3", { channel: "cue", volume: 0.65 });
-    if (songFile) playShowAudio(encodeURIComponent(songFile), { channel: "music" });
+    if (songFile) playShowAudio(victorySongAudioFile(songFile), { channel: "music" });
   };
   const playNegativeSounds = () => {
     // Negative Spin-to-Win outcome: one sad-trombone. This fires ONLY from the

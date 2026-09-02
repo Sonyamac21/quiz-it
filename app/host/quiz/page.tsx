@@ -56,8 +56,8 @@ type Answer = { session_pin: string; id: string; team_name: string; question_ind
 type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
 type Score = { team_name: string; total_points: number; round_points: number; };
 
-const typeColor: Record<string,string> = { multiple_choice:"#D94FDC", text_answer:"#D94FDC", number:"#D94FDC", sequence:"#D94FDC", picture:"#D94FDC", audio:"#D94FDC" };
-const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune" };
+const typeColor: Record<string,string> = { multiple_choice:"#D94FDC", multi_tap:"#D94FDC", text_answer:"#D94FDC", number:"#D94FDC", sequence:"#D94FDC", picture:"#D94FDC", audio:"#D94FDC" };
+const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", multi_tap:"Multi Tap", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune" };
 const cardColor: Record<string,string> = { block:"#38A8FF", reverse:"#FF3B4E", x2:"#FFC533" };
 const cardLabel: Record<string,string> = { block:"Time-Out", reverse:"Reverse", x2:"Boost" };
 
@@ -94,6 +94,7 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
     multi_tap: [
       "Each question has several correct answers hidden among decoys.",
       "Tap every option you think is correct \u2014 leaving a wrong option untapped scores exactly the same as tapping a correct one.",
+      `Earn up to ${pointsPerQ} points total per question, based on how many of the six choices you judge correctly.`,
       `Fastest team to find ALL correct answers gets up to +${timeBonus} extra for speed.`,
       ...(wipeoutMode ? ["Watch out \u2014 in the last 5 questions of this round, a single wrong tap zeroes that question's score (Wipeout Mode)."] : []),
     ],
@@ -125,7 +126,7 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
   };
 }
 
-const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "TapType", music: "Music Round", hot_seat: "Hot Seat" };
+const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "Multi Tap", music: "Music Round", hot_seat: "Hot Seat", pursuit: "The Pursuit", bonus: "Bonus Round", hard_deck: "The Hard Deck" };
 
 // Per-question-type timer defaults, confirmed by host: Multiple Choice,
 // Sequence, Multi Tap, and Number need less thinking time than written
@@ -626,19 +627,13 @@ function QuizControllerInner() {
         const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
         const allKeys = (["a","b","c","d","e","f"] as const).filter(k => q["option_"+k as "option_a"]);
         const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
-        const wrongTaps = tappedKeys.filter(k => !correctKeys.includes(k));
-        // Confirmed Multi Tap spec: a team scores host-set points-per-question
-        // for EVERY option they get right on the board - tapping a correct
-        // one, OR correctly leaving a wrong/decoy one untapped. Both are
-        // worth the same. (An earlier version of this deliberately did NOT
-        // credit untapped decoys, because a mistaken version of that rule was
-        // crediting every decoy regardless of whether the team had also
-        // wrongly tapped others - that bug is what got removed, not the
-        // underlying "leaving it correctly counts" rule itself, which the
-        // host has now confirmed is the actual intended scoring.)
+        // Multi Tap uses the configured points-per-question as the maximum,
+        // shared evenly across all six judgements. This keeps a 10-point
+        // Multi Tap question comparable with a 10-point regular question.
         const wrongKeysUniverse = allKeys.filter(k => !correctKeys.includes(k));
         const correctlyLeftWrong = wrongKeysUniverse.filter(k => !tappedKeys.includes(k));
-        let mtBasePts = (correctTaps.length + correctlyLeftWrong.length) * pointsPerQ;
+        const correctJudgements = correctTaps.length + correctlyLeftWrong.length;
+        let mtBasePts = Math.round((correctJudgements / Math.max(1, allKeys.length)) * pointsPerQ);
         // Wipeout: ANY team's wrong tap this question zeroes EVERY team's
         // score for it - base AND time bonus, for every team, not just
         // whoever tapped wrong (see anyTeamWipedOutThisQuestion above).
@@ -1640,7 +1635,7 @@ function QuizControllerInner() {
           {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
           {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} autoStartRoundId={pursuitAutoStartId} />}
           {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
-          <a href="/host/display" target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
+          <a href={sessionPin ? `/host/display?pin=${encodeURIComponent(sessionPin)}` : "/host/display"} target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
         </nav>
       </header>
 
@@ -1944,7 +1939,7 @@ function QuizControllerInner() {
                   <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Timer - Picture/Audio (s)</label>
                   <input type="number" value={timerDuration} onChange={e => setTimerDuration(Number(e.target.value))} style={{ width:60, padding:"6px 8px", borderRadius:10, background:"#0A0118", color:"#fff", border:"1px solid #2E1A52", font:"600 14px 'Inter'", textAlign:"center" as const }} />
                 </div>
-                <div style={{ font:"400 11px 'Inter'", color:"#6B5A8E" }}>Multiple Choice/Sequence/TapType/Number = 15s, written answers = 30s (fixed)</div>
+                <div style={{ font:"400 11px 'Inter'", color:"#6B5A8E" }}>Multiple Choice/Sequence/Multi Tap/Number = 15s, written answers = 30s (fixed)</div>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Max time bonus</label>
                   <input type="number" value={timeBonus} onChange={e => setTimeBonus(Number(e.target.value))} style={{ width:60, padding:"6px 8px", borderRadius:10, background:"#0A0118", color:"#fff", border:"1px solid #2E1A52", font:"600 14px 'Inter'", textAlign:"center" as const }} />

@@ -43,7 +43,7 @@ const ROUND_LAUNCHER_TYPES: { key: string; label: string }[] = [
   { key: "regular",   label: "General Knowledge" },
   { key: "bonus",     label: "Bonus / Themed" },
   { key: "music",     label: "Music" },
-  { key: "multi_tap", label: "TapType" },
+  { key: "multi_tap", label: "Multi Tap" },
   { key: "pursuit",   label: "The Pursuit" },
   { key: "hot_seat",  label: "Hot Seat" },
 ];

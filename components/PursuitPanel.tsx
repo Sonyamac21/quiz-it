@@ -391,10 +391,10 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
 
   const overlay = (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100vh", boxSizing: "border-box" as const, background: "rgba(3,6,12,0.97)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 18, padding: 24, overflowY: "auto" }}>
-      <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 26, color: "#38bdf8", letterSpacing: 4 }}>THE PURSUIT</div>
+      <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 26, color: "#D94FDC", letterSpacing: 4 }}>THE PURSUIT</div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ padding: "4px 14px", borderRadius: 999, fontSize: 12, fontWeight: 700, letterSpacing: 1, background: "rgba(56,189,248,0.18)", border: "1px solid rgba(56,189,248,0.5)", color: "#38bdf8" }}>{getPursuitPhaseLabel(status)}</span>
+        <span style={{ padding: "4px 14px", borderRadius: 999, fontSize: 12, fontWeight: 700, letterSpacing: 1, background: "rgba(217,79,220,0.18)", border: "1px solid rgba(217,79,220,0.5)", color: "#D94FDC" }}>{getPursuitPhaseLabel(status)}</span>
         {qIndex >= 0 && <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>Question {qIndex + 1} of {PURSUIT_TOTAL_QUESTIONS}</span>}
       </div>
 
@@ -407,7 +407,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
             <select
               value={chosenRound?.id ?? ""}
               onChange={(e) => setRoundId(e.target.value)}
-              style={{ padding: "10px 12px", borderRadius: 10, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(56,189,248,0.4)", fontSize: 14 }}
+              style={{ padding: "10px 12px", borderRadius: 10, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(217,79,220,0.4)", fontSize: 14 }}
             >
               {rounds.map((r) => (
                 <option key={r.id} value={r.id}>{r.name} ({r.questions.length}q)</option>
@@ -422,7 +422,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
       )}
 
       {currentQuestion && status !== "complete" && status !== "results" && (
-        <div style={{ width: "100%", maxWidth: 680, padding: "14px 18px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(56,189,248,0.25)" }}>
+        <div style={{ width: "100%", maxWidth: 680, padding: "14px 18px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(217,79,220,0.25)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
             <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)" }}>CURRENT QUESTION</div>
             {status === "question" && (
@@ -430,7 +430,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
                 ? <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#ef4444" }}>ANSWERS LOCKED</span>
                 : timerNotStarted
                 ? <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#fbbf24" }}>TIMER NOT STARTED</span>
-                : <span style={{ fontSize: 20, fontWeight: 800, color: (timeLeft ?? 0) <= 5 ? "#ef4444" : "#38bdf8" }}>{timeLeft ?? "—"}s</span>
+                : <span style={{ fontSize: 20, fontWeight: 800, color: (timeLeft ?? 0) <= 5 ? "#ef4444" : "#D94FDC" }}>{timeLeft ?? "—"}s</span>
             )}
           </div>
           <div style={{ fontSize: 16, fontWeight: 600, color: "#fff" }}>{currentQuestion.question_text}</div>
@@ -488,7 +488,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
               <div key={s.team_name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 8, background: rs === "completed" ? "rgba(232,195,106,0.12)" : "rgba(255,255,255,0.03)", border: "1px solid #2E1A52", marginBottom: 4 }}>
                 <span style={{ width: 18, font: "800 13px 'Inter'", color: i === 0 ? "#E8C36A" : i === 1 ? "#C9CDD6" : i === 2 ? "#C08A5A" : "rgba(255,255,255,0.4)", fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
                 <span style={{ font: "700 13px 'Inter'", color: "#fff", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.team_name}</span>
-                <span style={{ font: "700 10px 'Inter'", color: "#38A8FF", letterSpacing: 1, flexShrink: 0 }}>{rs === "completed" ? "FINISHED" : rs === "eliminated" ? "OUT · G" + stage : "GATE " + stage}</span>
+                <span style={{ font: "700 10px 'Inter'", color: "#B9A8D9", letterSpacing: 1, flexShrink: 0 }}>{rs === "completed" ? "FINISHED" : rs === "eliminated" ? "OUT · G" + stage : "GATE " + stage}</span>
                 <span style={{ font: "800 15px 'Inter'", color: "#D94FDC", fontVariantNumeric: "tabular-nums", minWidth: 44, textAlign: "right" }}>{s.total_points}</span>
               </div>
             );
@@ -523,7 +523,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
       })()}
       {status === "advance" && canAskMore && <SecondaryButton onClick={finishRound} label="Finish Round Early" />}
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-        <button onClick={recoverGraphics} disabled={recovering} title="Re-pull the race board from the last saved state — use this if the graphics ever look stuck or out of sync" style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(56,189,248,0.4)", color: recovering ? "rgba(56,189,248,0.4)" : "#38bdf8", fontSize: 12, cursor: recovering ? "default" : "pointer" }}>
+        <button onClick={recoverGraphics} disabled={recovering} title="Re-pull the race board from the last saved state — use this if the graphics ever look stuck or out of sync" style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(217,79,220,0.4)", color: recovering ? "rgba(217,79,220,0.4)" : "#D94FDC", fontSize: 12, cursor: recovering ? "default" : "pointer" }}>
           {recovering ? "Recovering…" : "Recover Graphics"}
         </button>
         <button onClick={closePanel} style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
@@ -540,7 +540,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
 
 function PrimaryButton({ onClick, label, disabled }: { onClick: () => void; label: string; disabled?: boolean }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ padding: "12px 30px", borderRadius: 12, background: disabled ? "rgba(255,255,255,0.08)" : "rgba(56,189,248,0.3)", border: "1px solid " + (disabled ? "rgba(255,255,255,0.2)" : "#38bdf8"), color: "#fff", fontWeight: 700, fontSize: 15, cursor: disabled ? "not-allowed" : "pointer", boxShadow: disabled ? "none" : "0 2px 10px rgba(0,0,0,0.3)" }}>
+    <button onClick={onClick} disabled={disabled} style={{ padding: "12px 30px", borderRadius: 12, background: disabled ? "rgba(255,255,255,0.08)" : "rgba(217,79,220,0.3)", border: "1px solid " + (disabled ? "rgba(255,255,255,0.2)" : "#D94FDC"), color: "#fff", fontWeight: 700, fontSize: 15, cursor: disabled ? "not-allowed" : "pointer", boxShadow: disabled ? "none" : "0 2px 10px rgba(0,0,0,0.3)" }}>
       {label}
     </button>
   );
@@ -556,7 +556,7 @@ function SecondaryButton({ onClick, label }: { onClick: () => void; label: strin
 
 function TeamStatus({ summary, race }: { summary: { active: string[]; eliminated: string[]; completed: string[] }; race: PursuitRace }) {
   const groups: { key: keyof typeof summary; label: string; color: string }[] = [
-    { key: "active", label: "Remaining", color: "#38bdf8" },
+    { key: "active", label: "Remaining", color: "#D94FDC" },
     { key: "completed", label: "Completed", color: "#facc15" },
     { key: "eliminated", label: "Eliminated", color: "#ef4444" },
   ];

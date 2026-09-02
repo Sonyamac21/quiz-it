@@ -1132,7 +1132,10 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     return (
       <div className="qi-player-state qi-player-pursuit" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
         <PlayerStatusBar teamName={teamName} roundName="The Pursuit" powerCardsEnabled={false} photoUrl={teamPhotoUrl} />
-        <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 22, color: "#38bdf8", letterSpacing: 3 }}>THE PURSUIT</div>
+        {/* Was hardcoded to #38bdf8 (blue) - not the app's purple/magenta
+            brand color at all, and out of step with the same title on the
+            Display board (which uses the brand purple + glow). */}
+        <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 22, color: "#D94FDC", textShadow: "0 0 24px rgba(190,38,193,0.5)", letterSpacing: 3 }}>THE PURSUIT</div>
         {pursuitQIndex >= 0 && pursuitStatus === "advance" && (
           <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>QUESTION {pursuitQIndex + 1} / {PURSUIT_TOTAL_QUESTIONS}</div>
         )}

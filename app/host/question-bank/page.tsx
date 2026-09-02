@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HostShell, HostButton, HostInput, HostLoading, Chip } from "@/components/fable/HostConsole";
 import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
+import { getMediaUrl } from "@/lib/getMediaUrl";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
@@ -28,7 +29,7 @@ type Round = { id: string; name: string; };
 
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", multi_tap:"Multi Tap", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture", audio:"Music" };
 const PAGE_SIZE = 20;
-const selectStyle: React.CSSProperties = { minHeight: 56, padding: "0 14px", borderRadius: 12, background: "#150A2E", color: "#F4EFFF", border: "1px solid #4D3175", fontSize: 18, fontFamily: "'Inter',sans-serif", cursor: "pointer", outline: "none" };
+const selectStyle: React.CSSProperties = { height: 32, minWidth: 148, padding: "0 9px", borderRadius: 8, background: "#150A2E", color: "#F4EFFF", border: "1px solid #4D3175", fontSize: 11, fontFamily: "'Inter',sans-serif", cursor: "pointer", outline: "none" };
 const questionKey = (question: { question_text?: unknown; correct_answer?: unknown }) => {
   const normalise = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   return `${normalise(question.question_text)}|${normalise(question.correct_answer)}`;
@@ -174,14 +175,50 @@ export default function QuestionBankPage() {
           </p>
         )}
 
-        {visibleQuestions.map(q => (
-          <div key={q.id} className="fbh-panel">
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))", gap: 12, alignItems: "start" }}>
+        {visibleQuestions.map(q => {
+          const optionLetters = q.question_type === "multi_tap" ? ["a", "b", "c", "d", "e", "f"] : ["a", "b", "c", "d"];
+          const correctLetters = q.correct_answer.toLowerCase().split(",").map(value => value.trim());
+          const isPicture = q.question_type === "picture";
+          const isAudio = q.question_type === "audio";
+          return (
+          <article key={q.id} className="fbh-panel" style={{ margin: 0, padding: 14, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
               <span className="fbh-chip">{typeLabel[q.question_type] || q.question_type}</span>
-              <span style={{ color: "#B9A8D9" }}>{q.difficulty}</span>
+              <span style={{ color: "#B9A8D9", font: "500 11px 'Inter'" }}>{q.difficulty}</span>
               <div style={{ flex: 1 }} />
+            </div>
+            <p style={{ font: "500 13px/1.45 'Inter'", color: "#D9CCF2", margin: "0 0 8px" }}>{q.question_text}</p>
+            {isPicture && q.option_b && <img src={getMediaUrl(q.option_b) ?? undefined} alt={q.option_a || "Question picture"} style={{ display: "block", width: "100%", height: 118, objectFit: "cover", borderRadius: 7, marginBottom: 7 }} />}
+            {isAudio && q.option_a && <div style={{ padding: "6px 8px", borderRadius: 7, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.35)", color: "#D9CCF2", font: "500 11px/1.35 'Inter'", marginBottom: 7 }}><strong style={{ color: "#D94FDC" }}>TRACK:</strong> {q.option_a}</div>}
+            {(q.question_type === "multiple_choice" || q.question_type === "multi_tap") && (
+              <div style={{ display: "grid", gap: 3 }}>
+                {optionLetters.map(l => {
+                  const option = q[("option_" + l) as keyof BankQuestion] as string | null;
+                  if (!option) return null;
+                  const correct = correctLetters.includes(l);
+                  return <div key={l} style={{ font: "400 12px/1.35 'Inter'", padding: "3px 5px", borderRadius: 6, background: correct ? "rgba(46,224,110,0.1)" : "transparent", color: correct ? "#2EE06E" : "#B9A8D9" }}>
+                    <span style={{ color: correct ? "#2EE06E" : "#6B5A8E", fontWeight: 700, marginRight: 5 }}>{l.toUpperCase()}.</span>{option}
+                  </div>
+                })}
+              </div>
+            )}
+            {q.question_type === "sequence" && (
+              <div>{[q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean).map((item, idx) => (
+                <div key={idx} style={{ font: "400 12px/1.35 'Inter'", padding: "3px 5px", color: "#B9A8D9", display: "flex", gap: 5 }}>
+                  <span style={{ color: "#6B5A8E", fontWeight: 700 }}>{idx + 1}.</span>{item}
+                </div>
+              ))}</div>
+            )}
+            {(q.question_type === "text_answer" || q.question_type === "number") && (
+              <div>
+                {q.option_a && <p style={{ color: "#6B5A8E", font: "400 11px 'Inter'", margin: "0 0 4px" }}>Hint: {q.option_a}</p>}
+              </div>
+            )}
+            <div style={{ color: "#2EE06E", font: "600 12px/1.35 'Inter'", marginTop: 6 }}>→ {q.correct_answer}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
               {rounds.length > 0 && (
-                <select onChange={e => { if (e.target.value) { addToRound(q, e.target.value); } e.target.value = ""; }} style={selectStyle}>
+                <select aria-label={`Add ${q.question_text} to round`} onChange={e => { if (e.target.value) { addToRound(q, e.target.value); } e.target.value = ""; }} style={selectStyle}>
                   <option value="">Add to round…</option>
                   {rounds.map(r => {
                     const fullRound = fullRounds.find(item => item.id === r.id);
@@ -190,33 +227,11 @@ export default function QuestionBankPage() {
                   })}
                 </select>
               )}
-              <HostButton onClick={() => deleteQuestion(q.id)}>Delete</HostButton>
+              <HostButton onClick={() => deleteQuestion(q.id)} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Delete</HostButton>
             </div>
-            <p style={{ fontWeight: 650, fontSize: 20, marginBottom: 12, lineHeight: 1.5 }}>{q.question_text}</p>
-            {q.question_type === "multiple_choice" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                {(["a", "b", "c", "d"] as const).map(l => (
-                  <div key={l} style={{ fontWeight: 600, fontSize: 18, padding: "12px 14px", borderRadius: 10, background: l === q.correct_answer ? "rgba(46,224,110,0.15)" : "#150A2E", color: l === q.correct_answer ? "#2EE06E" : "#B9A8D9", border: l === q.correct_answer ? "1px solid rgba(46,224,110,0.4)" : "1px solid #2E1A52" }}>
-                    <span style={{ color: "#BE26C1", fontWeight: 700, marginRight: 6 }}>{l.toUpperCase()}.</span>{q[("option_" + l) as keyof BankQuestion] as string}
-                  </div>
-                ))}
-              </div>
-            )}
-            {q.question_type === "sequence" && (
-              <div>{[q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean).map((item, idx) => (
-                <div key={idx} style={{ fontWeight: 600, fontSize: 18, padding: "12px 14px", marginBottom: 6, borderRadius: 10, background: "#150A2E", color: "#B9A8D9", display: "flex", gap: 8, border: "1px solid #2E1A52" }}>
-                  <span style={{ color: "#BE26C1", fontWeight: 700, minWidth: 20 }}>{idx + 1}.</span>{item}
-                </div>
-              ))}</div>
-            )}
-            {(q.question_type === "text_answer" || q.question_type === "number") && (
-              <div>
-                {q.option_a && <p style={{ color: "#B9A8D9", margin: "0 0 6px", fontStyle: "italic" }}>{q.option_a}</p>}
-                <p style={{ fontWeight: 650, fontSize: 18, color: "#2EE06E", margin: 0 }}>Answer: {q.correct_answer}</p>
-              </div>
-            )}
-          </div>
-        ))}
+          </article>
+        );})}
+        </div>
         {!loading && filtered.length > PAGE_SIZE && <nav className="qi-bo-pagination" aria-label="Question pages"><HostButton disabled={page === 1} onClick={() => setPage(value => Math.max(1, value - 1))}>Previous</HostButton><span>Page {page} of {pageCount}</span><HostButton disabled={page === pageCount} onClick={() => setPage(value => Math.min(pageCount, value + 1))}>Next</HostButton></nav>}
       </main>
       {confirmDialogEl}

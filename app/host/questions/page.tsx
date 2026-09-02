@@ -97,7 +97,7 @@ function stageLabel(stage: ValidationStage): string {
   } satisfies Record<ValidationStage, string>)[stage];
 }
 
-const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","Christmas songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
+const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
 // Same permanent exclusion list as lib/quiz/generateRound.ts (see the
 // comment there) - this older single-round generator is a separate code
 // path (Codex #10 flagged the two as needing consolidation), so it needs
@@ -154,13 +154,16 @@ function allocateRegularTypes(count: number): string[] {
 // logic - topUp used to have its own, much weaker random topic draw with no
 // category guarantee at all.
 const TOPIC_BUCKETS: string[][] = [
-  ["breaking and trending mainstream headlines from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent entertainment news from the last 3-12 months", "celebrity and pop culture moments from the last 3-12 months"],
-  ["movies", "TV shows", "celebrities", "awards and records", "reality TV", "theatre and musicals"],
-  ["music", "video games", "comedy and humour", "social media and internet", "consumer technology and digital life", "fashion and style"],
-  ["geography", "famous landmarks", "travel", "UK culture", "US culture", "international culture"],
-  ["simple history", "books and literature", "art and culture", "childhood and nostalgia", "crime and mystery", "royals and politics"],
-  ["sport", "football"],
-  ["food and drink", "logos and brands", "accessible science and space", "animals", "classic cartoons", "cars and transport", "nature and wildlife"],
+  ["breaking and trending mainstream headlines from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent mainstream news from the last 3-12 months"],
+  ["movies and TV", "celebrities and showbiz", "awards and entertainment"],
+  ["music", "famous bands and singers", "global chart hits"],
+  ["geography", "famous landmarks", "world travel and international culture"],
+  ["simple history", "famous historical people", "major world events"],
+  ["sport", "football", "international sporting events"],
+  ["accessible science and space", "animals", "nature and wildlife"],
+  ["food and drink", "logos and brands", "cars and transport"],
+  ["consumer technology and digital life", "video games", "social media and internet"],
+  ["books and literature", "art and culture", "theatre and musicals"],
 ];
 const TOPICS = TOPIC_BUCKETS.flat();
 function createGeneralTopicPicker(): (launchIndex: number) => string {

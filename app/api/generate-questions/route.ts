@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Validate the prompt.
-    const { prompt, maxTokens, structuredOutput, webSearch, model } = await req.json();
+    const { prompt, maxTokens, structuredOutput, webSearch, model, combinedValidation } = await req.json();
     // Only approved models are allowed through from the client; this is not
     // a general model passthrough. Quiz generation now explicitly requests
     // Haiku for both writing and validation to minimise commercial running
@@ -135,8 +135,17 @@ export async function POST(req: NextRequest) {
             candidate_entity: { type: ["string", "null"] },
             conflict_index: { type: ["integer", "null"] },
             rejection_reason: { type: "string" },
+            moderation_ok: { type: "boolean" },
+            moderation_note: { type: "string" },
+            balance_ok: { type: "boolean" },
+            balance_note: { type: "string" },
+            balance_confidence: { type: "string", enum: ["low", "medium", "high"] },
+            quality_ok: { type: "boolean" },
+            quality_note: { type: "string" },
           },
-          required: ["ok", "note"],
+          required: combinedValidation === true
+            ? ["moderation_ok", "moderation_note", "balance_ok", "balance_note", "balance_confidence", "quality_ok", "quality_note", "candidate_subtopic", "candidate_entity", "conflict_index", "rejection_reason"]
+            : ["ok", "note"],
           additionalProperties: false,
         },
       }];

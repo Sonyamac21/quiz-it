@@ -73,7 +73,7 @@ type GenerationContext = { error: string; report: CandidateReport };
 
 // ── Constants (copied verbatim) ─────────────────────────────────────────────
 
-const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","Christmas songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
+const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
 
 // A small, permanent "don't use this again" list, separate from the
 // per-session/per-round exclusion lists below - those only cover what THIS
@@ -129,6 +129,20 @@ function allocateRegularTypes(count: number): string[] {
     remainder--;
   }
   return shuffle([...allocated, ...REGULAR_TYPE_WEIGHTS.flatMap(([type], index) => Array(base[index]).fill(type))]);
+}
+
+function allocateMixedDifficulties(count: number): string[] {
+  const weights: [string, number][] = [["easy", 0.3], ["medium", 0.4], ["hard", 0.3]];
+  const allocated = count >= 3 ? ["easy", "medium", "hard"] : [];
+  const remaining = count - allocated.length;
+  if (remaining <= 0) return shuffle(allocated);
+  const raw = weights.map(([, weight]) => weight * remaining);
+  const base = raw.map(Math.floor);
+  let remainder = remaining - base.reduce((sum, value) => sum + value, 0);
+  raw.map((value, index) => ({ index, fraction: value - base[index] }))
+    .sort((a, b) => b.fraction - a.fraction)
+    .forEach(({ index }) => { if (remainder > 0) { base[index]++; remainder--; } });
+  return shuffle([...allocated, ...weights.flatMap(([level], index) => Array(base[index]).fill(level))]);
 }
 const VARIETY_ANGLES = [
   "from the 1960s or 1970s", "from the 1980s", "from the 1990s", "from the 2000s", "from the 2010s or later",
@@ -338,14 +352,14 @@ const GENERATION_MODEL = VALIDATION_MODEL;
 // ceiling a little headroom before the client gives up on it too.
 const CLIENT_REQUEST_TIMEOUT_MS = 35_000;
 
-async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false, model?: string) {
+async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false, model?: string, combinedValidation: boolean = false) {
   const res = await withAiRequestSlot(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CLIENT_REQUEST_TIMEOUT_MS);
     return fetch("/api/generate-questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch, model }),
+      body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch, model, combinedValidation }),
       signal: controller.signal,
     }).catch(e => {
       if (e instanceof Error && e.name === "AbortError") throw new Error("Request to Anthropic timed out after 35s (no response) - retrying.");
@@ -864,6 +878,77 @@ async function checkRoundBalance(q: Question, currentRound: Question[], theme: s
   }
 }
 
+async function runCombinedValidation(q: Question, currentRound: Question[], theme: string): Promise<{
+  moderation: { ok: boolean; note: string; unavailable?: boolean };
+  balance: { ok: boolean; note: string; details: RoundBalanceDetails };
+  quality: { ok: boolean; note: string };
+}> {
+  const optionTexts = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f];
+  const isMedia = q.question_type === "picture" || q.question_type === "audio";
+  const candidate = {
+    type: q.question_type,
+    question: q.question_text || "",
+    options: isMedia ? [] : optionTexts.filter(Boolean),
+    answer: resolveAnswerText(q) || "",
+    player_visible_media: q.question_type === "audio"
+      ? "An audio clip is played; no lyric transcript or other content description is supplied."
+      : q.question_type === "picture"
+        ? "An image is shown; no visual-content description is supplied."
+        : "None",
+    internal_media_lookup: isMedia ? (q.option_a || "None") : "None",
+    theme: (theme || "").trim() || "None",
+  };
+  const accepted = currentRound.map((existing, index) => ({
+    index: index + 1,
+    type: existing.question_type,
+    question: existing.question_text || "",
+    answer: resolveAnswerText(existing) || "",
+    internal_media_lookup: ["picture", "audio"].includes(existing.question_type) ? (existing.option_a || "None") : "None",
+  }));
+  const prompt =
+    "Perform three INDEPENDENT checks on one commercial pub-quiz question and return all three verdicts in one tool call. " +
+    "MODERATION: Judge only player-visible Question, Options, Answer and explicitly described player-visible media. Internal media lookup is private metadata: use its literal title/artist/subject only to identify and fact-check the answer. Never infer or analyse lyrics, plot, themes, subtext, artist history or character history. Allow mainstream commercial music, films, books and TV unless the actual presented title/content is inappropriate. A neutral factual alcohol reference is allowed; promotion is not. Reject only genuinely explicit sexual material, crude anatomical language, illegal-drug promotion, pork promotion, religious or LGBTQ+ advocacy or sensitive discussion, Iran or Israel political content, hate speech, slurs, harassment, discrimination, graphic violence, or clearly offensive/prohibited presented content. 'Name this song' with lookup 'Mr. Brightside - The Killers' must pass. Also verify the answer is factually correct. " +
+    "ROUND BALANCE: Compare only with accepted questions. Reject only with HIGH confidence for the same primary entity, same narrow subtopic, or effectively the same underlying knowledge. Broad-category overlap is allowed; incidental/weak relationships pass; never reject merely for the same country. If themed, the shared theme is intentional, but repeated franchises/entities inside it are not. conflict_index is the 1-based accepted-question index, otherwise null. " +
+    "FINAL QUALITY: Pass only if an experienced professional host would willingly use the exact question. Reject unnatural/ambiguous/trivial/misleading wording, answers players would not naturally give, answer giveaways, multiple reasonable answers, poor quiz design, or media that does not directly support the question. Do not rely on the explanation. " +
+    "Return moderation_ok/note, balance_ok/note/confidence, quality_ok/note, candidate_subtopic, candidate_entity, conflict_index and rejection_reason. Uncertainty in balance must pass. " +
+    "Candidate labelled fields: " + JSON.stringify(candidate) + " | Accepted questions: " + JSON.stringify(accepted);
+  try {
+    const parsed = parseModelJson<{
+      moderation_ok?: boolean; moderation_note?: string;
+      balance_ok?: boolean; balance_note?: string; balance_confidence?: string;
+      quality_ok?: boolean; quality_note?: string;
+      candidate_subtopic?: string | null; candidate_entity?: string | null;
+      conflict_index?: number | null; rejection_reason?: string;
+    }>(await callAPI(prompt, 550, true, false, VALIDATION_MODEL, true), "object");
+    const conflictIndex = Number.isInteger(parsed.conflict_index) && (parsed.conflict_index as number) >= 1 && (parsed.conflict_index as number) <= currentRound.length
+      ? parsed.conflict_index as number
+      : null;
+    const highConfidenceConflict = parsed.balance_ok === false && parsed.balance_confidence === "high" && conflictIndex !== null;
+    const details: RoundBalanceDetails = {
+      candidate_subtopic: parsed.candidate_subtopic || null,
+      candidate_entity: parsed.candidate_entity || null,
+      conflict_index: conflictIndex,
+      rejection_reason: parsed.rejection_reason || parsed.balance_note || "",
+    };
+    return {
+      moderation: { ok: parsed.moderation_ok === true, note: parsed.moderation_note || (parsed.moderation_ok ? "OK" : "Moderation rejected") },
+      balance: { ok: !highConfidenceConflict, note: highConfidenceConflict ? (details.rejection_reason || "High-confidence repeated subject") : (parsed.balance_note || "No high-confidence round-balance conflict"), details },
+      quality: { ok: parsed.quality_ok === true, note: parsed.quality_note || (parsed.quality_ok ? "OK" : "Final quality rejected") },
+    };
+  } catch {
+    // Compatibility fallback for a deployment where the API route has not
+    // yet picked up the expanded tool schema, or for an unexpected combined
+    // response. Preserve the established fail-closed moderation behaviour
+    // and fail-open balance/quality behaviour instead of losing validation.
+    const [moderation, balance, quality] = await Promise.all([
+      checkQuestion(q, theme),
+      checkRoundBalance(q, currentRound, theme),
+      finalQualityCheck(q, theme),
+    ]);
+    return { moderation, balance, quality };
+  }
+}
+
 async function isDuplicateInMemory(q: Question, exclusions: ExclusionState, onDegraded?: () => void): Promise<boolean> {
   // The fingerprint check is exact-match only (normalized text + answer +
   // options) - it catches a question regenerated verbatim, but NOT a
@@ -926,10 +1011,12 @@ async function validateCandidate(
   stages.memory = memoryDuplicate ? { status: "failed", note: "Matched permanent Question Memory" } : { status: "passed", note: "No permanent-memory match" };
   if (memoryDuplicate) return { ok: false, category: "Permanent memory", reason: stages.memory.note, stages };
 
-  const moderationPromise = checkQuestion(q, theme);
-  const balancePromise = checkRoundBalance(q, currentRound, theme);
-  const qualityPromise = finalQualityCheck(q, theme);
-  const [moderation, balance, quality] = await Promise.all([moderationPromise, balancePromise, qualityPromise]);
+  // These remain three independent validator decisions and retain their
+  // individual diagnostics, but share one model request. Previously every
+  // candidate made three separate network round trips here; under Generate
+  // All they saturated the shared queue and a 10-question round could time
+  // out after almost six minutes with only six accepted questions.
+  const { moderation, balance, quality } = await runCombinedValidation(q, currentRound, theme);
   stages.moderation = { status: moderation.ok ? "passed" : "failed", note: moderation.note };
   stages.balance = { status: balance.ok ? "passed" : "failed", note: balance.note, details: balance.details };
   stages.quality = { status: quality.ok ? "passed" : "failed", note: quality.note };
@@ -1120,13 +1207,16 @@ export async function generateValidatedRound(
   // ONLY movies) should still type an explicit theme - this only fixes the
   // default "mixed general knowledge" case.
   const TOPIC_BUCKETS: string[][] = [
-    ["breaking and trending mainstream headlines from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent entertainment news from the last 3-12 months", "celebrity and pop culture moments from the last 3-12 months"],
-    ["movies", "TV shows", "celebrities", "awards and records", "reality TV", "theatre and musicals"],
-    ["music", "video games", "comedy and humour", "social media and internet", "consumer technology and digital life", "fashion and style"],
-    ["geography", "famous landmarks", "travel", "UK culture", "US culture", "international culture"],
-    ["simple history", "books and literature", "art and culture", "childhood and nostalgia", "crime and mystery", "royals and politics"],
-    ["sport", "football"],
-    ["food and drink", "logos and brands", "accessible science and space", "animals", "classic cartoons", "cars and transport", "nature and wildlife"],
+    ["breaking and trending mainstream headlines from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent mainstream news from the last 3-12 months"],
+    ["movies and TV", "celebrities and showbiz", "awards and entertainment"],
+    ["music", "famous bands and singers", "global chart hits"],
+    ["geography", "famous landmarks", "world travel and international culture"],
+    ["simple history", "famous historical people", "major world events"],
+    ["sport", "football", "international sporting events"],
+    ["accessible science and space", "animals", "nature and wildlife"],
+    ["food and drink", "logos and brands", "cars and transport"],
+    ["consumer technology and digital life", "video games", "social media and internet"],
+    ["books and literature", "art and culture", "theatre and musicals"],
   ];
   const shuffledBuckets = TOPIC_BUCKETS.map(shuffle);
   const triedGeneralTopics = new Set<string>();
@@ -1235,6 +1325,11 @@ export async function generateValidatedRound(
   types.forEach(t => { targetCounts[t] = (targetCounts[t] || 0) + 1; });
   const acceptedCounts: Record<string, number> = {};
   const inFlightCounts: Record<string, number> = {};
+  const difficultyPlan = difficulty === "mixed" ? allocateMixedDifficulties(count) : Array(count).fill(difficulty);
+  const difficultyTargets: Record<string, number> = {};
+  difficultyPlan.forEach(level => { difficultyTargets[level] = (difficultyTargets[level] || 0) + 1; });
+  const acceptedDifficultyCounts: Record<string, number> = {};
+  const inFlightDifficultyCounts: Record<string, number> = {};
   const pickNextType = (): string => {
     let best: string | null = null;
     let bestDeficit = 0;
@@ -1251,12 +1346,22 @@ export async function generateValidatedRound(
     }
     return best;
   };
+  const pickNextDifficulty = (): string => {
+    let best = Object.keys(difficultyTargets)[0];
+    let bestDeficit = -Infinity;
+    for (const level of Object.keys(difficultyTargets)) {
+      const deficit = difficultyTargets[level] - (acceptedDifficultyCounts[level] || 0) - (inFlightDifficultyCounts[level] || 0);
+      if (deficit > bestDeficit) { bestDeficit = deficit; best = level; }
+    }
+    return best;
+  };
 
-  type PendingCandidate = { type: string; context: GenerationContext; promise: Promise<Question | null> };
+  type PendingCandidate = { type: string; candidateDifficulty: string; context: GenerationContext; promise: Promise<Question | null> };
   const pending: PendingCandidate[] = [];
   const launchCandidate = () => {
     const launchIndex = i++;
     const type = pickNextType();
+    const candidateDifficulty = pickNextDifficulty();
     const topic = theme || (
       type === "audio" ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
       : type === "picture" ? pickPictureTopic(launchIndex)
@@ -1265,6 +1370,7 @@ export async function generateValidatedRound(
     const context = createGenerationContext(type, Boolean(theme.trim()));
     attempts++;
     inFlightCounts[type] = (inFlightCounts[type] || 0) + 1;
+    inFlightDifficultyCounts[candidateDifficulty] = (inFlightDifficultyCounts[candidateDifficulty] || 0) + 1;
     // forceObscure used to ONLY trigger reactively, after 4 consecutive
     // duplicate/memory rejections in a row - i.e. only once a topic was
     // already close to exhausted. That does nothing for the more general "it
@@ -1276,7 +1382,7 @@ export async function generateValidatedRound(
     // every round leans toward a deeper cut by default rather than only
     // after the well-trodden facts have already started colliding.
     const proactiveObscure = Math.random() < 0.3;
-    pending.push({ type, context, promise: generateOne(type, topic, context, { theme, difficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure }) });
+    pending.push({ type, candidateDifficulty, context, promise: generateOne(type, topic, context, { theme, difficulty: candidateDifficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure }) });
   };
   const refillPipeline = () => {
     // Deliberately keeps up to 2 candidates in flight even once `count` is
@@ -1304,9 +1410,10 @@ export async function generateValidatedRound(
     }
     onProgress?.("Generating and checking question " + (good.length + 1) + " of " + count + "..." + (consecutiveFailures > 0 ? " (retry " + consecutiveFailures + ")" : ""));
     const current = pending.shift()!;
-    const { type, context } = current;
+    const { type, candidateDifficulty, context } = current;
     const q = await current.promise;
     inFlightCounts[type] = Math.max(0, (inFlightCounts[type] || 0) - 1);
+    inFlightDifficultyCounts[candidateDifficulty] = Math.max(0, (inFlightDifficultyCounts[candidateDifficulty] || 0) - 1);
     if (!q) {
       reportGeneratedFailure(context, type);
       consecutiveFailures++;
@@ -1347,6 +1454,7 @@ export async function generateValidatedRound(
       await commitToMemory(q, () => { memoryDegradedCount++; });
       good.push(q);
       acceptedCounts[type] = (acceptedCounts[type] || 0) + 1;
+      acceptedDifficultyCounts[candidateDifficulty] = (acceptedDifficultyCounts[candidateDifficulty] || 0) + 1;
       registerAccepted(exclusions, q);
       onAccept?.(q);
       addReportEntry({ outcome: "accepted", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });

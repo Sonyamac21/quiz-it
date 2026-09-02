@@ -49,6 +49,23 @@ export type Question = {
   fade_out?: boolean;
 };
 
+export function multiTapSuitabilityError(q: Pick<Question, "question_text" | "question_type" | "option_a" | "option_b" | "option_c" | "option_d" | "option_e" | "option_f" | "correct_answer">): string | null {
+  if (q.question_type !== "multi_tap") return "Question type is not multi_tap";
+  const stem = (q.question_text || "").trim().toLowerCase();
+  if (!/^(which of (these|the following)|select all|select each|tap all)/.test(stem)) {
+    return "Multi Tap must be a genuine select-all category question";
+  }
+  const options = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f];
+  if (options.some(option => typeof option !== "string" || !option.trim())) return "Multi Tap requires all six options";
+  const letters = (q.correct_answer || "").split(",").map(letter => letter.trim().toLowerCase()).filter(Boolean);
+  const uniqueLetters = new Set(letters);
+  if (uniqueLetters.size < 2) return "Multi Tap requires at least two correct answers";
+  if (uniqueLetters.size !== letters.length || letters.some(letter => !["a", "b", "c", "d", "e", "f"].includes(letter))) {
+    return "Multi Tap answer key is invalid";
+  }
+  return null;
+}
+
 type ValidationStatus = "passed" | "failed" | "not_run" | "not_applicable";
 type ValidationStage = "moderation" | "theme" | "duplicate" | "balance" | "memory" | "quality" | "media";
 type RoundBalanceDetails = {
@@ -716,9 +733,9 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       q.correct_answer = shuffledLetters.join(",");
     }
     if (q && q.question_type === "multi_tap") {
-      const multiTapStem = (q.question_text || "").trim().toLowerCase();
-      if (!/^(which of (these|the following)|select all|select each|tap all)/.test(multiTapStem)) {
-        context.error = "Multi Tap must be a genuine select-all category question, not single-answer trivia - retrying";
+      const suitabilityError = multiTapSuitabilityError(q);
+      if (suitabilityError) {
+        context.error = suitabilityError + " - retrying";
         return null;
       }
       const letters = ["a", "b", "c", "d", "e", "f"];

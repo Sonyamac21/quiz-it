@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LibraryRound, QuizDefinition, QuizRound } from "@/lib/quiz-builder/types";
-import { generateAllRounds, generateValidatedRound, quickExclusionState, type RoundGenerationSpec } from "@/lib/quiz/generateRound";
+import { generateAllRounds, generateValidatedRound, multiTapSuitabilityError, quickExclusionState, type Question, type RoundGenerationSpec } from "@/lib/quiz/generateRound";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell, Toggle } from "@/components/fable/HostConsole";
 import { useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
@@ -13,6 +13,11 @@ import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
+
+function validQuestionsForRound<T extends Record<string, unknown> | Question>(roundType: string, questions: T[]): T[] {
+  if (roundType !== "multi_tap") return questions;
+  return questions.filter(question => !multiTapSuitabilityError(question as Question));
+}
 
 type GuidedIntent = "create" | "duplicate" | "assign";
 type GuidedEvent = { id: string; label: string };
@@ -346,16 +351,22 @@ export default function QuizBuilderPage() {
       // history fetch - that fetch is what was making REGENERATE feel slow.
       // The permanent duplicate check still runs server-side per candidate
       // regardless, so this doesn't weaken duplicate protection.
-      const exclusions = quickExclusionState(round.questions as Record<string, unknown>[]);
+      const validExisting = validQuestionsForRound(round.round_type, round.questions);
+      const exclusions = quickExclusionState(validExisting as Record<string, unknown>[]);
       const result = await generateValidatedRound(
-        { roundType: round.round_type, difficulty, theme, count: 1, existingQuestions: round.questions.filter((_q, i) => i !== qIndex) },
+        { roundType: round.round_type, difficulty, theme, count: 1, existingQuestions: validExisting.filter(q => q !== round.questions[qIndex]) },
         exclusions,
       );
       if (result.questions.length === 0) {
         showToast("Couldn't generate a replacement question: " + result.finalStatus, "error", 7000);
         return;
       }
-      const newQuestions = round.questions.map((q, i) => i === qIndex ? result.questions[0] : q);
+      if (round.round_type === "multi_tap" && multiTapSuitabilityError(result.questions[0])) {
+        showToast("The replacement was rejected because it was not a genuine multi-answer Multi Tap question.", "error", 7000);
+        return;
+      }
+      const newQuestions = validExisting.filter(q => q !== round.questions[qIndex]);
+      newQuestions.splice(Math.min(qIndex, newQuestions.length), 0, result.questions[0]);
       const supabase = createSupabaseBrowserClient();
       await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
       setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
@@ -426,7 +437,7 @@ export default function QuizBuilderPage() {
       const effectiveTarget = Number.isFinite(cfgCount) && (cfgCount as number) > 0
         ? (cfgCount as number)
         : (r.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : (r.target_count || 10));
-      shortfalls[r.id] = Math.max(0, effectiveTarget - r.questions.length);
+      shortfalls[r.id] = Math.max(0, effectiveTarget - validQuestionsForRound(r.round_type, r.questions).length);
     });
     const runTargets = targets.filter(r => shortfalls[r.id] > 0);
     if (!runTargets.length) {
@@ -439,7 +450,7 @@ export default function QuizBuilderPage() {
       difficulty: bulkConfig[r.id]?.difficulty || r.difficulty || "mixed",
       theme: bulkConfig[r.id]?.theme ?? r.theme ?? "",
       count: shortfalls[r.id],
-      existingQuestions: r.questions,
+      existingQuestions: validQuestionsForRound(r.round_type, r.questions),
     }));
     // Persist the theme/difficulty each round is being generated with right
     // away, so it survives a reload and SWAP picks it back up later instead
@@ -474,10 +485,10 @@ export default function QuizBuilderPage() {
           // from React state at the moment generation actually completes
           // (not from the moment it started) fixes this regardless of what
           // else the host did to the round in between.
-          let mergedQuestions = [...round.questions, ...result.questions];
+          let mergedQuestions = [...validQuestionsForRound(round.round_type, round.questions), ...validQuestionsForRound(round.round_type, result.questions)];
           setQuizzes(prev => {
             const liveRound = prev.find(q => q.id === selected.id)?.quiz_rounds.find(r => r.id === round.id);
-            mergedQuestions = [...(liveRound ? liveRound.questions : round.questions), ...result.questions];
+            mergedQuestions = [...validQuestionsForRound(round.round_type, liveRound ? liveRound.questions : round.questions), ...validQuestionsForRound(round.round_type, result.questions)];
             return prev.map(q => {
               if (q.id !== selected.id) return q;
               return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) };
@@ -535,7 +546,7 @@ export default function QuizBuilderPage() {
     const cfg = bulkConfig[round.id];
     try {
       const [result] = await generateAllRounds(
-        [{ roundType: round.round_type, difficulty: cfg?.difficulty || round.difficulty || "mixed", theme: cfg?.theme ?? round.theme ?? "", count: n, existingQuestions: round.questions }],
+        [{ roundType: round.round_type, difficulty: cfg?.difficulty || round.difficulty || "mixed", theme: cfg?.theme ?? round.theme ?? "", count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions) }],
         (_idx, status) => setGeneratingMoreStatus(status + capNote),
       );
       // Same stale-snapshot bug as runBulkGenerate above: `round` here is
@@ -543,10 +554,10 @@ export default function QuizBuilderPage() {
       // minutes stale by the time generation actually finishes. Read the
       // CURRENT live question list at completion time so a deletion/edit the
       // host made while this was running doesn't get silently undone.
-      let mergedQuestions = [...round.questions, ...result.questions];
+      let mergedQuestions = [...validQuestionsForRound(round.round_type, round.questions), ...validQuestionsForRound(round.round_type, result.questions)];
       setQuizzes(prev => {
         const liveRound = prev.find(q => q.id === selected?.id)?.quiz_rounds.find(r => r.id === round.id);
-        mergedQuestions = [...(liveRound ? liveRound.questions : round.questions), ...result.questions];
+        mergedQuestions = [...validQuestionsForRound(round.round_type, liveRound ? liveRound.questions : round.questions), ...validQuestionsForRound(round.round_type, result.questions)];
         return prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) });
       });
       await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id);

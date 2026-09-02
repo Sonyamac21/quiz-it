@@ -522,14 +522,17 @@ export default function QuizBuilderPage() {
           // React ran that updater. That race is why invalid single-answer
           // Multi Tap questions survived despite the UI filter.
           const { data: liveRow } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
-          const liveQuestions = (liveRow?.questions || round.questions) as Record<string, unknown>[];
-          const mergedQuestions = [...validQuestionsForRound(round.round_type, liveQuestions), ...validQuestionsForRound(round.round_type, result.questions)];
-          await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id);
+          const liveQuestions = validQuestionsForRound(round.round_type, (liveRow?.questions || round.questions) as Record<string, unknown>[]);
+          const generatedQuestions = validQuestionsForRound(round.round_type, result.questions);
+          const mergedQuestions = [...liveQuestions, ...generatedQuestions];
+          const { data: savedRow, error: saveError } = await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id).select("questions").single();
+          if (saveError) throw new Error(`Could not save generated questions for ${round.name}: ${saveError.message}`);
+          const persistedQuestions = (savedRow?.questions || mergedQuestions) as Record<string, unknown>[];
           setQuizzes(prev => prev.map(q => {
             if (q.id !== selected.id) return q;
-            return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) };
+            return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: persistedQuestions } : r) };
           }));
-          void syncRoundToLibrary(round, mergedQuestions, selected.name);
+          void syncRoundToLibrary(round, persistedQuestions, selected.name);
         },
       );
     } finally {
@@ -589,12 +592,16 @@ export default function QuizBuilderPage() {
       // CURRENT live question list at completion time so a deletion/edit the
       // host made while this was running doesn't get silently undone.
       const { data: liveRow } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
-      const liveQuestions = (liveRow?.questions || round.questions) as Record<string, unknown>[];
-      const mergedQuestions = [...validQuestionsForRound(round.round_type, liveQuestions), ...validQuestionsForRound(round.round_type, result.questions)];
-      await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id);
-      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: mergedQuestions } : r) }));
-      if (selected) void syncRoundToLibrary(round, mergedQuestions, selected.name);
-      const shortfall = result.questions.length < n;
+      const liveQuestions = validQuestionsForRound(round.round_type, (liveRow?.questions || round.questions) as Record<string, unknown>[]);
+      const generatedQuestions = validQuestionsForRound(round.round_type, result.questions);
+      const mergedQuestions = [...liveQuestions, ...generatedQuestions];
+      const { data: savedRow, error: saveError } = await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id).select("questions").single();
+      if (saveError) throw new Error("Could not save the generated questions: " + saveError.message);
+      const persistedQuestions = (savedRow?.questions || mergedQuestions) as Record<string, unknown>[];
+      const actualAdded = Math.max(0, persistedQuestions.length - liveQuestions.length);
+      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: persistedQuestions } : r) }));
+      if (selected) void syncRoundToLibrary(round, persistedQuestions, selected.name);
+      const shortfall = actualAdded < n;
       // This used to only live in generatingMoreStatus, which is rendered
       // ONLY while generatingMoreId === this round's id - and that got
       // cleared after a flat 4s regardless of outcome, so a shortfall/failure
@@ -603,7 +610,7 @@ export default function QuizBuilderPage() {
       // run could actually see it, leaving the screen looking exactly like
       // nothing had happened. lastGenerateMoreResult persists independently
       // of the in-flight/button-disabled state until the next run starts.
-      setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: shortfall ? `Only generated ${result.questions.length} of ${n} requested: ${result.finalStatus}` : `Added ${result.questions.length} question${result.questions.length === 1 ? "" : "s"}.` }));
+      setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: shortfall ? `Added ${actualAdded} of ${n} requested. ${actualAdded < generatedQuestions.length ? "Some generated questions could not be saved. " : ""}${result.finalStatus}` : `Added ${actualAdded} question${actualAdded === 1 ? "" : "s"}. Round now has ${persistedQuestions.length}.` }));
     } catch (e) {
       setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: "Generation failed - please try again." + (e instanceof Error ? " (" + e.message + ")" : "") }));
     } finally {

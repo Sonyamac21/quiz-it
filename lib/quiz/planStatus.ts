@@ -21,10 +21,73 @@ function asQuestion(q: unknown): { question_type?: unknown; option_b?: unknown }
   return (q ?? {}) as { question_type?: unknown; option_b?: unknown };
 }
 
+export type QuizPreflightIssue = {
+  code: string;
+  message: string;
+  roundId?: string;
+};
+
+export type QuizPreflight = {
+  ready: boolean;
+  blockers: QuizPreflightIssue[];
+  warnings: QuizPreflightIssue[];
+};
+
+const QUESTION_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "pursuit", "hot_seat", "bonus"]);
+
+function normalisedKeys(value: unknown): string[] {
+  return String(value ?? "").toLowerCase().split(",").map(item => item.trim()).filter(Boolean);
+}
+
+// One authoritative readiness result used immediately before a live session.
+// Planning pages may show additional advice, but none of them should disagree
+// about whether the selected quiz can safely be snapshotted and delivered.
+export function getQuizPreflight(quiz: Plan): QuizPreflight {
+  const blockers: QuizPreflightIssue[] = [];
+  const warnings: QuizPreflightIssue[] = [];
+  const rounds = quiz?.quiz_rounds || [];
+  if (!rounds.length) blockers.push({ code: "no-rounds", message: "The Quiz Plan has no rounds." });
+
+  for (const round of rounds) {
+    const questions = Array.isArray(round.questions) ? round.questions : [];
+    const roundName = round.name || "An unnamed round";
+    if (QUESTION_ROUND_TYPES.has(round.round_type) && questions.length === 0) {
+      blockers.push({ code: "empty-round", roundId: round.id, message: `${roundName} has no questions.` });
+      continue;
+    }
+    if (round.round_type === "hot_seat" && questions.length !== 5) {
+      blockers.push({ code: "hot-seat-count", roundId: round.id, message: `${roundName} must contain exactly 5 questions (currently ${questions.length}).` });
+    }
+    if (round.round_type === "pursuit" && questions.length !== 7) {
+      blockers.push({ code: "pursuit-count", roundId: round.id, message: `${roundName} must contain exactly 7 questions (currently ${questions.length}).` });
+    }
+
+    questions.forEach((raw, index) => {
+      const question = (raw || {}) as Record<string, unknown>;
+      const label = `${roundName}, question ${index + 1}`;
+      if (question.question_type === "audio") {
+        const clip = String(question.option_b || "");
+        if (!/^https?:\/\//i.test(clip) && !clip.startsWith("/")) blockers.push({ code: "music-unprepped", roundId: round.id, message: `${label} has no saved music clip.` });
+      }
+      if (question.question_type === "picture") {
+        const image = String(question.option_b || "");
+        if (!/^https?:\/\//i.test(image) && !image.startsWith("/")) blockers.push({ code: "picture-unprepped", roundId: round.id, message: `${label} has no saved picture.` });
+      }
+      if (round.round_type === "multi_tap") {
+        const keys = normalisedKeys(question.correct_answer);
+        const hasSixOptions = ["a", "b", "c", "d", "e", "f"].every(key => String(question[`option_${key}`] || "").trim());
+        if (question.question_type !== "multi_tap" || !hasSixOptions || keys.length < 2 || keys.some(key => !["a", "b", "c", "d", "e", "f"].includes(key))) {
+          blockers.push({ code: "invalid-multi-tap", roundId: round.id, message: `${label} is not a valid Multi Tap question with six options and at least two correct answers.` });
+        }
+      }
+    });
+  }
+
+  return { ready: blockers.length === 0, blockers, warnings };
+}
+
 export function isQuizPlanComplete(quiz: Plan): boolean {
-  const rounds = quiz?.quiz_rounds;
-  if (!rounds || rounds.length === 0) return false;
-  return rounds.every(round => roundMusicIsPrepped(round) && round.questions.length > 0);
+  return getQuizPreflight(quiz).ready;
 }
 
 // A single round's audio questions are all prepped (or it has none).

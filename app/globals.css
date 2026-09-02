@@ -919,7 +919,11 @@ button, input, select, textarea { font: inherit; }
   height: 100dvh;
   min-height: 0;
   max-height: 100dvh;
-  background: var(--stage-deep);
+  /* Matches the approved cabinet gradient used on the Hard Deck wheel and
+     Spin to Win reels (linear-gradient 160deg #1D1140 -> #12081F) instead of
+     the previous flat --stage-deep fill - brings The Pursuit into the same
+     "premium, dark, purple/magenta, glass-and-glow" family. */
+  background: linear-gradient(160deg, var(--stage-overlay), var(--stage-deep));
   color: var(--text-primary);
   overflow: hidden;
   display: flex;
@@ -932,6 +936,17 @@ button, input, select, textarea { font: inherit; }
   pointer-events: none;
   background: radial-gradient(ellipse 55% 45% at 50% 62%, rgba(190, 38, 193, 0.1), transparent 70%);
   animation: puBloomBreath 4s ease-in-out infinite;
+}
+.pursuit-board::after {
+  /* The same diagonal glass-sweep highlight used on the wheel/reel cabinets -
+     a subtle light catching the top-left of the stage, reinforcing the same
+     "physical glass surface" feel rather than a flat dark rectangle. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(115deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.015) 20%, rgba(255,255,255,0) 38%);
 }
 .pursuit-board.urgent { box-shadow: inset 0 0 110px 18px rgba(255,59,78,.34); }
 .pursuit-board.urgent .pu-qpanel { border-color: var(--feature-incorrect); box-shadow: 0 0 34px rgba(255,59,78,.22); }
@@ -948,7 +963,7 @@ button, input, select, textarea { font: inherit; }
 .pursuit-board .pu-gate-dot.now { border-color: var(--brand-purple-bright); box-shadow: 0 0 8px rgba(217, 79, 220, 0.6); animation: puPulseDot 2s ease-in-out infinite; }
 @keyframes puPulseDot { 0%, 100% { background: var(--stage-raised) } 50% { background: var(--brand-purple-deep) } }
 .pursuit-board .pu-stakes { font: 800 clamp(16px,2vw,30px) 'Inter', sans-serif; letter-spacing: 0.06em; color: var(--text-secondary); }
-.pursuit-board .pu-stakes b { color: #E8C36A; font-variant-numeric: tabular-nums; text-shadow: 0 0 20px rgba(232,195,106,.4); }
+.pursuit-board .pu-stakes b { color: var(--brand-purple-bright); font-variant-numeric: tabular-nums; text-shadow: 0 0 20px rgba(217,79,220,.45); }
 
 /* home hero */
 .pursuit-board .pu-home-hero { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: rgba(10, 1, 24, 0.55); transition: opacity var(--m-moment) var(--ease-exit); }
@@ -958,7 +973,7 @@ button, input, select, textarea { font: inherit; }
 @keyframes puStampIn { from { transform: scale(1.15); opacity: 0 } to { transform: scale(1); opacity: 1 } }
 
 /* question panel */
-.pursuit-board .pu-qpanel { margin: 0 32px; background: var(--stage-raised); border: 1px solid var(--line-structural); border-radius: var(--r-l); padding: 22px 28px; position: relative; z-index: 4; display: none; animation: puDealIn var(--m-standard) var(--ease-settle); }
+.pursuit-board .pu-qpanel { margin: 0 32px; background: linear-gradient(160deg, var(--stage-overlay), var(--stage-raised)); border: 1px solid rgba(217,79,220,0.35); border-radius: var(--r-l); padding: 22px 28px; position: relative; z-index: 4; display: none; animation: puDealIn var(--m-standard) var(--ease-settle); box-shadow: 0 0 30px rgba(190,38,193,0.12), inset 0 1px 0 rgba(255,255,255,0.05); }
 .pursuit-board .pu-qpanel.on { display: block; }
 @keyframes puDealIn { from { transform: translateY(16px); opacity: 0 } to { transform: none; opacity: 1 } }
 .pursuit-board .pu-qcat { display: inline-block; font: 400 11px 'Inter', sans-serif; color: var(--text-secondary); border: 1px solid var(--line-structural); border-radius: 999px; padding: 4px 12px; letter-spacing: 0.14em; margin-bottom: 10px; }
@@ -992,7 +1007,7 @@ button, input, select, textarea { font: inherit; }
 .pursuit-board .pu-tname { font: 700 var(--name-fs) 'Inter', sans-serif; color: var(--text-primary); white-space: nowrap; overflow: hidden; max-width: 158px; text-overflow: ellipsis; }
 /* Banked total is the per-team number the audience scans — make it bold and clear. */
 .pursuit-board .pu-banked { font: 800 clamp(15px,1.5vw,24px) 'Inter', sans-serif; color: var(--brand-purple-bright); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
-.pursuit-board .pu-banked.gold { color: var(--victory-gold); font-weight: 800; text-shadow: 0 0 12px rgba(232, 195, 106, 0.5); }
+.pursuit-board .pu-banked.gold { color: var(--brand-purple-bright); font-weight: 800; text-shadow: 0 0 12px rgba(217, 79, 220, 0.55); }
 
 /* track + blocks */
 .pursuit-board .pu-track { position: relative; flex: 1; height: 100%; display: flex; align-items: center; }

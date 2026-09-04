@@ -10,6 +10,7 @@ const CARDS = [
 
 export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = false, enabled = true }: { teamName: string; sessionPin?: string; roundNumber?: number; compact?: boolean; enabled?: boolean }) {
   const [used, setUsed] = useState<string[]>([]);
+  const visibleCards = CARDS.filter(card => card.type !== "reverse" || roundNumber === 1);
 
   useEffect(() => {
     if (!sessionPin) return;
@@ -131,11 +132,11 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       block:   { face: "linear-gradient(160deg,#062b4a,#04101d 70%)", ink: "#38A8FF", sig: "⏸", cname: "TIME-OUT" },
       reverse: { face: "linear-gradient(160deg,#4a0a12,#1a0306 70%)", ink: "#FF3B4E", sig: "↻", cname: "REVERSE" },
     };
-    const remaining = CARDS.filter(c => !used.includes(c.type)).length;
+    const remaining = visibleCards.filter(c => !used.includes(c.type)).length;
     return (
       <div className="fbl" style={{ paddingTop: 4, padding: "4px 14px 0" }}>
         <div className="qi-player-card-rail" style={{ display: "flex", gap: 10 }}>
-          {CARDS.map(card => {
+          {visibleCards.map(card => {
             const isUsed = used.includes(card.type);
             // Reverse can only be played in Round 1.
             const isReverseOutOfRound = card.type === "reverse" && roundNumber !== 1;
@@ -176,7 +177,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
           })}
         </div>
         <div style={{ marginTop: 8, textAlign: "center", font: "600 10px 'Inter'", color: "#6B5A8E", letterSpacing: "0.14em" }}>
-          {enabled ? `${remaining} OF ${CARDS.length} CARD${remaining === 1 ? "" : "S"} REMAINING TONIGHT · EACH ONCE PER QUIZ` : "POWER CARDS ARE NOT AVAILABLE THIS ROUND"}
+          {enabled ? `${remaining} OF ${visibleCards.length} CARDS REMAINING · EACH ONCE PER QUIZ` : "POWER CARDS ARE NOT AVAILABLE THIS ROUND"}
         </div>
       </div>
     );
@@ -188,7 +189,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
         Your Power Cards
       </div>
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
-        {CARDS.map(card => {
+        {visibleCards.map(card => {
           const isUsed = used.includes(card.type);
           // Reverse can only be played in Round 1.
           const isReverseOutOfRound = card.type === "reverse" && roundNumber !== 1;

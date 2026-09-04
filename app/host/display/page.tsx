@@ -10,7 +10,7 @@ import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, purs
 import { PursuitBoard } from "@/components/PursuitBoard";
 import { teamInitials } from "@/components/TeamBadge";
 import { RoundStart, RoundEnd, Intermission, IntermissionGallery, WaitingForHost } from "@/components/fable/DisplayStates";
-import { playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
+import { enableShowAudio, playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 
@@ -153,6 +153,18 @@ function DisplayFullscreenControl() {
   }, []);
   if (fullscreen) return null;
   return <button type="button" className="qi-display-fullscreen" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}>FULLSCREEN</button>;
+}
+
+function DisplaySoundControl() {
+  const [state, setState] = useState("Enable sound");
+  const [busy, setBusy] = useState(false);
+  return <button type="button" disabled={busy} onClick={() => {
+    setBusy(true);
+    // Call before any await, while Safari still considers this a direct tap.
+    enableShowAudio().then(() => setState("Sound enabled · Test again"))
+      .catch(() => setState("Sound blocked · Tap to retry"))
+      .finally(() => setBusy(false));
+  }} style={{ position: "fixed", top: "max(12px, env(safe-area-inset-top))", left: 12, zIndex: 10000, padding: "12px 16px", minHeight: 44, borderRadius: 12, border: "1px solid #D94FDC", background: "#160a31", color: "#fff", fontWeight: 750, cursor: "pointer" }}>{busy ? "Enabling sound…" : state}</button>;
 }
 
 // Power card explainer screens shown one at a time on the lobby/waiting screen,
@@ -1901,6 +1913,7 @@ export default function DisplayScreen() {
       <div className="qi-display-shell">
         <DisplayScreenInner />
         <DisplayFullscreenControl />
+        <DisplaySoundControl />
       {/* The old "persistent branding overlay" that used to sit here,
           fixed on top of every phase regardless of which internal return
           branch rendered, has been removed - it was a leftover second

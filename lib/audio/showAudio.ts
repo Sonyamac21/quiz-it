@@ -7,6 +7,28 @@ export type ShowAudioChannel = "cue" | "timer" | "music" | "ambient" | "spin";
 export const SHOW_AUDIO_VOLUME = PLATFORM_CONFIG.audio;
 
 const active = new Map<ShowAudioChannel, HTMLAudioElement>();
+const unlockedPlayers = new Map<ShowAudioChannel, HTMLAudioElement>();
+
+// Must run directly inside a tap handler. Keep these elements for later cues:
+// creating/cloning a new element would lose Safari's playback permission.
+export async function enableShowAudio() {
+  const channels: ShowAudioChannel[] = ["cue", "timer", "music", "ambient", "spin"];
+  const starts = channels.map(channel => {
+    let audio = unlockedPlayers.get(channel);
+    if (!audio) {
+      audio = new Audio("/sounds/correct-chime.mp3");
+      unlockedPlayers.set(channel, audio);
+    }
+    if (active.has(channel)) return Promise.resolve();
+    audio.src = "/sounds/correct-chime.mp3";
+    audio.loop = false;
+    const player = audio;
+    return player.play().then(() => {
+      if (channel !== "cue") { player.pause(); player.currentTime = 0; }
+    });
+  });
+  await Promise.all(starts);
+}
 const preloaded = new Map<string, HTMLAudioElement>();
 const activeFiles = new Map<ShowAudioChannel, string>();
 const listeners = new Set<(state: ShowAudioState) => void>();
@@ -73,15 +95,16 @@ export function playShowAudio(
   const channel = options.channel ?? "cue";
   stopShowAudio(channel);
   const cached = preloaded.get(file);
-  const audio = cached ? cached.cloneNode() as HTMLAudioElement : new Audio(soundUrl(file));
+  const audio = unlockedPlayers.get(channel) ?? (cached ? cached.cloneNode() as HTMLAudioElement : new Audio(soundUrl(file)));
+  if (unlockedPlayers.has(channel)) audio.src = soundUrl(file);
   audio.volume = options.volume ?? SHOW_AUDIO_VOLUME[channel];
   audio.loop = options.loop ?? false;
   active.set(channel, audio);
   activeFiles.set(channel, file);
   emitAudioState();
   const release = () => { if (active.get(channel) === audio) { active.delete(channel); activeFiles.delete(channel); emitAudioState(); } };
-  audio.addEventListener("ended", release, { once: true });
-  audio.addEventListener("error", release, { once: true });
+  audio.onended = release;
+  audio.onerror = release;
   audio.play().catch(error => {
     release();
     platformLogger.warn("audio", "Playback could not start", { channel, file, error });

@@ -1243,7 +1243,6 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         )}
         {isWinner ? (
           <>
-            <Crest initials={teamInitials(fastestTeamName || teamName)} size={88} gold />
             <div style={{ fontSize: 42, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 40px rgba(190,38,193,0.8)", margin: "8px 0" }}>{fastestTeamName}</div>
             <div style={{ font: "800 18px 'Inter'", color: "#E8C36A", letterSpacing: 2, marginBottom: 24 }}>{"That's you!"}</div>
             {/* Only show a points award when points were genuinely awarded. A

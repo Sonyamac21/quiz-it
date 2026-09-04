@@ -394,7 +394,7 @@ button, input, select, textarea { font: inherit; }
    own width doesn't move in lockstep with the viewport (it's a vw-based
    fraction of the workspace, not a fixed size) - this falls back to a single
    column on its own if the rail is ever genuinely too narrow for two. */
-.qi-mc-teams { min-height: 0; flex: 1; padding: var(--qi-space-4) var(--qi-space-5); overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); align-content: start; gap: 0 var(--qi-space-3); }
+.qi-mc-teams { min-height: 0; min-width: 0; flex: 1; padding: var(--qi-space-4) var(--qi-space-5); overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 0; }
 .qi-mc-teams__header { grid-column: 1 / -1; position: sticky; top: calc(var(--qi-space-4) * -1); z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: var(--qi-space-3); margin: calc(var(--qi-space-4) * -1) calc(var(--qi-space-5) * -1) var(--qi-space-4); padding: var(--qi-space-4) var(--qi-space-5); border-bottom: 1px solid var(--qi-border); background: rgb(16 5 34 / 0.96); }
 .qi-mc-teams__header > div { display: grid; }
 .qi-mc-teams .fbh-crest { width: 28px !important; height: 28px !important; font-size: 9px !important; }
@@ -421,9 +421,11 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-team-card { margin-bottom: var(--qi-space-3); padding: var(--qi-space-3) var(--qi-space-4); border: 1px solid var(--qi-border); border-radius: var(--qi-radius-md); background: rgb(255 255 255 / 0.045); box-shadow: var(--qi-shadow-sm); }
 .qi-mc-team-card--fastest { background: rgb(190 38 193 / 0.14); box-shadow: var(--qi-shadow-glow); }
 .qi-mc-team-card__summary { display: flex; align-items: center; gap: var(--qi-space-3); min-height: 34px; }
-.qi-mc-team-card__summary > span:nth-child(3) { font-size: 1rem !important; }
+.qi-mc-team-card__summary > span:nth-child(3) { font-size: 1rem !important; min-width: 0; overflow-wrap: anywhere; }
 .qi-mc-team-card__summary > span:last-child { color: var(--qi-accent-bright) !important; font-size: 1.35rem !important; }
-.qi-mc-team-card__answer { display: flex; align-items: center; gap: var(--qi-space-2); min-height: 34px; margin-top: var(--qi-space-2); padding-left: 3.25rem; }
+.qi-mc-team-card__answer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--qi-space-2); min-height: 34px; margin-top: var(--qi-space-2); padding-left: 0; }
+.qi-mc-team-card { min-width: 0; }
+.qi-mc-team-card__answer > button { flex-shrink: 0; white-space: nowrap; }
 .qi-mc-team-card__answer > span { font-size: var(--qi-type-sm) !important; }
 
 /* Keep the live host console inside a laptop/venue-control viewport. Width-only

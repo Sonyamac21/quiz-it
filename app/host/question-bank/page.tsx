@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HostShell, HostButton, HostInput, HostLoading, Chip } from "@/components/fable/HostConsole";
-import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
+import { useConfirmDialog, usePromptDialog } from "@/components/ui/quiz-it-ui";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -25,7 +25,7 @@ type BankQuestion = {
   created_at: string;
 };
 
-type Round = { id: string; name: string; };
+type RoundTarget = { id: string; name: string; round_type: string; questions: BankQuestion[]; table: "rounds" | "quiz_rounds"; quizName?: string };
 
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", multi_tap:"Multi Tap", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture", audio:"Music" };
 const PAGE_SIZE = 20;
@@ -37,8 +37,9 @@ const questionKey = (question: { question_text?: unknown; correct_answer?: unkno
 
 export default function QuestionBankPage() {
   const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
+  const { promptDialog, dialog: promptDialogEl } = usePromptDialog();
   const [questions, setQuestions] = useState<BankQuestion[]>([]);
-  const [rounds, setRounds] = useState<Round[]>([]);
+  const [rounds, setRounds] = useState<RoundTarget[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [status, setStatus] = useState("");
@@ -48,17 +49,21 @@ export default function QuestionBankPage() {
   type Mismatch = { roundId: string; roundName: string; index: number; question_text: string; correct_answer: string };
   const [fullRounds, setFullRounds] = useState<RoundWithQuestions[]>([]);
   const [showTypeFixer, setShowTypeFixer] = useState(false);
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
+  const [buildRoundType, setBuildRoundType] = useState("regular");
   useEffect(() => {
     (async () => {
       const supabase = createSupabaseBrowserClient();
-      const [{ data: qs }, { data: rs }, { data: frs }] = await Promise.all([
+      const [{ data: qs }, { data: rs }, { data: plans }] = await Promise.all([
         supabase.from("question_bank").select("*").order("created_at", { ascending: false }),
-        supabase.from("rounds").select("id, name").order("created_at", { ascending: false }),
-        supabase.from("rounds").select("id, name, questions").order("created_at", { ascending: false }),
+        supabase.from("rounds").select("id, name, round_type, questions").order("created_at", { ascending: false }),
+        supabase.from("quizzes").select("id,name,quiz_rounds(id,name,round_type,questions,position)").eq("archived", false).order("updated_at", { ascending: false }),
       ]);
       if (qs) setQuestions(qs);
-      if (rs) setRounds(rs);
-      if (frs) setFullRounds(frs as RoundWithQuestions[]);
+      const reusable = (rs || []).map(round => ({ ...round, questions: (round.questions || []) as BankQuestion[], table: "rounds" as const }));
+      const planRounds = (plans || []).flatMap(plan => ((plan.quiz_rounds || []) as { id: string; name: string; round_type: string; questions: BankQuestion[]; position: number }[]).sort((a, b) => a.position - b.position).map(round => ({ id: round.id, name: round.name, round_type: round.round_type, questions: round.questions || [], table: "quiz_rounds" as const, quizName: plan.name })));
+      setRounds([...planRounds, ...reusable]);
+      if (rs) setFullRounds(rs as RoundWithQuestions[]);
       setLoading(false);
     })();
   }, []);
@@ -89,9 +94,16 @@ export default function QuestionBankPage() {
     setQuestions(prev => prev.filter(q => q.id !== id));
   }
 
-  async function addToRound(q: BankQuestion, roundId: string) {
+  async function addToRound(q: BankQuestion, targetKey: string) {
+    const [table, roundId] = targetKey.split(":") as ["rounds" | "quiz_rounds", string];
+    const target = rounds.find(round => round.table === table && round.id === roundId);
+    if (!target) { setStatus("Could not find that round."); return; }
+    if (target.round_type === "multi_tap" && q.question_type !== "multi_tap") { setStatus("Only Multi Tap questions can be added to a Multi Tap round."); return; }
+    if (target.round_type === "music" && q.question_type !== "audio") { setStatus("Only music questions can be added to a Music round."); return; }
+    if (target.round_type === "hot_seat" && target.questions.length >= 5) { setStatus("That Hot Seat round already has its required 5 questions."); return; }
+    if (target.round_type === "pursuit" && target.questions.length >= 7) { setStatus("That Pursuit round already has its required 7 questions."); return; }
     const supabase = createSupabaseBrowserClient();
-    const { data: round, error: readError } = await supabase.from("rounds").select("questions").eq("id", roundId).single();
+    const { data: round, error: readError } = await supabase.from(table).select("questions").eq("id", roundId).single();
     if (readError || !round) { setStatus("Could not open that round."); return; }
     const currentQuestions = (round.questions || []) as BankQuestion[];
     if (currentQuestions.some(question => questionKey(question) === questionKey(q))) { setStatus("That question is already in this round."); return; }
@@ -100,12 +112,32 @@ export default function QuestionBankPage() {
       option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d, option_e: q.option_e, option_f: q.option_f,
       correct_answer: q.correct_answer, difficulty: q.difficulty, round_type: q.round_type,
     }];
-    const { data: saved, error: saveError } = await supabase.from("rounds").update({ questions: newQs }).eq("id", roundId).select("questions").single();
+    const { data: saved, error: saveError } = await supabase.from(table).update({ questions: newQs }).eq("id", roundId).select("questions").single();
     if (saveError) { setStatus("Question was not added: " + saveError.message); return; }
     const persistedQuestions = (saved?.questions || []) as BankQuestion[];
+    setRounds(prev => prev.map(item => item.id === roundId && item.table === table ? { ...item, questions: persistedQuestions } : item));
     setFullRounds(prev => prev.map(item => item.id === roundId ? { ...item, questions: persistedQuestions } : item));
     setStatus(`Question added. Round now has ${persistedQuestions.length}.`);
     setTimeout(() => setStatus(""), 2000);
+  }
+
+  async function buildRoundFromSelection() {
+    const selectedQuestions = selectedQuestionIds.map(id => questions.find(question => question.id === id)).filter((question): question is BankQuestion => Boolean(question));
+    if (!selectedQuestions.length) { setStatus("Select at least one question first."); return; }
+    if (buildRoundType === "multi_tap" && selectedQuestions.some(question => question.question_type !== "multi_tap")) { setStatus("A Multi Tap round can only contain Multi Tap questions."); return; }
+    if (buildRoundType === "music" && selectedQuestions.some(question => question.question_type !== "audio")) { setStatus("A Music round can only contain prepared music questions."); return; }
+    if (buildRoundType === "hot_seat" && selectedQuestions.length !== 5) { setStatus("A Hot Seat round must contain exactly 5 questions."); return; }
+    if (buildRoundType === "pursuit" && selectedQuestions.length !== 7) { setStatus("A Pursuit round must contain exactly 7 questions."); return; }
+    const name = await promptDialog("Name this new reusable round.", `New ${buildRoundType === "regular" ? "General Knowledge" : typeLabel[buildRoundType] || buildRoundType} Round`, { title: "Build a round", confirmLabel: "Create round", placeholder: "Round name" });
+    if (!name?.trim()) return;
+    const supabase = createSupabaseBrowserClient();
+    const payload = selectedQuestions.map(({ id: _id, created_at: _createdAt, topic: _topic, ...question }) => question);
+    const { data, error } = await supabase.from("rounds").insert({ name: name.trim(), round_type: buildRoundType, difficulty: "mixed", questions: payload, hide_leaderboard: false, allow_power_cards: true, points_per_question: null }).select("id,name,questions").single();
+    if (error || !data) { setStatus("Round was not created: " + (error?.message || "Unknown error")); return; }
+    setRounds(prev => [...prev, { id: data.id, name: data.name, round_type: buildRoundType, questions: (data.questions || []) as BankQuestion[], table: "rounds" }]);
+    setFullRounds(prev => [...prev, { id: data.id, name: data.name, questions: (data.questions || []) as BankQuestion[] }]);
+    setSelectedQuestionIds([]);
+    setStatus(`Created “${data.name}” with ${selectedQuestions.length} question${selectedQuestions.length === 1 ? "" : "s"}.`);
   }
 
   const byType = filter === "all" ? questions : questions.filter(q => q.question_type === filter);
@@ -115,6 +147,14 @@ export default function QuestionBankPage() {
   });
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const visibleQuestions = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const roundUnavailableReason = (round: RoundTarget, question: BankQuestion): string => {
+    if (round.questions.some(existing => questionKey(existing) === questionKey(question))) return "already added";
+    if (round.round_type === "multi_tap" && question.question_type !== "multi_tap") return "Multi Tap questions only";
+    if (round.round_type === "music" && question.question_type !== "audio") return "music questions only";
+    if (round.round_type === "hot_seat" && round.questions.length >= 5) return "full (5 questions)";
+    if (round.round_type === "pursuit" && round.questions.length >= 7) return "full (7 questions)";
+    return "";
+  };
 
   return (
     <HostShell>
@@ -168,6 +208,15 @@ export default function QuestionBankPage() {
           ))}
         </div>
 
+        <section className="fbh-panel" style={{ marginBottom: 18, padding: 14, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }} aria-label="Build a round from selected questions">
+          <div style={{ minWidth: 180, flex: 1 }}><strong style={{ display: "block", font: "700 14px 'Inter'" }}>Build a round</strong><span style={{ color: "#B9A8D9", font: "400 11px 'Inter'" }}>{selectedQuestionIds.length ? `${selectedQuestionIds.length} question${selectedQuestionIds.length === 1 ? "" : "s"} selected` : "Select question cards below"}</span></div>
+          <select value={buildRoundType} onChange={event => setBuildRoundType(event.target.value)} aria-label="New round type" style={selectStyle}>
+            <option value="regular">General Knowledge</option><option value="bonus">Bonus / Themed</option><option value="music">Music</option><option value="multi_tap">Multi Tap</option><option value="pursuit">The Pursuit</option><option value="hot_seat">Hot Seat</option>
+          </select>
+          <HostButton onClick={buildRoundFromSelection} disabled={!selectedQuestionIds.length} style={{ height: 34, padding: "0 12px", fontSize: 11 }}>CREATE ROUND</HostButton>
+          {selectedQuestionIds.length > 0 && <HostButton onClick={() => setSelectedQuestionIds([])} style={{ height: 34, padding: "0 10px", fontSize: 11 }}>Clear</HostButton>}
+        </section>
+
         {loading && <HostLoading title="Question Bank" note="Loading saved questions…" />}
         {!loading && filtered.length === 0 && (
           <p style={{ textAlign: "center", color: "#6B5A8E", font: "400 13px 'Inter'" }}>
@@ -184,6 +233,7 @@ export default function QuestionBankPage() {
           return (
           <article key={q.id} className="fbh-panel" style={{ margin: 0, padding: 14, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", color: selectedQuestionIds.includes(q.id) ? "#2EE06E" : "#B9A8D9", font: "600 11px 'Inter'" }}><input type="checkbox" checked={selectedQuestionIds.includes(q.id)} onChange={event => setSelectedQuestionIds(prev => event.target.checked ? [...prev, q.id] : prev.filter(id => id !== q.id))} /> Select</label>
               <span className="fbh-chip">{typeLabel[q.question_type] || q.question_type}</span>
               <span style={{ color: "#B9A8D9", font: "500 11px 'Inter'" }}>{q.difficulty}</span>
               <div style={{ flex: 1 }} />
@@ -220,11 +270,8 @@ export default function QuestionBankPage() {
               {rounds.length > 0 && (
                 <select aria-label={`Add ${q.question_text} to round`} onChange={e => { if (e.target.value) { addToRound(q, e.target.value); } e.target.value = ""; }} style={selectStyle}>
                   <option value="">Add to round…</option>
-                  {rounds.map(r => {
-                    const fullRound = fullRounds.find(item => item.id === r.id);
-                    const alreadyAdded = fullRound?.questions.some(question => questionKey(question) === questionKey(q));
-                    return <option key={r.id} value={r.id} disabled={alreadyAdded}>{r.name}{alreadyAdded ? " — already added" : ""}</option>;
-                  })}
+                  {[...new Set(rounds.filter(round => round.table === "quiz_rounds").map(round => round.quizName || "Quiz Plan"))].map(quizName => <optgroup key={quizName} label={quizName}>{rounds.filter(round => round.table === "quiz_rounds" && (round.quizName || "Quiz Plan") === quizName).map(round => { const unavailable = roundUnavailableReason(round, q); return <option key={`quiz_rounds:${round.id}`} value={`quiz_rounds:${round.id}`} disabled={Boolean(unavailable)}>{round.name}{unavailable ? ` — ${unavailable}` : ""}</option>; })}</optgroup>)}
+                  {rounds.some(round => round.table === "rounds") && <optgroup label="Reusable Round Library">{rounds.filter(round => round.table === "rounds").map(round => { const unavailable = roundUnavailableReason(round, q); return <option key={`rounds:${round.id}`} value={`rounds:${round.id}`} disabled={Boolean(unavailable)}>{round.name}{unavailable ? ` — ${unavailable}` : ""}</option>; })}</optgroup>}
                 </select>
               )}
               <HostButton onClick={() => deleteQuestion(q.id)} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Delete</HostButton>
@@ -235,6 +282,7 @@ export default function QuestionBankPage() {
         {!loading && filtered.length > PAGE_SIZE && <nav className="qi-bo-pagination" aria-label="Question pages"><HostButton disabled={page === 1} onClick={() => setPage(value => Math.max(1, value - 1))}>Previous</HostButton><span>Page {page} of {pageCount}</span><HostButton disabled={page === pageCount} onClick={() => setPage(value => Math.min(pageCount, value + 1))}>Next</HostButton></nav>}
       </main>
       {confirmDialogEl}
+      {promptDialogEl}
     </HostShell>
   );
 }

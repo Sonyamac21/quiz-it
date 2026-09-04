@@ -591,6 +591,7 @@ async function generateOne(
 BEFORE writing any question, ask yourself: "Would 8 friends sitting in a pub enjoy answering this?" If no, do not write it.
 FIRST-PASS CHECK (do silently): consider several different facts and entities; reject any that paraphrase an excluded question or reuse its entity, answer or knowledge test; then choose the strongest stable fact with one clear natural answer. Check only player-visible content for venue suitability—unseen plots, lyrics and themes do not make a mainstream work unsuitable.
 TOPIC: ${topic}
+${roundType === "bonus" ? `BONUS THEME CONTRACT: Every question must directly test the host's theme "${theme || topic}". Use a different fact and subject for each question. Do not drift into movie/music trivia merely associated with the theme. For a colour theme, ask about colours themselves in varied contexts (nature, flags, everyday objects, art or sport), not the name of a film with colourful characters. All text must stand alone: never say "this bird", "this picture" or "this song" without supplied media. Prefer natural, specific questions over tenuous associations.` : ""}
 TYPE: ${typeInstructions[type]}
 DIFFICULTY: ${difficulty === "easy" ? "EASY - almost everyone in the room should get this right" : difficulty === "hard" ? "HARD - a well-informed pub team might know this, but it is still based on widely-known popular culture or history, never specialist academic knowledge" : "MEDIUM - a mixed group of adults has a fair chance, about half the room gets it right"}
 TONE AND STYLE:
@@ -1219,6 +1220,11 @@ export async function generateValidatedRound(
     types = shuffle(Array.from({ length: count }, (_, i) => ["multiple_choice", "text_answer", "number", "sequence"][i % 4]));
   } else if (roundType === "hot_seat") {
     types = shuffle(Array.from({ length: count }, (_, i) => ["multiple_choice", "text_answer", "number", "sequence"][i % 4]));
+  } else if (roundType === "bonus") {
+    // A short themed bonus round must not inherit the regular round's
+    // mandatory picture/music slots: those force tenuous links and leave
+    // simple themes short after media and theme validation reject them.
+    types = shuffle(Array.from({ length: count }, (_, i) => ["multiple_choice", "text_answer", "multiple_choice", "text_answer", "number"][i % 5]));
   } else {
     // Guarantee the five commercial core formats once a round has at least
     // five questions, then distribute remaining slots by largest remainder.

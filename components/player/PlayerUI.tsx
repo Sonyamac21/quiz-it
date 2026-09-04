@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { teamInitials } from "@/components/TeamBadge";
+import { getMediaUrl } from "@/lib/getMediaUrl";
 
 export function PlayerShell({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`qi-player-shell ${className}`.trim()}>{children}</div>;
@@ -34,7 +35,7 @@ export function PlayerStatusBar({ teamName, roundName, powerCardsEnabled = true,
     <header className="qi-player-status" aria-label="Player status">
       {showPhoto ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className="qi-player-status__crest qi-player-status__crest--photo" src={photoUrl as string} alt="" aria-hidden="true" onError={() => setPhotoFailed(true)} />
+        <img className="qi-player-status__crest qi-player-status__crest--photo" src={getMediaUrl(photoUrl) ?? undefined} alt="Your team photo" onError={() => setPhotoFailed(true)} />
       ) : (
         <span className="qi-player-status__crest" aria-hidden="true">{teamInitials(teamName)}</span>
       )}

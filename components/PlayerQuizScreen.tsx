@@ -130,7 +130,7 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
   );
 }
 
-function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAnswerText, onSubmit, questionIndex, timeLeft, purple, font, bg, teamName, sessionPin, roundNumber, allowPowerCards, points }: {
+function PictureQuestion({ imageUrl, questionText, onSubmit, questionIndex, timeLeft, purple, font, bg, teamName, sessionPin, roundNumber, allowPowerCards, points, submitted }: {
   imageUrl: string; questionText: string; submitted: boolean; answerText: string;
   setAnswerText: (v: string) => void; onSubmit: (a: string) => void;
   questionIndex: number; timeLeft: number | null; purple: string; font: string; bg: string;
@@ -139,70 +139,51 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
 }) {
   const [imageDismissed, setImageDismissed] = React.useState(false);
   const [imageFailed, setImageFailed] = React.useState(false);
-
-  if (!imageDismissed) {
-    return (
-      <div onClick={() => setImageDismissed(true)}
-        style={{ height:"100dvh", overflow:"hidden", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative", padding:16 }}>
-        {points !== undefined && <div style={{ color: "#D94FDC", fontWeight: 800, marginBottom: 12 }}>Your team: {points} pts</div>}
-        {!imageFailed ? (
-          <img src={imageUrl} alt="Quiz" onError={() => setImageFailed(true)} style={{ maxWidth:"100%", maxHeight:"75vh", borderRadius:16, objectFit:"contain", boxShadow:"0 0 40px rgba(190,38,193,0.3)" }} />
-        ) : (
-          <div style={{ width:"80%", maxWidth:340, padding:"40px 24px", borderRadius:16, background:"#150A2E", border:"1px solid #2E1A52", textAlign:"center" as const }}>
-            <div style={{ font:"800 17px 'Inter'", color:"#fff" }}>Image could not be loaded</div>
-            <div style={{ font:"600 14px 'Inter'", color:"#B9A8D9", marginTop:8 }}>Listen for the host to read the question</div>
-          </div>
-        )}
-        <div style={{ marginTop:22, font:"800 16px 'Inter'", color:"#D94FDC", letterSpacing:2 }}>TAP TO ANSWER →</div>
-        {timeLeft !== null && timeLeft > 0 && (
-          <div style={{ position:"absolute", top:20, right:20, width:44, height:44, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"2px solid "+(timeLeft<=3?"#ef4444":purple), display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:800, color:timeLeft<=3?"#ef4444":purple, fontFamily:font }}>
-            {timeLeft}
-          </div>
-        )}
-      </div>
-    );
-  }
+  React.useEffect(() => {
+    setImageDismissed(false);
+    setImageFailed(false);
+  }, [questionIndex, imageUrl]);
 
   return (
-    // Outer frame is fixed to the viewport (matches the main question screen's
-    // pattern) - it never scrolls itself. Previously the WHOLE screen scrolled
-    // unconditionally, including the header and Power Cards footer, which
-    // could disappear off-screen while answering. Only the middle content
-    // (image/question/keypad) scrolls, and only as a safety net if it's
-    // genuinely too tall for the screen - the image height and text/keypad
-    // spacing below are also now viewport-relative so that's rare in practice.
-    <div style={{ height:"100dvh", overflow:"hidden", background:bg, display:"flex", flexDirection:"column", padding:"clamp(12px,3dvh,20px) 20px", boxSizing:"border-box" as const, fontFamily:font, color:"#fff" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:"clamp(8px,2dvh,14px)", flexShrink:0 }}>
-        <div style={{ fontSize:11, letterSpacing:3, color:"rgba(255,255,255,0.3)" }}>Q{questionIndex+1} — PICTURE ROUND</div>
-        {points !== undefined && <div style={{ color: "#D94FDC", fontWeight: 800 }}>{points} pts</div>}
-      {timeLeft !== null && timeLeft > 0 && (
-          <div style={{ marginLeft:"auto", width:40, height:40, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"2px solid "+(timeLeft<=3?"#ef4444":purple), display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:timeLeft<=3?"#ef4444":purple }}>
+    <div className="qi-player-state qi-player-question-screen" style={{ height:"100dvh", overflow:"hidden", background:bg, display:"flex", flexDirection:"column", boxSizing:"border-box", fontFamily:font, color:"#fff" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, minHeight:44, marginBottom:8, flexShrink:0 }}>
+        <div style={{ fontSize:11, color:"#B9A8D9" }}>Q{questionIndex+1} · PICTURE</div>
+        {points !== undefined && <div style={{ color:purple, fontWeight:800 }}>{points} pts</div>}
+        {timeLeft !== null && timeLeft > 0 && (
+          <div style={{ marginLeft:"auto", flexShrink:0, width:44, height:44, borderRadius:"50%", border:"2px solid currentColor", display:"grid", placeItems:"center", fontSize:19, fontWeight:800, color:timeLeft<=3?"#ef4444":purple }}>
             {timeLeft}
           </div>
         )}
       </div>
-      <div style={{ flex:1, minHeight:0, overflowY:"auto", WebkitOverflowScrolling:"touch" as const, display:"flex", flexDirection:"column" }}>
-      {!imageFailed ? (
-        <img src={imageUrl} alt="Quiz" onError={() => setImageFailed(true)} style={{ width:"100%", maxHeight:"30dvh", objectFit:"contain", borderRadius:12, marginBottom:"clamp(8px,2dvh,16px)" }} />
-      ) : (
-        <div style={{ width:"100%", padding:"24px 16px", borderRadius:12, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", textAlign:"center" as const, marginBottom:"clamp(8px,2dvh,16px)" }}>
-          <div style={{ fontSize:28, marginBottom:8 }}>🖼️</div>
-          <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", fontFamily:font }}>Image could not be loaded — listen for the host</div>
-        </div>
-      )}
-      <div style={{ fontSize:16, fontWeight:700, lineHeight:1.4, marginBottom:"clamp(8px,2dvh,16px)", color:"#fff" }}>{questionText}</div>
-      {!submitted ? (
-        <AnswerKeypad mode="text" onSubmit={onSubmit} />
-      ) : (
-        <div style={{ padding:"14px 18px", borderRadius:12, background:"rgba(190,38,193,0.15)", border:"1px solid rgba(190,38,193,0.4)", textAlign:"center" }}>
-          <div style={{ fontSize:15, color:purple, fontWeight:700 }}>Answer Submitted!</div>
-          <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginTop:4 }}>Waiting for host...</div>
-        </div>
-      )}
+      {/* Only the centre swaps; the same header and card footer remain mounted. */}
+      <div style={{ flex:"1 1 0", minHeight:0, overflowY:"auto", display:"flex", flexDirection:"column" }}>
+        {!imageDismissed ? (
+          <button type="button" aria-label="Hide picture and answer" onClick={() => setImageDismissed(true)}
+            style={{ flex:1, minHeight:0, width:"100%", border:0, background:"transparent", color:purple, padding:0, display:"flex", flexDirection:"column", alignItems:"center", gap:12, cursor:"pointer" }}>
+            {!imageFailed ? (
+              <img src={imageUrl} alt="Quiz picture" onError={() => setImageFailed(true)} style={{ flex:1, minHeight:0, width:"100%", objectFit:"contain", borderRadius:14 }} />
+            ) : (
+              <div style={{ flex:1, display:"grid", placeItems:"center", color:"#B9A8D9" }}>Image could not be loaded — listen for the host</div>
+            )}
+            <span style={{ flexShrink:0, padding:8, fontWeight:800 }}>TAP PICTURE TO ANSWER →</span>
+          </button>
+        ) : (
+          <>
+            <div className="qi-player-question-text">{questionText}</div>
+            {!submitted ? <AnswerKeypad mode="text" onSubmit={onSubmit} /> : (
+              <div style={{ padding:18, borderRadius:12, background:"rgba(190,38,193,0.15)", textAlign:"center" }}>
+                <strong style={{ color:purple }}>Answer submitted!</strong>
+                <div style={{ marginTop:6, color:"#B9A8D9" }}>Waiting for host…</div>
+              </div>
+            )}
+          </>
+        )}
       </div>
-      {allowPowerCards ? <div style={{ flexShrink:0, paddingTop:12 }}>
-        <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} enabled={allowPowerCards} />
-      </div> : <div className="qi-player-cards-paused" style={{ flexShrink:0 }}>Power Cards unavailable this round</div>}
+      <div style={{ flexShrink:0, paddingTop:8, paddingBottom:24 }}>
+        {allowPowerCards
+          ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact enabled={allowPowerCards} />
+          : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+      </div>
     </div>
   );
 }
@@ -990,9 +971,17 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
   if (sessionStatus === "finished") {
     return (
-      <div className="fbl fbl-phone qi-player-state qi-player-session-complete" style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" }}>
-        <div style={{ position: "relative", zIndex: 2, fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: "clamp(22px,7vw,30px)", letterSpacing: ".08em", textShadow: "0 0 24px rgba(190,38,193,.5)" }}>THAT&apos;S A WRAP</div>
-        <div style={{ position: "relative", zIndex: 2, font: "600 clamp(14px,4vw,16px) 'Inter'", color: "#B9A8D9" }}>Thanks for playing — same tables next week.</div>
+      <div className="qi-player-state qi-player-session-complete">
+        <div className="qi-finish-brand"><span>QUIZ</span>-IT<small>Powered by Mac Entertainment</small></div>
+        <section className="qi-finish-card" aria-label="Quiz complete">
+          <div className="qi-finish-emblem" aria-hidden="true">✦</div>
+          <div className="qi-finish-eyebrow">QUIZ COMPLETE</div>
+          <h1>That&apos;s<br />a wrap!</h1>
+          <div className="qi-finish-team">{teamName}</div>
+          <p>Thanks for bringing your team<br />and playing along.</p>
+          <div className="qi-finish-signoff">Good company. Great quiz.</div>
+        </section>
+        <p className="qi-finish-note">Enjoy the rest of your evening.<br />See you at the next quiz!</p>
       </div>
     );
   }

@@ -353,7 +353,7 @@ function DisplayScreenInner() {
   // the reveal/advance cues.
   useEffect(() => {
     if (pursuitStatus !== "question" || timeLeft === null) return;
-    if (pursuitUrgentPlayedRef.current !== pursuitQIndex) {
+    if (timeLeft > 0 && pursuitUrgentPlayedRef.current !== pursuitQIndex) {
       pursuitUrgentPlayedRef.current = pursuitQIndex;
       playSound("countdown-urgent.mp3", 0.35);
     }
@@ -933,6 +933,10 @@ function DisplayScreenInner() {
       const elapsed = Math.floor((Date.now() - started) / 1000);
       const remaining = Math.max(0, duration - elapsed);
       startCountdown(remaining);
+    } else if (newPhase === "pursuit" && !data.timer_started_at) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setTimeLeft(null);
+      stopShowAudio("timer");
     }
   }
 

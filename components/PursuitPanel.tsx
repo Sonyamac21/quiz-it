@@ -390,7 +390,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
   const currentQuestion = qIndex >= 0 ? pursuitQuestions[qIndex] : null;
 
   const overlay = (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100vh", boxSizing: "border-box" as const, background: "rgba(3,6,12,0.97)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 18, padding: 24, overflowY: "auto" }}>
+    <div className="qi-pursuit-host-console" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100vh", boxSizing: "border-box" as const, background: "rgba(3,6,12,0.97)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 18, padding: 24, overflowY: "auto" }}>
       <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 26, color: "#D94FDC", letterSpacing: 4 }}>THE PURSUIT</div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -422,7 +422,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
       )}
 
       {currentQuestion && status !== "complete" && status !== "results" && (
-        <div style={{ width: "100%", maxWidth: 680, padding: "14px 18px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(217,79,220,0.25)" }}>
+        <div className="qi-pursuit-host-question" style={{ width: "100%", maxWidth: 680, padding: "14px 18px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(217,79,220,0.25)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
             <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)" }}>CURRENT QUESTION</div>
             {status === "question" && (
@@ -433,7 +433,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
                 : <span style={{ fontSize: 20, fontWeight: 800, color: (timeLeft ?? 0) <= 5 ? "#ef4444" : "#D94FDC" }}>{timeLeft ?? "—"}s</span>
             )}
           </div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "#fff" }}>{currentQuestion.question_text}</div>
+          <div className="qi-pursuit-host-question-text" style={{ fontSize: 16, fontWeight: 600, color: "#fff" }}>{currentQuestion.question_text}</div>
           <div style={{ marginTop: 10, padding: "9px 12px", borderRadius: 9, background: "rgba(46,224,110,.1)", border: "1px solid rgba(46,224,110,.35)", color: "#2EE06E", fontSize: 14, fontWeight: 800 }}>
             HOST ANSWER: {currentQuestion.correct_answer}
           </div>
@@ -452,7 +452,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
         const ordered = [...latestByTeam.values()].sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
         const orderIndex = new Map(ordered.map((a, i) => [a.team_name, i + 1]));
         return (
-          <div style={{ width: "100%", maxWidth: 680, display: "flex", flexDirection: "column", gap: 5 }}>
+          <div className="qi-pursuit-host-answers" style={{ width: "100%", maxWidth: 680, display: "flex", flexDirection: "column", gap: 5 }}>
             <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)" }}>ANSWERS IN — SUBMISSION ORDER</div>
             {teamNames.map((name) => {
               const ans = latestByTeam.get(name);
@@ -479,7 +479,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
       {/* OVERALL LEADERBOARD — stays visible through the Pursuit. Overall quiz
           score (total_points) shown alongside Pursuit status/gate, never hidden. */}
       {standings.length > 0 && status !== "intro" && (
-        <div style={{ width: "100%", maxWidth: 680 }}>
+        <div className="qi-pursuit-host-standings" style={{ width: "100%", maxWidth: 680 }}>
           <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)", marginBottom: 6 }}>OVERALL LEADERBOARD</div>
           {standings.map((s, i) => {
             const rs = race[s.team_name]?.status;

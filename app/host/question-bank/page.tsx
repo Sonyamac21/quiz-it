@@ -35,6 +35,10 @@ const questionKey = (question: { question_text?: unknown; correct_answer?: unkno
   return `${normalise(question.question_text)}|${normalise(question.correct_answer)}`;
 };
 
+// Keep the full question payload, including explanation and media playback
+// settings, but never copy the library row's identity/ownership metadata.
+const copyQuestion = (question: BankQuestion) => Object.fromEntries(Object.entries(question).filter(([key]) => !["id", "created_at", "updated_at", "user_id", "owner_id"].includes(key)));
+
 export default function QuestionBankPage() {
   const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
   const { promptDialog, dialog: promptDialogEl } = usePromptDialog();
@@ -51,6 +55,9 @@ export default function QuestionBankPage() {
   const [showTypeFixer, setShowTypeFixer] = useState(false);
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [buildRoundType, setBuildRoundType] = useState("regular");
+  const [pickerQuestion, setPickerQuestion] = useState<BankQuestion | null>(null);
+  const [roundSearch, setRoundSearch] = useState("");
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     (async () => {
       const supabase = createSupabaseBrowserClient();
@@ -107,18 +114,16 @@ export default function QuestionBankPage() {
     if (readError || !round) { setStatus("Could not open that round."); return; }
     const currentQuestions = (round.questions || []) as BankQuestion[];
     if (currentQuestions.some(question => questionKey(question) === questionKey(q))) { setStatus("That question is already in this round."); return; }
-    const newQs = [...(round.questions || []), {
-      question_text: q.question_text, question_type: q.question_type,
-      option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d, option_e: q.option_e, option_f: q.option_f,
-      correct_answer: q.correct_answer, difficulty: q.difficulty, round_type: q.round_type,
-    }];
+    const limit = target.round_type === "hot_seat" ? 5 : target.round_type === "pursuit" ? 7 : Infinity;
+    if (currentQuestions.length >= limit) { setStatus(`That round is full (${limit} questions).`); return; }
+    const newQs = [...currentQuestions, copyQuestion(q)];
     const { data: saved, error: saveError } = await supabase.from(table).update({ questions: newQs }).eq("id", roundId).select("questions").single();
     if (saveError) { setStatus("Question was not added: " + saveError.message); return; }
     const persistedQuestions = (saved?.questions || []) as BankQuestion[];
     setRounds(prev => prev.map(item => item.id === roundId && item.table === table ? { ...item, questions: persistedQuestions } : item));
     setFullRounds(prev => prev.map(item => item.id === roundId ? { ...item, questions: persistedQuestions } : item));
-    setStatus(`Question added. Round now has ${persistedQuestions.length}.`);
-    setTimeout(() => setStatus(""), 2000);
+    setStatus(`Added to “${target.name}”${target.quizName ? ` in ${target.quizName}` : " in the Round Library"}. Round now has ${persistedQuestions.length} questions.`);
+    setPickerQuestion(null);
   }
 
   async function buildRoundFromSelection() {
@@ -131,7 +136,7 @@ export default function QuestionBankPage() {
     const name = await promptDialog("Name this new reusable round.", `New ${buildRoundType === "regular" ? "General Knowledge" : typeLabel[buildRoundType] || buildRoundType} Round`, { title: "Build a round", confirmLabel: "Create round", placeholder: "Round name" });
     if (!name?.trim()) return;
     const supabase = createSupabaseBrowserClient();
-    const payload = selectedQuestions.map(({ id: _id, created_at: _createdAt, topic: _topic, ...question }) => question);
+    const payload = selectedQuestions.map(copyQuestion);
     const { data, error } = await supabase.from("rounds").insert({ name: name.trim(), round_type: buildRoundType, difficulty: "mixed", questions: payload, hide_leaderboard: false, allow_power_cards: true, points_per_question: null }).select("id,name,questions").single();
     if (error || !data) { setStatus("Round was not created: " + (error?.message || "Unknown error")); return; }
     setRounds(prev => [...prev, { id: data.id, name: data.name, round_type: buildRoundType, questions: (data.questions || []) as BankQuestion[], table: "rounds" }]);
@@ -169,7 +174,7 @@ export default function QuestionBankPage() {
           <div><strong>{filtered.length}</strong><span>Matching this view</span></div>
           <div><strong>{rounds.length}</strong><span>Available rounds</span></div>
         </section>
-        {status && <p style={{ textAlign: "center", color: "#D94FDC", font: "600 13px 'Inter'", marginBottom: 16 }}>{status}</p>}
+        {status && <div role="status" style={{ padding: 12, border: "1px solid #4D3175", borderRadius: 10, color: "#D9CCF2", font: "600 13px 'Inter'", marginBottom: 16 }}>{status}<button type="button" onClick={() => setStatus("")} style={{ marginLeft: 12, background: "none", border: 0, color: "#D94FDC", cursor: "pointer" }}>Dismiss</button><div style={{ marginTop: 8 }}><Link href="/host/rounds">Open Round Library</Link> · <Link href="/host/quizzes">Open Quiz Plans / add a saved round</Link></div></div>}
         {numberTypeMismatches.length > 0 && (
           <div className="fbh-panel" style={{ marginBottom: 20, border: "1px solid rgba(250,204,21,0.4)", background: "rgba(250,204,21,0.06)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setShowTypeFixer(v => !v)}>
@@ -208,13 +213,14 @@ export default function QuestionBankPage() {
           ))}
         </div>
 
-        <section className="fbh-panel" style={{ marginBottom: 18, padding: 14, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }} aria-label="Build a round from selected questions">
+        <section className="fbh-panel" style={{ marginBottom: 18, padding: 14, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", position: "sticky", bottom: 0, zIndex: 10 }} aria-label="Build a round from selected questions">
           <div style={{ minWidth: 180, flex: 1 }}><strong style={{ display: "block", font: "700 14px 'Inter'" }}>Build a round</strong><span style={{ color: "#B9A8D9", font: "400 11px 'Inter'" }}>{selectedQuestionIds.length ? `${selectedQuestionIds.length} question${selectedQuestionIds.length === 1 ? "" : "s"} selected` : "Select question cards below"}</span></div>
           <select value={buildRoundType} onChange={event => setBuildRoundType(event.target.value)} aria-label="New round type" style={selectStyle}>
             <option value="regular">General Knowledge</option><option value="bonus">Bonus / Themed</option><option value="music">Music</option><option value="multi_tap">Multi Tap</option><option value="pursuit">The Pursuit</option><option value="hot_seat">Hot Seat</option>
           </select>
-          <HostButton onClick={buildRoundFromSelection} disabled={!selectedQuestionIds.length} style={{ height: 34, padding: "0 12px", fontSize: 11 }}>CREATE ROUND</HostButton>
+          <HostButton onClick={async () => { setSaving(true); try { await buildRoundFromSelection(); } finally { setSaving(false); } }} disabled={saving || !selectedQuestionIds.length} style={{ height: 34, padding: "0 12px", fontSize: 11 }}>{saving ? "SAVING…" : "CREATE ROUND"}</HostButton>
           {selectedQuestionIds.length > 0 && <HostButton onClick={() => setSelectedQuestionIds([])} style={{ height: 34, padding: "0 10px", fontSize: 11 }}>Clear</HostButton>}
+          {selectedQuestionIds.length > 0 && <details style={{ width: "100%" }}><summary style={{ cursor: "pointer", color: "#D94FDC" }}>Preview and reorder selected questions</summary><ol style={{ maxHeight: 220, overflowY: "auto", paddingLeft: 24 }}>{selectedQuestionIds.map((id, index) => <li key={id} style={{ margin: "8px 0", fontSize: 12 }}>{questions.find(question => question.id === id)?.question_text}<div><button disabled={index === 0} onClick={() => setSelectedQuestionIds(prev => { const next = [...prev]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}>Move up</button> <button disabled={index === selectedQuestionIds.length - 1} onClick={() => setSelectedQuestionIds(prev => { const next = [...prev]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })}>Move down</button> <button onClick={() => setSelectedQuestionIds(prev => prev.filter(value => value !== id))}>Remove</button></div></li>)}</ol></details>}
         </section>
 
         {loading && <HostLoading title="Question Bank" note="Loading saved questions…" />}
@@ -267,13 +273,7 @@ export default function QuestionBankPage() {
             )}
             <div style={{ color: "#2EE06E", font: "600 12px/1.35 'Inter'", marginTop: 6 }}>→ {q.correct_answer}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-              {rounds.length > 0 && (
-                <select aria-label={`Add ${q.question_text} to round`} onChange={e => { if (e.target.value) { addToRound(q, e.target.value); } e.target.value = ""; }} style={selectStyle}>
-                  <option value="">Add to round…</option>
-                  {[...new Set(rounds.filter(round => round.table === "quiz_rounds").map(round => round.quizName || "Quiz Plan"))].map(quizName => <optgroup key={quizName} label={quizName}>{rounds.filter(round => round.table === "quiz_rounds" && (round.quizName || "Quiz Plan") === quizName).map(round => { const unavailable = roundUnavailableReason(round, q); return <option key={`quiz_rounds:${round.id}`} value={`quiz_rounds:${round.id}`} disabled={Boolean(unavailable)}>{round.name}{unavailable ? ` — ${unavailable}` : ""}</option>; })}</optgroup>)}
-                  {rounds.some(round => round.table === "rounds") && <optgroup label="Reusable Round Library">{rounds.filter(round => round.table === "rounds").map(round => { const unavailable = roundUnavailableReason(round, q); return <option key={`rounds:${round.id}`} value={`rounds:${round.id}`} disabled={Boolean(unavailable)}>{round.name}{unavailable ? ` — ${unavailable}` : ""}</option>; })}</optgroup>}
-                </select>
-              )}
+              <HostButton onClick={() => { setPickerQuestion(q); setRoundSearch(""); }} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Add to round…</HostButton>
               <HostButton onClick={() => deleteQuestion(q.id)} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Delete</HostButton>
             </div>
           </article>
@@ -283,6 +283,7 @@ export default function QuestionBankPage() {
       </main>
       {confirmDialogEl}
       {promptDialogEl}
+      {pickerQuestion && <div className="qi-confirm"><button className="qi-confirm__scrim" aria-label="Close round picker" onClick={() => setPickerQuestion(null)} /><section className="qi-confirm__panel" role="dialog" aria-modal="true" aria-label="Choose a round"><h2>Add question to a round</h2><p>{pickerQuestion.question_text}</p><HostInput autoFocus placeholder="Search Quiz Plans or round names…" value={roundSearch} onChange={event => setRoundSearch(event.target.value)} aria-label="Search destination rounds" /><div style={{ maxHeight: "45vh", overflowY: "auto", marginTop: 12 }}>{rounds.filter(round => `${round.quizName || "Reusable Round Library"} ${round.name}`.toLowerCase().includes(roundSearch.toLowerCase())).map(round => { const reason = roundUnavailableReason(round, pickerQuestion); return <HostButton key={`${round.table}:${round.id}`} disabled={saving || Boolean(reason)} onClick={async () => { setSaving(true); try { await addToRound(pickerQuestion, `${round.table}:${round.id}`); } finally { setSaving(false); } }} style={{ width: "100%", height: "auto", padding: 10, marginBottom: 6, textAlign: "left", display: "block" }}><small style={{ display: "block", color: "#B9A8D9" }}>{round.quizName || "Reusable Round Library"}</small>{round.name} · {round.questions.length} questions{reason ? ` — ${reason}` : ""}</HostButton>; })}{!rounds.length && <p>No rounds yet. Close this picker and use Build a round.</p>}</div><HostButton onClick={() => setPickerQuestion(null)}>Close</HostButton></section></div>}
     </HostShell>
   );
 }

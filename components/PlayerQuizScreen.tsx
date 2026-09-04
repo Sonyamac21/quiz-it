@@ -1445,7 +1445,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     ].filter(o => o.text) as { key: string; text: string }[];
 
     return (
-      <div className="qi-player-state qi-player-question-screen" style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
+      <div className="qi-player-state qi-player-question-screen" data-answer-type={question.question_type} style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
         <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         {/* Only this inner area scrolls if content is too tall for the screen -
             the page itself never scrolls, and Power Cards (outside this div)
@@ -1492,7 +1492,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
         {isMultiTap && (
           <div className="fbl" style={{ marginBottom: 16 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+            <div className="qi-player-multitap-grid" style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
               {multiTapOptions.map(opt => {
                 const isTapped = tappedItems.includes(opt.key);
                 return (

@@ -1672,6 +1672,9 @@ button, input, select, textarea { font: inherit; }
 .qi-player-loading span { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(217,79,220,.25); border-top-color: #d94fdc; animation: qiPlayerSpin .8s linear infinite; }
 
 .qi-player-live-root { position: fixed; inset: 0; min-height: 100dvh; background: #090116; overflow: hidden; }
+/* The join-page header must not overlay the active game's own status bar. */
+.qi-player-experience:has(.qi-player-live-root) > .qi-site-header,
+.qi-player-experience:has(.qi-player-live-root) > footer { display: none; }
 .qi-player-state,.qi-player-shell { min-height: 100dvh; max-width: 100vw; overflow-x: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(12px,env(safe-area-inset-top)); padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); padding-bottom: max(14px,env(safe-area-inset-bottom)); padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
 .qi-player-status { width: 100%; min-height: 56px; flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 0 12px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 14px; position: relative; z-index: 5; }
 .qi-player-status__crest { width: 38px; height: 38px; flex: none; display: grid; place-items: center; clip-path: polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); background: linear-gradient(145deg,#8a1b8d,#211044); border: 1px solid #d94fdc; font-size: 12px; font-weight: 900; }
@@ -1710,7 +1713,7 @@ button, input, select, textarea { font: inherit; }
 .qi-player-question-screen .fbl .lockbar { min-height: clamp(44px,8dvh,80px); border-radius: 18px; margin-top: clamp(8px,2dvh,16px); font-size: clamp(16px,3.6dvh,24px); letter-spacing: .12em; touch-action: manipulation; }
 .qi-player-answer-button { min-height: clamp(46px,9dvh,92px) !important; border-radius: 18px !important; background: var(--qi-player-raised) !important; font-size: clamp(17px,5.6vw,28px) !important; font-weight: 700; font-family: 'Inter', sans-serif; line-height: 1.2; touch-action: manipulation; }
 .qi-player-answer-button.is-selected { background: rgba(190,38,193,.27) !important; border: 2px solid #d94fdc !important; box-shadow: 0 0 0 4px rgba(217,79,220,.1) !important; }
-.qi-player-result { width: 100%; padding: 20px; border-radius: 20px; text-align: center; border: 2px solid rgba(217,79,220,.45); background: rgba(190,38,193,.13); margin: auto 0 16px; }
+.qi-player-result { width: 100%; padding: 20px; border-radius: 20px; text-align: center; border: 2px solid rgba(217,79,220,.45); background: rgba(190,38,193,.13); margin: 12px 0 16px; }
 .qi-player-result strong { display: block; font-family: var(--font-logo),"Bruno Ace SC",sans-serif; font-size: clamp(25px,8vw,38px); letter-spacing: .08em; }
 .qi-player-result>div { margin-top: 10px; color: #fff; font-size: clamp(16px,4.6vw,21px); font-weight: 750; }
 .qi-player-result--correct { border-color: rgba(46,224,110,.62); background: rgba(46,224,110,.12); color: #64ed99; }
@@ -1773,6 +1776,27 @@ button, input, select, textarea { font: inherit; }
 @media (prefers-reduced-motion: reduce) { .qi-health-overlay * { scroll-behavior: auto !important; transition-duration: .001ms !important; animation-duration: .001ms !important; } }
 
 .qi-player-live-root .fbl [style*="aspect-ratio: 2 / 3"] { border-radius: 14px !important; }
+/* Handset controls stay secondary to the question/result, on every round. */
+.qi-player-live-root .qi-player-card-rail { width: 100%; justify-content: center; }
+.qi-player-live-root .qi-player-card-rail > button {
+  aspect-ratio: auto !important;
+  height: clamp(58px, 10dvh, 82px);
+  min-height: 48px;
+  max-width: 140px !important;
+}
+.qi-player-celebration {
+  justify-content: flex-start !important;
+  padding-top: max(24px, env(safe-area-inset-top)) !important;
+  padding-bottom: max(48px, env(safe-area-inset-bottom)) !important;
+  overflow-y: auto !important;
+}
+.qi-player-celebration > * { flex-shrink: 0; }
+.qi-player-celebration > .fbl { width: min(100%, 440px); margin-top: 12px; }
+.qi-player-outcome-heading { font-size: clamp(24px, 7vw, 34px); font-weight: 850; text-align: center; margin: 12px 0; }
+.qi-player-outcome-question { max-width: 440px; font-size: clamp(16px, 4.5vw, 21px); line-height: 1.4; color: #d9ccec; text-align: center; margin-bottom: 20px; }
+.qi-player-answer-comparison { max-width: 440px !important; }
+.qi-player-answer-comparison > div > div:first-child { color: #b9a8d9 !important; font-size: 12px !important; }
+.qi-player-answer-comparison > div > div:last-child { font-size: clamp(22px, 6vw, 30px) !important; font-weight: 800; overflow-wrap: anywhere; }
 .qi-player-live-root button:focus-visible,.qi-player-experience button:focus-visible,.qi-player-experience input:focus-visible,.qi-player-live-root input:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 .qi-player-live-root button { -webkit-tap-highlight-color: transparent; }
 
@@ -1817,8 +1841,7 @@ button, input, select, textarea { font: inherit; }
 }
 @media (orientation: landscape) and (max-height: 540px) {
   .qi-player-state { padding-top: max(8px,env(safe-area-inset-top)); }
-  .qi-player-status { position: absolute; top: 6px; left: var(--qi-player-pad); right: var(--qi-player-pad); width: auto; }
-  .qi-player-question-scroll { padding-top: 58px; }
+  .qi-player-status { position: relative; flex-shrink: 0; }
   .qi-player-question-screen .fbl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
 }
 @media (prefers-reduced-motion: reduce) {

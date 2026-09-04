@@ -1969,13 +1969,13 @@ function QuizControllerInner() {
             )}
           </section>
 
-          <section className="qi-mc-teams">
+          <section className="qi-mc-teams" aria-label="Team standings list" style={{ display: "block", minWidth: 0 }}>
             <div className="qi-mc-teams__header"><div><span>Live answers</span><strong>Teams & scores</strong></div><StatusPill tone="live">{answers.length}/{teams.length} answered</StatusPill></div>
             {scores.length === 0 && teams.length > 0 && (
               <>
                 <button onClick={() => ensureScores(sessionPin, teams)} style={{ width:"100%", padding:"9px", borderRadius:10, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:12 }}>Initialise Scores</button>
                 {teams.map(t => (
-                  <div key={t.id} className="qi-mc-team-card">
+                  <div key={t.id} className="qi-mc-team-card" style={{ width: "100%", boxSizing: "border-box" }}>
                     <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                       <TeamBadge name={t.team_name} size={20} avatarUrl={t.photo_approved ? t.photo_url : null} style={{ fontSize:7, flexShrink:0 }} />
                       <span style={{ fontWeight:700, fontSize:13, flex:1, color:"#fff" }}>{t.team_name}</span>
@@ -1994,8 +1994,8 @@ function QuizControllerInner() {
               const medal = i===0 ? "gold" : i===1 ? "silver" : i===2 ? "#cd7f32" : null;
               const isFastest = s.team_name === fastestTeam;
               return (
-                <div key={s.team_name} className={`qi-mc-team-card${isFastest ? " qi-mc-team-card--fastest" : ""}`} style={{ borderColor:isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}>
-                  <div className="qi-mc-team-card__summary">
+                <div key={s.team_name} className={`qi-mc-team-card${isFastest ? " qi-mc-team-card--fastest" : ""}`} style={{ width: "100%", boxSizing: "border-box", borderColor:isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}>
+                  <div className="qi-mc-team-card__summary" style={{ display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) 8px auto", gap: 8 }}>
                     <span style={{ fontSize:16, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
                     <TeamBadge name={s.team_name} size={20} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:7, flexShrink:0 }} />
                     <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff" }}>{s.team_name}{isFastest?" ⚡":""}</span>

@@ -130,11 +130,12 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
   );
 }
 
-function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAnswerText, onSubmit, questionIndex, timeLeft, purple, font, bg, teamName, sessionPin, roundNumber, allowPowerCards }: {
+function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAnswerText, onSubmit, questionIndex, timeLeft, purple, font, bg, teamName, sessionPin, roundNumber, allowPowerCards, points }: {
   imageUrl: string; questionText: string; submitted: boolean; answerText: string;
   setAnswerText: (v: string) => void; onSubmit: (a: string) => void;
   questionIndex: number; timeLeft: number | null; purple: string; font: string; bg: string;
   teamName: string; sessionPin: string; roundNumber: number; allowPowerCards: boolean;
+  points?: number;
 }) {
   const [imageDismissed, setImageDismissed] = React.useState(false);
   const [imageFailed, setImageFailed] = React.useState(false);
@@ -143,6 +144,7 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
     return (
       <div onClick={() => setImageDismissed(true)}
         style={{ height:"100dvh", overflow:"hidden", background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative", padding:16 }}>
+        {points !== undefined && <div style={{ color: "#D94FDC", fontWeight: 800, marginBottom: 12 }}>Your team: {points} pts</div>}
         {!imageFailed ? (
           <img src={imageUrl} alt="Quiz" onError={() => setImageFailed(true)} style={{ maxWidth:"100%", maxHeight:"75vh", borderRadius:16, objectFit:"contain", boxShadow:"0 0 40px rgba(190,38,193,0.3)" }} />
         ) : (
@@ -172,6 +174,7 @@ function PictureQuestion({ imageUrl, questionText, submitted, answerText, setAns
     <div style={{ height:"100dvh", overflow:"hidden", background:bg, display:"flex", flexDirection:"column", padding:"clamp(12px,3dvh,20px) 20px", boxSizing:"border-box" as const, fontFamily:font, color:"#fff" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:"clamp(8px,2dvh,14px)", flexShrink:0 }}>
         <div style={{ fontSize:11, letterSpacing:3, color:"rgba(255,255,255,0.3)" }}>Q{questionIndex+1} — PICTURE ROUND</div>
+        {points !== undefined && <div style={{ color: "#D94FDC", fontWeight: 800 }}>{points} pts</div>}
       {timeLeft !== null && timeLeft > 0 && (
           <div style={{ marginLeft:"auto", width:40, height:40, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"2px solid "+(timeLeft<=3?"#ef4444":purple), display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:timeLeft<=3?"#ef4444":purple }}>
             {timeLeft}
@@ -253,17 +256,30 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const [hideLeaderboard, setHideLeaderboard] = useState(false);
   const [allowPowerCards, setAllowPowerCards] = useState(true);
   const [phoneScoreboardData, setPhoneScoreboardData] = useState<{team_name:string; total_points:number}[]>([]);
-  const [isFinalRound, setIsFinalRound] = useState(false);
+  const [activeSessionRoundId, setActiveSessionRoundId] = useState<string | null>(null);
+  const [scoreVisibilityRound, setScoreVisibilityRound] = useState<{ id: string; dangerZone: boolean } | null>(null);
+  useEffect(() => {
+    if (!activeSessionRoundId) return;
+    let cancelled = false;
+    const supabase = createSupabaseBrowserClient();
+    const refresh = async () => {
+      const { data } = await supabase.from("session_rounds")
+        .select("danger_zone_enabled").eq("id", activeSessionRoundId).single();
+      if (!cancelled && data) setScoreVisibilityRound({ id: activeSessionRoundId, dangerZone: !!data.danger_zone_enabled });
+    };
+    void refresh();
+    const interval = setInterval(refresh, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [activeSessionRoundId]);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
   const [roundNumber, setRoundNumber] = useState<number>(1);
-  // Host wants running points visible on the handset for every round except
-  // the final one - hidden only once isFinalRound is true, so the last
-  // round's result is the reveal moment rather than something teams can
-  // already see ticking up beforehand.
-  const myRunningPoints = isFinalRound ? undefined : (phoneScoreboardData.find(s => s.team_name === teamName)?.total_points ?? 0);
+  // Hide while resolving a new round too, so Danger Zone never flashes a score.
+  const hideRunningPoints = !!activeSessionRoundId &&
+    (scoreVisibilityRound?.id !== activeSessionRoundId || scoreVisibilityRound.dangerZone);
+  const myRunningPoints = hideRunningPoints ? undefined : (phoneScoreboardData.find(s => s.team_name === teamName)?.total_points ?? 0);
   const [roundName, setRoundName] = useState("");
   // The team's own photo (uploaded at join), shown in the status bar crest
   // instead of the initial-letter badge - but ONLY once a host has approved
@@ -453,7 +469,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     async function fetchSession() {
       const { data, error: fetchError } = await supabase
         .from("sessions")
-        .select("phase, status, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, venue_record_id, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
+        .select("current_session_round_id, phase, status, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, venue_record_id, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
         .eq("pin", sessionPin)
         .single();
       if (fetchError) {
@@ -655,7 +671,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     }
     setShowScoreboardOnPhone(!leaderboardHidden && !!data.show_scoreboard);
     setPhoneScoreboardData((data.scoreboard_data as {team_name:string; total_points:number}[]) || []);
-    setIsFinalRound(!!data.is_final_round);
+    setActiveSessionRoundId((data.current_session_round_id as string) || null);
     setSpinTargetIdx((data.spin_target_idx as number) ?? null);
     setSpinNonce((data.spin_nonce as number) ?? null);
     setBlockUntil((data.block_until as string) || null);
@@ -905,7 +921,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const stage = entry?.stage ?? 0;
     return (
       <PlayerShell className="qi-player-pursuit-observer">
-        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={false} photoUrl={teamPhotoUrl} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={false} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         <div className="qi-player-observer-label">OBSERVATION ONLY</div>
         <h1>{entry?.status === "completed" ? "FINISHED" : "ELIMINATED"}</h1>
         <div className="qi-player-observer-score"><span>Banked score</span><strong>{pursuitTotalPoints(stage)}</strong></div>
@@ -986,7 +1002,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const rankLabel = (r: number) => rankLabels[r] || String(r);
     return (
       <div className="qi-player-state qi-player-hard-deck" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const }}>
-        <PlayerStatusBar teamName={teamName} roundName="The Hard Deck" powerCardsEnabled={false} photoUrl={teamPhotoUrl} />
+        <PlayerStatusBar teamName={teamName} roundName="The Hard Deck" powerCardsEnabled={false} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: (hardDeckTeam && hardDeckStatus !== "wheel") ? 14 : 20, color: (hardDeckTeam && hardDeckStatus !== "wheel") ? "rgba(190,38,193,0.5)" : purple, letterSpacing: (hardDeckTeam && hardDeckStatus !== "wheel") ? 2 : 3, fontWeight: (hardDeckTeam && hardDeckStatus !== "wheel") ? 600 : 400 }}>THE HARD DECK</div>
 
         {/* Everyone sees the same team-select wheel and card faces, not just text -
@@ -1131,7 +1147,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       : "The Pursuit is starting soon…";
     return (
       <div className="qi-player-state qi-player-pursuit" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
-        <PlayerStatusBar teamName={teamName} roundName="The Pursuit" powerCardsEnabled={false} photoUrl={teamPhotoUrl} />
+        <PlayerStatusBar teamName={teamName} roundName="The Pursuit" powerCardsEnabled={false} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         {/* Was hardcoded to #38bdf8 (blue) - not the app's purple/magenta
             brand color at all, and out of step with the same title on the
             Display board (which uses the brand purple + glow). */}
@@ -1206,6 +1222,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const confettiColors = ["#BE26C1","#fbbf24","#22c55e","#38bdf8","#f87171","#a78bfa"];
     return (
       <div className="qi-player-state qi-player-celebration" style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, position: "relative", overflow: "hidden" }}>
+        {myRunningPoints !== undefined && <div style={{ color: "#D94FDC", fontWeight: 800, marginBottom: 12 }}>Your team total: {myRunningPoints} pts</div>}
         <style>{`
           @keyframes fall { 0% { transform: translateY(-20px) rotate(0deg); opacity:1; } 100% { transform: translateY(110vh) rotate(720deg); opacity:0; } }
           @keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.15} }
@@ -1277,6 +1294,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           const myAnswerCorrect = !!question && !!submittedAnswerText && isAnswerCorrect({ answer_text: submittedAnswerText }, question);
           return (
             <>
+              <div className="qi-player-outcome-heading">{myAnswerCorrect ? "Correct answer" : mySubmittedDisplay ? "Not quite this time" : "No answer submitted"}</div>
+              {question && <div className="qi-player-outcome-question">{question.question_text}</div>}
               {fastestTeamName && (
                 <div style={{ fontSize: 32, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 24px rgba(190,38,193,0.6)", marginBottom: 16 }}>{fastestTeamName}</div>
               )}
@@ -1286,7 +1305,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
                   <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginBottom: 24 }}>{fastestTeamName ? "Just not the fastest this time" : "Nice work!"}</div>
                 </>
               ) : (
-                <div style={{ width: "100%", maxWidth: 340, display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
+                <div className="qi-player-answer-comparison" style={{ width: "100%", maxWidth: 340, display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
                   <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 14px" }}>
                     <div style={{ fontSize: 10, letterSpacing: 1, color: "rgba(255,255,255,0.35)", marginBottom: 4 }}>YOUR ANSWER</div>
                     <div style={{ fontSize: 14, color: "#fff" }}>{mySubmittedDisplay || "(no answer submitted)"}</div>
@@ -1308,7 +1327,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   if (phase === "hot_seat" && question && hotSeatTeam === teamName && !submitted && timeLeft !== null && timeLeft <= 0) {
     return (
       <div className="qi-player-state qi-player-hot-seat">
-        <PlayerStatusBar teamName={teamName} roundName={roundName || "Hot Seat"} powerCardsEnabled={false} photoUrl={teamPhotoUrl} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName || "Hot Seat"} powerCardsEnabled={false} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         <div className="qi-player-hot-seat__state is-locked"><strong>TIME&apos;S UP</strong><span>The host will reopen the buzz.</span></div>
       </div>
     );
@@ -1319,7 +1338,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const buzzOpen = hotSeatStatus === "open" && !lockedOut;
     return (
       <div className="qi-player-state qi-player-hot-seat">
-        <PlayerStatusBar teamName={teamName} roundName={roundName || "Hot Seat"} powerCardsEnabled={false} photoUrl={teamPhotoUrl} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName || "Hot Seat"} powerCardsEnabled={false} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         <div className="qi-player-hot-seat__question">{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
         {buzzOpen ? (
           <button type="button" className="qi-player-hot-seat__buzz" onClick={claimHotSeat} disabled={buzzing}>
@@ -1425,6 +1444,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         sessionPin={sessionPin}
         roundNumber={roundNumber}
         allowPowerCards={allowPowerCards}
+        points={myRunningPoints}
       />;
     }
     const options = [
@@ -1446,11 +1466,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     return (
       <div className="qi-player-state qi-player-question-screen" data-answer-type={question.question_type} style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
         <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
-        {/* Only this inner area scrolls if content is too tall for the screen -
-            the page itself never scrolls, and Power Cards (outside this div)
-            always stays visible no matter what. */}
-        <div className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+        <div className="qi-player-timer-row" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexShrink: 0 }}>
           <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
           {timeLeft !== null && timeLeft > 0 && (
             <div style={{ marginLeft: "auto", width: 44, height: 44, borderRadius: "50%", background: timeLeft <= 3 ? "rgba(239,68,68,0.3)" : "rgba(190,38,193,0.2)", border: "2px solid " + (timeLeft <= 3 ? "#ef4444" : purple), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 800, color: timeLeft <= 3 ? "#ef4444" : purple }}>
@@ -1458,7 +1474,8 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             </div>
           )}
         </div>
-
+        {/* The timer stays outside the scroll area, below the team header. */}
+        <div className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
         <div className="qi-player-question-text">{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
         {error && (
           <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, marginBottom: 10, textAlign: "center" as const }}>{error}</div>

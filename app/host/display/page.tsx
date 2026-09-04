@@ -155,6 +155,44 @@ function DisplayFullscreenControl() {
   return <button type="button" className="qi-display-fullscreen" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}>FULLSCREEN</button>;
 }
 
+function DisplayWakeControl() {
+  const [awake, setAwake] = useState(false);
+  const [supported, setSupported] = useState(true);
+  const retry = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (!("wakeLock" in navigator)) { setSupported(false); return; }
+    let disposed = false;
+    let pending = false;
+    let lock: WakeLockSentinel | null = null;
+    const acquire = async () => {
+      if (disposed || pending || (lock && !lock.released) || document.visibilityState !== "visible") return;
+      pending = true;
+      try {
+        const next = await navigator.wakeLock.request("screen");
+        if (disposed) { await next.release(); return; }
+        lock = next;
+        setAwake(true);
+        next.addEventListener("release", () => { if (!disposed && lock === next) setAwake(false); });
+      } catch { if (!disposed) setAwake(false); }
+      finally { pending = false; }
+    };
+    retry.current = () => { void acquire(); };
+    void acquire();
+    document.addEventListener("visibilitychange", acquire);
+    return () => {
+      disposed = true;
+      retry.current = () => {};
+      document.removeEventListener("visibilitychange", acquire);
+      void lock?.release();
+    };
+  }, []);
+  return <button type="button" disabled={awake || !supported} onClick={() => retry.current()}
+    title={supported ? "Keep this display visible. Tap to retry if the device releases the wake lock." : "Use the iPad Auto-Lock settings to keep the screen on."}
+    style={{ position: "fixed", bottom: "max(12px, env(safe-area-inset-bottom))", left: 12, zIndex: 10000, padding: "10px 14px", minHeight: 44, borderRadius: 12, border: "1px solid #6B5A8E", background: "#160a31", color: awake ? "#2EE06E" : "#f2ce79", fontSize: 12 }}>
+    {awake ? "Screen staying awake" : supported ? "Keep screen awake · Tap" : "Set Auto-Lock to Never"}
+  </button>;
+}
+
 function DisplaySoundControl() {
   const [state, setState] = useState("Enable sound");
   const [busy, setBusy] = useState(false);
@@ -545,6 +583,7 @@ function DisplayScreenInner() {
 
   const prevQuizEndRevealedRef = useRef<number>(0);
   const prevPhaseForQuizEndRef = useRef<string>("");
+  const lastRoundStartCueRef = useRef<string | null>(null);
   const trophyCelebrationFiredRef = useRef(false);
   // Single source of truth for the end-of-quiz winner audio. Both the final
   // team reveal and the trophy/podium reveal used to independently start the
@@ -609,6 +648,16 @@ function DisplayScreenInner() {
       lastAppliedUpdatedAtRef.current = incomingUpdatedAt;
     }
     const newPhase = (data.phase as Phase) || "waiting";
+    const isRoundOpening = newPhase === "round_start"
+      || (newPhase === "pursuit" && readPursuitState(data).status === "intro")
+      || (newPhase === "hard_deck" && data.hard_deck_status === "wheel");
+    if (isRoundOpening) {
+      const roundKey = String(data.current_session_round_id ?? data.round_id ?? data.round_number ?? "round");
+      if (lastRoundStartCueRef.current !== roundKey) {
+        lastRoundStartCueRef.current = roundKey;
+        playSound("airhorn.mp3", 0.65);
+      }
+    }
     const spinChoiceVal = (data.spin_choice as string) || null;
     const spinNonceVal = (data.spin_nonce as number) ?? null;
     if (spinChoiceVal === "spin" && spinNonceVal !== null && spinNonceHandledRef.current !== spinNonceVal) {
@@ -800,8 +849,7 @@ function DisplayScreenInner() {
       // in public/sounds/ (playSound also swallows any missing-file error).
       const prevStatus = prevPursuitStatusRef.current;
       if (p.status !== prevStatus) {
-        if (p.status === "intro") { playSound("round-start.mp3", 0.65); }
-        else if (p.status === "reveal") { playSound("correct-chime.mp3", 0.5); }
+        if (p.status === "reveal") { playSound("correct-chime.mp3", 0.5); }
         else if (p.status === "advance") {
           const prevRace = prevPursuitRaceRef.current;
           const names = teams.map(t => t.team_name);
@@ -1914,6 +1962,7 @@ export default function DisplayScreen() {
         <DisplayScreenInner />
         <DisplayFullscreenControl />
         <DisplaySoundControl />
+        <DisplayWakeControl />
       {/* The old "persistent branding overlay" that used to sit here,
           fixed on top of every phase regardless of which internal return
           branch rendered, has been removed - it was a leftover second

@@ -421,6 +421,32 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
         <div style={{ fontSize: 12, color: "#fbbf24" }}>This round has {pursuitQuestions.length} question{pursuitQuestions.length === 1 ? "" : "s"} — The Pursuit expects {PURSUIT_TOTAL_QUESTIONS}.</div>
       )}
 
+      {status === "intro" && (
+        <div className="qi-pursuit-host-rules" style={{ width: "100%", maxWidth: 760, display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 }}>
+          <section style={{ padding: "18px 20px", borderRadius: 16, background: "linear-gradient(145deg,rgba(217,79,220,.13),rgba(255,255,255,.035))", border: "1px solid rgba(217,79,220,.38)" }}>
+            <div style={{ font: "800 11px 'Inter'", letterSpacing: 2.2, color: "#D94FDC", marginBottom: 12 }}>READ THIS TO THE ROOM</div>
+            <div style={{ font: "750 15px/1.45 'Inter'", color: "#fff", marginBottom: 10 }}>Seven questions. Every team begins on the start line.</div>
+            <ul style={{ margin: 0, paddingLeft: 19, color: "#D9CCF2", font: "600 13px/1.55 'Inter'" }}>
+              <li>A correct answer moves your team forward one gate.</li>
+              <li>One wrong answer—or no answer—eliminates you from the race.</li>
+              <li>Points build at each gate: 10, 20, 30, 40, 50, 60, then 100 for finishing.</li>
+              <li>More than one team can complete The Pursuit.</li>
+            </ul>
+          </section>
+          <section style={{ padding: "18px 20px", borderRadius: 16, background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.14)" }}>
+            <div style={{ font: "800 11px 'Inter'", letterSpacing: 2.2, color: "#E8C36A", marginBottom: 12 }}>HOST FLOW · USE SPACE</div>
+            <ol style={{ margin: 0, paddingLeft: 20, color: "#D9CCF2", font: "600 13px/1.55 'Inter'" }}>
+              <li>Show the question and read it aloud.</li>
+              <li>Start the timer.</li>
+              <li>Lock answers early, or let the timer finish.</li>
+              <li>Reveal the correct answer.</li>
+              <li>Advance the race to move or eliminate teams.</li>
+            </ol>
+            <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 9, background: "rgba(46,224,110,.09)", color: "#2EE06E", font: "700 11px/1.4 'Inter'" }}>The large button always shows your next action. Space performs that action.</div>
+          </section>
+        </div>
+      )}
+
       {currentQuestion && status !== "complete" && status !== "results" && (
         <div className="qi-pursuit-host-question" style={{ width: "100%", maxWidth: 680, padding: "14px 18px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(217,79,220,0.25)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
@@ -500,7 +526,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
 
       {(() => {
         const pursuitNextLabel =
-          status === "intro" ? "Start Question 1"
+          status === "intro" ? "Rules read · Start Question 1"
           : status === "question" ? (timerNotStarted ? "Start Timer" : answersLocked ? "Reveal Answer" : "Lock Answers")
           : status === "reveal" ? "Advance Race"
           : status === "advance" ? (canAskMore ? `Next Question (${qIndex + 2})` : "Finish Round")

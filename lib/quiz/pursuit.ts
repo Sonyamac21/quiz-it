@@ -296,6 +296,14 @@ function fuzzyMatch(answer: string, correct: string, q: PursuitQuestion): boolea
 /** True when `answerText` correctly answers question `q`. */
 export function checkPursuitAnswer(answerText: string | null | undefined, q: PursuitQuestion): boolean {
   if (!answerText) return false;
+  if (q.question_type === "multiple_choice") {
+    const submitted = answerText.trim().toLowerCase();
+    const stored = q.correct_answer.trim().toLowerCase();
+    const options: Record<string, string | null | undefined> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
+    if (/^[a-d]$/.test(stored)) return submitted === stored || normalise(answerText) === normalise(options[stored] || "");
+    const matchingKey = Object.entries(options).find(([, text]) => normalise(text || "") === normalise(q.correct_answer))?.[0];
+    return submitted === matchingKey || fuzzyMatch(answerText, q.correct_answer, q);
+  }
   if (q.question_type === "multi_tap") {
     const correctKeys = (q.correct_answer || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
     const tapped = answerText.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);

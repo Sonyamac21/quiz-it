@@ -423,11 +423,18 @@ export function JoinForm() {
         <div style={{ width:160, height:160, borderRadius:"50%", background:"rgba(255,2,255,0.06)", border:"2px dashed rgba(190,38,193,0.5)", display:"flex", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.3)", fontSize:13, textAlign:"center" as const, fontFamily:"'Inter',sans-serif" }}>No photo yet</div>
       )}
 
-      <label style={{ padding:"12px 24px", borderRadius:12, background:"rgba(190,38,193,0.2)", border:"1.5px solid #BE26C1", color:"#fff", fontSize:14, fontFamily:"'Inter',sans-serif", letterSpacing:1, cursor:"pointer" }}>
-        {photoFile ? "Change Photo" : "Choose Photo"}
+      <div style={{ width:"100%", display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+      <label style={{ padding:"12px", borderRadius:12, background:"rgba(190,38,193,0.2)", border:"1.5px solid #BE26C1", color:"#fff", fontSize:14, fontFamily:"'Inter',sans-serif", letterSpacing:1, cursor:"pointer", textAlign:"center" }}>
+        Take Photo
         <input type="file" accept="image/*" capture="environment" style={{ display:"none" }}
           onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoSelect(f); }} />
       </label>
+      <label style={{ padding:"12px", borderRadius:12, background:"rgba(190,38,193,0.2)", border:"1.5px solid #BE26C1", color:"#fff", fontSize:14, fontFamily:"'Inter',sans-serif", letterSpacing:1, cursor:"pointer", textAlign:"center" }}>
+        Camera Roll
+        <input type="file" accept="image/*" style={{ display:"none" }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoSelect(f); }} />
+      </label>
+      </div>
 
       {error && <p style={{ color:"#FF5555", fontSize:15, fontFamily:"'Inter',sans-serif", letterSpacing:1 }}>{error}</p>}
 

@@ -91,6 +91,16 @@ export function getCorrectAnswerText(q: ScorableQuestion): string {
 }
 
 export function isAnswerCorrect(ans: ScorableAnswer, q: ScorableQuestion): boolean {
+  if (q.question_type === "multiple_choice") {
+    const submitted = ans.answer_text.trim().toLowerCase();
+    const stored = q.correct_answer.trim().toLowerCase();
+    const options: Record<string, string | null | undefined> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
+    // Older/imported questions sometimes store the option text (for example
+    // "SZA") rather than its letter. Phones always submit the letter.
+    if (/^[a-d]$/.test(stored)) return submitted === stored || normaliseAnswerText(ans.answer_text) === normaliseAnswerText(options[stored] || "");
+    const matchingKey = Object.entries(options).find(([, text]) => normaliseAnswerText(text || "") === normaliseAnswerText(q.correct_answer))?.[0];
+    return submitted === matchingKey || isFuzzyMatch(ans.answer_text, q.correct_answer);
+  }
   if (q.question_type === "multi_tap") {
     const correctKeys = (q.correct_answer || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
     const tappedKeys = (ans.answer_text || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);

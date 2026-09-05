@@ -68,8 +68,9 @@ export function TeamPhotoUpload({ sessionPin, teamName }: Props) {
       ) : (
         <>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>The host checks every photo before it shows on screen.</div>
-          <label style={{ padding: "10px 16px", borderRadius: 10, background: "rgba(190,38,193,0.2)", border: "1.5px solid #BE26C1", color: "#fff", fontSize: 13, textAlign: "center" as const, cursor: "pointer" }}>
-            {status === "uploading" ? "Uploading…" : "Choose Photo"}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <label style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(190,38,193,0.2)", border: "1.5px solid #BE26C1", color: "#fff", fontSize: 13, textAlign: "center" as const, cursor: "pointer" }}>
+            {status === "uploading" ? "Uploading…" : "Take Photo"}
             <input
               ref={inputRef}
               type="file"
@@ -80,6 +81,12 @@ export function TeamPhotoUpload({ sessionPin, teamName }: Props) {
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />
           </label>
+          <label style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(190,38,193,0.2)", border: "1.5px solid #BE26C1", color: "#fff", fontSize: 13, textAlign: "center" as const, cursor: "pointer" }}>
+            Camera Roll
+            <input type="file" accept="image/*" style={{ display: "none" }} disabled={status === "uploading"}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+          </label>
+          </div>
           {status === "error" && <div style={{ fontSize: 12, color: "#ff8290" }}>{error}</div>}
         </>
       )}

@@ -595,7 +595,8 @@ function QuizControllerInner() {
 
     const rankBonus: Record<string, number> = {};
     correctEntries.forEach((entry, idx) => {
-      rankBonus[entry.teamName] = selectedRound?.round_type === "hot_seat" ? 0 : Math.max(0, timeBonus - idx);
+      const availableBonus = q.question_type === "multi_tap" ? 4 : timeBonus;
+      rankBonus[entry.teamName] = selectedRound?.round_type === "hot_seat" ? 0 : Math.max(0, availableBonus - idx);
     });
     // Record whoever actually ranked #1 here - this IS the fastest-correct
     // determination that decides the bonus points above, so it's also the
@@ -627,13 +628,12 @@ function QuizControllerInner() {
         const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
         const allKeys = (["a","b","c","d","e","f"] as const).filter(k => q["option_"+k as "option_a"]);
         const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
-        // Multi Tap uses the configured points-per-question as the maximum,
-        // shared evenly across all six judgements. This keeps a 10-point
-        // Multi Tap question comparable with a 10-point regular question.
+        // Two points for every option judged correctly: either selecting a
+        // true option or correctly leaving a false option unselected.
         const wrongKeysUniverse = allKeys.filter(k => !correctKeys.includes(k));
         const correctlyLeftWrong = wrongKeysUniverse.filter(k => !tappedKeys.includes(k));
         const correctJudgements = correctTaps.length + correctlyLeftWrong.length;
-        let mtBasePts = Math.round((correctJudgements / Math.max(1, allKeys.length)) * pointsPerQ);
+        let mtBasePts = correctJudgements * 2;
         // Wipeout: ANY team's wrong tap this question zeroes EVERY team's
         // score for it - base AND time bonus, for every team, not just
         // whoever tapped wrong (see anyTeamWipedOutThisQuestion above).
@@ -1970,7 +1970,7 @@ function QuizControllerInner() {
           </section>
 
           <section className="qi-mc-teams" aria-label="Team standings list" style={{ display: "block", minWidth: 0 }}>
-            <div className="qi-mc-teams__header"><div><span>Live answers</span><strong>Teams & scores</strong></div><StatusPill tone="live">{answers.length}/{teams.length} answered</StatusPill></div>
+            <div className="qi-mc-teams__header"><div><span>Live answers</span><strong>Teams & scores</strong></div><StatusPill tone="live">{new Set(answers.map(a => a.team_name)).size}/{teams.length} answered</StatusPill></div>
             {scores.length === 0 && teams.length > 0 && (
               <>
                 <button onClick={() => ensureScores(sessionPin, teams)} style={{ width:"100%", padding:"9px", borderRadius:10, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:12 }}>Initialise Scores</button>

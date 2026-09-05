@@ -10,7 +10,7 @@ import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, purs
 import { PursuitBoard } from "@/components/PursuitBoard";
 import { teamInitials } from "@/components/TeamBadge";
 import { RoundStart, RoundEnd, Intermission, IntermissionGallery, WaitingForHost } from "@/components/fable/DisplayStates";
-import { playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
+import { enableShowAudio, playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 
@@ -66,8 +66,12 @@ function LiveAudioPlayer({ question }: { question: Question }) {
   const isLegacyYouTube = !!url && url.includes("youtube.com");
 
   useEffect(() => {
-    const el = audioRef.current;
-    if (!el || !url || isLegacyYouTube) return;
+    if (!url || isLegacyYouTube) return;
+    const el = question.playback_mode !== "manual"
+      ? playShowAudio(url, { channel: "music", volume: question.fade_in ? 0 : 1, loop: question.replay_mode === "unlimited" })
+      : audioRef.current;
+    if (!el) { setNeedsManualPlay(true); return; }
+    audioRef.current = el;
     el.loop = question.replay_mode === "unlimited";
     const fadeMs = 1200;
     if (question.fade_in) el.volume = 0; else el.volume = 1;
@@ -85,10 +89,6 @@ function LiveAudioPlayer({ question }: { question: Question }) {
     }
 
     if (question.fade_in) rampVolume(1, fadeMs);
-
-    if (question.playback_mode !== "manual") {
-      void el.play().catch(() => setNeedsManualPlay(true));
-    }
 
     if (question.fade_out && el.duration) {
       const onTimeUpdate = () => {
@@ -109,7 +109,7 @@ function LiveAudioPlayer({ question }: { question: Question }) {
     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
       <audio
         ref={audioRef}
-        src={url}
+        src={isManualMode ? url : undefined}
         preload="auto"
         autoPlay={!isManualMode}
         onPlay={() => setNeedsManualPlay(false)}
@@ -118,7 +118,11 @@ function LiveAudioPlayer({ question }: { question: Question }) {
       />
       {((isManualMode && !manualPlayed) || needsManualPlay) && (
         <button
-          onClick={() => { void audioRef.current?.play().then(() => { setManualPlayed(true); setNeedsManualPlay(false); }).catch(() => setNeedsManualPlay(true)); }}
+          onClick={() => {
+            const el = playShowAudio(url, { channel: "music", volume: 1, loop: question.replay_mode === "unlimited" });
+            audioRef.current = el;
+            setManualPlayed(!!el); setNeedsManualPlay(!el);
+          }}
           style={{ padding: "14px 28px", borderRadius: 14, background: "rgba(190,38,193,0.25)", border: "2px solid #BE26C1", color: "#fff", fontSize: 20, fontWeight: 700, cursor: "pointer" }}
         >
           {needsManualPlay ? "\u25b6 Audio blocked \u2014 play track" : "\u25b6 Play Track"}
@@ -128,7 +132,7 @@ function LiveAudioPlayer({ question }: { question: Question }) {
   );
 }
 
-const PRELOAD_SOUNDS = ["airhorn.mp3", "sad-trombone.mp3", "round-start.mp3", "clapping-scores.mp3", "countdown-urgent.mp3", "lock.mp3", "crowd-cheer.mp3"];
+const PRELOAD_SOUNDS = ["airhorn.mp3", "sad-trombone.mp3", "round-start.mp3", "clapping-scores.mp3", "countdown-urgent.mp3", "lock.mp3", "crowd-cheer.mp3", "correct-chime.mp3", "footsteps.mp3", "whoosh.mp3", "slot-spin.mp3"];
 
 // Lobby Power-Card rules rotation. Rules mirror the real cards in
 // components/UnoCards.tsx; colours are the locked feature tokens
@@ -426,7 +430,13 @@ function DisplayScreenInner() {
   // (before the teams fetch has even resolved) - this ref always holds the
   // current value regardless, matching the sessionId staleness fix pattern.
   const teamsRef = useRef(teams);
-  useEffect(() => { teamsRef.current = teams; }, [teams]);
+  useEffect(() => {
+    teamsRef.current = teams;
+    // Victory tracks must be in the browser cache before a reveal. Previously
+    // uploaded tracks were first requested at celebration time, creating a
+    // conspicuous network delay after the graphic appeared.
+    preloadShowAudio(teams.map(t => t.victory_song).filter((song): song is string => !!song).map(victorySongAudioFile));
+  }, [teams]);
   const [showWinnerPhoto, setShowWinnerPhoto] = useState(false);
   const winnerPhotoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const winnerPhotoStartedForRef = useRef<string | null>(null);
@@ -478,7 +488,6 @@ function DisplayScreenInner() {
   const [venueScheduleText, setVenueScheduleText] = useState<string | null>(null);
   const [venueHostName, setVenueHostName] = useState<string | null>(null);
   const [venueHostPhotoUrl, setVenueHostPhotoUrl] = useState<string | null>(null);
-  const [venueWebsite, setVenueWebsite] = useState<string | null>(null);
   const [venueSocialLinks, setVenueSocialLinks] = useState<Record<string, string>>({});
   // Which scene of the pre-show reel is on screen: the venue's branded
   // video/image, the power card explainer, or floating team photos. Cycles
@@ -486,6 +495,10 @@ function DisplayScreenInner() {
   // yet, so the reel never sits on an empty scene.
   const [reelSceneIdx, setReelSceneIdx] = useState(0);
   const [floatingPhotoIdx, setFloatingPhotoIdx] = useState(0);
+  const venueInstagramRaw = Object.entries(venueSocialLinks).find(([key, value]) => key.toLowerCase().includes("instagram") && value)?.[1] || "";
+  const venueInstagramTag = venueInstagramRaw
+    ? "@" + venueInstagramRaw.replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/^@/, "").replace(/[/?#].*$/, "")
+    : "";
 
   const reelScenes = [
     "venue",
@@ -495,7 +508,7 @@ function DisplayScreenInner() {
     // Always shown - this is Mac Entertainment's own handle for players to tag
     // when they post, not tied to whether a venue has its own social links set.
     "tag-us",
-    ...(venueWebsite || Object.keys(venueSocialLinks).length > 0 ? ["social"] : []),
+    ...(venueInstagramTag ? ["social"] : []),
     "cards",
     ...(approvedCustomerPhotos.length > 0 ? ["photos"] : []),
   ];
@@ -654,7 +667,15 @@ function DisplayScreenInner() {
     } else {
       setPhase(newPhase);
     }
-    setQuestion((data.current_question as Question) || null);
+    const incomingQuestion = (data.current_question as Question) || null;
+    setQuestion(incomingQuestion);
+    // The host publishes the question before its live answering phase. Start
+    // fetching a prepared music clip immediately, not when the display JSX
+    // finally mounts its audio player.
+    if (incomingQuestion?.question_type === "audio" && incomingQuestion.option_b) {
+      const clip = getMediaUrl(incomingQuestion.option_b);
+      if (clip && !clip.includes("youtube.com")) preloadShowAudio([clip]);
+    }
     setQuestionIndex((data.current_question_index as number) ?? 0);
     setRoundStartedAt((data.round_started_at as string) ?? null);
     qIndexRef.current = (data.current_question_index as number) ?? 0;
@@ -683,7 +704,6 @@ function DisplayScreenInner() {
     setVenuePrizeInfo(snapshotVenue?.prize_information || null);
     setVenueHostName(snapshotVenue?.default_host_name || null);
     setVenueHostPhotoUrl(snapshotVenue?.host_photo_url || null);
-    setVenueWebsite(snapshotVenue?.website || null);
     setVenueSocialLinks(snapshotVenue?.social_links || {});
     // Prefer the actual booked date/time for this event; fall back to the
     // venue's usual recurring slot if this session wasn't created from a
@@ -1002,6 +1022,9 @@ function DisplayScreenInner() {
 
   async function connect() {
     if (pinInput.length !== 4 || connecting) return;
+    // The PIN button is the display's direct user gesture. Unlock every audio
+    // channel here so later realtime cues and music clips may autoplay.
+    void enableShowAudio().catch(() => {});
     setConnecting(true);
     setConnectError("");
     const supabase = createSupabaseBrowserClient();
@@ -1398,9 +1421,8 @@ function DisplayScreenInner() {
 
             {currentReelScene === "social" && (
               <div className="lb-reel-scene lb-reel-brand">
-                <div className="lb-cardkicker">FIND US</div>
-                {venueWebsite && <div className="lb-reel-brand-headline">{venueWebsite.replace(/^https?:\/\/(www\.)?/i, "")}</div>}
-                <div className="lb-reel-brand-body">{Object.entries(venueSocialLinks).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(" · ")}</div>
+                <div className="lb-cardkicker">FOLLOW THE VENUE</div>
+                <div className="lb-reel-brand-headline">{venueInstagramTag}</div>
               </div>
             )}
 

@@ -130,10 +130,10 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
   );
 }
 
-function PictureQuestion({ imageUrl, questionText, onSubmit, questionIndex, timeLeft, purple, font, bg, teamName, sessionPin, roundNumber, allowPowerCards, points, submitted }: {
+function PictureQuestion({ imageUrl, questionText, onSubmit, questionIndex, timeLeft, timerReady, purple, font, bg, teamName, sessionPin, roundNumber, allowPowerCards, points, submitted }: {
   imageUrl: string; questionText: string; submitted: boolean; answerText: string;
   setAnswerText: (v: string) => void; onSubmit: (a: string) => void;
-  questionIndex: number; timeLeft: number | null; purple: string; font: string; bg: string;
+  questionIndex: number; timeLeft: number | null; timerReady: boolean; purple: string; font: string; bg: string;
   teamName: string; sessionPin: string; roundNumber: number; allowPowerCards: boolean;
   points?: number;
 }) {
@@ -170,7 +170,7 @@ function PictureQuestion({ imageUrl, questionText, onSubmit, questionIndex, time
         ) : (
           <>
             <div className="qi-player-question-text">{questionText}</div>
-            {!submitted ? <AnswerKeypad mode="text" onSubmit={onSubmit} /> : (
+            {!timerReady ? <div className="qi-player-waiting-timer">{timeLeft === 0 ? "TIME’S UP · ANSWERS LOCKED" : "WAITING FOR HOST TO START TIMER"}</div> : !submitted ? <AnswerKeypad mode="text" onSubmit={onSubmit} /> : (
               <div style={{ padding:18, borderRadius:12, background:"rgba(190,38,193,0.15)", textAlign:"center" }}>
                 <strong style={{ color:purple }}>Answer submitted!</strong>
                 <div style={{ marginTop:6, color:"#B9A8D9" }}>Waiting for host…</div>
@@ -728,6 +728,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       const elapsed = Math.floor((Date.now() - started) / 1000);
       const remaining = Math.max(0, duration - elapsed);
       startCountdown(remaining);
+    } else if ((effPhase === "question" || newPhase === "hot_seat") && !data.timer_started_at && !(newPhase === "hot_seat" && hotSeat.answerStartedAt)) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setTimeLeft(null);
     }
   }
 
@@ -784,12 +787,13 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         // 1.5s network grace, matching the existing client-side allowance.
         const hotSeatStarted = live.hot_seat_answer_started_at ? new Date(live.hot_seat_answer_started_at as string).getTime() : null;
         const hotSeatDuration = typeof live.hot_seat_answer_duration === "number" ? live.hot_seat_answer_duration : HOT_SEAT_ANSWER_SECONDS;
+        const timerNotStarted = phase === "hot_seat" ? hotSeatStarted === null : started === null;
         const expired = phase === "hot_seat"
           ? hotSeatStarted !== null && Date.now() > hotSeatStarted + hotSeatDuration * 1000 + 1500
           : started !== null && dur !== null && Date.now() > started + dur * 1000 + 1500;
         const wrongHotSeatTeam = phase === "hot_seat" && live.hot_seat_team !== teamName;
-        if (!answering || movedOn || expired || wrongHotSeatTeam) {
-          setError("Time's up! No more answers accepted for this question.");
+        if (!answering || movedOn || timerNotStarted || expired || wrongHotSeatTeam) {
+          setError(timerNotStarted ? "Wait for the host to start the timer." : "Time's up! No more answers accepted for this question.");
           setTimeout(() => setError(""), 2500);
           submittingAnswerRef.current = false;
           return;
@@ -1426,6 +1430,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     const isSequence = question.question_type === "sequence";
     const isMultiTap = question.question_type === "multi_tap";
     const imageUrl = isPicture ? getMediaUrl(question.option_b) : null;
+    const timerReady = phase === "hot_seat" ? hotSeatStatus === "claimed" && timeLeft !== null && timeLeft > 0 : timeLeft !== null && timeLeft > 0;
 
     const isBlocked = !!blockUntil && blockTeam !== teamName && new Date(blockUntil).getTime() > Date.now();
     if (isBlocked && !submitted) {
@@ -1448,6 +1453,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         onSubmit={submitAnswer}
         questionIndex={questionIndex}
         timeLeft={timeLeft}
+        timerReady={timerReady}
         purple={purple}
         font={font}
         bg={bg}
@@ -1492,7 +1498,9 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, marginBottom: 10, textAlign: "center" as const }}>{error}</div>
         )}
 
-        {isMultiChoice && (
+        {!timerReady && <div className="qi-player-waiting-timer">{timeLeft === 0 ? "TIME’S UP · ANSWERS LOCKED" : "WAITING FOR HOST TO START TIMER"}</div>}
+
+        {timerReady && isMultiChoice && (
           <div className="fbl" style={{ marginBottom: 10 }}>
             {options.map(opt => {
               const isSelected = selectedAnswer === opt.key;
@@ -1517,7 +1525,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           </div>
         )}
 
-        {isMultiTap && (
+        {timerReady && isMultiTap && (
           <div className="fbl" style={{ marginBottom: 16 }}>
             <div className="qi-player-multitap-grid" style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
               {multiTapOptions.map(opt => {
@@ -1543,11 +1551,11 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           </div>
         )}
 
-        {isSequence && (
+        {timerReady && isSequence && (
           <SequenceQuestion options={seqItems} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} submitted={submitted} />
         )}
 
-        {!isMultiChoice && !isSequence && !isMultiTap && !submitted && (
+        {timerReady && !isMultiChoice && !isSequence && !isMultiTap && !submitted && (
           <div style={{ marginBottom: 16 }}>
             <AnswerKeypad mode={question.question_type === "number" ? "number" : "text"} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
           </div>

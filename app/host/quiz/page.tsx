@@ -286,10 +286,10 @@ function QuizControllerInner() {
     if (!spinOffered || !sessionPin) return;
     const interval = setInterval(async () => {
       const supabase = createSupabaseBrowserClient();
-      const { data } = await supabase.from("sessions").select("spin_choice").eq("pin", sessionPin).single();
+      const { data } = await supabase.from("sessions").select("spin_choice, fastest_team").eq("pin", sessionPin).single();
       if (data) {
         setSpinChoice((data.spin_choice as string) || null);
-        triggerSpinIfChosen((data.spin_choice as string) || null, sessionPin);
+        triggerSpinIfChosen((data.spin_choice as string) || null, sessionPin, (data.fastest_team as string) || null);
       }
     }, PLATFORM_CONFIG.polling.hostSpinSafetyMilliseconds);
     return () => clearInterval(interval);
@@ -814,8 +814,20 @@ function QuizControllerInner() {
     }
   }
 
-  function triggerSpinIfChosen(choice: string | null, pin: string) {
+  // teamNameOverride: the spin payout used to read ONLY fastestTeamRef.current
+  // at the moment this fires - but that ref gets reset to null the instant the
+  // host previews the next question (doPreviewQuestion/doStartRound), which can
+  // easily happen before a slow-to-respond player actually taps "Spin" on their
+  // handset. The visual spin (Display's SlotReels) doesn't depend on this ref at
+  // all, so the spin still played out and showed a result (e.g. "-20 Points")
+  // while the actual scoring silently no-op'd underneath with zero error shown -
+  // exactly the "spin didn't deduct any points" report. Passing the team name
+  // straight from the same sessions-row payload that carries spin_choice (which
+  // is NOT cleared by advancing to the next question) means the payout no
+  // longer depends on that fragile, easily-stale local ref.
+  function triggerSpinIfChosen(choice: string | null, pin: string, teamNameOverride?: string | null) {
     if (choice === "spin" && !spinTriggeredRef.current) {
+      const payoutTeam = teamNameOverride ?? fastestTeamRef.current;
       spinTriggeredRef.current = true;
       const winIdx = Math.floor(Math.random() * 8);
       const nonce = Date.now() % 1000000; // Keep within integer column range
@@ -847,7 +859,8 @@ function QuizControllerInner() {
             setSpinFeedback({ ok: false, message: "Spin could not start on the display. Check the connection and retry." });
           }
         });
-      if (fastestTeamRef.current) applySpinResult(winIdx, fastestTeamRef.current, nonce, pin);
+      if (payoutTeam) applySpinResult(winIdx, payoutTeam, nonce, pin);
+      else console.error("triggerSpinIfChosen: no fastest-team name available (ref cleared and no override passed) - spin payout skipped.");
       setTimeout(() => {
         const finalSid = sessionIdRef.current || sessionId;
         // Only return to "celebration" if the session is STILL on the spin
@@ -928,7 +941,7 @@ function QuizControllerInner() {
         setSpinTargetIdx((s.spin_target_idx as number) ?? null);
         setSpinNonce((s.spin_nonce as number) ?? null);
         setSpinOffered(!!s.spin_offered);
-        triggerSpinIfChosen(choice, pin);
+        triggerSpinIfChosen(choice, pin, (s.fastest_team as string) || null);
       })
       .subscribe(status => {
         setRealtimeStatus(status);
@@ -1079,7 +1092,7 @@ function QuizControllerInner() {
     // push phase: "waiting" to Supabase so player handsets reset off the
     // celebration screen back to the Quiz-It idle/logo screen during preview.
     const supabase = createSupabaseBrowserClient();
-    const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", fastest_team: null, fastest_song: null, spin_offered: false, spin_nonce: null, spin_target_idx: null, spin_choice: null, hot_seat_status: "idle", hot_seat_team: null, hot_seat_locked_teams: [], hot_seat_answer_started_at: null }).eq("id", sessionId);
+    const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", timer_started_at: null, fastest_team: null, fastest_song: null, spin_offered: false, spin_nonce: null, spin_target_idx: null, spin_choice: null, hot_seat_status: "idle", hot_seat_team: null, hot_seat_locked_teams: [], hot_seat_answer_started_at: null }).eq("id", sessionId);
     if (prevErr) console.error("SESSION UPDATE FAILED [doPreviewQuestion]:", prevErr);
     if (sessionPin) loadAnswers(sessionPin, idx);
   }
@@ -1102,6 +1115,7 @@ function QuizControllerInner() {
       phase: isHotSeat ? "hot_seat" : "question",
       current_question: q,
       current_question_index: qIdx,
+      timer_started_at: null,
       fastest_team: null,
       fastest_song: null,
       picture_sub_phase: isPicture ? "image_only" : null,
@@ -1330,26 +1344,31 @@ function QuizControllerInner() {
     else if (label === "-10 Points") newTotal = Math.max(0, myTotal - 10);
     else if (label === "-20 Points") newTotal = Math.max(0, myTotal - 20);
     else if (label === "-30 Points") newTotal = Math.max(0, myTotal - 30);
-    // 1st place is a reward: guarantee first, but never REDUCE the team's score
-    // (e.g. when other teams still have 0, this must not drop a leader to 1).
-    else if (label === "1st Place") newTotal = Math.max(myTotal, scoreForRank(1));
-    // 2nd place: land exactly 1 point above the team that will sit 3rd (others'
-    // 2nd-highest). If there is no 3rd-place team, sit 1 point behind current
-    // 1st. Never demote a team already above the target (max with myTotal).
+    // Placement outcomes ALWAYS move the team to exactly one point ahead of
+    // whoever currently holds that position among the other teams - including
+    // demoting the spinning team if they were already sitting higher than
+    // that. Previously this only ever acted as a floor (Math.max(myTotal,
+    // target)), so landing "3rd Place" while already in 1st correctly left a
+    // leader's score untouched by the OLD rule, but that read as "the spin
+    // did nothing" to a host expecting the round result to always move the
+    // team to that exact spot. Explicit host instruction: 1st/2nd/3rd always
+    // land one point ahead of that position, even if it's a demotion.
+    else if (label === "1st Place") newTotal = scoreForRank(1);
+    // 2nd place: land exactly 1 point above the team that will sit 3rd
+    // (others' 2nd-highest). If there is no 3rd-place team, sit 1 point
+    // behind current 1st instead (nothing to be "one ahead of" at 3rd).
     else if (label === "2nd Place") {
-      const target = othersDesc.length >= 2 ? othersDesc[1] + 1
-                   : othersDesc.length === 1 ? Math.max(0, othersDesc[0] - 1)
-                   : myTotal;
-      newTotal = Math.max(myTotal, target);
+      newTotal = othersDesc.length >= 2 ? othersDesc[1] + 1
+               : othersDesc.length === 1 ? Math.max(0, othersDesc[0] - 1)
+               : myTotal;
     }
-    // 3rd place: land exactly 1 point above the team that will sit 4th (others'
-    // 3rd-highest). If there is no 4th-place team, sit 1 point behind current
-    // 2nd. Never demote a team already above the target.
+    // 3rd place: land exactly 1 point above the team that will sit 4th
+    // (others' 3rd-highest). If there is no 4th-place team, sit 1 point
+    // behind current 2nd instead.
     else if (label === "3rd Place") {
-      const target = othersDesc.length >= 3 ? othersDesc[2] + 1
-                   : othersDesc.length >= 2 ? Math.max(0, othersDesc[1] - 1)
-                   : myTotal;
-      newTotal = Math.max(myTotal, target);
+      newTotal = othersDesc.length >= 3 ? othersDesc[2] + 1
+               : othersDesc.length >= 2 ? Math.max(0, othersDesc[1] - 1)
+               : myTotal;
     }
     // Last place: sit one below the current lowest other team, floored at 0. Only
     // becomes 0 when 0 is genuinely last (lowest other is 0 or 1). With no other

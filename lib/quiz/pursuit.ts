@@ -1,3 +1,9 @@
+import {
+  getCorrectAnswerText,
+  isAnswerCorrect,
+  type ScorableQuestion,
+} from "@/lib/quiz/answerScoring";
+
 // The Pursuit — Feature Round state machine, race model, scoring, layout engine
 // and answer checking. All of the round's logic lives here so the three surfaces
 // (host / display / handset) stay dumb and share one source of truth.
@@ -243,75 +249,27 @@ export interface PursuitQuestion {
   option_b?: string | null;
   option_c?: string | null;
   option_d?: string | null;
+  option_e?: string | null;
+  option_f?: string | null;
 }
 
-function normalise(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/^(the|a|an) /i, "").trim();
-}
-
-function levenshtein(a: string, b: string): number {
-  const m = a.length;
-  const n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
-    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
-  );
-  for (let i = 1; i <= m; i++)
-    for (let j = 1; j <= n; j++)
-      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-  return dp[m][n];
+function asScorableQuestion(q: PursuitQuestion): ScorableQuestion {
+  return {
+    ...q,
+    option_a: q.option_a ?? null,
+    option_b: q.option_b ?? null,
+    option_c: q.option_c ?? null,
+    option_d: q.option_d ?? null,
+  };
 }
 
 /** Resolve the human-readable correct answer text for display / matching. */
 export function pursuitCorrectAnswerText(q: PursuitQuestion): string {
-  const map: Record<string, string | null | undefined> = {
-    a: q.option_a,
-    b: q.option_b,
-    c: q.option_c,
-    d: q.option_d,
-  };
-  if (q.question_type === "multiple_choice") {
-    return map[q.correct_answer.toLowerCase()] || q.correct_answer;
-  }
-  if (q.question_type === "sequence") {
-    const order = q.correct_answer.split(",").map((s) => s.trim().toLowerCase());
-    const texts = order.map((key) => map[key]).filter((t): t is string => !!t);
-    return texts.length === order.length ? texts.join(", ") : q.correct_answer;
-  }
-  return q.correct_answer;
-}
-
-function fuzzyMatch(answer: string, correct: string, q: PursuitQuestion): boolean {
-  if (q.question_type === "multiple_choice" && answer.trim().toLowerCase() === q.correct_answer.toLowerCase()) return true;
-  if (q.question_type === "number") return answer.trim() === correct.trim();
-  const a = normalise(answer);
-  const b = normalise(correct);
-  if (a === b) return true;
-  if (a === "" || b === "") return false;
-  if (b.includes(a) && a.length >= 4 && a.length >= b.length * 0.6) return true;
-  if (a.includes(b) && b.length >= 4 && b.length >= a.length * 0.6) return true;
-  const maxDist = Math.max(1, Math.floor(b.length * 0.3));
-  return levenshtein(a, b) <= maxDist;
+  return getCorrectAnswerText(asScorableQuestion(q));
 }
 
 /** True when `answerText` correctly answers question `q`. */
 export function checkPursuitAnswer(answerText: string | null | undefined, q: PursuitQuestion): boolean {
   if (!answerText) return false;
-  if (q.question_type === "multiple_choice") {
-    const submitted = answerText.trim().toLowerCase();
-    const stored = q.correct_answer.trim().toLowerCase();
-    const options: Record<string, string | null | undefined> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
-    if (/^[a-d]$/.test(stored)) return submitted === stored || normalise(answerText) === normalise(options[stored] || "");
-    const matchingKey = Object.entries(options).find(([, text]) => normalise(text || "") === normalise(q.correct_answer))?.[0];
-    return submitted === matchingKey || fuzzyMatch(answerText, q.correct_answer, q);
-  }
-  if (q.question_type === "multi_tap") {
-    const correctKeys = (q.correct_answer || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-    const tapped = answerText.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-    const hits = tapped.filter((k) => correctKeys.includes(k));
-    return correctKeys.length > 0 && hits.length === correctKeys.length && tapped.length === correctKeys.length;
-  }
-  if (q.question_type === "sequence") {
-    return answerText.trim().toLowerCase().replace(/\s/g, "") === q.correct_answer.trim().toLowerCase().replace(/\s/g, "");
-  }
-  return fuzzyMatch(answerText, pursuitCorrectAnswerText(q), q);
+  return isAnswerCorrect({ answer_text: answerText }, asScorableQuestion(q));
 }

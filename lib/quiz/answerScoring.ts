@@ -70,8 +70,9 @@ export function isFuzzyMatch(answer: string, correct: string, q?: ScorableQuesti
 
 export function getCorrectAnswerText(q: ScorableQuestion): string {
   if (q.question_type === "multiple_choice") {
-    const map: Record<string, string | null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
-    return map[q.correct_answer.toLowerCase()] || q.correct_answer;
+    const map: Record<string, string | null | undefined> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d, e: q.option_e, f: q.option_f };
+    const storedKey = q.correct_answer.trim().toLowerCase().match(/^[a-f](?=$|[.):\s-])/)?.[0] || q.correct_answer.toLowerCase();
+    return map[storedKey] || q.correct_answer;
   }
   if (q.question_type === "sequence") {
     const map: Record<string, string | null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
@@ -94,10 +95,11 @@ export function isAnswerCorrect(ans: ScorableAnswer, q: ScorableQuestion): boole
   if (q.question_type === "multiple_choice") {
     const submitted = ans.answer_text.trim().toLowerCase();
     const stored = q.correct_answer.trim().toLowerCase();
-    const options: Record<string, string | null | undefined> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
+    const options: Record<string, string | null | undefined> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d, e: q.option_e, f: q.option_f };
     // Older/imported questions sometimes store the option text (for example
     // "SZA") rather than its letter. Phones always submit the letter.
-    if (/^[a-d]$/.test(stored)) return submitted === stored || normaliseAnswerText(ans.answer_text) === normaliseAnswerText(options[stored] || "");
+    const storedKey = stored.match(/^[a-f](?=$|[.):\s-])/)?.[0] || null;
+    if (storedKey) return submitted === storedKey || normaliseAnswerText(ans.answer_text) === normaliseAnswerText(options[storedKey] || "");
     const matchingKey = Object.entries(options).find(([, text]) => normaliseAnswerText(text || "") === normaliseAnswerText(q.correct_answer))?.[0];
     return submitted === matchingKey || isFuzzyMatch(ans.answer_text, q.correct_answer);
   }

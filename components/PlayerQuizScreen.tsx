@@ -331,6 +331,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   const lastQIndexRef = useRef(-1);
   const lastQTextRef = useRef("");
   const lastPhaseRef = useRef<string>("");
+  const submittingAnswerRef = useRef(false);
   // Mirrors the display's spin handling: force this handset into the
   // spin_to_win phase as soon as a spin (spin_choice="spin" + a fresh
   // spin_nonce) is seen, independent of whether the `phase` column write was
@@ -711,6 +712,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       setSelectedAnswer("");
       setAnswerText("");
       setSubmitted(false);
+      submittingAnswerRef.current = false;
       setTappedItems([]);
       setMySubmittedDisplay("");
     }
@@ -742,18 +744,22 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   }
 
   async function submitAnswer(answer: string, retryCount = 0) {
-    if (submitted || !answer.trim()) return;
+    if (submitted || submittingAnswerRef.current || !answer.trim()) return;
+    submittingAnswerRef.current = true;
     if (phase === "hot_seat" && hotSeatTeam !== teamName) {
       setError("Only the team in the Hot Seat can answer.");
+      submittingAnswerRef.current = false;
       return;
     }
     if (phase === "pursuit" && pursuitRace[teamName]?.status !== "active") {
       setError("Your Pursuit run is complete. You can watch the race from here.");
+      submittingAnswerRef.current = false;
       return;
     }
     if (timeLeft !== null && timeLeft <= -2) {
       setError("Time's up! No more answers accepted for this question.");
       setTimeout(() => setError(""), 2500);
+      submittingAnswerRef.current = false;
       return;
     }
     const supabase = createSupabaseBrowserClient();
@@ -785,6 +791,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         if (!answering || movedOn || expired || wrongHotSeatTeam) {
           setError("Time's up! No more answers accepted for this question.");
           setTimeout(() => setError(""), 2500);
+          submittingAnswerRef.current = false;
           return;
         }
       }
@@ -801,9 +808,10 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
     if (error) {
       if (retryCount < 2) {
         // Quick silent retry first (covers brief connection blips)
-        setTimeout(() => { setSubmitted(false); submitAnswer(answer, retryCount + 1); }, 800);
+        setTimeout(() => { setSubmitted(false); submittingAnswerRef.current = false; submitAnswer(answer, retryCount + 1); }, 800);
       } else {
         setSubmitted(false);
+        submittingAnswerRef.current = false;
         // DIAGNOSTIC ONLY (temporary): identify this trip as coming from
         // answer submission, not session polling (the other setConnectionLost(true) site).
         // No answer content logged.

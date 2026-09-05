@@ -569,7 +569,11 @@ function QuizControllerInner() {
     if (!sessionPin) return;
     lastDeltasRef.current = {};
     const supabase = createSupabaseBrowserClient();
-    const hasBoost = (teamName: string) => unoCards.some(c => c.team_name === teamName && c.card_type === "x2" && new Date(c.played_at).getTime() >= roundStartedRef.current);
+    // The handset records the round number with the Boost play. Use that as
+    // the primary scope so a team that taps Boost on the Round 1 waiting
+    // screen (just before the host starts the round) still receives it. The
+    // timestamp fallback keeps older rows without round_number compatible.
+    const hasBoost = (teamName: string) => unoCards.some(c => sameTeam(c.team_name, teamName) && c.card_type === "x2" && (c.round_number === roundNumber || (c.round_number == null && new Date(c.played_at).getTime() >= roundStartedRef.current)));
     // If a network retry ever creates more than one answer row for the same
     // team+question, always treat the most recently submitted one as authoritative -
     // picking whichever row happened to come first in array order could silently
@@ -577,7 +581,7 @@ function QuizControllerInner() {
     // "fastest correct" determination) looked at a different row, disagreeing with
     // each other for no visible reason.
     function getLatestAnswer(teamName: string): Answer | undefined {
-      const matches = currentAnswers.filter(a => a.team_name === teamName);
+      const matches = currentAnswers.filter(a => sameTeam(a.team_name, teamName));
       if (matches.length === 0) return undefined;
       return matches.reduce((latest, a) => new Date(a.submitted_at).getTime() > new Date(latest.submitted_at).getTime() ? a : latest);
     }
@@ -1228,7 +1232,7 @@ function QuizControllerInner() {
   }
 
   async function doCelebrate() {
-    if (!sessionId) return;
+    if (!sessionId || !sessionPin) return;
     // "Fastest correct" comes from scoredFastestTeamRef - whoever autoScore
     // actually ranked #1 and paid the speed bonus to - NOT a fresh re-query
     // here. A fresh query run at celebrate-time (whenever the host clicks,
@@ -1239,8 +1243,35 @@ function QuizControllerInner() {
     // answer played twice for two different teams" report. Reusing the
     // ref makes the badge/song and the points provably the same
     // determination, computed once, at the moment scoring happened.
-    const fastestTeamName = scoredFastestTeamRef.current;
-    const team = teams.find(t => t.team_name === fastestTeamName);
+    let fastestTeamName = scoredFastestTeamRef.current;
+    // Realtime/React timing must never be the final authority for a "nobody
+    // correct" announcement. If the winner ref is unexpectedly empty, read
+    // the submitted rows that were persisted for this round/question and
+    // derive the earliest correct team again. This is a display safety net;
+    // normal scoring still sets the ref in autoScore above.
+    if (!fastestTeamName && currentQ) {
+      const { data: persistedAnswers, error: answerReadError } = await scopedAnswersQuery(sessionPin, qIdx);
+      if (answerReadError) {
+        showToast("Could not verify the correct teams. Please retry Celebrate.", "error", 7000);
+        return;
+      }
+      const latestByTeam = new Map<string, Answer>();
+      for (const answer of persistedAnswers || []) {
+        const key = answer.team_name.trim().toLowerCase();
+        const previous = latestByTeam.get(key);
+        if (!previous || new Date(answer.submitted_at).getTime() > new Date(previous.submitted_at).getTime()) latestByTeam.set(key, answer);
+      }
+      const verifiedCorrect = [...latestByTeam.values()]
+        .filter(answer => isAnswerCorrect(answer, currentQ))
+        .sort((a,b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
+      fastestTeamName = verifiedCorrect[0]?.team_name || null;
+      scoredFastestTeamRef.current = fastestTeamName;
+      if (verifiedCorrect.length) {
+        const correctNames = verifiedCorrect.map(answer => answer.team_name);
+        await createSupabaseBrowserClient().from("sessions").update({ reveal_correct_teams: correctNames }).eq("id", sessionId);
+      }
+    }
+    const team = teams.find(t => fastestTeamName && sameTeam(t.team_name, fastestTeamName));
     const song = team?.victory_song || null;
     const fastestPoints = fastestTeamName ? (lastDeltasRef.current[fastestTeamName] ?? 0) : 0;
     setFastestTeam(fastestTeamName); fastestTeamRef.current = fastestTeamName;

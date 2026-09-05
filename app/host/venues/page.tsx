@@ -48,7 +48,7 @@ function toForm(venue:Venue):FormState{return{venue_name:venue.venue_name||"",ve
 
 export default function VenueManagerPage(){
   const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
-  const [venues,setVenues]=useState<Venue[]>([]);const [quizzes,setQuizzes]=useState<{id:string;name:string}[]>([]);const [host,setHost]=useState({id:"",name:"Current host"});const [form,setForm]=useState<FormState>(empty);const [editing,setEditing]=useState<string|null>(null);const [section,setSection]=useState("profile");const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [error,setError]=useState("");const [offers,setOffers]=useState<Offer[]>([]);const [offerBusy,setOfferBusy]=useState<string|null>(null);const [introBusy,setIntroBusy]=useState(false);const [introProgress,setIntroProgress]=useState(0);const [introStatus,setIntroStatus]=useState("");
+  const [venues,setVenues]=useState<Venue[]>([]);const [quizzes,setQuizzes]=useState<{id:string;name:string}[]>([]);const [host,setHost]=useState({id:"",name:"Current host"});const [form,setForm]=useState<FormState>(empty);const [editing,setEditing]=useState<string|null>(null);const [section,setSection]=useState("profile");const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [error,setError]=useState("");const [savedMessage,setSavedMessage]=useState("");const [offers,setOffers]=useState<Offer[]>([]);const [offerBusy,setOfferBusy]=useState<string|null>(null);const [introBusy,setIntroBusy]=useState(false);const [introProgress,setIntroProgress]=useState(0);const [introStatus,setIntroStatus]=useState("");
   const load=useCallback(async()=>{const supabase=createSupabaseBrowserClient();const[{data:venueData,error:venueError},{data:quizData},{data:userData},{data:offerData}]=await Promise.all([supabase.from("venues").select("*").order("venue_name"),supabase.from("quizzes").select("id,name").eq("archived",false).order("name"),supabase.auth.getUser(),supabase.from("venue_offers").select("*").order("sort_order")]);setVenues((venueData||[]) as Venue[]);setQuizzes(quizData||[]);const user=userData.user;setHost({id:user?.id||"",name:String(user?.user_metadata?.full_name||user?.user_metadata?.name||user?.email||"Current host")});setOffers((offerData||[]) as Offer[]);if(venueError)setError(venueError.message);setLoading(false);},[]);
   useEffect(()=>{const timer=window.setTimeout(()=>void load(),0);return()=>window.clearTimeout(timer);},[load]);
   // Deep link from the Calendar event drawer's "Edit venue" link - open
@@ -57,12 +57,32 @@ export default function VenueManagerPage(){
   function set<K extends keyof FormState>(key:K,value:FormState[K]){setForm(current=>({...current,[key]:value}));}
   function edit(venue:Venue){setEditing(venue.id);setForm(toForm(venue));setSection("profile");window.scrollTo({top:0,behavior:"smooth"});}
   function clear(){setEditing(null);setForm({...empty,default_host_id:host.id,default_host_name:host.name});setSection("profile");setError("");}
-  async function save(){if(!form.venue_name.trim())return;setSaving(true);setError("");const payload={venue_name:form.venue_name.trim(),venue_logo_url:form.venue_logo_url||null,hero_image_url:form.hero_image_url||null,hero_video_url:form.hero_video_url||null,gallery_images:form.gallery_images,address:form.address||null,google_maps_url:form.google_maps_url||null,contact_name:form.contact_name||null,contact_email:form.contact_email||null,contact_phone:form.contact_phone||null,website:form.website||null,social_links:pairs(form.social_links),default_host_id:form.default_host_id||host.id,default_host_name:form.default_host_name||null,host_photo_url:form.host_photo_url||null,default_quiz_day:form.default_quiz_day===""?null:Number(form.default_quiz_day),default_start_time:form.default_start_time||null,default_end_time:form.default_end_time||null,food_offers:form.food_offers||null,drink_offers:form.drink_offers||null,happy_hour:form.happy_hour||null,prize_information:form.prize_information||null,sponsors:split(form.sponsors),brand_colours:pairs(form.brand_colours),display_slides:split(form.display_slides),display_adverts:split(form.display_adverts),notes:form.notes||null,active:form.active,updated_at:new Date().toISOString()};const supabase=createSupabaseBrowserClient();
+  async function save(){if(!form.venue_name.trim())return;setSaving(true);setError("");setSavedMessage("");const previousVenue=editing?venues.find(venue=>venue.id===editing):null;const payload={venue_name:form.venue_name.trim(),venue_logo_url:form.venue_logo_url||null,hero_image_url:form.hero_image_url||null,hero_video_url:form.hero_video_url||null,gallery_images:form.gallery_images,address:form.address||null,google_maps_url:form.google_maps_url||null,contact_name:form.contact_name||null,contact_email:form.contact_email||null,contact_phone:form.contact_phone||null,website:form.website||null,social_links:pairs(form.social_links),default_host_id:form.default_host_id||host.id,default_host_name:form.default_host_name||null,host_photo_url:form.host_photo_url||null,default_quiz_day:form.default_quiz_day===""?null:Number(form.default_quiz_day),default_start_time:form.default_start_time||null,default_end_time:form.default_end_time||null,food_offers:form.food_offers||null,drink_offers:form.drink_offers||null,happy_hour:form.happy_hour||null,prize_information:form.prize_information||null,sponsors:split(form.sponsors),brand_colours:pairs(form.brand_colours),display_slides:split(form.display_slides),display_adverts:split(form.display_adverts),notes:form.notes||null,active:form.active,updated_at:new Date().toISOString()};const supabase=createSupabaseBrowserClient();
     const result=editing
       ?await supabase.from("venues").update(payload).eq("id",editing).select().single()
       :await supabase.from("venues").insert({...payload,day_of_week:venues.reduce((max,v)=>Math.max(max,v.day_of_week),-1)+1}).select().single();
     if(result.error)setError(result.error.message);
     else{
+      let updatedEvents=0;
+      const oldStart=previousVenue?.default_start_time?.slice(0,5)||"";
+      const oldEnd=previousVenue?.default_end_time?.slice(0,5)||"";
+      const timesChanged=!!previousVenue&&(oldStart!==form.default_start_time||oldEnd!==form.default_end_time);
+      if(timesChanged&&editing){
+        // Calendar entries keep their own times. Carry a changed default into
+        // upcoming entries only when they still have the old inherited times.
+        const today=new Date();
+        const todayKey=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+        const {data:futureEvents,error:eventReadError}=await supabase.from("events").select("id,start_time,end_time,status").eq("venue_record_id",editing).gte("event_date",todayKey).in("status",["draft","scheduled"]);
+        if(eventReadError)setError(`Venue saved, but its upcoming calendar events could not be checked: ${eventReadError.message}`);
+        else{
+          const inheritedIds=(futureEvents||[]).filter(event=>String(event.start_time||"").slice(0,5)===oldStart&&String(event.end_time||"").slice(0,5)===oldEnd).map(event=>event.id);
+          if(inheritedIds.length){
+            const {error:eventUpdateError}=await supabase.from("events").update({start_time:form.default_start_time,end_time:form.default_end_time||null,updated_at:new Date().toISOString()}).in("id",inheritedIds);
+            if(eventUpdateError)setError(`Venue saved, but its upcoming calendar times could not be updated: ${eventUpdateError.message}`);
+            else updatedEvents=inheritedIds.length;
+          }
+        }
+      }
       // Stay on the venue that was just saved (whether newly created or an
       // existing one) instead of wiping the form back to a blank "New
       // Venue" draft - a save should never discard your place, only "New
@@ -70,6 +90,7 @@ export default function VenueManagerPage(){
       setEditing(result.data.id);
       setForm(toForm(result.data as Venue));
       await load();
+      setSavedMessage(updatedEvents?`Venue saved. Updated ${updatedEvents} upcoming calendar ${updatedEvents===1?"event":"events"} to ${form.default_start_time}${form.default_end_time?`–${form.default_end_time}`:""}.`:`Venue saved${timesChanged?". Existing events with a different time were left unchanged.":"."}`);
     }
     setSaving(false);}
   // Builds a real animated video (canvas + MediaRecorder, entirely in the
@@ -210,7 +231,7 @@ export default function VenueManagerPage(){
         {section==="notes"&&<div className="qi-bo-profile-section"><h3>Internal notes</h3><p>Private operational information for hosts and administrators.</p><Area label="Notes" value={form.notes} setValue={v=>set("notes",v)} rows={8}/><div className="qi-bo-active-row"><div><strong>Venue availability</strong><span>{form.active?"Available when scheduling events":"Hidden from new event scheduling"}</span></div><button className="fbh-btn" onClick={()=>set("active",!form.active)}>{form.active?"Deactivate venue":"Activate venue"}</button></div>
           {editing&&<div className="qi-bo-active-row" style={{marginTop:12}}><div><strong style={{color:"#FF7280"}}>Delete this venue</strong><span>Permanently removes it from Venues and scheduling. Can't be undone.</span></div><button className="fbh-btn" style={{background:"rgba(255,59,78,0.12)",border:"1px solid rgba(255,59,78,0.4)",color:"#FF7280"}} onClick={()=>{const venue=venues.find(v=>v.id===editing);if(venue)deleteVenue(venue);}} disabled={saving}>Delete venue</button></div>}
         </div>}
-        {error&&<div className="qi-bo-alert" role="alert">{error}</div>}<footer><span>{!form.venue_name.trim()?<span style={{color:"#FFC533"}}>Enter a Venue Name on the Profile tab to save.</span>:editing?"Changes apply to future events. Live sessions keep their snapshot.":"Complete the profile at your own pace."}</span><HostButton variant="pri" big onClick={()=>{if(!form.venue_name.trim()){setSection("profile");return;}save();}} disabled={saving}>{saving?"Saving…":editing?"Save venue":"Create venue"}</HostButton></footer>
+        {error&&<div className="qi-bo-alert" role="alert">{error}</div>}{savedMessage&&<div className="qi-bo-alert" role="status" style={{color:"#2EE06E",borderColor:"rgba(46,224,110,.45)",background:"rgba(46,224,110,.08)"}}>{savedMessage}</div>}<footer><span>{!form.venue_name.trim()?<span style={{color:"#FFC533"}}>Enter a Venue Name on the Profile tab to save.</span>:editing?"A changed default time also updates upcoming events still using the previous default. Custom event times stay unchanged.":"Complete the profile at your own pace."}</span><HostButton variant="pri" big onClick={()=>{if(!form.venue_name.trim()){setSection("profile");return;}save();}} disabled={saving}>{saving?"Saving…":editing?"Save venue":"Create venue"}</HostButton></footer>
       </section></div></main></HostShell>;
 }
 

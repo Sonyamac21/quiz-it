@@ -1397,40 +1397,50 @@ function DisplayScreenInner() {
             )}
 
             {currentReelScene === "prizes" && (
-              <div className="lb-reel-scene lb-reel-brand">
-                <div className="lb-cardkicker">TONIGHT&rsquo;S PRIZES</div>
-                <div className="lb-reel-brand-body">{venuePrizeInfo}</div>
+              <div className="lb-reel-scene lb-reel-brand lb-reel-brand-prizes">
+                <div className="lb-reel-brand-panel">
+                  <div className="lb-cardkicker">TONIGHT&rsquo;S PRIZES</div>
+                  <div className="lb-reel-brand-body">{venuePrizeInfo}</div>
+                </div>
               </div>
             )}
 
             {currentReelScene === "schedule" && (
-              <div className="lb-reel-scene lb-reel-brand">
-                {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
-                <div className="lb-cardkicker">EVERY WEEK</div>
-                <div className="lb-reel-brand-headline">{venueScheduleText}</div>
+              <div className="lb-reel-scene lb-reel-brand lb-reel-brand-schedule">
+                <div className="lb-reel-brand-panel">
+                  {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
+                  <div className="lb-cardkicker">EVERY WEEK</div>
+                  <div className="lb-reel-brand-headline">{venueScheduleText}</div>
+                </div>
               </div>
             )}
 
             {currentReelScene === "host" && (
-              <div className="lb-reel-scene lb-reel-brand">
-                {venueHostPhotoUrl && <img className="lb-reel-host-photo" src={getMediaUrl(venueHostPhotoUrl) || undefined} alt={venueHostName || "Host"} />}
-                <div className="lb-cardkicker">YOUR HOST TONIGHT</div>
-                <div className="lb-reel-brand-headline">{venueHostName}</div>
+              <div className="lb-reel-scene lb-reel-brand lb-reel-brand-host">
+                <div className="lb-reel-brand-panel lb-reel-host-panel">
+                  {venueHostPhotoUrl && <div className="lb-reel-host-frame"><img className="lb-reel-host-photo" src={getMediaUrl(venueHostPhotoUrl) || undefined} alt={venueHostName || "Host"} /></div>}
+                  <div className="lb-reel-host-copy"><div className="lb-cardkicker">YOUR HOST TONIGHT</div><div className="lb-reel-brand-headline">{venueHostName}</div></div>
+                </div>
               </div>
             )}
 
             {currentReelScene === "social" && (
-              <div className="lb-reel-scene lb-reel-brand">
-                <div className="lb-cardkicker">FOLLOW THE VENUE</div>
-                <div className="lb-reel-brand-headline">{venueInstagramTag}</div>
+              <div className="lb-reel-scene lb-reel-brand lb-reel-brand-social">
+                <div className="lb-reel-brand-panel">
+                  {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
+                  <div className="lb-cardkicker">FOLLOW THE VENUE</div>
+                  <div className="lb-reel-brand-headline">{venueInstagramTag}</div>
+                </div>
               </div>
             )}
 
             {currentReelScene === "tag-us" && (
-              <div className="lb-reel-scene lb-reel-brand">
-                <div className="lb-cardkicker">SHARE THE NIGHT</div>
-                <div className="lb-reel-brand-headline">@macentertainmentuae</div>
-                <div className="lb-reel-brand-body">Tag us in your posts and stories!</div>
+              <div className="lb-reel-scene lb-reel-brand lb-reel-brand-social">
+                <div className="lb-reel-brand-panel">
+                  <div className="lb-cardkicker">SHARE THE NIGHT</div>
+                  <div className="lb-reel-brand-headline">@macentertainmentuae</div>
+                  <div className="lb-reel-brand-body">Tag us in your posts and stories!</div>
+                </div>
               </div>
             )}
 

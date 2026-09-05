@@ -165,6 +165,12 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
       else if (status === "reveal") { advanceRace(); }
       else if (status === "advance") { if (canAskMore) nextQuestion(); else finishRound(); }
       else if (status === "complete") { showResults(); }
+      // Was missing entirely - "results" is the terminal state after Show
+      // Results, and with no case here the spacebar (and the "Next action"
+      // button below) simply did nothing once the race finished, leaving no
+      // way to close out Pursuit and return to the normal round-end flow
+      // except the browser back button.
+      else if (status === "results") { closePanel(); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -530,13 +536,20 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
           : status === "question" ? (timerNotStarted ? "Start Timer" : answersLocked ? "Reveal Answer" : "Lock Answers")
           : status === "reveal" ? "Advance Race"
           : status === "advance" ? (canAskMore ? `Next Question (${qIndex + 2})` : "Finish Round")
-          : status === "complete" ? "Show Results" : "";
+          : status === "complete" ? "Show Results"
+          // Same gap as the spacebar handler above - "results" had no label
+          // at all, so the whole "Next action" button vanished right when the
+          // host needed it most (the final screen of the round), with
+          // closePanel() (which correctly returns the session to a normal
+          // waiting state and closes Pursuit) sitting unreachable.
+          : status === "results" ? "Close Pursuit & Continue" : "";
         const pursuitNextHandler =
           status === "intro" ? nextQuestion
           : status === "question" ? (timerNotStarted ? startTimer : answersLocked ? revealAnswer : lockAnswers)
           : status === "reveal" ? advanceRace
           : status === "advance" ? (canAskMore ? nextQuestion : finishRound)
-          : status === "complete" ? showResults : undefined;
+          : status === "complete" ? showResults
+          : status === "results" ? closePanel : undefined;
         const showTimer = status === "question" && !answersLocked && !timerNotStarted;
         return pursuitNextLabel ? (
           <button onClick={pursuitNextHandler} disabled={status === "intro" && pursuitQuestions.length === 0} className={`qi-mc-next${showTimer ? " qi-mc-next--timer" : ""}`}>

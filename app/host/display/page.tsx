@@ -653,10 +653,14 @@ function DisplayScreenInner() {
       || (newPhase === "pursuit" && readPursuitState(data).status === "intro")
       || (newPhase === "hard_deck" && data.hard_deck_status === "wheel");
     if (isRoundOpening) {
-      const roundKey = String(data.current_session_round_id ?? data.round_id ?? data.round_number ?? "round");
+      // round_started_at is rewritten every time the host starts a round, even
+      // when they restart the same round while testing. Using only the round
+      // record id suppressed the claxon on that second start. Keep ids/numbers
+      // as a legacy fallback for older session snapshots.
+      const roundKey = String(data.round_started_at ?? `${data.current_session_round_id ?? data.round_id ?? "round"}:${data.round_number ?? "?"}`);
       if (lastRoundStartCueRef.current !== roundKey) {
         lastRoundStartCueRef.current = roundKey;
-        playSound("airhorn.mp3", 0.65);
+        playSound("airhorn.mp3", 0.9);
       }
     }
     const spinChoiceVal = (data.spin_choice as string) || null;

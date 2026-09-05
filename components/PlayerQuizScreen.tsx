@@ -373,68 +373,82 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   useEffect(() => {
     const active = sessionStatus !== "finished";
     let sentinel: WakeLockSentinel | null = null;
+    let pending = false;
+    let disposed = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const nav = navigator as Navigator & { wakeLock?: { request: (type: string) => Promise<WakeLockSentinel> } };
     async function acquire() {
-      if (!active || document.visibilityState !== "visible" || !nav.wakeLock || sentinel) return;
+      if (!active || disposed || pending || document.visibilityState !== "visible" || !nav.wakeLock || (sentinel && !sentinel.released)) return;
+      pending = true;
       try {
-        sentinel = await nav.wakeLock.request("screen");
-        sentinel.addEventListener("release", () => {
-          sentinel = null;
-          // The OS can release the lock spuriously; if we're still visible and the
-          // session is active, re-acquire immediately so the screen never sleeps.
-          if (active && document.visibilityState === "visible") acquire();
+        const next = await nav.wakeLock.request("screen");
+        if (disposed) { await next.release(); return; }
+        sentinel = next;
+        next.addEventListener("release", () => {
+          if (sentinel === next) sentinel = null;
+          // iOS can release a lock during transient browser UI changes. Avoid a
+          // tight request loop, then restore it while the quiz is still visible.
+          if (!disposed && active && document.visibilityState === "visible") retryTimer = setTimeout(acquire, 750);
         });
-      } catch {}
+      } catch {} finally { pending = false; }
     }
     const onVisible = () => { if (document.visibilityState === "visible") acquire(); };
     if (active) {
       acquire();
       document.addEventListener("visibilitychange", onVisible);
       window.addEventListener("focus", acquire);
+      window.addEventListener("pageshow", acquire);
+      document.addEventListener("pointerdown", acquire, { passive: true });
     }
+    const watchdog = window.setInterval(acquire, 15000);
     return () => {
+      disposed = true;
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", acquire);
+      window.removeEventListener("pageshow", acquire);
+      document.removeEventListener("pointerdown", acquire);
+      window.clearInterval(watchdog);
+      if (retryTimer) clearTimeout(retryTimer);
       if (sentinel) { sentinel.release().catch(() => {}); sentinel = null; }
     };
   }, [sessionStatus]);
-  // Fallback for phones/browsers where the Screen Wake Lock API above is
-  // either unsupported (older iOS Safari, or the in-app browser used when a
-  // join link is opened from WhatsApp/Instagram) or gets silently ignored -
-  // navigator.wakeLock being undefined means the effect above just no-ops
-  // every time, and the screen goes to sleep mid-quiz with no warning. A
-  // muted, looping, inline video is the long-standing cross-browser trick
-  // (same idea as the NoSleep.js library) for keeping the display awake
-  // where the real API doesn't exist - it costs one tiny offscreen <video>
-  // and no visible UI.
+  // iOS Safari may expose the Wake Lock API but still release/ignore it. Keep
+  // the tiny muted-video fallback active as a second layer on every handset,
+  // not only browsers where navigator.wakeLock is undefined.
   useEffect(() => {
     if (sessionStatus === "finished") return;
-    const nav = navigator as Navigator & { wakeLock?: unknown };
-    if (nav.wakeLock) return; // real API is available and handled above
     const video = document.createElement("video");
     video.setAttribute("muted", "");
     video.setAttribute("playsinline", "");
     video.setAttribute("loop", "");
+    video.setAttribute("preload", "auto");
+    video.setAttribute("aria-hidden", "true");
     video.muted = true;
     video.playsInline = true;
     video.loop = true;
-    video.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;";
-    // 1x1 black frame, looped forever via a canvas stream - no video asset needed.
-    const canvas = document.createElement("canvas");
-    canvas.width = 2; canvas.height = 2;
-    const ctx = canvas.getContext("2d");
-    if (ctx) { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, 2, 2); }
-    try {
-      const stream = (canvas as HTMLCanvasElement & { captureStream: (fps?: number) => MediaStream }).captureStream(1);
-      video.srcObject = stream;
-    } catch { return; }
+    video.src = "/keep-awake.mp4";
+    // Keep it technically rendered: iOS may suspend display:none, zero-size,
+    // fully transparent, or off-screen media even while play() says it ran.
+    video.style.cssText = "position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:-1;";
     document.body.appendChild(video);
-    video.play().catch(() => {});
-    const resume = () => { if (document.visibilityState === "visible") video.play().catch(() => {}); };
+    const resume = () => { if (document.visibilityState === "visible" && video.paused) video.play().catch(() => {}); };
+    resume();
     document.addEventListener("visibilitychange", resume);
+    window.addEventListener("focus", resume);
+    window.addEventListener("pageshow", resume);
+    document.addEventListener("pointerdown", resume, { passive: true });
+    document.addEventListener("touchstart", resume, { passive: true });
+    const watchdog = window.setInterval(resume, 10000);
     return () => {
       document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("focus", resume);
+      window.removeEventListener("pageshow", resume);
+      document.removeEventListener("pointerdown", resume);
+      document.removeEventListener("touchstart", resume);
+      window.clearInterval(watchdog);
       video.pause();
+      video.removeAttribute("src");
+      video.load();
       if (video.parentNode) video.parentNode.removeChild(video);
     };
   }, [sessionStatus]);

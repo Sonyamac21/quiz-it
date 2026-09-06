@@ -1739,6 +1739,19 @@ function QuizControllerInner() {
             <div className="qi-mc-round-picker">
               <div className="qi-mc-round-picker__title">Tonight&rsquo;s Running Order</div>
               <div className="qi-mc-round-picker__description">Only rounds prepared in this quiz are available. Completed rounds remain visible.</div>
+              {/* Previously "Finish Quiz" only appeared on the round_end screen
+                  right after a round completed - a host who backed out to this
+                  running-order view (e.g. to check what's left, or because the
+                  last round was skipped rather than ending naturally) had no
+                  way to start the leaderboard reveal from here at all. Shown
+                  whenever at least one round is complete, so it's available
+                  from this screen without forcing the host back into a
+                  specific round first. */}
+              {rounds.some(r => r.completed_at) && (
+                <div style={{ textAlign: "center", marginBottom: 24 }}>
+                  <button onClick={async () => { if (await confirmDialog("Finish the quiz and start the leaderboard reveal? Any rounds not yet played will be skipped.", { confirmLabel: "Finish Quiz" })) doEndOfQuiz(); }} style={{ padding: "14px 28px", borderRadius: 14, background: "#BE26C1", border: "1px solid #D94FDC", color: "#fff", font: "800 15px 'Inter'", cursor: "pointer", boxShadow: "0 0 22px rgba(190,38,193,.4)" }}>Finish Quiz · Start Leaderboard &amp; Winners</button>
+                </div>
+              )}
               {rounds.length === 0 ? (
                 <div style={{ font:"600 15px 'Inter'", color:"#B9A8D9", textAlign:"center" }}>This session has no quiz snapshot. Create a new session from Quiz Builder.</div>
               ) : (

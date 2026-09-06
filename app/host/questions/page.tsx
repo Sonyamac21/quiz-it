@@ -19,6 +19,13 @@ type Question = {
   // on the exact item regardless of index shifts or concurrent async updates.
   // Not persisted (stripped before saving a round).
   _uid?: string;
+  // Transient, matches lib/quiz/generateRound.ts: set when this question came
+  // from a recency/news topic, plus a short search-verified fact note (if the
+  // verification call succeeded) so the validators trust a genuinely recent
+  // fact instead of rejecting it purely for being unfamiliar. Stripped before
+  // saving along with _uid.
+  _recency?: boolean;
+  _recencyNote?: string;
   question_text: string;
   question_type: string;
   option_a: string | null;
@@ -153,6 +160,9 @@ function allocateRegularTypes(count: number): string[] {
 // inline in generate()) so both generate() AND topUp() share the exact same
 // logic - topUp used to have its own, much weaker random topic draw with no
 // category guarantee at all.
+// The recency bucket is listed TWICE (matches lib/quiz/generateRound.ts) so
+// it comes up roughly every 5-6 questions instead of every 10 - a single
+// slot in ten read as "basically never" per direct host feedback.
 const TOPIC_BUCKETS: string[][] = [
   ["breaking and trending mainstream headlines from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent mainstream news from the last 3-12 months"],
   ["movies and TV", "celebrities and showbiz", "awards and entertainment"],
@@ -160,6 +170,7 @@ const TOPIC_BUCKETS: string[][] = [
   ["geography", "famous landmarks", "world travel and international culture"],
   ["simple history", "famous historical people", "major world events"],
   ["sport", "football", "international sporting events"],
+  ["breaking celebrity, showbiz and pop-culture news from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent trending pop-culture moments from the last 3-12 months"],
   ["accessible science and space", "animals", "nature and wildlife"],
   ["food and drink", "logos and brands", "cars and transport"],
   ["consumer technology and digital life", "video games", "social media and internet"],
@@ -476,7 +487,7 @@ export default function QuestionsPage() {
     return text.replace(/```json/g,"").replace(/```/g,"").trim();
   }
 
-  async function checkQuestion(q: Question): Promise<{ok: boolean; note: string; unavailable?: boolean}> {
+  async function checkQuestion(q: Question, recencyNote?: string): Promise<{ok: boolean; note: string; unavailable?: boolean}> {
     // Include ALL six options (a–f), not just a–d. Multi Tap questions carry
     // correct_answer as a comma-separated letter key that can reference option_e
     // or option_f (e.g. "b,e"). Previously those two options were omitted here,
@@ -517,7 +528,10 @@ export default function QuestionsPage() {
       "Distinguish factual reference from promotion: a neutral factual reference to alcohol or another restricted subject may pass; reject content that promotes, celebrates or encourages restricted activity. " +
       "Reject only when the presented content itself contains genuinely explicit sexual material, crude anatomical language, illegal-drug promotion, pork promotion, religious or LGBTQ+ advocacy or sensitive discussion, Iran or Israel political content, hate speech, slurs, harassment, discriminatory content, graphic violence, or other clearly offensive or prohibited material. " +
       "Example that MUST pass: Question 'Name this song.' with Internal media lookup 'Mr. Brightside - The Killers'. Do not analyse the song's lyrics or themes. " +
-      "Also verify that the Answer is factually correct for the Question, using the literal reference metadata when needed. " +
+      "Also verify that the Answer is factually correct for the Question, using the literal reference metadata when needed. Pay special attention to geographic facts (city, country, capital, venue) and named entities - these are common error points, so check them precisely rather than assuming they are right. " +
+      (recencyNote
+        ? "This question is about a recent/current event that may be AFTER your own training cutoff, so you may not personally recognise it - that is expected and is NOT itself a reason to reject it. A live web search was already run to verify it; treat the following as ground truth for this fact-check: " + recencyNote + " "
+        : "") +
       "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"short reason based only on presented content\"}. " +
       "Labelled fields: " + JSON.stringify(labelledContent);
     let firstError = "";
@@ -593,7 +607,7 @@ export default function QuestionsPage() {
   // quiz host judges the whole question as a player would experience it and only
   // passes an unequivocal YES. Fails OPEN on a verification error so a transient
   // API hiccup never hard-stalls generation.
-  async function finalQualityCheck(q: Question): Promise<{ok: boolean; note: string}> {
+  async function finalQualityCheck(q: Question, recencyNote?: string): Promise<{ok: boolean; note: string}> {
     const resolvedAnswer = resolveAnswerText(q);
     const options = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f].filter(Boolean).join(" | ");
     const isMedia = q.question_type === "picture" || q.question_type === "audio";
@@ -605,6 +619,9 @@ export default function QuestionsPage() {
       "Reject (ok:false) if it suffers from ANY of: (1) unnatural wording; (2) awkward grammar; (3) artificially restricted answers; (4) an answer that is technically correct but not what a player would naturally type; (5) it depends on the explanation to make sense; (6) trivial or pointless; (7) poor quiz design; (8) misleading; (9) a generic question disguised as themed; (10) an image that does not directly represent the answer; (11) it gives the answer away; (12) it could reasonably have multiple correct answers; (13) it requires excessive interpretation; (14) it doesn't feel enjoyable to play; (15) anything a competent quiz writer would immediately rewrite. " +
       "Examples that MUST fail: Text Answer 'In which movie does a boy say \"I see dead people\"?' answer 'Sixth' (nobody naturally types 'Sixth'). 'What trophy is awarded to the winner of Wimbledon?' answer 'Venus' (factually wrong, truncated, and ambiguous between events: women receive the Venus Rosewater Dish; men receive the Gentlemen's Singles Trophy). Number 'How many teams are in the Premier League? To the nearest 5' (the 'nearest 5' is pointless). A picture of a real bear asking 'What animal is Yogi Bear?' (the image gives away 'bear'). Disney-themed 'What animal is this?' over a real chameleon (not actually a Disney question). " +
       "Judge the question exactly as a player would experience it. DO NOT rely on the explanation to make it make sense. " +
+      (recencyNote
+        ? "This question is about a recent/current event you may not personally recognise (it may post-date your training) - do not judge it unnatural or reject it purely for unfamiliarity. A live web search already verified: " + recencyNote + " "
+        : "") +
       "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"short reason\"}. " +
       "Type: " + q.question_type + " | Theme: " + (activeTheme || "none") +
       " | Question: " + (q.question_text || "") +
@@ -725,6 +742,27 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       if (q) { q.question_type = type; }
       if (q) {
         context.report.questionText = q.question_text || "Untitled candidate";
+      }
+      // Matches lib/quiz/generateRound.ts's fix: generation above ran with a
+      // real web_search tool, but checkQuestion/finalQualityCheck below run on
+      // VALIDATION_MODEL/FACT_CHECK_MODEL WITHOUT search, so a genuinely
+      // recent fact they don't personally recognise reads exactly like a
+      // hallucination and gets rejected - which is why news/current-affairs
+      // questions were basically never surviving to a live round even though
+      // generation itself was correctly grounded. Run one more search call to
+      // produce a short verified-fact note and hand it to the validators.
+      if (q && isRecencyTopic) {
+        q._recency = true;
+        try {
+          const verifyPrompt = "Use the web_search tool to verify this pub-quiz question and answer against current, reliable sources. " +
+            "Question: " + (q.question_text || "") + " | Stated answer: " + resolveAnswerText(q) + ". " +
+            "Reply with ONE short sentence stating either the confirmed correct answer and source context, or that it could not be confirmed. No markdown, no preamble.";
+          const verifyText = await callAPI(verifyPrompt, 400, false, true, GENERATION_MODEL);
+          if (verifyText && verifyText.trim()) q._recencyNote = verifyText.trim().slice(0, 500);
+        } catch {
+          // No verification note is fine - validators still get the "this may
+          // be recent, don't reject for unfamiliarity" instruction on its own.
+        }
       }
       // THEME RELEVANCE: if the host supplied a theme, every question (of ANY
       // type) must genuinely require knowledge of that theme. Checked here -
@@ -1163,9 +1201,9 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       : { status: "passed", note: "No permanent-memory match" };
     if (memoryDuplicate) return { ok: false, category: "Permanent memory", reason: stages.memory.note, stages };
 
-    const moderationPromise = checkQuestion(q);
+    const moderationPromise = checkQuestion(q, q._recencyNote);
     const balancePromise = checkRoundBalance(q, currentRound);
-    const qualityPromise = finalQualityCheck(q);
+    const qualityPromise = finalQualityCheck(q, q._recencyNote);
 
     const [moderation, balance, quality] = await Promise.all([
       moderationPromise,

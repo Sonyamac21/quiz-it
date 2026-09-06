@@ -31,6 +31,14 @@ import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pi
 export type Question = {
   id?: number;
   _uid?: string;
+  // Transient, never persisted as a real column (this whole object round-trips
+  // through a jsonb column, so extra keys are harmless): set when this
+  // question was generated from a recency/news topic, and - if a search
+  // verification call succeeded - a short note the validators can use to
+  // confirm the fact instead of rejecting it purely because Haiku's own
+  // frozen training data doesn't recognise something genuinely recent.
+  _recency?: boolean;
+  _recencyNote?: string;
   question_text: string;
   question_type: string;
   option_a: string | null;
@@ -418,7 +426,7 @@ async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutpu
   return text.replace(/```json/g, "").replace(/```/g, "").trim();
 }
 
-async function checkQuestion(q: Question, theme: string): Promise<{ ok: boolean; note: string; unavailable?: boolean }> {
+async function checkQuestion(q: Question, theme: string, recencyNote?: string): Promise<{ ok: boolean; note: string; unavailable?: boolean }> {
   const optionTexts = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f];
   let answerForCheck: string = q.correct_answer;
   if (q.question_type === "multi_tap") {
@@ -451,7 +459,10 @@ async function checkQuestion(q: Question, theme: string): Promise<{ ok: boolean;
     "Distinguish factual reference from promotion: a neutral factual reference to alcohol or another restricted subject may pass; reject content that promotes, celebrates or encourages restricted activity. " +
     "Reject only when the presented content itself contains genuinely explicit sexual material, crude anatomical language, illegal-drug promotion, pork promotion, religious or LGBTQ+ advocacy or sensitive discussion, Iran or Israel political content, hate speech, slurs, harassment, discriminatory content, graphic violence, or other clearly offensive or prohibited material. " +
     "Example that MUST pass: Question 'Name this song.' with Internal media lookup 'Mr. Brightside - The Killers'. Do not analyse the song's lyrics or themes. " +
-    "Also verify that the Answer is factually correct for the Question, using the literal reference metadata when needed. " +
+    "Also verify that the Answer is factually correct for the Question, using the literal reference metadata when needed. Pay special attention to geographic facts (city, country, capital, venue) and named entities - these are common error points, so check them precisely rather than assuming they are right. " +
+    (recencyNote
+      ? "This question is about a recent/current event that may be AFTER your own training cutoff, so you may not personally recognise it - that is expected and is NOT itself a reason to reject it. A live web search was already run to verify it; treat the following as ground truth for this fact-check: " + recencyNote + " "
+      : "") +
     "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"short reason based only on presented content\"}. " +
     "Labelled fields: " + JSON.stringify(labelledContent);
   let firstError = "";
@@ -506,7 +517,7 @@ function resolveAnswerText(q: Question): string {
   return q.correct_answer;
 }
 
-async function finalQualityCheck(q: Question, theme: string): Promise<{ ok: boolean; note: string }> {
+async function finalQualityCheck(q: Question, theme: string, recencyNote?: string): Promise<{ ok: boolean; note: string }> {
   const resolvedAnswer = resolveAnswerText(q);
   const options = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f].filter(Boolean).join(" | ");
   const isMedia = q.question_type === "picture" || q.question_type === "audio";
@@ -518,6 +529,9 @@ async function finalQualityCheck(q: Question, theme: string): Promise<{ ok: bool
     "Reject (ok:false) if it suffers from ANY of: (1) unnatural wording; (2) awkward grammar; (3) artificially restricted answers; (4) an answer that is technically correct but not what a player would naturally type; (5) it depends on the explanation to make sense; (6) trivial or pointless; (7) poor quiz design; (8) misleading; (9) a generic question disguised as themed; (10) an image that does not directly represent the answer; (11) it gives the answer away; (12) it could reasonably have multiple correct answers; (13) it requires excessive interpretation; (14) it doesn't feel enjoyable to play; (15) anything a competent quiz writer would immediately rewrite. " +
     "Examples that MUST fail: Text Answer 'In which movie does a boy say \"I see dead people\"?' answer 'Sixth' (nobody naturally types 'Sixth'). 'What trophy is awarded to the winner of Wimbledon?' answer 'Venus' (factually wrong, truncated, and ambiguous between events: women receive the Venus Rosewater Dish; men receive the Gentlemen's Singles Trophy). Number 'How many teams are in the Premier League? To the nearest 5' (the 'nearest 5' is pointless). A picture of a real bear asking 'What animal is Yogi Bear?' (the image gives away 'bear'). Disney-themed 'What animal is this?' over a real chameleon (not actually a Disney question). " +
     "Judge the question exactly as a player would experience it. DO NOT rely on the explanation to make it make sense. " +
+    (recencyNote
+      ? "This question is about a recent/current event you may not personally recognise (it may post-date your training) - do not judge it unnatural or reject it purely for unfamiliarity. A live web search already verified: " + recencyNote + " "
+      : "") +
     "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"short reason\"}. " +
     "Type: " + q.question_type + " | Theme: " + (activeTheme || "none") +
     " | Question: " + (q.question_text || "") +
@@ -661,6 +675,30 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     }
     if (q) { q.question_type = type; }
     if (q) { context.report.questionText = q.question_text || "Untitled candidate"; }
+    // The generation call above ran with a real web_search tool and wrote a
+    // grounded fact, but the validators later (checkQuestion/finalQualityCheck/
+    // runCombinedValidation) run on VALIDATION_MODEL WITHOUT search - so a
+    // genuinely recent fact the validator doesn't personally recognise (it
+    // may post-date that model's own training) reads exactly like a
+    // hallucination and gets rejected. That silent rejection is why almost no
+    // news/current-affairs questions were ever surviving to a live round even
+    // though generation itself was correctly using search. Run one more
+    // search-grounded call here to produce a short, independently-verified
+    // fact summary and hand it to every validator as trusted context, so
+    // "I don't recognise this" stops being treated as "this is wrong".
+    if (q && isRecencyTopic) {
+      q._recency = true;
+      try {
+        const verifyPrompt = "Use the web_search tool to verify this pub-quiz question and answer against current, reliable sources. " +
+          "Question: " + (q.question_text || "") + " | Stated answer: " + resolveAnswerText(q) + ". " +
+          "Reply with ONE short sentence stating either the confirmed correct answer and source context, or that it could not be confirmed. No markdown, no preamble.";
+        const verifyText = await callAPI(verifyPrompt, 400, false, true, GENERATION_MODEL);
+        if (verifyText && verifyText.trim()) q._recencyNote = verifyText.trim().slice(0, 500);
+      } catch {
+        // No verification note is fine - validators still get the "this may
+        // be recent, don't reject for unfamiliarity" instruction on its own.
+      }
+    }
     if (q && theme && theme.trim()) {
       const themeCheck = await checkThemeRelevance(q, theme.trim());
       context.report.stages.theme = { status: themeCheck.ok ? "passed" : "failed", note: themeCheck.note };
@@ -941,7 +979,7 @@ async function checkRoundBalance(q: Question, currentRound: Question[], theme: s
   }
 }
 
-async function runCombinedValidation(q: Question, currentRound: Question[], theme: string): Promise<{
+async function runCombinedValidation(q: Question, currentRound: Question[], theme: string, recencyNote?: string): Promise<{
   moderation: { ok: boolean; note: string; unavailable?: boolean };
   balance: { ok: boolean; note: string; details: RoundBalanceDetails };
   quality: { ok: boolean; note: string };
@@ -974,6 +1012,9 @@ async function runCombinedValidation(q: Question, currentRound: Question[], them
     "ROUND BALANCE: Compare only with accepted questions. Reject only with HIGH confidence for the same primary entity, same narrow subtopic, or effectively the same underlying knowledge. Broad-category overlap is allowed; incidental/weak relationships pass; never reject merely for the same country. If themed, the shared theme is intentional, but repeated franchises/entities inside it are not. conflict_index is the 1-based accepted-question index, otherwise null. " +
     "FINAL QUALITY AND FACTUAL ACCURACY: Independently verify that the exact answer is a real, complete, factually correct answer to the exact wording. Pass only if an experienced professional host would willingly use it. Reject invented or truncated names, unnatural/ambiguous/trivial/misleading wording, answers players would not naturally give, answer giveaways, multiple reasonable answers, category/event/gender ambiguity, poor quiz design, or media that does not directly support the question. Example that MUST fail: 'What trophy is awarded to the winner of Wimbledon?' answer 'Venus'—there is no trophy called Venus, and the event is unspecified; the women's trophy is the Venus Rosewater Dish and the men's is the Gentlemen's Singles Trophy. Do not rely on the explanation. " +
     "Return moderation_ok/note, balance_ok/note/confidence, quality_ok/note, candidate_subtopic, candidate_entity, conflict_index and rejection_reason. Uncertainty in balance must pass. " +
+    (recencyNote
+      ? "This candidate concerns a recent/current event that may post-date your training data, so you may not personally recognise it - that unfamiliarity alone is NOT grounds for a factual-accuracy rejection. A live web search was already run to verify it; treat this as ground truth for the quality/factual check: " + recencyNote + " "
+      : "") +
     "Candidate labelled fields: " + JSON.stringify(candidate) + " | Accepted questions: " + JSON.stringify(accepted);
   try {
     const parsed = parseModelJson<{
@@ -1004,9 +1045,9 @@ async function runCombinedValidation(q: Question, currentRound: Question[], them
     // response. Preserve the established fail-closed moderation behaviour
     // and fail-open balance/quality behaviour instead of losing validation.
     const [moderation, balance, quality] = await Promise.all([
-      checkQuestion(q, theme),
+      checkQuestion(q, theme, recencyNote),
       checkRoundBalance(q, currentRound, theme),
-      finalQualityCheck(q, theme),
+      finalQualityCheck(q, theme, recencyNote),
     ]);
     return { moderation, balance, quality };
   }
@@ -1079,7 +1120,7 @@ async function validateCandidate(
   // candidate made three separate network round trips here; under Generate
   // All they saturated the shared queue and a 10-question round could time
   // out after almost six minutes with only six accepted questions.
-  const { moderation, balance, quality } = await runCombinedValidation(q, currentRound, theme);
+  const { moderation, balance, quality } = await runCombinedValidation(q, currentRound, theme, q._recencyNote);
   stages.moderation = { status: moderation.ok ? "passed" : "failed", note: moderation.note };
   stages.balance = { status: balance.ok ? "passed" : "failed", note: balance.note, details: balance.details };
   stages.quality = { status: quality.ok ? "passed" : "failed", note: quality.note };
@@ -1274,6 +1315,11 @@ export async function generateValidatedRound(
   // no picture topic repeats early. A host who wants ONLY news/showbiz (or
   // ONLY movies) should still type an explicit theme - this only fixes the
   // default "mixed general knowledge" case.
+  // The recency bucket is listed TWICE (below) so it comes up roughly every
+  // 5-6 questions instead of every 10 - now that the validator-rejection bug
+  // above is fixed, a single slot in ten was still too thin to actually read
+  // as "fresh" across a normal-length round, per direct host feedback that
+  // current-affairs/pop-culture questions basically never appeared.
   const TOPIC_BUCKETS: string[][] = [
     ["breaking and trending mainstream headlines from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent mainstream news from the last 3-12 months"],
     ["movies and TV", "celebrities and showbiz", "awards and entertainment"],
@@ -1281,6 +1327,7 @@ export async function generateValidatedRound(
     ["geography", "famous landmarks", "world travel and international culture"],
     ["simple history", "famous historical people", "major world events"],
     ["sport", "football", "international sporting events"],
+    ["breaking celebrity, showbiz and pop-culture news from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent trending pop-culture moments from the last 3-12 months"],
     ["accessible science and space", "animals", "nature and wildlife"],
     ["food and drink", "logos and brands", "cars and transport"],
     ["consumer technology and digital life", "video games", "social media and internet"],

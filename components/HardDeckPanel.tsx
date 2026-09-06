@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
@@ -42,6 +42,10 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
   const [showWheel, setShowWheel] = useState(false);
   const [deck, setDeck] = useState<PlayingCard[]>([]);
   const [wheelTarget, setWheelTarget] = useState<number | null>(null);
+  const [stealGuesses, setStealGuesses] = useState<Record<string, string>>({});
+  const [stealWinners, setStealWinners] = useState<string[]>([]);
+  const [playId, setPlayId] = useState("");
+  const revealInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -55,6 +59,9 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
           if (row.hard_deck_guess !== undefined) setGuess(row.hard_deck_guess);
           if (row.hard_deck_status !== undefined) setStatus(row.hard_deck_status);
           if (row.hard_deck_potential !== undefined) setPotential(row.hard_deck_potential);
+          if (row.hard_deck_steal_guesses !== undefined) setStealGuesses(row.hard_deck_steal_guesses || {});
+          if (row.hard_deck_steal_winners !== undefined) setStealWinners(row.hard_deck_steal_winners || []);
+          if (row.hard_deck_play_id !== undefined) setPlayId(row.hard_deck_play_id || "");
         }
       )
       .subscribe();
@@ -80,7 +87,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
     if (!sessionId) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.from("sessions").select("phase,hard_deck_team,hard_deck_cards,hard_deck_guess,hard_deck_potential,hard_deck_status,hard_deck_has_swapped,hard_deck_wheel_target").eq("id", sessionId).maybeSingle();
+      const { data } = await supabase.from("sessions").select("phase,hard_deck_team,hard_deck_cards,hard_deck_guess,hard_deck_potential,hard_deck_status,hard_deck_has_swapped,hard_deck_wheel_target,hard_deck_steal_guesses,hard_deck_steal_winners,hard_deck_play_id").eq("id", sessionId).maybeSingle();
       if (cancelled || !data || data.phase !== "hard_deck") return;
       const restoredStatus = data.hard_deck_status as HardDeckStatus;
       if (!restoredStatus || ["idle", "won", "lost"].includes(restoredStatus)) return;
@@ -92,6 +99,9 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
       setPotential(data.hard_deck_potential || 0);
       setHasSwapped(!!data.hard_deck_has_swapped);
       setWheelTarget(data.hard_deck_wheel_target ?? null);
+      setStealGuesses((data.hard_deck_steal_guesses as Record<string, string>) || {});
+      setStealWinners((data.hard_deck_steal_winners as string[]) || []);
+      setPlayId((data.hard_deck_play_id as string) || "");
       setDeck(restoredDeck);
       setShowWheel(restoredStatus === "wheel");
       setStatus(restoredStatus);
@@ -102,6 +112,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
 
   function startHardDeck() {
     const targetIdx = Math.floor(Math.random() * teams.length);
+    const nextPlayId = crypto.randomUUID();
     setOpen(true);
     setShowWheel(true);
     setTeam(null);
@@ -112,7 +123,10 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
     setGuess(null);
     setDeck(buildDeck());
     setWheelTarget(targetIdx);
-    pushState({ hard_deck_status: "wheel", hard_deck_team: null, hard_deck_cards: [], hard_deck_guess: null, hard_deck_potential: 0, hard_deck_has_swapped: false, hard_deck_wheel_target: targetIdx, hard_deck_wheel_spinning: false, phase: "hard_deck" });
+    setStealGuesses({});
+    setStealWinners([]);
+    setPlayId(nextPlayId);
+    pushState({ hard_deck_status: "wheel", hard_deck_team: null, hard_deck_cards: [], hard_deck_guess: null, hard_deck_potential: 0, hard_deck_has_swapped: false, hard_deck_wheel_target: targetIdx, hard_deck_wheel_spinning: false, hard_deck_steal_guesses: {}, hard_deck_steal_winners: [], hard_deck_play_id: nextPlayId, phase: "hard_deck" });
   }
 
   function onWheelResult(seg: { label: string }) {
@@ -132,7 +146,8 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
 
   function keepBase() {
     setStatus("awaiting_guess");
-    pushState({ hard_deck_status: "awaiting_guess" });
+    setStealGuesses({});
+    pushState({ hard_deck_status: "awaiting_guess", hard_deck_steal_guesses: {}, hard_deck_steal_winners: [] });
   }
 
   function swapBase() {
@@ -142,11 +157,18 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
     setCards([card]);
     setHasSwapped(true);
     setStatus("awaiting_guess");
-    pushState({ hard_deck_cards: [card], hard_deck_has_swapped: true, hard_deck_status: "awaiting_guess" });
+    setStealGuesses({});
+    pushState({ hard_deck_cards: [card], hard_deck_has_swapped: true, hard_deck_status: "awaiting_guess", hard_deck_steal_guesses: {}, hard_deck_steal_winners: [] });
   }
 
-  function revealNextCard() {
-    if (!guess) return;
+  async function revealNextCard() {
+    if (!guess || revealInFlightRef.current) return;
+    revealInFlightRef.current = true;
+    setStatus("revealing");
+    await pushState({ hard_deck_status: "revealing" });
+    const { data: lockedRound } = await supabase.from("sessions")
+      .select("hard_deck_steal_guesses").eq("id", sessionId).maybeSingle();
+    const lockedSteals = (lockedRound?.hard_deck_steal_guesses as Record<string, string>) || stealGuesses;
     const newDeck = [...deck];
     const nextCard = newDeck.pop()!;
     setDeck(newDeck);
@@ -160,9 +182,19 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
     const correct = !tie && (guess === "higher" ? nextVal > prevVal : nextVal < prevVal);
 
     if (tie || !correct) {
-      setStatus("lost");
+      const actualDirection = tie ? null : (nextVal > prevVal ? "higher" : "lower");
+      const winners = actualDirection
+        ? Object.entries(lockedSteals).filter(([name, answer]) => name !== team && answer === actualDirection).map(([name]) => name)
+        : [];
       setPotential(0);
-      pushState({ hard_deck_cards: newCards, hard_deck_status: "lost", hard_deck_potential: 0, hard_deck_guess: null });
+      await Promise.all(winners.map(name => applyScoreDelta(supabase, sessionPin, name, 2, {
+        eventKey: `harddeck-steal:${sessionId}:${playId}:${cards.length}:${name}`,
+      })));
+      setStatus("lost");
+      setStealWinners(winners);
+      await pushState({ hard_deck_cards: newCards, hard_deck_status: "lost", hard_deck_potential: 0, hard_deck_guess: null, hard_deck_steal_winners: winners });
+      onScoreChange?.();
+      revealInFlightRef.current = false;
       return;
     }
 
@@ -171,14 +203,16 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
     const newPotential = POINTS_LADDER[ladderIdx] ?? POINTS_LADDER[POINTS_LADDER.length - 1];
     setPotential(newPotential);
     setGuess(null);
+    setStealGuesses({});
 
     if (cardNumber >= 5) {
       setStatus("won");
-      pushState({ hard_deck_cards: newCards, hard_deck_status: "won", hard_deck_potential: newPotential, hard_deck_guess: null });
+      pushState({ hard_deck_cards: newCards, hard_deck_status: "won", hard_deck_potential: newPotential, hard_deck_guess: null, hard_deck_steal_guesses: {} });
     } else {
       setStatus("decision");
-      pushState({ hard_deck_cards: newCards, hard_deck_status: "decision", hard_deck_potential: newPotential, hard_deck_guess: null });
+      pushState({ hard_deck_cards: newCards, hard_deck_status: "decision", hard_deck_potential: newPotential, hard_deck_guess: null, hard_deck_steal_guesses: {} });
     }
+    revealInFlightRef.current = false;
   }
 
   async function applyBankedPoints(amount: number) {
@@ -190,7 +224,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
     // join / "Initialise Scores") and left round_points untouched.
     const result = await applyScoreDelta(supabase, sessionPin, team, amount, {
       roundDelta: 0,
-      eventKey: `harddeck:${sessionId}:${team}:${cards.length}`,
+      eventKey: `harddeck:${sessionId}:${playId}:${team}:${cards.length}`,
     });
     if (result.scoreboardSyncError) console.error("Hard Deck: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
     onScoreChange?.();
@@ -225,7 +259,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
   // page, controls unreachable). Portaling to <body> escapes that context so
   // the fixed overlay fills the real viewport and is fully usable.
   const overlay = (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100vh", boxSizing: "border-box" as const, background: "rgba(5,2,10,0.97)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 24, padding: 24, overflowY: "auto" }}>
+    <div className="qi-host-harddeck" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100dvh", boxSizing: "border-box" as const, background: "rgba(5,2,10,0.97)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 24, padding: 24, overflow: "hidden" }}>
       <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: (!showWheel && team) ? 16 : 28, color: (!showWheel && team) ? "rgba(190,38,193,0.5)" : "#BE26C1", letterSpacing: (!showWheel && team) ? 3 : 4, fontWeight: (!showWheel && team) ? 600 : 400 }}>THE HARD DECK</div>
 
       {showWheel && (
@@ -236,7 +270,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
         <>
           <div style={{ fontSize: 26, fontWeight: 700, color: "#fff", letterSpacing: 0.5 }}>Team: <strong style={{ fontWeight: 800 }}>{team}</strong></div>
 
-          <div style={{ padding: "20px 24px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)" }}>
+          <div className="qi-host-harddeck-cards" style={{ padding: "20px 24px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)" }}>
             <div style={{ display: "flex", gap: 12 }}>
               {cards.map((c, i) => (
                 <div key={i} style={{ width: "clamp(82px,8vw,120px)", height: "clamp(118px,11.5vw,172px)", borderRadius: 14, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: "clamp(28px,3vw,44px)", fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
@@ -289,6 +323,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
                 </div>
               )}
               <button onClick={revealNextCard} disabled={!guess} style={{ padding: "14px 32px", borderRadius: 12, fontSize: 16, fontWeight: 700, background: guess ? "rgba(190,38,193,0.3)" : "rgba(255,255,255,0.08)", border: "1px solid " + (guess ? "#BE26C1" : "rgba(255,255,255,0.2)"), color: "#fff", cursor: guess ? "pointer" : "not-allowed", boxShadow: guess ? "0 2px 10px rgba(0,0,0,0.3)" : "none" }}>Reveal Next Card</button>
+              <div style={{ color: "#B9A8D9", fontSize: 14 }}>{Object.keys(stealGuesses).length} of {Math.max(0, teams.length - 1)} other teams locked in for a steal</div>
             </>
           )}
 
@@ -301,7 +336,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
           )}
 
           {status === "lost" && (
-            <div style={{ fontSize: 26, fontWeight: 800, color: "#ef4444", letterSpacing: 0.5 }}>Bust — 0 points</div>
+            <div style={{ textAlign: "center" }}><div style={{ fontSize: 26, fontWeight: 800, color: "#ef4444", letterSpacing: 0.5 }}>Bust — 0 points</div>{stealWinners.length > 0 && <div style={{ marginTop: 8, color: "#22c55e", fontWeight: 800 }}>+2 steal: {stealWinners.join(", ")}</div>}</div>
           )}
 
           {(status === "won" || status === "lost") && (

@@ -287,6 +287,8 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     return () => { cancelled = true; clearInterval(interval); };
   }, [sessionPin, teamName]);
   const [hardDeckGuess, setHardDeckGuess] = useState<string | null>(null);
+  const [hardDeckStealGuesses, setHardDeckStealGuesses] = useState<Record<string, string>>({});
+  const [hardDeckStealWinners, setHardDeckStealWinners] = useState<string[]>([]);
   const [stickGamblePressed, setStickGamblePressed] = useState<string | null>(null);
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
@@ -466,7 +468,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     async function fetchSession() {
       const { data, error: fetchError } = await supabase
         .from("sessions")
-        .select("current_session_round_id, phase, status, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, venue_record_id, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
+        .select("current_session_round_id, phase, status, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, hard_deck_steal_guesses, hard_deck_steal_winners, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, venue_record_id, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
         .eq("pin", sessionPin)
         .single();
       if (fetchError) {
@@ -684,6 +686,8 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     setHardDeckWheelSpinning(!!data.hard_deck_wheel_spinning);
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
     setHardDeckGuess((data.hard_deck_guess as string) || null);
+    setHardDeckStealGuesses((data.hard_deck_steal_guesses as Record<string, string>) || {});
+    setHardDeckStealWinners((data.hard_deck_steal_winners as string[]) || []);
     // THE PURSUIT — hydrate handset mirror (pursuit_status + current question idx).
     const pursuitState = readPursuitState(data);
     const newPursuitStatus = pursuitState.status;
@@ -876,7 +880,13 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
   async function submitHardDeckGuess(guess: "higher" | "lower") {
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ hard_deck_guess: guess }).eq("pin", sessionPin);
+    if (!playerToken) return;
+    await supabase.rpc("submit_hard_deck_guess", {
+      p_session_pin: sessionPin,
+      p_team_name: teamName,
+      p_player_token: playerToken,
+      p_guess: guess,
+    });
   }
 
   async function submitHardDeckStick() {
@@ -886,7 +896,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
   async function submitHardDeckGamble() {
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ hard_deck_status: "awaiting_guess" }).eq("pin", sessionPin);
+    await supabase.from("sessions").update({ hard_deck_status: "awaiting_guess", hard_deck_steal_guesses: {}, hard_deck_steal_winners: [] }).eq("pin", sessionPin);
   }
 
   async function chooseSpin() {
@@ -1031,6 +1041,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   }
   if (phase === "hard_deck") {
     const isSelected = hardDeckTeam === teamName;
+    const myHardDeckGuess = isSelected ? hardDeckGuess : hardDeckStealGuesses[teamName] || null;
     const rankLabels: Record<number,string> = { 1:"A", 11:"J", 12:"Q", 13:"K" };
     const rankLabel = (r: number) => rankLabels[r] || String(r);
     return (
@@ -1074,7 +1085,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           const rankFontCap = n <= 1 ? 56 : n === 2 ? 48 : n === 3 ? 38 : n === 4 ? 32 : 28;
           const suitFontCap = Math.round(rankFontCap * 1.2);
           return (
-            <div style={{ padding: "clamp(8px,3vw,16px)", borderRadius: 18, maxWidth: "96vw", boxSizing: "border-box" as const, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 16px rgba(0,0,0,0.4), 0 0 24px rgba(190,38,193,0.15)" }}>
+            <div className="qi-player-harddeck-cards" style={{ padding: "clamp(8px,3vw,16px)", borderRadius: 18, maxWidth: "96vw", boxSizing: "border-box" as const, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 16px rgba(0,0,0,0.4), 0 0 24px rgba(190,38,193,0.15)" }}>
               <div style={{ display: "flex", gap: "clamp(4px,1.5vw,12px)", justifyContent: "center", flexWrap: "nowrap" as const }}>
                 {hardDeckCards.map((c, i) => (
                   <div key={i} style={{ width: `min(${widthCap}px,${widthVw}vw)`, height: `min(${heightCap}px,${heightVw}vw)`, flexShrink: 0, borderRadius: 12, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: `min(${rankFontCap}px,${Math.round(widthVw*0.35)}vw)`, fontWeight: 900, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -8px 12px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)" }}>
@@ -1087,7 +1098,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           );
         })()}
 
-        {!isSelected && hardDeckStatus !== "wheel" && (
+        {!isSelected && hardDeckStatus !== "wheel" && hardDeckStatus !== "awaiting_guess" && (
           <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.65)" }}>
             {hardDeckStatus === "awaiting_guess" ? "Higher or Lower?" : hardDeckStatus === "decision" ? "Stick or Gamble?" : ""}
           </div>
@@ -1123,6 +1134,21 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               }}
             ><span aria-hidden style={{ fontSize: 40, lineHeight: 1, color: "#D94FDC" }}>▼</span><span style={{ font: "800 26px 'Inter'", letterSpacing: ".06em" }}>LOWER</span></button>
           </div>
+        )}
+        {!isSelected && hardDeckStatus === "awaiting_guess" && (
+          <>
+            <div style={{ font: "800 16px 'Inter'", color: "#E8C36A", letterSpacing: ".08em" }}>PLAY FOR A 2-POINT STEAL</div>
+            <div style={{ display: "flex", gap: 16, width: "100%", maxWidth: 380 }}>
+              {(["higher", "lower"] as const).map(choice => (
+                <button key={choice} onClick={() => submitHardDeckGuess(choice)} disabled={!!myHardDeckGuess || !playerToken}
+                  style={{ flex:1, minHeight:112, borderRadius:18, background:myHardDeckGuess === choice ? "rgba(190,38,193,.32)" : "#1D1140", border:myHardDeckGuess === choice ? "3px solid #D94FDC" : "2px solid rgba(232,195,106,.55)", color:"#fff", opacity:myHardDeckGuess && myHardDeckGuess !== choice ? .35 : 1, font:"800 22px 'Inter'" }}>
+                  <span style={{ display:"block", fontSize:36, color:choice === "higher" ? "#E8C36A" : "#D94FDC" }}>{choice === "higher" ? "▲" : "▼"}</span>
+                  {choice.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <div style={{ color:"#B9A8D9", fontSize:13 }}>{myHardDeckGuess ? "Steal answer locked in" : playerToken ? "Correct if the playing team misses" : "Rejoin on your original handset to play"}</div>
+          </>
         )}
         {isSelected && hardDeckStatus === "decision" && (
           <>
@@ -1162,7 +1188,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           <div style={{ font: "800 22px 'Inter'", color: "#2EE06E", letterSpacing: 0.5 }}>{isSelected ? "You won" : hardDeckTeam + " won"} {hardDeckPotential} points!</div>
         )}
         {hardDeckStatus === "lost" && (
-          <div style={{ font: "800 22px 'Inter'", color: "#FF3B4E", letterSpacing: 0.5 }}>{isSelected ? "Bust — better luck next time!" : hardDeckTeam + " busted!"}</div>
+          <div style={{ font: "800 22px 'Inter'", color: "#FF3B4E", letterSpacing: 0.5 }}>{isSelected ? "Bust — better luck next time!" : hardDeckStealWinners.includes(teamName) ? "STEAL WON · +2 POINTS" : hardDeckTeam + " busted!"}</div>
         )}
       </div>
     );
@@ -1199,6 +1225,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       <div className="qi-player-state qi-player-intermission" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
         <div style={{ fontSize: 22, color: purple, letterSpacing: 4, fontWeight: 700 }}>INTERMISSION</div>
         <div style={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }}>Next round starting soon...</div>
+        <div className="qi-player-intermission-grid">
         {!hasContent && (
           <img src="/me-logo.jpg" alt="ME" style={{ width: 70, height: 70, borderRadius: "50%", border: "2px solid " + purple, marginTop: 12 }} />
         )}
@@ -1234,6 +1261,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
         <UpcomingQuizzesCard quizzes={upcomingQuizzes} />
         <TeamPhotoUpload sessionPin={sessionPin} teamName={teamName} />
+        </div>
       </div>
     );
   }

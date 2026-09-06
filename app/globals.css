@@ -1902,6 +1902,91 @@ button, input, select, textarea { font: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .qi-player-experience *, .qi-player-live-root *, .qi-player-state * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 }
+
+/* Live-show viewport discipline. The three gameplay surfaces are fixed-stage
+   interfaces, so their content scales to the available height rather than
+   creating a hidden second screen below the fold. */
+.qi-player-hard-deck {
+  box-sizing: border-box;
+  min-height: 0 !important;
+  max-height: 100dvh;
+  padding: max(7px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left)) !important;
+  gap: clamp(5px,1.25dvh,13px) !important;
+}
+.qi-player-hard-deck .qi-player-status { min-height: clamp(38px,7dvh,56px); margin-bottom: 0; padding-block: 3px 6px; }
+.qi-player-hard-deck .qi-player-status__crest--photo { width: clamp(36px,7dvh,52px); height: clamp(36px,7dvh,52px); object-fit: contain; background:#100624; }
+.qi-player-harddeck-cards { max-height: min(36dvh,270px); flex: 0 1 auto; }
+.qi-player-harddeck-cards > div { height:100%; align-items:center; }
+.qi-player-harddeck-cards > div > div { max-height: min(32dvh,230px); width:auto !important; }
+.qi-player-hard-deck button { min-height:clamp(66px,14dvh,116px) !important; }
+.qi-player-hard-deck > div:last-child { max-width:100%; }
+.qi-player-intermission { box-sizing:border-box; min-height:0 !important; max-height:100dvh; justify-content:flex-start !important; gap:clamp(5px,1.2dvh,12px) !important; padding:max(10px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom)) !important; }
+.qi-player-intermission-grid { width:min(100%,720px); flex:1; min-height:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:minmax(0,auto); align-content:center; gap:clamp(6px,1.1dvh,12px); overflow:hidden; }
+.qi-player-intermission-grid > * { width:100% !important; max-width:none !important; min-width:0; box-sizing:border-box; padding:clamp(7px,1.25dvh,13px) !important; margin:0 !important; }
+.qi-player-intermission-grid > div:has(> img[alt="Offer"]) { grid-column:1/-1; height:min(30dvh,250px); aspect-ratio:auto !important; }
+.qi-player-intermission-grid img[alt="WhatsApp QR"] { width:min(12dvh,96px) !important; height:min(12dvh,96px) !important; }
+.qi-player-intermission-grid > img { grid-column:1/-1; justify-self:center; width:min(14dvh,70px) !important; height:min(14dvh,70px) !important; object-fit:contain; }
+@media (max-width:340px),(max-height:620px) {
+  .qi-player-intermission-grid { gap:5px; }
+  .qi-player-intermission-grid > * { padding:6px !important; font-size:11px !important; }
+  .qi-player-intermission-grid > div:has(> img[alt="Offer"]) { height:22dvh; }
+}
+
+.qi-host-harddeck { height:100dvh; min-height:0; gap:clamp(7px,1.8vh,20px) !important; padding:clamp(10px,2vh,22px) !important; }
+.qi-host-harddeck-cards { max-height:36vh; padding:clamp(8px,1.6vh,18px) !important; }
+.qi-host-harddeck-cards > div { height:100%; align-items:center; }
+.qi-host-harddeck-cards > div > div { height:min(25vh,172px) !important; width:auto !important; aspect-ratio:2/3; }
+.qi-host-harddeck button { flex-shrink:0; }
+.qi-display-lobby .hd { width:100%; height:100dvh; min-height:0; max-height:100dvh; box-sizing:border-box; gap:clamp(14px,3vw,52px); overflow:hidden; padding:clamp(44px,7vh,82px) clamp(34px,5vw,92px); }
+.qi-display-lobby .hd-cards-row { max-width:62vw; min-width:0; justify-content:center; }
+.qi-display-lobby .hd-cards-row .bigcard { width:min(9.5vw,22vh,150px); max-height:52vh; }
+.qi-display-lobby .hd-mid { width:min(28vw,430px); max-height:66vh; gap:clamp(10px,3vh,30px); }
+.qi-display-lobby .hd-choice { padding:clamp(12px,2vh,28px) 0; }
+.qi-display-lobby .hd-crowd { bottom:clamp(18px,3vh,44px); max-width:90vw; margin:auto; overflow-wrap:anywhere; }
+@media (max-height:700px) {
+  .qi-host-harddeck { gap:7px !important; padding:8px !important; }
+  .qi-host-harddeck-cards { max-height:29vh; }
+  .qi-player-hard-deck { gap:4px !important; }
+  .qi-player-harddeck-cards { max-height:29dvh; }
+  .qi-player-hard-deck button { min-height:58px !important; }
+}
+
+/* Uploaded imagery is always fully visible. Dark presentation mats handle
+   portrait, landscape and transparent assets without stretching or clipping. */
+.qi-player-status__crest--photo,
+.fbl .lb-float-photo img,
+.qi-display-fastest-photo img,
+.qi-display-winner img { object-fit:contain !important; background:#0b0318; }
+.fbl .lb-float-photo img { aspect-ratio:1/1; }
+.fbl .lb-venue-intro-logo,
+.fbl .lb-reel-brand-logo { object-fit:contain; max-width:42%; max-height:24vh; }
+.fbl .lb-venue-intro.has-media .lb-venue-intro-logo { width:clamp(110px,15vw,190px); height:clamp(82px,11vw,140px); max-width:30%; }
+
+.qi-display-intermission { justify-content:flex-start; gap:0; }
+.qi-display-intermission-title { font-size:clamp(34px,7vh,82px); margin:clamp(7px,1.4vh,14px) 0 5px; }
+.qi-display-intermission-subtitle { margin-bottom:clamp(10px,2vh,22px); }
+.qi-display-intermission .qi-display-promo-grid { max-height:34vh; min-height:0; }
+.qi-display-intermission .qi-display-promo-stack { min-height:0; gap:clamp(8px,1.4vh,18px); }
+.qi-display-intermission .qi-display-promo-card { min-height:0; padding:clamp(12px,2vh,28px); overflow:hidden; }
+.qi-display-intermission .qi-display-promo-copy { font-size:clamp(17px,2.4vh,30px); -webkit-line-clamp:3; }
+.qi-display-intermission .qi-display-promo-qr { min-width:min(24vw,240px); }
+.qi-display-intermission .qi-display-promo-qr img { width:min(19vh,190px); }
+.qi-display-intermission .qi-display-promo-gallery { flex:0 1 25vh; width:min(92vw,1280px,58vh); max-height:25vh; margin-top:clamp(8px,1.6vh,18px); }
+
+/* Venue reel: cinematic but restrained scene transitions. The image remains
+   contained while a soft light sweep and depth movement keep the TV alive. */
+.fbl .lb-reel-scene { overflow:hidden; isolation:isolate; animation:qiVenueSceneIn .8s cubic-bezier(.2,.8,.2,1) both; }
+.fbl .lb-reel-scene::after { content:""; position:absolute; inset:-30%; pointer-events:none; z-index:3; background:linear-gradient(112deg,transparent 38%,rgba(255,255,255,.13) 49%,transparent 60%); transform:translateX(-70%); animation:qiVenueLightSweep 1.35s ease-out .25s both; }
+.fbl .lb-reel-media { object-fit:contain !important; animation:qiVenueMediaDrift 7s ease-in-out both; }
+.fbl .lb-venue-intro-logo,.fbl .lb-reel-brand-logo { filter:drop-shadow(0 14px 28px rgba(0,0,0,.5)); }
+.fbl .lb-reel-host-frame { min-height:0; }
+.fbl .lb-reel-host-photo { object-fit:contain !important; }
+@keyframes qiVenueSceneIn { from { opacity:0; transform:scale(.97); clip-path:inset(4% 4% 4% 4% round 28px); } to { opacity:1; transform:none; clip-path:inset(0 round 0); } }
+@keyframes qiVenueLightSweep { from { transform:translateX(-70%) rotate(2deg); opacity:0; } 35% { opacity:1; } to { transform:translateX(70%) rotate(2deg); opacity:0; } }
+@keyframes qiVenueMediaDrift { from { transform:scale(1.025); filter:saturate(.9) brightness(.84); } to { transform:scale(1); filter:saturate(1.05) brightness(1); } }
+@media (prefers-reduced-motion:reduce) {
+  .fbl .lb-reel-scene,.fbl .lb-reel-scene::after,.fbl .lb-reel-media { animation:none !important; clip-path:none; filter:none; }
+}
 /* Compact answering mode; waiting/results retain their larger team photo.
    Inner overflow remains available for unusually long text/accessibility zoom. */
 .qi-player-question-screen { padding: max(6px,env(safe-area-inset-top)) 12px max(6px,env(safe-area-inset-bottom)) !important; }

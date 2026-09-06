@@ -349,6 +349,7 @@ function DisplayScreenInner() {
   const [hardDeckPotential, setHardDeckPotential] = useState(0);
   const [hardDeckWheelTarget, setHardDeckWheelTarget] = useState<number|null>(null);
   const [hardDeckWheelSpinning, setHardDeckWheelSpinning] = useState(false);
+  const [hardDeckStealWinners, setHardDeckStealWinners] = useState<string[]>([]);
   const prevHardDeckStatusRef = useRef<string>("idle");
   // Transient "DOUBLED!" / "+N POINTS" callouts, keyed so the CSS animation
   // restarts each time even if the same status repeats across a fresh Hard
@@ -807,6 +808,7 @@ function DisplayScreenInner() {
     setHardDeckPotential((data.hard_deck_potential as number) || 0);
     setHardDeckWheelTarget((data.hard_deck_wheel_target as number) ?? null);
     setHardDeckWheelSpinning(!!data.hard_deck_wheel_spinning);
+    setHardDeckStealWinners((data.hard_deck_steal_winners as string[]) || []);
     {
       const newHDStatus = (data.hard_deck_status as string) || "idle";
       const newHDPotential = (data.hard_deck_potential as number) || 0;
@@ -1288,7 +1290,7 @@ function DisplayScreenInner() {
                   </div>
                 )}
                 {hardDeckStatus === "won" && <div style={{ font: "800 clamp(16px,2.4vw,30px) Inter", color: "var(--green)", letterSpacing: "0.06em" }}>WON {hardDeckPotential} POINTS</div>}
-                {hardDeckStatus === "lost" && <div style={{ font: "800 clamp(16px,2.4vw,30px) Inter", color: "var(--red)", letterSpacing: "0.14em" }}>BUST</div>}
+                {hardDeckStatus === "lost" && <div style={{ textAlign:"center" }}><div style={{ font: "800 clamp(16px,2.4vw,30px) Inter", color: "var(--red)", letterSpacing: "0.14em" }}>BUST</div>{hardDeckStealWinners.length > 0 && <div style={{ marginTop:8, font:"800 clamp(13px,1.5vw,20px) Inter", color:"var(--green)" }}>2-POINT STEALS · {hardDeckStealWinners.join(" · ")}</div>}</div>}
               </div>
               {hdCelebration && (
                 <div key={hdCelebration.key} className={"hd-celebrate " + hdCelebration.type}>
@@ -1301,7 +1303,7 @@ function DisplayScreenInner() {
                 <div className="hd-crowd">
                   <b>{hardDeckTeam.toUpperCase()}</b>{
                     hardDeckStatus === "decision" ? " — STICK OR GAMBLE?"
-                    : hardDeckStatus === "awaiting_guess" ? " — HIGHER OR LOWER?"
+                    : hardDeckStatus === "awaiting_guess" ? " — HIGHER OR LOWER? · EVERYONE ELSE: PLAY FOR A STEAL"
                     : hardDeckStatus === "won" ? " BANKED IT"
                     : hardDeckStatus === "lost" ? " WENT BUST"
                     : ""}

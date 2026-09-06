@@ -19,10 +19,8 @@ import {
   initRace,
   applyOutcome,
   summariseRace,
-  hasActiveTeams,
   checkPursuitAnswer,
-  pursuitStagePoints,
-  pursuitTotalPoints,
+  PURSUIT_WINNER_BONUS,
 } from "@/lib/quiz/pursuit";
 
 // THE PURSUIT — host controller.
@@ -159,7 +157,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
       if (spaceLockRef.current) return;
       spaceLockRef.current = true;
       window.setTimeout(() => { spaceLockRef.current = false; }, 600);
-      const canAskMore = qIndex + 1 < pursuitQuestions.length && hasActiveTeams(race, teamNames);
+      const canAskMore = qIndex + 1 < pursuitQuestions.length;
       if (status === "intro") { if (pursuitQuestions.length > 0) nextQuestion(); }
       else if (status === "question") { if (timerNotStarted) startTimer(); else if (!answersLocked) lockAnswers(); else revealAnswer(); }
       else if (status === "reveal") { advanceRace(); }
@@ -332,8 +330,8 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
   }
 
   // Read every team's latest answer to the current question and move the race:
-  // active teams that answered correctly advance (and score the stage delta);
-  // everyone else is eliminated. Runs off the answers table, scoped to this round.
+  // Every team remains in the game for all seven questions. Correct answers add
+  // one to its total; wrong/no answers simply leave the total unchanged.
   async function advanceRace() {
     const q = pursuitQuestions[qIndex];
     if (!q) return;
@@ -351,17 +349,9 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     const nextRace: PursuitRace = {};
     for (const name of teamNames) {
       const entry = race[name] ?? { stage: 0, status: "active" as const };
-      if (entry.status !== "active") { nextRace[name] = entry; continue; }
       const correct = checkPursuitAnswer(latestByTeam.get(name)?.answer_text, q);
       const updated = applyOutcome(entry, correct);
       nextRace[name] = updated;
-      if (correct) {
-        const pts = pursuitStagePoints(updated.stage);
-        if (pts > 0) {
-          const result = await applyScoreDelta(supabase, sessionPin, name, pts, { roundDelta: 0, eventKey: `pursuit:${sessionId}:${name}:${qIndex}` });
-          if (result.scoreboardSyncError) console.error("Pursuit: score updated but scoreboard sync failed:", result.scoreboardSyncError);
-        }
-      }
     }
 
     setRace(nextRace);
@@ -370,9 +360,18 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     onScoreChange?.();
   }
 
-  function finishRound() {
+  async function finishRound() {
+    const highest = Math.max(0, ...teamNames.map(name => race[name]?.stage ?? 0));
+    const winners = highest > 0 ? teamNames.filter(name => (race[name]?.stage ?? 0) === highest) : [];
+    for (const name of winners) {
+      const result = await applyScoreDelta(supabase, sessionPin, name, PURSUIT_WINNER_BONUS, {
+        roundDelta: PURSUIT_WINNER_BONUS,
+        eventKey: `pursuit-winner:${sessionId}:${chosenRound?.id || "round"}:${name}`,
+      });
+      if (result.scoreboardSyncError) console.error("Pursuit winner bonus landed but scoreboard sync failed:", result.scoreboardSyncError);
+    }
     setStatus("complete");
-    pushState({ pursuit_status: "complete" });
+    await pushState({ pursuit_status: "complete" });
     if (chosenRound?.id) {
       supabase.from("session_rounds").update({ completed_at: new Date().toISOString() }).eq("id", chosenRound.id).then(() => onScoreChange?.());
     }
@@ -392,7 +391,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
 
   const summary = summariseRace(race, teamNames);
   const questionsAsked = qIndex + 1;
-  const canAskMore = questionsAsked < pursuitQuestions.length && hasActiveTeams(race, teamNames);
+  const canAskMore = questionsAsked < pursuitQuestions.length;
   const currentQuestion = qIndex >= 0 ? pursuitQuestions[qIndex] : null;
 
   const overlay = (
@@ -431,12 +430,12 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
         <div className="qi-pursuit-host-rules" style={{ width: "100%", maxWidth: 760, display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 }}>
           <section style={{ padding: "18px 20px", borderRadius: 16, background: "linear-gradient(145deg,rgba(217,79,220,.13),rgba(255,255,255,.035))", border: "1px solid rgba(217,79,220,.38)" }}>
             <div style={{ font: "800 11px 'Inter'", letterSpacing: 2.2, color: "#D94FDC", marginBottom: 12 }}>READ THIS TO THE ROOM</div>
-            <div style={{ font: "750 15px/1.45 'Inter'", color: "#fff", marginBottom: 10 }}>Seven questions. Every team begins on the start line.</div>
+            <div style={{ font: "750 15px/1.45 'Inter'", color: "#fff", marginBottom: 10 }}>Seven questions. Every team plays every question.</div>
             <ul style={{ margin: 0, paddingLeft: 19, color: "#D9CCF2", font: "600 13px/1.55 'Inter'" }}>
               <li>A correct answer moves your team forward one gate.</li>
-              <li>One wrong answer—or no answer—eliminates you from the race.</li>
-              <li>Points build at each gate: 10, 20, 30, 40, 50, 60, then 100 for finishing.</li>
-              <li>More than one team can complete The Pursuit.</li>
+              <li>A wrong answer leaves you where you are—but you keep playing.</li>
+              <li>The highest correct total after all seven wins a {PURSUIT_WINNER_BONUS}-point bonus.</li>
+              <li>Tied leaders each receive the bonus.</li>
             </ul>
           </section>
           <section style={{ padding: "18px 20px", borderRadius: 16, background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.14)" }}>
@@ -446,7 +445,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
               <li>Start the timer.</li>
               <li>Lock answers early, or let the timer finish.</li>
               <li>Reveal the correct answer.</li>
-              <li>Advance the race to move or eliminate teams.</li>
+              <li>Update the board to add each correct answer.</li>
             </ol>
             <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 9, background: "rgba(46,224,110,.09)", color: "#2EE06E", font: "700 11px/1.4 'Inter'" }}>The large button always shows your next action. Space performs that action.</div>
           </section>
@@ -472,9 +471,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
         </div>
       )}
 
-      {/* HOST ANSWER CONSOLE — real submitted answers per team (order · badge ·
-          name · answer · waiting · correct/incorrect after reveal · eliminated ·
-          gate). Never anonymous dots. */}
+      {/* HOST ANSWER CONSOLE — real submitted answers per team. */}
       {currentQuestion && (status === "question" || status === "reveal") && (() => {
         const latestByTeam = new Map<string, AnswerRow>();
         for (const a of liveAnswers) {
@@ -488,19 +485,17 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
             <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)" }}>ANSWERS IN — SUBMISSION ORDER</div>
             {teamNames.map((name) => {
               const ans = latestByTeam.get(name);
-              const rstatus = race[name]?.status ?? "active";
-              const eliminated = rstatus === "eliminated";
               const correct = (status === "reveal" && ans && currentQuestion) ? checkPursuitAnswer(ans.answer_text, currentQuestion) : null;
               const ansColor = correct === true ? "#2EE06E" : correct === false ? "#FF3B4E" : "rgba(255,255,255,0.72)";
               return (
-                <div key={name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: 10, background: "rgba(255,255,255,0.03)", border: "1px solid #2E1A52", opacity: eliminated ? 0.5 : 1 }}>
+                <div key={name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: 10, background: "rgba(255,255,255,0.03)", border: "1px solid #2E1A52" }}>
                   <span style={{ width: 18, textAlign: "center", font: "700 11px 'Inter'", color: "#6B5A8E", fontVariantNumeric: "tabular-nums" }}>{ans ? orderIndex.get(name) : "·"}</span>
                   <span className="fbh-crest" style={{ width: 20, height: 20, fontSize: 7, flexShrink: 0 }}>{teamInitials(name)}</span>
                   <span style={{ font: "700 12.5px 'Inter'", color: "#fff", maxWidth: "30%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-                  <span style={{ marginLeft: "auto", font: "600 12.5px 'Inter'", color: eliminated ? "#6B5A8E" : ansColor, maxWidth: "42%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {eliminated ? "OUT" : ans ? ans.answer_text : "waiting…"}
+                  <span style={{ marginLeft: "auto", font: "600 12.5px 'Inter'", color: ansColor, maxWidth: "42%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {ans ? ans.answer_text : "waiting…"}
                   </span>
-                  <span style={{ font: "700 10px 'Inter'", color: "#6B5A8E", letterSpacing: 1, flexShrink: 0 }}>G{race[name]?.stage ?? 0}</span>
+                  <span style={{ font: "700 10px 'Inter'", color: "#6B5A8E", letterSpacing: 1, flexShrink: 0 }}>{race[name]?.stage ?? 0}/7</span>
                 </div>
               );
             })}
@@ -520,7 +515,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
               <div key={s.team_name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 8, background: rs === "completed" ? "rgba(232,195,106,0.12)" : "rgba(255,255,255,0.03)", border: "1px solid #2E1A52", marginBottom: 4 }}>
                 <span style={{ width: 18, font: "800 13px 'Inter'", color: i === 0 ? "#E8C36A" : i === 1 ? "#C9CDD6" : i === 2 ? "#C08A5A" : "rgba(255,255,255,0.4)", fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
                 <span style={{ font: "700 13px 'Inter'", color: "#fff", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.team_name}</span>
-                <span style={{ font: "700 10px 'Inter'", color: "#B9A8D9", letterSpacing: 1, flexShrink: 0 }}>{rs === "completed" ? "FINISHED" : rs === "eliminated" ? "OUT · G" + stage : "GATE " + stage}</span>
+                <span style={{ font: "700 10px 'Inter'", color: "#B9A8D9", letterSpacing: 1, flexShrink: 0 }}>{stage}/7 CORRECT</span>
                 <span style={{ font: "800 15px 'Inter'", color: "#D94FDC", fontVariantNumeric: "tabular-nums", minWidth: 44, textAlign: "right" }}>{s.total_points}</span>
               </div>
             );
@@ -534,7 +529,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
         const pursuitNextLabel =
           status === "intro" ? "Rules read · Start Question 1"
           : status === "question" ? (timerNotStarted ? "Start Timer" : answersLocked ? "Reveal Answer" : "Lock Answers")
-          : status === "reveal" ? "Advance Race"
+          : status === "reveal" ? "Update Scores"
           : status === "advance" ? (canAskMore ? `Next Question (${qIndex + 2})` : "Finish Round")
           : status === "complete" ? "Show Results"
           // Same gap as the spacebar handler above - "results" had no label
@@ -594,27 +589,18 @@ function SecondaryButton({ onClick, label }: { onClick: () => void; label: strin
 }
 
 function TeamStatus({ summary, race }: { summary: { active: string[]; eliminated: string[]; completed: string[] }; race: PursuitRace }) {
-  const groups: { key: keyof typeof summary; label: string; color: string }[] = [
-    { key: "active", label: "Remaining", color: "#D94FDC" },
-    { key: "completed", label: "Completed", color: "#facc15" },
-    { key: "eliminated", label: "Eliminated", color: "#ef4444" },
-  ];
+  const all = [...summary.active, ...summary.completed, ...summary.eliminated].sort((a, b) => (race[b]?.stage ?? 0) - (race[a]?.stage ?? 0));
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(160px, 1fr))", gap: 12, width: "100%", maxWidth: 680 }}>
-      {groups.map((g) => (
-        <div key={g.key} style={{ borderRadius: 12, padding: 12, background: "rgba(255,255,255,0.03)", border: "1px solid " + g.color + "44" }}>
-          <div style={{ fontSize: 11, letterSpacing: 2, color: g.color, marginBottom: 8, fontWeight: 700 }}>{g.label.toUpperCase()} · {summary[g.key].length}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {summary[g.key].map((name) => (
-              <div key={name} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "rgba(255,255,255,0.85)" }}>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-                <span style={{ color: g.color, fontWeight: 700 }}>{pursuitTotalPoints(race[name]?.stage ?? 0)}</span>
-              </div>
-            ))}
-            {summary[g.key].length === 0 && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.25)" }}>—</div>}
+    <div style={{ borderRadius: 12, padding: 12, background: "rgba(255,255,255,0.03)", border: "1px solid #D94FDC44", width: "100%", maxWidth: 680 }}>
+      <div style={{ fontSize: 11, letterSpacing: 2, color: "#D94FDC", marginBottom: 8, fontWeight: 700 }}>ALL TEAMS · {all.length}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 4 }}>
+        {all.map((name) => (
+          <div key={name} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13, color: "rgba(255,255,255,0.85)" }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+            <span style={{ color: "#D94FDC", fontWeight: 700 }}>{race[name]?.stage ?? 0}/7</span>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

@@ -8,10 +8,10 @@ const CARDS = [
   { type: "x2",      label: "Boost",    emoji: "⚡", color: "#facc15", bg: "rgba(234,179,8,0.2)",   desc: "Doubles your points for every correct answer in the current round." },
 ];
 
-export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = false, enabled = true }: { teamName: string; sessionPin?: string; roundNumber?: number; compact?: boolean; enabled?: boolean }) {
+export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber, compact = false, enabled = true }: { teamName: string; sessionPin?: string; playerToken?: string; roundNumber?: number; compact?: boolean; enabled?: boolean }) {
   const [used, setUsed] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
-  const visibleCards = CARDS.filter(card => card.type !== "reverse" || roundNumber === 1);
+  const visibleCards = CARDS.filter(card => !used.includes(card.type) && (card.type !== "reverse" || roundNumber === 1 || roundNumber === 2));
 
   useEffect(() => {
     if (!sessionPin) return;
@@ -43,11 +43,11 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
 
   const playCard = async (cardType: string) => {
     if (!enabled || !sessionPin || used.includes(cardType) || playing) return;
-    // Reverse can only be played in Round 1 - checked here (not just in the
+    // Reverse can only be played in Rounds 1 and 2 - checked here (not just in the
     // disabled prop below) so a handset that's still showing a stale round
     // number can't sneak a Reverse play through after Round 1 has started.
-    if (cardType === "reverse" && roundNumber !== 1) {
-      setFeedback({ ok: false, text: "Reverse is only available in Round 1." });
+    if (cardType === "reverse" && (!roundNumber || roundNumber > 2)) {
+      setFeedback({ ok: false, text: "Reverse is only available in Rounds 1 and 2." });
       return;
     }
     setFeedback(null);
@@ -72,9 +72,15 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
     // consumes the card in the same transaction, so either both happen or
     // neither does.
     if (cardType === "reverse" && sessionPin) {
+      if (!playerToken) {
+        setFeedback({ ok: false, text: "Reconnect on the handset that joined this team to use Reverse." });
+        setPlaying(null);
+        return;
+      }
       const { data, error } = await supabase.rpc("play_reverse_card", {
         p_session_pin: sessionPin,
         p_team_name: teamName,
+        p_player_token: playerToken,
         p_round_number: roundNumber ?? null,
         p_event_key: `reverse:${sessionPin}:${teamName}:${playedAt}`,
       });
@@ -92,7 +98,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
         const { data: cards } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin);
         if (cards) setUsed([...new Set(cards.map(d => d.card_type))]);
         const reason = String(row?.reason || "");
-        setFeedback({ ok: false, text: reason === "card-already-used" ? "Reverse has already been used this quiz." : reason === "reverse-only-in-round-1" ? "Reverse is only available in Round 1." : reason === "cards-disabled" ? "Power Cards are paused for this round." : "Reverse was not accepted. Please tap again." });
+        setFeedback({ ok: false, text: reason === "card-already-used" ? "Reverse has already been used this quiz." : reason === "reverse-only-in-rounds-1-2" || reason === "reverse-only-in-round-1" ? "Reverse is only available in Rounds 1 and 2." : reason === "cards-disabled" ? "Power Cards are paused for this round." : "Reverse was not accepted. Please tap again." });
         setPlaying(null);
         return;
       }
@@ -100,6 +106,22 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       setFeedback({ ok: true, text: `Reverse accepted · score is now ${row.total_points ?? 0}.` });
       setPlaying(null);
       return;
+    }
+    // Reserve the one shared Time-Out slot before consuming the card. The
+    // conditional update is atomic: if two teams tap together, only the first
+    // can change an unreserved session row and the other keeps its card.
+    if (cardType === "block") {
+      const nowIso = new Date().toISOString();
+      const { data: reserved, error: reserveError } = await supabase.from("sessions").update({
+        block_pending: true,
+        block_team: teamName,
+        block_until: null,
+      }).eq("pin", sessionPin).eq("block_pending", false).or(`block_until.is.null,block_until.lt.${nowIso}`).select("id").maybeSingle();
+      if (reserveError || !reserved) {
+        setFeedback({ ok: false, text: "Another team already has a Time-Out waiting or active." });
+        setPlaying(null);
+        return;
+      }
     }
     const { error: consumeError } = await supabase.from("uno_cards").insert({
       team_name: teamName,
@@ -110,6 +132,9 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       round_number: roundNumber ?? null,
     });
     if (consumeError) {
+      if (cardType === "block") {
+        await supabase.from("sessions").update({ block_pending: false, block_team: null, block_until: null }).eq("pin", sessionPin).eq("block_team", teamName).eq("block_pending", true);
+      }
       // The database unique constraint is the final authority across tabs,
       // refreshes and reconnects. Refetch so this handset immediately reflects
       // a card that another client has already spent.
@@ -118,22 +143,6 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       setFeedback({ ok: false, text: `${CARDS.find(card => card.type === cardType)?.label || "Card"} was not accepted. Please tap again.` });
       setPlaying(null);
       return;
-    }
-    if (cardType === "block" && sessionPin) {
-      // Store as pending — the 10-second lockout activates when the HOST presses
-      // the timer button, not immediately. This means on a 15-second question,
-      // other teams have 5 seconds left after the timer starts to answer.
-      const { error: blockError } = await supabase.from("sessions").update({
-        block_pending: true,
-        block_team: teamName,
-        block_until: null,
-      }).eq("pin", sessionPin);
-      if (blockError) {
-        await supabase.from("uno_cards").delete().eq("session_pin", sessionPin).eq("team_name", teamName).eq("card_type", cardType);
-        setFeedback({ ok: false, text: "Time-Out was not accepted. Please tap again." });
-        setPlaying(null);
-        return;
-      }
     }
     setUsed(prev => [...prev, cardType]);
     setFeedback({ ok: true, text: `${CARDS.find(card => card.type === cardType)?.label || "Card"} accepted.` });
@@ -150,14 +159,13 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       block:   { face: "linear-gradient(160deg,#062b4a,#04101d 70%)", ink: "#38A8FF", sig: "⏸", cname: "TIME-OUT" },
       reverse: { face: "linear-gradient(160deg,#4a0a12,#1a0306 70%)", ink: "#FF3B4E", sig: "↻", cname: "REVERSE" },
     };
-    const remaining = visibleCards.filter(c => !used.includes(c.type)).length;
+    const remaining = visibleCards.length;
     return (
       <div className="fbl" style={{ paddingTop: 4, padding: "4px 14px 0" }}>
         <div className="qi-player-card-rail" style={{ display: "flex", gap: 10 }}>
           {visibleCards.map(card => {
             const isUsed = used.includes(card.type);
-            // Reverse can only be played in Round 1.
-            const isReverseOutOfRound = card.type === "reverse" && roundNumber !== 1;
+            const isReverseOutOfRound = card.type === "reverse" && (!roundNumber || roundNumber > 2);
             const isLocked = isUsed || !enabled || isReverseOutOfRound;
             const isPlaying = playing === card.type;
             const fb = FABLE[card.type] || { face: card.bg, ink: card.color, sig: card.emoji, cname: card.label.toUpperCase() };
@@ -195,7 +203,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
           })}
         </div>
         <div style={{ marginTop: 8, textAlign: "center", font: "600 10px 'Inter'", color: "#6B5A8E", letterSpacing: "0.14em" }}>
-          {feedback ? <span role="status" style={{ color: feedback.ok ? "#2EE06E" : "#FF7280", letterSpacing: ".04em" }}>{feedback.text}</span> : enabled ? `${remaining} OF ${visibleCards.length} CARDS REMAINING · EACH ONCE PER QUIZ` : "POWER CARDS ARE NOT AVAILABLE THIS ROUND"}
+          {feedback ? <span role="status" style={{ color: feedback.ok ? "#2EE06E" : "#FF7280", letterSpacing: ".04em" }}>{feedback.text}</span> : enabled ? `${remaining} CARD${remaining === 1 ? "" : "S"} REMAINING · EACH ONCE PER QUIZ` : "POWER CARDS ARE NOT AVAILABLE THIS ROUND"}
         </div>
       </div>
     );
@@ -209,8 +217,7 @@ export function UnoPlayerCards({ teamName, sessionPin, roundNumber, compact = fa
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
         {visibleCards.map(card => {
           const isUsed = used.includes(card.type);
-          // Reverse can only be played in Round 1.
-          const isReverseOutOfRound = card.type === "reverse" && roundNumber !== 1;
+          const isReverseOutOfRound = card.type === "reverse" && (!roundNumber || roundNumber > 2);
           const isLocked = isUsed || !enabled || isReverseOutOfRound;
           const isPlaying = playing === card.type;
           return (

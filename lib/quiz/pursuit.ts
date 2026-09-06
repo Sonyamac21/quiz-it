@@ -9,8 +9,8 @@ import {
 // (host / display / handset) stay dumb and share one source of truth.
 //
 // The game: every active team races through PURSUIT_TOTAL_QUESTIONS questions at
-// the same time. A correct answer advances a team one stage; a single wrong
-// answer eliminates it (it stays visible, frozen). Multiple teams can finish.
+// the same time. Every team answers all seven questions; a correct answer adds
+// one to its total. The highest correct total wins the round bonus.
 
 // ---------------------------------------------------------------------------
 // Phases
@@ -69,6 +69,7 @@ export function getPursuitPhaseLabel(phase: PursuitPhase): string {
 // ---------------------------------------------------------------------------
 
 export const PURSUIT_TOTAL_QUESTIONS = 7;
+export const PURSUIT_WINNER_BONUS = 100;
 
 /** Cumulative total points a team holds after clearing each stage (1-indexed).
  * Stage 7 is 100, not 70 — the final stage carries a completion bonus. */
@@ -108,12 +109,9 @@ export function initRace(teamNames: string[]): PursuitRace {
   return race;
 }
 
-/** Apply a question outcome to one team (only active teams move). */
+/** Apply a question outcome. Teams remain active for all seven questions. */
 export function applyOutcome(entry: TeamRace, correct: boolean): TeamRace {
-  if (entry.status !== "active") return entry;
-  if (!correct) return { stage: entry.stage, status: "eliminated" };
-  const stage = entry.stage + 1;
-  return { stage, status: stage >= PURSUIT_TOTAL_QUESTIONS ? "completed" : "active" };
+  return { stage: entry.stage + (correct ? 1 : 0), status: "active" };
 }
 
 export interface RaceSummary {
@@ -211,10 +209,10 @@ const PURSUIT_TIERS: { maxTeams: number; layout: PursuitLayout }[] = [
   { maxTeams: 6, layout: { label: "GRAND", columns: 1, laneH: 96, runner: 52, block: 38, nameFs: 21, crest: 38, gap: 24 } },
   { maxTeams: 12, layout: { label: "FIELD", columns: 1, laneH: 72, runner: 44, block: 34, nameFs: 17, crest: 30, gap: 18 } },
   { maxTeams: 24, layout: { label: "DIVISION", columns: 2, laneH: 52, runner: 34, block: 24, nameFs: 14, crest: 24, gap: 12 } },
-  { maxTeams: 40, layout: { label: "PELOTON", columns: 2, laneH: 36, runner: 24, block: 18, nameFs: 12, crest: 18, gap: 8 } },
+  { maxTeams: 60, layout: { label: "PELOTON", columns: 2, laneH: 16, runner: 12, block: 9, nameFs: 8, crest: 11, gap: 2 } },
 ];
 
-/** Pick the tier for a team count. Above 40 falls back to PELOTON. */
+/** Pick the tier for a team count. PELOTON is sized to keep up to 60 teams visible. */
 export function computePursuitLayout(teamCount: number): PursuitLayout {
   const n = Math.max(1, teamCount);
   const tier = PURSUIT_TIERS.find((t) => n <= t.maxTeams) ?? PURSUIT_TIERS[PURSUIT_TIERS.length - 1];

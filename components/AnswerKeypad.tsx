@@ -2,11 +2,9 @@
 import { useState } from "react";
 
 const ROWS = [
-  ["A","B","C","D","E","F"],
-  ["G","H","I","J","K","L"],
-  ["M","N","O","P","Q","R"],
-  ["S","T","U","V","W","X"],
-  ["Y","Z"],
+  ["Q","W","E","R","T","Y","U","I","O","P"],
+  ["A","S","D","F","G","H","J","K","L"],
+  ["Z","X","C","V","B","N","M"],
 ];
 const NUMBERS = ["1","2","3","4","5","6","7","8","9","0"];
 
@@ -55,10 +53,10 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
       </div>
 
       {mode === "number" ? (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8 }}>
           {NUMBERS.map(n => (
             <button key={n} type="button" className="qi-player-keypad__key" onClick={() => addChar(n)} aria-label={`Enter ${n}`}
-              style={{ ...keyStyle, flexBasis: "18%", background: pressedKey === n ? purple : keyStyle.background, transform: pressedKey === n ? "scale(0.92)" : "scale(1)", transition: "all 0.1s" }}>
+              style={{ ...keyStyle, gridColumn: n === "0" ? "2" : undefined, background: pressedKey === n ? purple : keyStyle.background, transform: pressedKey === n ? "scale(0.92)" : "scale(1)", transition: "all 0.1s" }}>
               {n}
             </button>
           ))}

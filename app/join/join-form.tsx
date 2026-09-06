@@ -15,6 +15,12 @@ const STORAGE_KEY = "quizit_player_session";
 // played/stored on the team row; `title` is what the player sees.
 type VictorySong = { id: string; title: string; file_ref: string };
 
+async function hashPlayerToken(token: string): Promise<string> {
+  const bytes = new TextEncoder().encode(token);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export function JoinForm() {
   const [step, setStep] = useState<"pin" | "name" | "song" | "photo">("pin");
   const [pin, setPin] = useState("");
@@ -27,6 +33,7 @@ export function JoinForm() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [sessionPin, setSessionPin] = useState("");
+  const [playerToken, setPlayerToken] = useState("");
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [reconnecting, setReconnecting] = useState(false);
@@ -71,6 +78,7 @@ export function JoinForm() {
         if (session && session.status !== "finished" && team) {
           setTeamName(parsed.teamName);
           setSessionPin(parsed.sessionPin);
+          setPlayerToken(parsed.playerToken || "");
           setDone(true);
         } else {
           sessionStorage.removeItem(STORAGE_KEY);
@@ -128,6 +136,9 @@ export function JoinForm() {
       }
       setTeamName(match.team_name);
       setSessionPin(pin);
+      // A name-only reconnect deliberately does not inherit the private handset
+      // token. It can answer as before, but cannot perform score-changing RPCs.
+      setPlayerToken("");
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: match.team_name, sessionPin: pin, savedAt: Date.now() }));
       setDone(true);
     } catch {
@@ -208,12 +219,15 @@ export function JoinForm() {
           photoUrl = urlData?.publicUrl || null;
         }
       }
+      const handsetToken = crypto.randomUUID();
+      const handsetTokenHash = await hashPlayerToken(handsetToken);
       const { error: dbError } = await supabase.from("teams").insert({
         team_name: teamName.trim(),
         name: teamName.trim(),
         victory_song: selectedSong,
         session_pin: pin,
         photo_url: photoUrl,
+        player_token_hash: handsetTokenHash,
       });
       if (dbError) {
         // Postgres unique_violation (23505) means another team's insert won
@@ -231,7 +245,8 @@ export function JoinForm() {
         throw dbError;
       }
       setSessionPin(pin);
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin, savedAt: Date.now() }));
+      setPlayerToken(handsetToken);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin, playerToken: handsetToken, savedAt: Date.now() }));
       setDone(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Something went wrong. Please try again.");
@@ -252,7 +267,7 @@ export function JoinForm() {
               than the team's DB row, so the host's per-team "waiting..."
               status silently never matched even though the aggregate
               answered-count (which doesn't compare names) looked correct. */}
-          <PlayerQuizScreen teamName={teamName.trim()} sessionPin={sessionPin} />
+          <PlayerQuizScreen teamName={teamName.trim()} sessionPin={sessionPin} playerToken={playerToken} />
           {/* Persistent branding overlay - sits on top of every phase screen
               PlayerQuizScreen renders internally, instead of needing to be
               threaded through each of its many separate return branches. */}

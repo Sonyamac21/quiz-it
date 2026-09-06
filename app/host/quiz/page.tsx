@@ -79,7 +79,7 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
       "Welcome to Quiz-It! Get your team ready on your phones \u2014 join with the PIN on screen.",
       "Answers lock in the moment you submit \u2014 no changing your mind after.",
       `You've got ${timerSeconds} seconds per question, so don't overthink it.`,
-      "Each Power Card (Time-Out, Boost, Reverse) can be played once per quiz \u2014 use them wisely! Reverse can only be played in Round 1.",
+      "Each Power Card (Time-Out, Boost, Reverse) can be played once per quiz — use them wisely! Reverse can only be played in Rounds 1 and 2.",
       "Have fun, play fair, and good luck!",
     ],
     regular: [
@@ -114,8 +114,8 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
     ],
     pursuit: [
       "Every team races through seven questions at the same time \u2014 each correct answer moves your runner forward one stage.",
-      "One wrong answer and you're out of the pursuit (you stay on the board, frozen). Multiple teams can finish.",
-      "Scoring climbs 10, 20, 30\u2026 up to a 100-point payout for clearing all seven.",
+      "Wrong answers do not eliminate anyone; every team plays all seven questions.",
+      "The highest correct total wins a 100-point bonus. Tied leaders each receive it.",
     ],
     hot_seat: [
       "Every team starts with one large buzz button.",
@@ -812,6 +812,15 @@ function QuizControllerInner() {
         await supabase.from("sessions").update({ quiz_end_trophy_visible: true }).eq("id", sessionId);
       }, 3000);
     }
+  }
+
+  async function revealAllFinalResults() {
+    if (!sessionId) return;
+    const total = scores.length;
+    quizEndRevealedRef.current = total;
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").update({ phase: "quiz_end", quiz_end_revealed_count: total, quiz_end_trophy_visible: true }).eq("id", sessionId);
+    setHostPhase("quiz_end");
   }
 
   // teamNameOverride: the spin payout used to read ONLY fastestTeamRef.current
@@ -1755,13 +1764,15 @@ function QuizControllerInner() {
           ) : hostPhase === "round_end" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>
               <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#fff", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>Round Complete</div>
-              <div style={{ font:"600 16px 'Inter'", color:"#B9A8D9", marginBottom:32 }}>SPACE to start next round, or use End of Quiz Reveal</div>
+              <div style={{ font:"600 16px 'Inter'", color:"#B9A8D9", marginBottom:24 }}>SPACE to start the next round</div>
+              <button onClick={doEndOfQuiz} style={{ padding:"16px 32px", borderRadius:14, background:"#BE26C1", border:"1px solid #D94FDC", color:"#fff", font:"800 16px 'Inter'", cursor:"pointer", boxShadow:"0 0 22px rgba(190,38,193,.4)" }}>Finish Quiz · Start Leaderboard &amp; Winners</button>
             </div>
           ) : hostPhase === "quiz_end" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>
               <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#E8C36A", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 34px rgba(232,195,106,0.5)" }}>Quiz Complete</div>
               <div style={{ font:"600 16px 'Inter'", color:"#B9A8D9", marginBottom:24 }}>Leaderboard reveal is live on the display screen</div>
               <button onClick={doRevealNextTeam} style={{ padding:"16px 40px", borderRadius:14, background:"#BE26C1", border:"none", color:"#fff", font:"700 18px 'Inter'", letterSpacing:".08em", cursor:"pointer", marginBottom:12, boxShadow:"0 0 24px rgba(190,38,193,0.5)" }}>Reveal Next Team</button>
+              <button onClick={revealAllFinalResults} style={{ display:"block", margin:"0 auto 12px", padding:"11px 24px", borderRadius:12, background:"rgba(232,195,106,.14)", border:"1px solid #E8C36A", color:"#E8C36A", font:"700 14px 'Inter'", cursor:"pointer" }}>Show Full Leaderboard &amp; Winner Now</button>
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2, marginBottom:24 }}>or press SPACE</div>
               <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" as const, marginBottom: 12 }}>
                 <button onClick={() => downloadWinnerCard(scores, teams, venueName, "vertical")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Story)</button>
@@ -1869,14 +1880,19 @@ function QuizControllerInner() {
               <h1 className="qi-mc-question__title">{currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</h1>
 
               {hostPhase === "hot_seat" && (
-                <div className="qi-hot-seat-host" role="status" aria-live="polite">
-                  <div className="qi-hot-seat-host__label">HOT SEAT</div>
+                <div className={`qi-hot-seat-host${hotSeatCurrentAnswer ? " qi-hot-seat-host--answered" : hotSeatStatus === "claimed" ? " qi-hot-seat-host--claimed" : ""}`} role="status" aria-live="assertive">
+                  <div className="qi-hot-seat-host__label">HOT SEAT · QUESTION {qIdx + 1} OF {selectedRound.questions.length}</div>
                   {hotSeatStatus === "open" ? (
-                    <><strong>Buzzers open</strong><span>{teams.length - hotSeatLockedTeams.length} teams eligible</span></>
+                    <><strong>Buzzers open</strong><span>{teams.length - hotSeatLockedTeams.length} teams eligible · waiting for the first buzz</span></>
                   ) : hotSeatTeam ? (
                     <>
-                      <strong>{hotSeatTeam} takes the Hot Seat</strong>
-                      <span>{hotSeatCurrentAnswer ? `Answer: ${hotSeatCurrentAnswer.answer_text}` : `${timeLeft}s to answer`}</span>
+                      <strong>{hotSeatCurrentAnswer ? "ANSWER LOCKED IN" : `${hotSeatTeam} is answering`}</strong>
+                      <span className="qi-hot-seat-host__team">{hotSeatTeam}</span>
+                      {hotSeatCurrentAnswer ? (
+                        <div className="qi-hot-seat-host__answer"><small>PLAYER ANSWER</small><b>{hotSeatCurrentAnswer.answer_text}</b><em>Press SPACE to mark and continue</em></div>
+                      ) : (
+                        <span>{timeLeft}s remaining</span>
+                      )}
                     </>
                   ) : (
                     <><strong>No teams remaining</strong><span>Reveal the answer or move to the next question.</span></>

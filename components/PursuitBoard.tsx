@@ -7,8 +7,6 @@ import {
   PURSUIT_TOTAL_QUESTIONS,
   computePursuitLayout,
   scalePursuitLayout,
-  summariseRace,
-  pursuitTotalPoints,
 } from "@/lib/quiz/pursuit";
 import { PursuitLane } from "@/components/PursuitLane";
 
@@ -117,8 +115,6 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
 
   // ---- title zone / gate tracker / stakes -----------------------------------
   const gate = qIndex >= 0 ? qIndex + 1 : 0;
-  const summary = summariseRace(displayRace, teamNames);
-  const stillRunning = summary.active.length + summary.completed.length;
   const isEnd = status === "complete" || status === "results";
 
   const showHero = status === "intro" || status === "waiting";
@@ -143,7 +139,7 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
       {showHero && (
         <div className="pu-home-hero">
           <div className="pu-home-title"><span style={{ color: "var(--brand-purple)" }}>THE</span> PURSUIT</div>
-          <div className="pu-home-line">7 gates. Fall once and you&rsquo;re out.</div>
+          <div className="pu-home-line">7 questions. Every team plays. Most correct wins.</div>
         </div>
       )}
 
@@ -159,8 +155,8 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
           </div>
           <div className="pu-stakes">
             {gate > 0
-              ? <>GATE {gate} OF {PURSUIT_TOTAL_QUESTIONS} · THIS GATE: <b>{pursuitTotalPoints(gate)} PTS</b></>
-              : <>THIS GATE: <b>10 PTS</b></>}
+              ? <>QUESTION {gate} OF {PURSUIT_TOTAL_QUESTIONS} · <b>MOST CORRECT WINS</b></>
+              : <>ROUND BONUS: <b>100 PTS</b></>}
           </div>
         </div>
       </div>
@@ -202,8 +198,8 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
           {teamNames.length === 0
             ? "—"
             : isEnd
-            ? `THE PURSUIT: ${summary.completed.length} TEAM${summary.completed.length === 1 ? "" : "S"} WENT ALL THE WAY.`
-            : `${stillRunning} OF ${teamNames.length} STILL RUNNING.`}
+            ? "THE PURSUIT COMPLETE · HIGHEST TOTAL WINS THE BONUS."
+            : `${teamNames.length} OF ${teamNames.length} TEAMS STILL PLAYING.`}
         </div>
         <div className="pu-brandbadge">
           <span className="pu-brandbadge-avatar" aria-hidden="true"><img src="/sonya-avatar.png" alt="" /></span>

@@ -1752,8 +1752,8 @@ Return ONLY a valid JSON array with 1 item, no markdown:
               <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:14, color:"#D94FDC", letterSpacing:".14em", marginBottom:8 }}>THE PURSUIT</div>
               <ul style={{ margin:0, paddingLeft:18, font:"400 13px 'Inter'", lineHeight:1.6, color:"#B9A8D9" }}>
                 <li>Every team races through all seven questions at once — each correct answer moves your runner one gate forward.</li>
-                <li>One wrong answer and you&rsquo;re out of the pursuit (you stay on the board, frozen). Multiple teams can finish.</li>
-                <li>Scoring climbs 10, 20, 30&hellip; up to a 100-point payout for clearing all seven.</li>
+                <li>Wrong answers do not eliminate anyone; every team plays all seven questions.</li>
+                <li>The highest correct total wins a 100-point bonus. Tied leaders each receive it.</li>
               </ul>
             </div>
           )}

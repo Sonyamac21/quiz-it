@@ -68,6 +68,7 @@ function UpcomingQuizzesCard({ quizzes }: { quizzes: UpcomingQuiz[] }) {
 interface Props {
   teamName: string;
   sessionPin: string;
+  playerToken?: string;
 }
 
 function SequenceQuestion({ options, onSubmit, submitted }: { options: string[]; onSubmit: (ans: string) => void; submitted: boolean }) {
@@ -130,11 +131,11 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
   );
 }
 
-function PictureQuestion({ imageUrl, questionText, onSubmit, questionIndex, timeLeft, timerReady, purple, font, bg, teamName, sessionPin, roundNumber, allowPowerCards, points, submitted }: {
+function PictureQuestion({ imageUrl, questionText, onSubmit, questionIndex, timeLeft, timerReady, purple, font, bg, teamName, sessionPin, playerToken, roundNumber, allowPowerCards, points, submitted }: {
   imageUrl: string; questionText: string; submitted: boolean; answerText: string;
   setAnswerText: (v: string) => void; onSubmit: (a: string) => void;
   questionIndex: number; timeLeft: number | null; timerReady: boolean; purple: string; font: string; bg: string;
-  teamName: string; sessionPin: string; roundNumber: number; allowPowerCards: boolean;
+  teamName: string; sessionPin: string; playerToken?: string; roundNumber: number; allowPowerCards: boolean;
   points?: number;
 }) {
   const [imageDismissed, setImageDismissed] = React.useState(false);
@@ -181,14 +182,14 @@ function PictureQuestion({ imageUrl, questionText, onSubmit, questionIndex, time
       </div>
       <div style={{ flexShrink:0, paddingTop:8, paddingBottom:24 }}>
         {allowPowerCards
-          ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact enabled={allowPowerCards} />
+          ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact enabled={allowPowerCards} />
           : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
       </div>
     </div>
   );
 }
 
-export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
+export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Props) {
   // Prevent the outer document from scrolling while the gameplay screen is
   // mounted. Plain `overflow:hidden` on body is NOT reliably honoured by iOS
   // Safari (a well-documented mobile Safari limitation) - position:fixed on
@@ -926,7 +927,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
 
   const PowerCards = () => (
     allowPowerCards ? <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
-      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
+      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
     </div> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>
   );
 
@@ -1173,7 +1174,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
   // pursuit question exactly as it answers any other — no special screens.
   if (phase === "pursuit" && pursuitStatus !== "question" && pursuitStatus !== "reveal") {
     const message =
-      pursuitStatus === "intro" ? "Seven questions. One wrong answer and you're out. Get ready!"
+      pursuitStatus === "intro" ? "Seven questions. Everyone plays to the end. Most correct wins the bonus!"
       : pursuitStatus === "advance" ? "Runners are moving — watch the big screen!"
       : pursuitStatus === "complete" || pursuitStatus === "results" ? "That's the finish. Final standings on the big screen."
       : "The Pursuit is starting soon…";
@@ -1351,7 +1352,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
             </>
           );
         })()}
-        {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+        {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
       </div>
     );
   }
@@ -1476,6 +1477,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         bg={bg}
         teamName={teamName}
         sessionPin={sessionPin}
+        playerToken={playerToken}
         roundNumber={roundNumber}
         allowPowerCards={allowPowerCards}
         points={myRunningPoints}
@@ -1584,7 +1586,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
         </div>
         {phase === "hot_seat" ? <div className="qi-player-cards-paused">You are in the Hot Seat</div> : allowPowerCards ? (
           <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
-            <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
+            <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
           </div>
         ) : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
       </div>
@@ -1659,7 +1661,7 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
           "X OF Y CARDS REMAINING" caption sat flush against the viewport
           bottom and visually collided with that pill. */}
       <div style={{ paddingBottom: 46 }}>
-        {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} roundNumber={roundNumber} compact enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+        {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
       </div>
     </div>
   );

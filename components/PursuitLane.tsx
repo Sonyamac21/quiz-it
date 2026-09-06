@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { PursuitLayout, TeamRace, PURSUIT_TOTAL_QUESTIONS, pursuitTotalPoints } from "@/lib/quiz/pursuit";
+import { PursuitLayout, TeamRace, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { TeamBadge } from "@/components/TeamBadge";
 import { PursuitRunner, RunnerPose } from "@/components/PursuitRunner";
 
@@ -46,7 +46,7 @@ export function PursuitLane({ teamName, entry, layout, mirror, laneHeight }: Pro
   const [sprinting, setSprinting] = useState(false);
   const [falling, setFalling] = useState(false);
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
-  const [banked, setBanked] = useState(pursuitTotalPoints(entry.stage));
+  const [banked, setBanked] = useState(entry.stage);
 
   // --- runner geometry -------------------------------------------------------
   function blockCenter(i: number): number {
@@ -99,7 +99,7 @@ export function PursuitLane({ teamName, entry, layout, mirror, laneHeight }: Pro
       // First render / refresh recovery: land instantly, no animation.
       placeRunner(restPos(cur), true);
       setPose(basePose(cur));
-      setBanked(pursuitTotalPoints(cur.stage));
+      setBanked(cur.stage);
       prevEntryRef.current = cur;
       return;
     }
@@ -114,14 +114,14 @@ export function PursuitLane({ teamName, entry, layout, mirror, laneHeight }: Pro
       setMoving(true);
       setSprinting(true);
       placeRunner(8, false);
-      rollTally(pursuitTotalPoints(PURSUIT_TOTAL_QUESTIONS));
+      rollTally(PURSUIT_TOTAL_QUESTIONS);
       later(() => { setMoving(false); setSprinting(false); setPose("victory"); setFlashIndex(null); }, 950);
     } else if (advanced) {
       setFlashIndex(prev.stage);
       setPose("run");
       setMoving(true);
       placeRunner(restPos(cur), false);
-      rollTally(pursuitTotalPoints(cur.stage));
+      rollTally(cur.stage);
       later(() => {
         setMoving(false);
         // escalation flourish on gates 5–6
@@ -144,7 +144,7 @@ export function PursuitLane({ teamName, entry, layout, mirror, laneHeight }: Pro
       // No delta (e.g. a still lane during someone else's move) — settle.
       placeRunner(restPos(cur), true);
       setPose(basePose(cur));
-      setBanked(pursuitTotalPoints(cur.stage));
+      setBanked(cur.stage);
     }
 
     prevEntryRef.current = cur;

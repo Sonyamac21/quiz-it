@@ -190,11 +190,16 @@ function DisplayWakeControl() {
       void lock?.release();
     };
   }, []);
-  return <button type="button" disabled={awake || !supported} onClick={() => retry.current()}
-    title={supported ? "Keep this display visible. Tap to retry if the device releases the wake lock." : "Use the iPad Auto-Lock settings to keep the screen on."}
-    style={{ position: "fixed", bottom: "max(12px, env(safe-area-inset-bottom))", left: 12, zIndex: 10000, padding: "10px 14px", minHeight: 44, borderRadius: 12, border: "1px solid #6B5A8E", background: "#160a31", color: awake ? "#2EE06E" : "#f2ce79", fontSize: 12 }}>
-    {awake ? "Screen staying awake" : supported ? "Keep screen awake · Tap" : "Set Auto-Lock to Never"}
-  </button>;
+  // The wake lock itself still runs (a display screen sleeping mid-quiz is a
+  // real problem) - only the persistent on-screen "Screen staying awake"
+  // button/badge is gone, since it sat on top of the show the whole night for
+  // no ongoing reason once the lock was acquired. Silently retry from the
+  // visibilitychange listener above covers the normal re-acquire case; if a
+  // device truly drops the lock and needs a manual tap, that's the one
+  // remaining gap, but it's a rare edge case not worth a permanent overlay.
+  void awake;
+  void supported;
+  return null;
 }
 
 // Power card explainer screens shown one at a time on the lobby/waiting screen,
@@ -880,10 +885,27 @@ function DisplayScreenInner() {
           setTimeout(() => playSound("whoosh.mp3", 0.3), 1300);
         }
         else if (p.status === "complete") {
-          // Nobody finished → one sad trombone. Finishers already received their
-          // finish cue, so no extra audio here.
-          const finishers = Object.values(newRace).filter(e => e.status === "completed").length;
-          if (finishers === 0) playSound("sad-trombone.mp3", 0.9);
+          // A sad trombone here made no sense - the "did any team finish" check
+          // it relied on (race entry status "completed"/"eliminated") is dead
+          // in the current model, where every team plays all 7 questions and
+          // status always stays "active", so it fired on every single finish.
+          // Instead: a lone winner (highest correct count, ties excluded) gets
+          // their own configured victory song and their name on the board via
+          // PursuitBoard's footer; a tie between two or more teams gets a
+          // shared celebration - airhorn plus crowd cheer - since there's no
+          // single team to spotlight.
+          const names = teams.map(t => t.team_name);
+          const highestStage = names.length ? Math.max(0, ...names.map(n => newRace[n]?.stage ?? 0)) : 0;
+          const winners = highestStage > 0 ? names.filter(n => (newRace[n]?.stage ?? 0) === highestStage) : [];
+          if (winners.length === 1) {
+            const song = teamsRef.current.find(t => t.team_name === winners[0])?.victory_song;
+            playSound("airhorn.mp3", 0.5);
+            stopShowAudio("music");
+            if (song) playShowAudio(victorySongAudioFile(song), { channel: "music", volume: 0.9 });
+          } else {
+            playSound("airhorn.mp3", 0.5);
+            playSound("crowd-cheer.mp3", 0.7);
+          }
         }
         prevPursuitStatusRef.current = p.status;
       }

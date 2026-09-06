@@ -123,6 +123,12 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
 
   const entryOf = (name: string): TeamRace => displayRace[name] ?? { stage: 0, status: "active" };
 
+  // The winner(s) - highest correct count - shown by name on the end screen
+  // instead of the old generic "highest total wins" caption. Mirrors the
+  // same highest-stage comparison PursuitPanel uses to award the 100pt bonus.
+  const highestStage = teamNames.length ? Math.max(0, ...teamNames.map((n) => race[n]?.stage ?? 0)) : 0;
+  const pursuitWinners = highestStage > 0 ? teamNames.filter((n) => (race[n]?.stage ?? 0) === highestStage) : [];
+
   const rootStyle = cssVars({
     "--lane-h": layout.laneH + "px",
     "--runner-s": layout.runner + "px",
@@ -198,7 +204,11 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
           {teamNames.length === 0
             ? "—"
             : isEnd
-            ? "THE PURSUIT COMPLETE · HIGHEST TOTAL WINS THE BONUS."
+            ? (pursuitWinners.length === 1
+                ? `🏆 ${pursuitWinners[0]} WINS THE PURSUIT — ${highestStage} CORRECT`
+                : pursuitWinners.length > 1
+                  ? `TIE! ${pursuitWinners.join(" & ")} WIN THE PURSUIT — ${highestStage} CORRECT EACH`
+                  : "THE PURSUIT COMPLETE")
             : `${teamNames.length} OF ${teamNames.length} TEAMS STILL PLAYING.`}
         </div>
         <div className="pu-brandbadge">

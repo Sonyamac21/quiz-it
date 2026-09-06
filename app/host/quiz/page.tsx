@@ -854,7 +854,14 @@ function QuizControllerInner() {
             setSpinFeedback({ ok: false, message: "Spin could not start on the display. Check the connection and retry." });
           }
         });
-      if (payoutTeam) applySpinResult(winIdx, payoutTeam, nonce, pin);
+      // Previously scored the instant the spin was triggered - the reel
+      // animation (SlotReels: 3 reels landing over ~8.2s, then a ~2s "rebel
+      // reel" correction) takes about 10s to visually settle, so the
+      // leaderboard/handset totals were updating up to 10 seconds before the
+      // room could actually see the result, spoiling it. Delayed to land
+      // together with the animation instead of ahead of it.
+      const SPIN_REVEAL_MS = 10200;
+      if (payoutTeam) setTimeout(() => applySpinResult(winIdx, payoutTeam, nonce, pin), SPIN_REVEAL_MS);
       else console.error("triggerSpinIfChosen: no fastest-team name available (ref cleared and no override passed) - spin payout skipped.");
       setTimeout(() => {
         const finalSid = sessionIdRef.current || sessionId;
@@ -1421,6 +1428,53 @@ function QuizControllerInner() {
     await supabase.from("sessions").update({ phase: "spin_to_win", spin_offered: true, spin_choice: null }).eq("id", sessionId);
   }
 
+  // Escape hatch for "I already moved on and forgot to offer the spin" - the
+  // celebration screen (where Offer Spin to Win lives) is transient, and
+  // once the host previews the next question there was previously no way
+  // back to it at all. Re-derives the fastest correct team for the PREVIOUS
+  // question from persisted answers (not React state, which has moved on)
+  // and re-enters celebration for it, exactly as if the host had never left.
+  async function goBackToOfferSpin() {
+    if (!selectedRound || qIdx <= 0 || !sessionId || !sessionPin) return;
+    const targetIdx = qIdx - 1;
+    const q = selectedRound.questions[targetIdx];
+    if (!q) return;
+    if (timerRef.current) clearInterval(timerRef.current);
+    stopTickAudio();
+    const supabase = createSupabaseBrowserClient();
+    const { data: persistedAnswers, error } = await scopedAnswersQuery(sessionPin, targetIdx);
+    if (error) {
+      showToast("Could not load that question's answers. Please retry.", "error", 7000);
+      return;
+    }
+    const latestByTeam = new Map<string, Answer>();
+    for (const a of persistedAnswers || []) {
+      const key = a.team_name.trim().toLowerCase();
+      const prev = latestByTeam.get(key);
+      if (!prev || new Date(a.submitted_at).getTime() > new Date(prev.submitted_at).getTime()) latestByTeam.set(key, a);
+    }
+    const verifiedCorrect = [...latestByTeam.values()]
+      .filter(a => isAnswerCorrect(a, q))
+      .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
+    const winner = verifiedCorrect[0]?.team_name || null;
+    scoredFastestTeamRef.current = winner;
+    fastestTeamRef.current = winner;
+    setFastestTeam(winner);
+    setDecisionMade(false);
+    setSpinOffered(false);
+    setSpinChoice(null);
+    setQIdx(targetIdx);
+    setHostPhase("celebration");
+    await supabase.from("sessions").update({
+      phase: "celebration",
+      current_question: q,
+      current_question_index: targetIdx,
+      fastest_team: winner,
+      spin_offered: false,
+      spin_choice: null,
+    }).eq("id", sessionId);
+  }
+
   async function doEndRound() {
     if (!sessionId) return;
     stopVictorySong();
@@ -1712,6 +1766,21 @@ function QuizControllerInner() {
             stuck) so the host never has to hunt for it mid-show. */}
         {hostPhase !== "waiting" && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
           <Button variant="secondary" onClick={async () => { if (await confirmDialog("Skip the rest of this round and move on? Use this if the round is stuck (e.g. Space isn't doing anything).")) doEndRound(); }}>Skip Round</Button>
+        )}
+        {/* Escape hatch for "nobody's going to buzz in" - previously the only
+            way to end a Hot Seat question was to let every remaining team
+            individually claim it, answer wrong, and get locked out one by
+            one, which is slow with a full room and has no quick way out when
+            the room's just stuck on a hard question. */}
+        {hostPhase === "hot_seat" && hotSeatStatus !== "claimed" && (
+          <Button variant="secondary" onClick={async () => { if (await confirmDialog("Nobody's buzzing in - end this question with no one scoring and reveal the answer?")) doRevealAnswer(); }}>Nobody Knows It — Reveal Answer</Button>
+        )}
+        {/* "I forgot to offer the spin" escape hatch - available on every
+            normal question screen once there's a previous question to go
+            back to. Hot Seat/Pursuit/Hard Deck don't use Spin to Win, so
+            this only needs to appear during the regular question flow. */}
+        {qIdx > 0 && ["preview", "question", "timer", "answer", "celebration"].includes(hostPhase) && (
+          <Button variant="secondary" onClick={async () => { if (await confirmDialog("Go back and re-offer the spin for the previous question's fastest correct team?")) goBackToOfferSpin(); }}>Back — Offer Spin</Button>
         )}
         <Button variant="destructive" className="qi-mc-toolbar__end" onClick={async () => { const closing = hostPhase === "quiz_end"; if (await confirmDialog(closing ? "Close this session for good? It'll be marked completed in Reports and cannot be reopened." : "End the quiz for everyone? This closes the live session and cannot be undone.", { tone: "destructive", confirmLabel: closing ? "Close Session" : "End Quiz" })) doEndOfQuiz(); }}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
       </div>

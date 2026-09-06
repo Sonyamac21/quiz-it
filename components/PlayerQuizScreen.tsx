@@ -245,8 +245,9 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     let cancelled = false;
     const supabase = createSupabaseBrowserClient();
     const refresh = async () => {
-      const { data } = await supabase.from("session_rounds")
+      const { data, error } = await supabase.from("session_rounds")
         .select("danger_zone_enabled").eq("id", activeSessionRoundId).single();
+      if (error) { console.error("scoreVisibilityRound fetch failed (running score stays visible):", error.message); return; }
       if (!cancelled && data) setScoreVisibilityRound({ id: activeSessionRoundId, dangerZone: !!data.danger_zone_enabled });
     };
     void refresh();
@@ -258,9 +259,14 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
   const [hardDeckStatus, setHardDeckStatus] = useState<string>("idle");
   const [roundNumber, setRoundNumber] = useState<number>(1);
-  // Hide while resolving a new round too, so Danger Zone never flashes a score.
-  const hideRunningPoints = !!activeSessionRoundId &&
-    (scoreVisibilityRound?.id !== activeSessionRoundId || scoreVisibilityRound.dangerZone);
+  // Previously hid the running score for EVERY round (including round 1,
+  // where teams most need to see their own total to decide whether to play a
+  // Reverse card) until the Danger Zone lookup above had positively resolved
+  // - so a slow, failed, or RLS-blocked fetch (silently swallowed, no error
+  // handling) hid the score for the round's entire duration, not just a brief
+  // flash. Now defaults to VISIBLE and hides only once Danger Zone is
+  // positively confirmed for the current round.
+  const hideRunningPoints = scoreVisibilityRound?.id === activeSessionRoundId && scoreVisibilityRound.dangerZone;
   const myRunningPoints = hideRunningPoints ? undefined : (phoneScoreboardData.find(s => s.team_name === teamName)?.total_points ?? 0);
   const [roundName, setRoundName] = useState("");
   // The team's own photo (uploaded at join), shown in the status bar crest
@@ -1077,23 +1083,26 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
 
         {hardDeckCards.length > 0 && (() => {
-          // Card size used to be a single fixed viewport-relative size tuned so
-          // all FIVE cards could eventually fit across a phone with no
-          // horizontal overflow - but that made it tiny and lost in empty
-          // space on gates 1-4, when only 1-4 cards are actually on screen.
-          // Scale the cap up as the count shrinks, so early gates get a much
-          // bigger card and only the full five-card spread uses the small size.
-          const n = hardDeckCards.length;
-          const widthCap = n <= 1 ? 190 : n === 2 ? 160 : n === 3 ? 130 : n === 4 ? 105 : 90;
+          // The full run of revealed cards (up to 5) used to all be squeezed
+          // onto the player's own phone, shrinking every card as the gate
+          // progressed until the 5th card was tiny. The full history is
+          // already the Display's job (see PursuitBoard-style card row on
+          // the big screen) - a player only actually needs the card they're
+          // comparing against (and, on gate 1, that's the only card there
+          // is), so the handset now shows just the last one or two cards,
+          // large, instead of the whole squashed row.
+          const recent = hardDeckCards.slice(-2);
+          const n = recent.length;
+          const widthCap = n <= 1 ? 190 : 150;
           const heightCap = Math.round(widthCap * 1.42);
-          const widthVw = n <= 1 ? 42 : n === 2 ? 34 : n === 3 ? 26 : n === 4 ? 20 : 16;
+          const widthVw = n <= 1 ? 42 : 34;
           const heightVw = Math.round(widthVw * 1.42);
-          const rankFontCap = n <= 1 ? 56 : n === 2 ? 48 : n === 3 ? 38 : n === 4 ? 32 : 28;
+          const rankFontCap = n <= 1 ? 56 : 46;
           const suitFontCap = Math.round(rankFontCap * 1.2);
           return (
             <div className="qi-player-harddeck-cards" style={{ padding: "clamp(8px,3vw,16px)", borderRadius: 18, maxWidth: "96vw", boxSizing: "border-box" as const, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 16px rgba(0,0,0,0.4), 0 0 24px rgba(190,38,193,0.15)" }}>
-              <div style={{ display: "flex", gap: "clamp(4px,1.5vw,12px)", justifyContent: "center", flexWrap: "nowrap" as const }}>
-                {hardDeckCards.map((c, i) => (
+              <div style={{ display: "flex", gap: "clamp(8px,3vw,20px)", justifyContent: "center", flexWrap: "nowrap" as const }}>
+                {recent.map((c, i) => (
                   <div key={i} style={{ width: `min(${widthCap}px,${widthVw}vw)`, height: `min(${heightCap}px,${heightVw}vw)`, flexShrink: 0, borderRadius: 12, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: `min(${rankFontCap}px,${Math.round(widthVw*0.35)}vw)`, fontWeight: 900, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -8px 12px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)" }}>
                     <div>{rankLabel(c.rank)}</div>
                     <div style={{ fontSize: `min(${suitFontCap}px,${Math.round(widthVw*0.42)}vw)` }}>{c.suit}</div>

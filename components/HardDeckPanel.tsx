@@ -250,11 +250,19 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
     pushState({ hard_deck_status: "idle", phase: "waiting" });
   }
 
+  // Previously a tiny 11px pill buried in the header nav next to "Open
+  // Display" - easy to lose entirely among the other controls there. Now
+  // portaled to a fixed, centered, large call-to-action so the host can spot
+  // it at a glance regardless of what else is on screen, matching how the
+  // main overlay itself is already portaled straight to <body>.
   if (!open) {
-    return (
-      <button onClick={startHardDeck} style={{ padding: "6px 14px", borderRadius: 10, background: "rgba(190,38,193,0.3)", border: "1px solid #BE26C1", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}>
-        Start The Hard Deck
-      </button>
+    return createPortal(
+      <div style={{ position: "fixed", top: 84, left: "50%", transform: "translateX(-50%)", zIndex: 190, pointerEvents: "none" }}>
+        <button onClick={startHardDeck} style={{ pointerEvents: "auto", padding: "14px 32px", borderRadius: 999, background: "linear-gradient(145deg,#BE26C1,#8A1B8D)", border: "1px solid #D94FDC", color: "#fff", fontSize: 16, fontWeight: 800, letterSpacing: 1, cursor: "pointer", boxShadow: "0 6px 24px rgba(190,38,193,0.5), 0 0 30px rgba(217,79,220,0.35)" }}>
+          🃏 Start The Hard Deck
+        </button>
+      </div>,
+      document.body
     );
   }
 

@@ -121,6 +121,12 @@ export function isAnswerCorrect(ans: ScorableAnswer, q: ScorableQuestion): boole
     if (correctItems.length === 0 || correctItems.length !== order.length) return false;
     const submittedItems = (ans.answer_text || "").split(",").map(s => s.trim());
     if (submittedItems.length !== correctItems.length) return false;
+    // Current handsets submit the ordered option text. Accept an ordered key
+    // sequence too so older clients and restored answers are scored identically.
+    const submittedKeys = submittedItems.map(item => item.toLowerCase());
+    if (submittedKeys.every(item => /^[a-d]$/.test(item))) {
+      return order.every((key, i) => key === submittedKeys[i]);
+    }
     return correctItems.every((item, i) => normaliseAnswerText(item) === normaliseAnswerText(submittedItems[i] || ""));
   }
   return isFuzzyMatch(ans.answer_text, getCorrectAnswerText(q), q);

@@ -66,6 +66,17 @@ export function multiTapSuitabilityError(q: Pick<Question, "question_text" | "qu
   return null;
 }
 
+function sequenceSuitabilityError(q: Pick<Question, "question_text" | "question_type" | "option_a" | "option_b" | "option_c" | "option_d" | "correct_answer">): string | null {
+  if (q.question_type !== "sequence") return "Question type is not sequence";
+  const options = [q.option_a, q.option_b, q.option_c, q.option_d];
+  if (options.some(option => typeof option !== "string" || !option.trim())) return "Sequence requires four options";
+  if ((q.correct_answer || "").replace(/\s/g, "").toLowerCase() !== "a,b,c,d") return "Sequence source answer must be a,b,c,d";
+  const stem = (q.question_text || "").toLowerCase();
+  const repeated = options.find(option => option && option.trim().length >= 3 && stem.includes(option.trim().toLowerCase()));
+  if (repeated) return "Sequence question must not repeat its option items in the question text";
+  return null;
+}
+
 type ValidationStatus = "passed" | "failed" | "not_run" | "not_applicable";
 type ValidationStage = "moderation" | "theme" | "duplicate" | "balance" | "memory" | "quality" | "media";
 type RoundBalanceDetails = {
@@ -535,7 +546,7 @@ async function generateOne(
     multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
     text_answer: "text_answer: the correct_answer MUST be a SINGLE word - no spaces, no commas, no \"and\", no \"&\", no \"/\", no multiple names, no multiple items, no hyphen-joined names. If the natural answer would be more than one word, choose a different question whose answer is a single word. All options must be null.",
     number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
-    sequence: "sequence: 4 items that have a definite correct chronological/logical order, written into option_a/b/c/d in that correct order. correct_answer must be exactly \"a,b,c,d\" (the order will be randomized programmatically afterward, so always write them in true correct order here).",
+    sequence: "sequence: 4 items that have a definite correct chronological/logical order, written into option_a/b/c/d in that correct order. correct_answer must be exactly \"a,b,c,d\" (the options will be randomized programmatically afterward, so always write them in true correct order here). question_text must state only the ordering rule, such as \"Put these artists in order of when they first topped the global charts, earliest first.\" NEVER repeat, enumerate, or list the four option items in question_text; players must see each item exactly once in the tappable option list.",
     picture: theme.trim()
       ? `picture: create a THEMED picture question for "${theme.trim()}". option_a is a short internal Pixabay search query for a stock-safe REAL subject (landmark/building, animal, flag, food/dish, or stadium); never use logos, people, film stills, characters, album covers or copyrighted artwork. question_text is shown with that image and MUST require specific knowledge of "${theme.trim()}" to answer—the stock image is a meaningful clue, not the answer itself. Example pattern: an image of Neuschwanstein Castle with "This castle inspired the royal home in which Disney film?" Do NOT ask generic identification such as "What animal is this?"; that tests general knowledge rather than the theme. Never write "Show teams this image" or reveal the answer. option_b/c/d null; correct_answer must answer the themed question.`
       : "picture: option_a is a short internal Pixabay query for a stock-safe subject: landmark/building, animal, flag, food/dish, or stadium. Never use logos, famous people, film stills, characters, album covers or copyrighted artwork. question_text is a short visual-identification question such as 'Name this landmark' or 'What animal is this?', without naming the subject or saying 'Show teams this image'. option_b/c/d null; correct_answer identifies what is shown.",
@@ -730,6 +741,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       q.correct_answer = newCorrect;
     }
     if (q && q.question_type === "sequence") {
+      const suitabilityError = sequenceSuitabilityError(q);
+      if (suitabilityError) {
+        context.error = suitabilityError + " - retrying";
+        return null;
+      }
       const letters = ["a", "b", "c", "d"];
       const items = letters.map(l => q["option_" + l]);
       const shuffledLetters = shuffle(letters);

@@ -848,10 +848,27 @@ export function PlayerQuizScreen({ teamName, sessionPin }: Props) {
       setBuzzing(false);
       return;
     }
-    const result = data as { claimed?: boolean } | null;
+    const result = data as {
+      claimed?: boolean;
+      team?: string;
+      answer_started_at?: string;
+      answer_duration?: number;
+    } | null;
     if (!result?.claimed) {
       setError("Another team got there first.");
       setTimeout(() => setError(""), 1800);
+    } else {
+      // Do not make the winning handset wait for the realtime session event.
+      // The RPC response is the authoritative result of the atomic buzz claim,
+      // and includes the same start time/duration written to the session row.
+      // On congested venue Wi-Fi the broadcast can arrive late (or be missed),
+      // which previously left the winner staring at the buzzer with no options.
+      setHotSeatStatus("claimed");
+      setHotSeatTeam(result.team || teamName);
+      const duration = result.answer_duration ?? HOT_SEAT_ANSWER_SECONDS;
+      const startedAt = result.answer_started_at ? new Date(result.answer_started_at).getTime() : Date.now();
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      startCountdown(Math.max(0, duration - elapsed));
     }
     setBuzzing(false);
   }

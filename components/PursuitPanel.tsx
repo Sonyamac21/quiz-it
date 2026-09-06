@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { applyScoreDelta } from "@/lib/quiz/scoreService";
+import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
 import { teamInitials } from "@/components/TeamBadge";
 import {
   PursuitPhase,
@@ -307,25 +308,32 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     const newIndex = qIndex + 1;
     if (newIndex >= pursuitQuestions.length) return;
     const q = pursuitQuestions[newIndex];
+    // Matches the rest of the quiz (app/host/quiz/page.tsx): multiple choice,
+    // sequence, multi tap and number get a shorter 15s timer than a written
+    // text-answer question, instead of every Pursuit question running on the
+    // same flat 30s host-configured timer regardless of type - a 4-option
+    // multiple choice question doesn't need as long to answer.
+    const questionTimer = getTimerForQuestion(q, timerDuration);
     setQIndex(newIndex);
     setStatus("question");
     setTimerStartedAt(null);
-    setTimerDur(timerDuration);
+    setTimerDur(questionTimer);
     await pushState({
       pursuit_status: "question",
       current_question: q,
       current_question_index: newIndex,
       pursuit_data: buildPursuitData(race, newIndex, startedAt),
       timer_started_at: null,
-      timer_duration: timerDuration,
+      timer_duration: questionTimer,
     });
   }
 
   async function startTimer() {
     const now = new Date().toISOString();
+    const questionTimer = getTimerForQuestion(pursuitQuestions[qIndex], timerDuration);
     setTimerStartedAt(now);
-    setTimerDur(timerDuration);
-    await pushState({ timer_started_at: now, timer_duration: timerDuration });
+    setTimerDur(questionTimer);
+    await pushState({ timer_started_at: now, timer_duration: questionTimer });
   }
 
   // Lock Answers: expire the timer now, which is exactly how a normal round locks

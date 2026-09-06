@@ -19,6 +19,7 @@ import { FEATURE_FLAGS } from "@/lib/platform/featureFlags";
 import { platformLogger } from "@/lib/platform/logger";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 import { isAnswerCorrect as sharedIsAnswerCorrect, getCorrectAnswerText as sharedGetCorrectAnswerText } from "@/lib/quiz/answerScoring";
+import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
 
@@ -129,22 +130,6 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
 
 const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "Multi Tap", music: "Music Round", hot_seat: "Hot Seat", pursuit: "The Pursuit", bonus: "Bonus Round", hard_deck: "The Hard Deck" };
 
-// Per-question-type timer defaults, confirmed by host: Multiple Choice,
-// Sequence, Multi Tap, and Number need less thinking time than written
-// text answers. Picture and Audio aren't in this map, so they fall back to
-// the host's manual timer setting since those need variable time depending
-// on content.
-const TIMER_BY_TYPE: Record<string, number> = {
-  multiple_choice: 15,
-  sequence: 15,
-  multi_tap: 15,
-  number: 15,
-  text_answer: 30,
-};
-function getTimerForQuestion(q: { question_type?: string } | null | undefined, fallback: number): number {
-  if (!q || !q.question_type) return fallback;
-  return TIMER_BY_TYPE[q.question_type] ?? fallback;
-}
 
 
 type HostPhase = "waiting" | "round_start" | "preview" | "question" | "timer" | "hot_seat" | "answer" | "celebration" | "round_end" | "quiz_end";

@@ -471,6 +471,16 @@ button, input, select, textarea { font: inherit; }
   .qi-mc-option { min-height: 52px; padding-block: var(--qi-space-2); }
   .qi-mc-manual { margin-top: var(--qi-space-3); padding-top: var(--qi-space-3); }
 
+  /* Hot Seat's answer-locked alert was added after this shrink pass, so on a
+     short laptop/venue-control screen it kept its full padding/margin and
+     up-to-38px answer text while everything else here (title, options) was
+     already compressed - the one piece of the question view still able to
+     push the Next-action bar off screen. */
+  .qi-hot-seat-host { margin-bottom: var(--qi-space-3); padding: var(--qi-space-2) var(--qi-space-3); gap: 5px; }
+  .qi-hot-seat-host strong { font-size: clamp(18px, 1.6vw, 24px); }
+  .qi-hot-seat-host__answer { padding: 8px 12px; margin-top: 2px; }
+  .qi-hot-seat-host__answer b { font-size: clamp(17px, 1.8vw, 26px); }
+
   .qi-mc-settings { padding: var(--qi-space-3) var(--qi-space-4); }
   .qi-mc-teams { padding: var(--qi-space-3) var(--qi-space-4); }
   .qi-mc-teams__header {
@@ -1871,16 +1881,31 @@ button, input, select, textarea { font: inherit; }
 .qi-display-hot-seat__claim>span { color:#ff8290; font-size:clamp(52px,7.5vw,126px); font-weight:950; line-height:.95; text-transform:uppercase; text-shadow:0 0 55px rgba(255,83,101,.5); }
 .qi-display-hot-seat__timer { width:clamp(110px,11vw,180px); aspect-ratio:1; display:grid; place-items:center; border:5px solid #ff5365; border-radius:50%; color:#fff; font-size:clamp(52px,6vw,96px); font-weight:950; box-shadow:0 0 55px rgba(255,83,101,.35),inset 0 0 30px rgba(255,83,101,.16); }
 
-.qi-player-hot-seat { height:100dvh; display:flex; flex-direction:column; align-items:center; color:#fff; text-align:center; overflow:hidden; }
-.qi-player-hot-seat__question { width:100%; margin:auto 0 20px; font-size:clamp(24px,7.2vw,38px); font-weight:850; line-height:1.16; text-wrap:balance; }
-.qi-player-hot-seat__buzz { width:min(82vw,350px); aspect-ratio:1; flex:none; border:7px solid rgba(255,255,255,.86); border-radius:50%; background:radial-gradient(circle at 38% 28%,#ff8290 0,#ff3b4e 45%,#a20d26 100%); color:#fff; font:950 clamp(52px,17vw,82px) var(--font-body),Inter,sans-serif; letter-spacing:-.05em; box-shadow:0 12px 0 #700719,0 0 55px rgba(255,59,78,.55); cursor:pointer; touch-action:manipulation; }
+.qi-player-hot-seat { height:100dvh; min-height:0; max-height:100dvh; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; color:#fff; text-align:center; overflow:hidden; padding:max(10px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left)); }
+/* Buzzer and question/state text were sized purely off vw, so a short/landscape
+   phone (plenty of width, little height) never shrank them and the circle or
+   the TV-style type could overflow the 100dvh stage. Every clamp below now
+   also caps against dvh so height - not just width - drives the size. */
+.qi-player-hot-seat__question { width:100%; margin:auto 0 clamp(10px,2.5dvh,20px); font-size:clamp(20px,min(7.2vw,6dvh),38px); font-weight:850; line-height:1.16; text-wrap:balance; }
+.qi-player-hot-seat__buzz { width:min(82vw,44dvh,350px); aspect-ratio:1; flex:none; border:7px solid rgba(255,255,255,.86); border-radius:50%; background:radial-gradient(circle at 38% 28%,#ff8290 0,#ff3b4e 45%,#a20d26 100%); color:#fff; font:950 clamp(40px,min(17vw,10dvh),82px) var(--font-body),Inter,sans-serif; letter-spacing:-.05em; box-shadow:0 12px 0 #700719,0 0 55px rgba(255,59,78,.55); cursor:pointer; touch-action:manipulation; }
 .qi-player-hot-seat__buzz:active { transform:translateY(7px) scale(.985); box-shadow:0 5px 0 #700719,0 0 35px rgba(255,59,78,.45); }
 .qi-player-hot-seat__buzz:disabled { opacity:.72; }
-.qi-player-hot-seat__state { width:100%; margin:auto 0; padding:30px 20px; border:2px solid rgba(217,79,220,.45); border-radius:22px; background:#160a31; }
-.qi-player-hot-seat__state strong { display:block; color:#ff8290; font-size:clamp(30px,10vw,48px); line-height:1.05; text-transform:uppercase; }
-.qi-player-hot-seat__state span { display:block; margin-top:12px; color:#d9ccec; font-size:16px; font-weight:750; letter-spacing:.1em; }
+.qi-player-hot-seat__state { width:100%; margin:auto 0; padding:clamp(14px,4dvh,30px) 20px; border:2px solid rgba(217,79,220,.45); border-radius:22px; background:#160a31; max-height:70dvh; overflow:hidden; box-sizing:border-box; }
+.qi-player-hot-seat__state strong { display:block; color:#ff8290; font-size:clamp(22px,min(10vw,8dvh),48px); line-height:1.05; text-transform:uppercase; }
+.qi-player-hot-seat__state span { display:block; margin-top:clamp(6px,1.5dvh,12px); color:#d9ccec; font-size:clamp(13px,min(4vw,3.2dvh),16px); font-weight:750; letter-spacing:.1em; }
 .qi-player-hot-seat__state.is-locked { border-color:rgba(255,83,101,.45); }
-.qi-player-hot-seat__error { margin:18px 0 0; color:#ff9aaa; font-weight:800; }
+.qi-player-hot-seat__error { margin:clamp(8px,2dvh,18px) 0 0; color:#ff9aaa; font-weight:800; font-size:clamp(13px,3.2dvh,16px); }
+@media (max-height:680px) {
+  .qi-player-hot-seat__buzz { width:min(78vw,38dvh,320px); border-width:5px; }
+  .qi-player-hot-seat__question { margin-bottom:8px; }
+  .qi-player-hot-seat__state { padding-block:12px; }
+}
+@media (orientation:landscape) and (max-height:540px) {
+  .qi-player-hot-seat { flex-direction:row; justify-content:center; align-items:center; gap:5vw; }
+  .qi-player-hot-seat__question { width:auto; max-width:44vw; margin:0; }
+  .qi-player-hot-seat__buzz { width:min(34vw,70dvh,260px); }
+  .qi-player-hot-seat__state { width:auto; max-width:60vw; margin:0; }
+}
 @keyframes qiPlayerSpin { to { transform: rotate(360deg); } }
 @media (max-height: 680px) {
   .qi-player-status { min-height: 46px; margin-bottom: 8px; padding-block: 4px 8px; }

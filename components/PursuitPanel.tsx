@@ -12,7 +12,6 @@ import {
   PursuitRace,
   PURSUIT_CHANNEL_PREFIX,
   PURSUIT_TOTAL_QUESTIONS,
-  getPursuitPhaseLabel,
   readPursuitState,
   readRace,
   readQIndex,
@@ -218,6 +217,22 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     }, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStartRoundId, rounds, open]);
+
+  // Rules are shown to the host BEFORE this panel ever opens (the shared
+  // round-announcement screen in app/host/quiz/page.tsx), so there's no
+  // separate rules/round-picker pause here anymore - the instant the chosen
+  // round's questions are resolved, go straight to Question 1. Guarded per
+  // round id so it fires exactly once per launch, not on every render while
+  // sitting in "intro".
+  const introAdvancedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (status !== "intro" || !open) return;
+    if (!chosenRound || pursuitQuestions.length === 0) return;
+    if (introAdvancedRef.current === chosenRound.id) return;
+    introAdvancedRef.current = chosenRound.id;
+    nextQuestion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, open, chosenRound, pursuitQuestions.length]);
 
   // Refresh recovery: reopen and restore from the row if a Pursuit is in progress.
   useEffect(() => {
@@ -469,53 +484,18 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
         </div>
       )}
 
-      {status === "intro" && (
-        <div style={{ width: "100%", maxWidth: 680, display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)" }}>PURSUIT ROUND</div>
-          {rounds.length === 0 ? (
-            <div style={{ fontSize: 13, color: "#fbbf24" }}>No Pursuit rounds yet — create one in the Round Builder (Round Type &rarr; The Pursuit).</div>
-          ) : (
-            <select
-              value={chosenRound?.id ?? ""}
-              onChange={(e) => setRoundId(e.target.value)}
-              style={{ padding: "10px 12px", borderRadius: 10, background: "#0f0f1a", color: "#fff", border: "1px solid rgba(217,79,220,0.4)", fontSize: 14 }}
-            >
-              {rounds.map((r) => (
-                <option key={r.id} value={r.id}>{r.name} ({r.questions.length}q)</option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
-
-      {status === "intro" && chosenRound && pursuitQuestions.length < PURSUIT_TOTAL_QUESTIONS && (
-        <div style={{ fontSize: 12, color: "#fbbf24" }}>This round has {pursuitQuestions.length} question{pursuitQuestions.length === 1 ? "" : "s"} — The Pursuit expects {PURSUIT_TOTAL_QUESTIONS}.</div>
-      )}
-
-      {status === "intro" && (
-        <div className="qi-pursuit-host-rules" style={{ width: "100%", maxWidth: 760, display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 }}>
-          <section style={{ padding: "18px 20px", borderRadius: 16, background: "linear-gradient(145deg,rgba(217,79,220,.13),rgba(255,255,255,.035))", border: "1px solid rgba(217,79,220,.38)" }}>
-            <div style={{ font: "800 11px 'Inter'", letterSpacing: 2.2, color: "#D94FDC", marginBottom: 12 }}>READ THIS TO THE ROOM</div>
-            <div style={{ font: "750 15px/1.45 'Inter'", color: "#fff", marginBottom: 10 }}>Seven questions. Every team plays every question.</div>
-            <ul style={{ margin: 0, paddingLeft: 19, color: "#D9CCF2", font: "600 13px/1.55 'Inter'" }}>
-              <li>A correct answer moves your team forward one gate.</li>
-              <li>A wrong answer leaves you where you are—but you keep playing.</li>
-              <li>The highest correct total after all seven wins a {PURSUIT_WINNER_BONUS}-point bonus.</li>
-              <li>Tied leaders each receive the bonus.</li>
-            </ul>
-          </section>
-          <section style={{ padding: "18px 20px", borderRadius: 16, background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.14)" }}>
-            <div style={{ font: "800 11px 'Inter'", letterSpacing: 2.2, color: "#E8C36A", marginBottom: 12 }}>HOST FLOW · USE SPACE</div>
-            <ol style={{ margin: 0, paddingLeft: 20, color: "#D9CCF2", font: "600 13px/1.55 'Inter'" }}>
-              <li>Show the question and read it aloud.</li>
-              <li>Start the timer.</li>
-              <li>Lock answers early, or let the timer finish.</li>
-              <li>Reveal the correct answer.</li>
-              <li>Update the board to add each correct answer.</li>
-            </ol>
-            <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 9, background: "rgba(46,224,110,.09)", color: "#2EE06E", font: "700 11px/1.4 'Inter'" }}>The large button always shows your next action. Space performs that action.</div>
-          </section>
-        </div>
+      {/* No rules/round-picker screen here anymore. The host already saw the
+          Pursuit rules and question count on the shared round announcement
+          screen before pressing Space to launch this - repeating them on a
+          second, differently-styled screen was the mismatch the host flagged
+          ("doesn't look like the other rounds... rules should be on screen
+          before the start"). The round to play is already resolved via
+          autoStartRoundId below, and the moment it (and its questions) is
+          ready, the effect below skips straight to Question 1. The only
+          remaining case handled here is a genuine setup problem - no Pursuit
+          round exists at all - which needs a visible way out. */}
+      {status === "intro" && rounds.length === 0 && (
+        <div style={{ fontSize: 14, color: "#fbbf24", textAlign: "center" as const }}>No Pursuit rounds yet — create one in the Round Builder (Round Type &rarr; The Pursuit).</div>
       )}
 
       {/* The question text itself is already large and centered inside the

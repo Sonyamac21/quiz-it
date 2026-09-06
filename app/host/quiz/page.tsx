@@ -326,7 +326,14 @@ function QuizControllerInner() {
       // question, and later doRevealAnswer's `if (!currentQ) return;` guard
       // then silently no-ops forever on "Reveal Answer" with no way out. Skip
       // straight to ending the round instead of walking into that dead end.
-      if ((selectedRound?.questions.length ?? 0) === 0) doEndRound();
+      if (selectedRound?.round_type === "pursuit") {
+        // The Pursuit's rules were already read off the screen we're leaving
+        // (this "round_start" announcement, styled identically to every
+        // other round). This Space press is what actually launches it -
+        // matching "SPACE to preview Q1" for a normal round.
+        setPursuitAutoStartId(selectedRound.id);
+      }
+      else if ((selectedRound?.questions.length ?? 0) === 0) doEndRound();
       else doPreviewQuestion(qIdx);
     }
     else if (hostPhase === "preview") { doSendQuestion(); }
@@ -1573,11 +1580,13 @@ function QuizControllerInner() {
     // host recovery, so a refresh cannot silently revert planned scoring to
     // platform defaults midway through a live quiz.
     applyRoundConfiguration(r);
-    // All routes into the running order must launch specialist rounds through
-    // their own controller. Previously only clicking a Pursuit card did this;
-    // advancing automatically from the previous round loaded its questions in
-    // the standard host UI and never showed the Pursuit race graphic.
-    setPursuitAutoStartId(r?.round_type === "pursuit" ? r.id : null);
+    // The Pursuit no longer auto-launches the instant it's selected here -
+    // that used to pop its overlay up immediately, covering the shared
+    // "waiting"/"round_start" announcement screens (rules, question count)
+    // before the host ever saw them. It now launches from the round_start
+    // branch of handleSpacebar, exactly where every other round type's first
+    // question would appear, so clear any stale id from a previous round.
+    setPursuitAutoStartId(null);
     if (r?.hide_leaderboard) { setShowScoreboard(false); setShowScoreboardOnHandsets(false); }
     roundQuestionsRef.current = r ? [...r.questions] : [];
     const isFinalRound = !!r && rounds.length > 0 && r.position === rounds[rounds.length - 1].position;
@@ -1594,7 +1603,7 @@ function QuizControllerInner() {
 
   const spacebarHint =
     hostPhase === "waiting" ? (roundNumber === 1 ? "SPACE: Start Quiz" : "SPACE: Start Round") :
-    hostPhase === "round_start" ? "SPACE: Preview First Question" :
+    hostPhase === "round_start" ? (selectedRound?.round_type === "pursuit" ? "SPACE: Start The Pursuit" : "SPACE: Preview First Question") :
     hostPhase === "preview" ? "SPACE: Send Question Live" :
     hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "SPACE: Reveal Question Text" :
     hostPhase === "question" ? "SPACE: Start Timer" :
@@ -1838,7 +1847,7 @@ function QuizControllerInner() {
             <div style={{ textAlign:"center", marginTop:60 }}>
               <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#fff", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>{selectedRound.name}</div>
               <div style={{ font:"600 18px 'Inter'", color:"#B9A8D9", marginBottom:32 }}>{selectedRound.questions.length} questions</div>
-              <div style={{ font:"400 13px 'Inter'", color:"#6B5A8E", letterSpacing:".16em" }}>Announce the round — then SPACE to preview Q1</div>
+              <div style={{ font:"400 13px 'Inter'", color:"#6B5A8E", letterSpacing:".16em" }}>{selectedRound.round_type === "pursuit" ? "Announce the round — then SPACE to begin" : "Announce the round — then SPACE to preview Q1"}</div>
             </div>
           ) : hostPhase === "round_end" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>

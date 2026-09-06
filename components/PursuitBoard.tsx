@@ -24,6 +24,11 @@ type Props = {
   questionText?: string | null;
   questionCategory?: string | null;
   correctAnswer?: string | null;
+  // Optional style override merged onto the root .pursuit-board element -
+  // used by the host console to embed this same board at a fixed card size
+  // instead of the Display's full-viewport 100dvh, without needing a second
+  // copy of the component.
+  style?: CSSProperties;
 };
 
 // Timeline offsets for the one choreographed reveal pass (Motion Language v1.0).
@@ -34,7 +39,7 @@ function cssVars(vars: Record<string, string>): CSSProperties {
   return vars as CSSProperties;
 }
 
-export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questionText, questionCategory, correctAnswer }: Props) {
+export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questionText, questionCategory, correctAnswer, style: styleOverride }: Props) {
   const boardRef = useRef<HTMLDivElement | null>(null);
   const [boardWidth, setBoardWidth] = useState(1300);
 
@@ -129,14 +134,19 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
   const highestStage = teamNames.length ? Math.max(0, ...teamNames.map((n) => race[n]?.stage ?? 0)) : 0;
   const pursuitWinners = highestStage > 0 ? teamNames.filter((n) => (race[n]?.stage ?? 0) === highestStage) : [];
 
-  const rootStyle = cssVars({
-    "--lane-h": layout.laneH + "px",
-    "--runner-s": layout.runner + "px",
-    "--block-s": layout.block + "px",
-    "--name-fs": layout.nameFs + "px",
-    "--crest-s": layout.crest + "px",
-    "--lane-gap": layout.gap + "px",
-  });
+  const rootStyle: CSSProperties = {
+    ...cssVars({
+      "--lane-h": layout.laneH + "px",
+      "--runner-s": layout.runner + "px",
+      "--block-s": layout.block + "px",
+      "--name-fs": layout.nameFs + "px",
+      "--crest-s": layout.crest + "px",
+      "--lane-gap": layout.gap + "px",
+    }),
+    // Applied AFTER the CSS vars so a caller's height/max-height override (the
+    // host console's fixed-size embed) wins over the class's own 100dvh.
+    ...styleOverride,
+  };
 
   const boardClass = ["pursuit-board", answering ? "answering" : "", answering && typeof timeLeft === "number" && timeLeft <= 5 ? "urgent" : ""].filter(Boolean).join(" ");
 

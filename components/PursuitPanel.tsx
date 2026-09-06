@@ -6,6 +6,7 @@ import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { applyScoreDelta } from "@/lib/quiz/scoreService";
 import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
 import { teamInitials } from "@/components/TeamBadge";
+import { PursuitBoard } from "@/components/PursuitBoard";
 import {
   PursuitPhase,
   PursuitRace,
@@ -21,6 +22,7 @@ import {
   applyOutcome,
   summariseRace,
   checkPursuitAnswer,
+  pursuitCorrectAnswerText,
   PURSUIT_WINNER_BONUS,
 } from "@/lib/quiz/pursuit";
 
@@ -433,13 +435,41 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
   const currentQuestion = qIndex >= 0 ? pursuitQuestions[qIndex] : null;
 
   const overlay = (
-    <div className="qi-pursuit-host-console" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100vh", boxSizing: "border-box" as const, background: "rgba(3,6,12,0.97)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 18, padding: 24, overflowY: "auto" }}>
+    // Restyled onto the same surface/border/shadow tokens the rest of the host
+    // console uses (--qi-bg-surface-elevated/--qi-border/--qi-shadow-sm etc,
+    // see .qi-mc-desk / .qi-mc-question in globals.css) instead of a bespoke
+    // near-black backdrop - Pursuit previously looked like a completely
+    // different app bolted on, per direct host feedback ("still look so
+    // different from normal rounds").
+    <div className="qi-pursuit-host-console" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100vh", boxSizing: "border-box" as const, background: "var(--qi-bg-page, #0A0118)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 18, padding: 24, overflowY: "auto" }}>
       <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 26, color: "#D94FDC", letterSpacing: 4 }}>THE PURSUIT</div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ padding: "4px 14px", borderRadius: 999, fontSize: 12, fontWeight: 700, letterSpacing: 1, background: "rgba(217,79,220,0.18)", border: "1px solid rgba(217,79,220,0.5)", color: "#D94FDC" }}>{getPursuitPhaseLabel(status)}</span>
         {qIndex >= 0 && <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>Question {qIndex + 1} of {PURSUIT_TOTAL_QUESTIONS}</span>}
       </div>
+
+      {/* THE RUNNING GRAPHIC — the exact same PursuitBoard the Display shows,
+          embedded here so the host sees the live race (not just a text answer
+          list) without needing a second screen in view. Bounded to a fixed
+          card instead of full-stage sizing; PursuitBoard measures its own
+          container via ResizeObserver, so it scales its lanes/runners to fit
+          this box automatically. */}
+      {qIndex >= 0 && status !== "idle" && status !== "waiting" && status !== "intro" && (
+        <div style={{ width: "100%", maxWidth: 900, height: "min(52vh, 460px)", position: "relative", borderRadius: "var(--qi-radius-lg, 20px)", overflow: "hidden", border: "1px solid var(--qi-border, rgba(255,255,255,0.14))", boxShadow: "var(--qi-shadow-sm, 0 4px 20px rgba(0,0,0,0.3))", flexShrink: 0 }}>
+          <PursuitBoard
+            status={status}
+            race={race}
+            teamNames={teamNames}
+            qIndex={qIndex}
+            timeLeft={timeLeft}
+            questionText={currentQuestion?.question_text ?? null}
+            questionCategory={currentQuestion?.question_type ?? null}
+            correctAnswer={currentQuestion ? pursuitCorrectAnswerText(currentQuestion) : null}
+            style={{ height: "100%", maxHeight: "100%" }}
+          />
+        </div>
+      )}
 
       {status === "intro" && (
         <div style={{ width: "100%", maxWidth: 680, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -491,7 +521,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
       )}
 
       {currentQuestion && status !== "complete" && status !== "results" && (
-        <div className="qi-pursuit-host-question" style={{ width: "100%", maxWidth: 680, padding: "14px 18px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(217,79,220,0.25)" }}>
+        <div className="qi-pursuit-host-question" style={{ width: "100%", maxWidth: 680, padding: "14px 18px", borderRadius: "var(--qi-radius-md, 12px)", background: "var(--qi-bg-surface-elevated, rgba(255,255,255,0.04))", border: "1px solid var(--qi-border, rgba(217,79,220,0.25))" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
             <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)" }}>CURRENT QUESTION</div>
             {status === "question" && (

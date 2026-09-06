@@ -935,10 +935,16 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     return q.correct_answer;
   }
 
+  // The Pursuit is a self-contained race with its own scoring model (flat
+  // per-correct points plus a single winner bonus) - Power Cards were never
+  // designed against it and letting a team play Reverse/Steal/etc mid-race
+  // would corrupt results in ways nobody's accounted for. Treated the same
+  // as Hot Seat: unavailable for the duration of the round, not just hidden.
+  const powerCardsUsableNow = allowPowerCards && phase !== "pursuit";
   const PowerCards = () => (
-    allowPowerCards ? <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
-      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
-    </div> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>
+    powerCardsUsableNow ? <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
+      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={powerCardsUsableNow} />
+    </div> : <div className="qi-player-cards-paused">{phase === "pursuit" ? "Power Cards unavailable during The Pursuit" : "Power Cards unavailable this round"}</div>
   );
 
   if (connectionLost) {
@@ -1440,7 +1446,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       : null;
     return (
       <div className={"fbl fbl-phone qi-player-state qi-player-answer" + (verdict === true ? " is-correct" : verdict === false ? " is-incorrect" : "")} style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", padding: 20 }}>
-        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={powerCardsUsableNow} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch" as const, display: "flex", flexDirection: "column" }}>
         {verdict === true ? (
           /* The player's whole moment: did I get it? — one dominant answer. */
@@ -1529,7 +1535,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
     return (
       <div className="qi-player-state qi-player-question-screen" data-answer-type={question.question_type} style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
-        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
+        <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={powerCardsUsableNow} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         <div className="qi-player-timer-row" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexShrink: 0 }}>
           <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
           {timeLeft !== null && timeLeft > 0 && (
@@ -1612,7 +1618,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           <PlayerResultBanner tone="locked" title="LOCKED IN ✓">{mySubmittedDisplay || "Waiting for the reveal"}</PlayerResultBanner>
         )}
         </div>
-        {phase === "hot_seat" ? <div className="qi-player-cards-paused">You are in the Hot Seat</div> : allowPowerCards ? (
+        {phase === "hot_seat" ? <div className="qi-player-cards-paused">You are in the Hot Seat</div> : phase === "pursuit" ? <div className="qi-player-cards-paused">Power Cards unavailable during The Pursuit</div> : allowPowerCards ? (
           <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
             <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
           </div>

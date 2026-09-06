@@ -356,7 +356,7 @@ function QuizControllerInner() {
     else if (hostPhase === "timer") { doRevealAnswer(); }
     else if (hostPhase === "hot_seat") {
       if (hotSeatCurrentAnswer && currentQ && isAnswerCorrect(hotSeatCurrentAnswer, currentQ)) resolveHotSeatCorrect();
-      else if (hotSeatCurrentAnswer || (hotSeatStatus === "claimed" && timeLeft <= 0)) reopenHotSeat();
+      else if (hotSeatCurrentAnswer || (hotSeatStatus === "claimed" && timeLeft <= 0)) reopenHotSeat(!!hotSeatCurrentAnswer);
       else if (hotSeatStatus === "idle" || teams.length - hotSeatLockedTeams.length <= 0) doRevealAnswer();
     }
     else if (hostPhase === "answer") { doCelebrate(); }
@@ -1191,8 +1191,12 @@ function QuizControllerInner() {
     }, PLATFORM_CONFIG.timers.tickMilliseconds);
   }
 
-  async function reopenHotSeat() {
+  // wasWrongAnswer distinguishes an actual incorrect submission from simply
+  // running out the clock with no answer at all - only a genuinely wrong
+  // answer costs the team points.
+  async function reopenHotSeat(wasWrongAnswer: boolean = false) {
     if (!sessionId || !hotSeatTeam) return;
+    const penalizedTeam = hotSeatTeam;
     const lockedTeams = Array.from(new Set([...hotSeatLockedTeams, hotSeatTeam]));
     const remainingTeams = teams.filter(team => !lockedTeams.includes(team.team_name));
     const supabase = createSupabaseBrowserClient();
@@ -1206,6 +1210,13 @@ function QuizControllerInner() {
     if (error) {
       showToast("Hot Seat could not reopen. Check the connection and try again.", "error", 7000);
       return;
+    }
+    if (wasWrongAnswer) {
+      const result = await applyScoreDelta(supabase, sessionPin, penalizedTeam, -5, {
+        roundDelta: -5,
+        eventKey: `hotseat-wrong:${sessionId}:r${roundNumber}:${qIdx}:${penalizedTeam}`,
+      });
+      if (result.scoreboardSyncError) console.error("Hot Seat wrong-answer penalty landed but scoreboard sync failed:", result.scoreboardSyncError);
     }
     setHotSeatStatus(nextStatus);
     setHotSeatTeam(null);
@@ -1693,7 +1704,7 @@ function QuizControllerInner() {
           </div>
         )}
           {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
-          {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} autoStartRoundId={pursuitAutoStartId} />}
+          {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pursuitAutoStartId} />}
           {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
           <a href={sessionPin ? `/host/display?pin=${encodeURIComponent(sessionPin)}` : "/host/display"} target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
         </nav>

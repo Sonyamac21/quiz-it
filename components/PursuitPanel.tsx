@@ -45,6 +45,11 @@ type RoundQuestion = {
 
 type AnswerRow = { team_name: string; answer_text: string; submitted_at: string };
 
+// Flat per-correct-answer points, independent of the PURSUIT_WINNER_BONUS
+// (100 pts) awarded once at the end to whoever finishes with the highest
+// correct count.
+const PURSUIT_CORRECT_POINTS = 10;
+
 type PursuitRoundOption = { id: string; name: string; questions: RoundQuestion[] };
 
 type Props = {
@@ -55,6 +60,14 @@ type Props = {
   timerDuration: number;
   onScoreChange?: () => void;
   onActiveChange?: (active: boolean) => void;
+  // Runs the parent's normal end-of-round sequence (sound, marking the round
+  // completed, moving the session to "intermission", advancing the round
+  // number, and switching the parent's own hostPhase to "round_end" so its
+  // Next-Action bar shows "Start Next Round"). Without this, closing Pursuit
+  // only ever pushed pursuit_status back to "idle" - the parent's hostPhase
+  // never left whatever it was mid-race, so Space did nothing and the host
+  // had no way to move on to the next round after a race finished.
+  onRoundComplete?: () => void;
   // Set by the host's main round list when a Pursuit round is picked there,
   // so reaching it in the planned running order starts The Pursuit directly
   // instead of requiring the separate always-visible launch button. Each
@@ -63,7 +76,7 @@ type Props = {
   autoStartRoundId?: string | null;
 };
 
-export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDuration, onScoreChange, onActiveChange, autoStartRoundId }: Props) {
+export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDuration, onScoreChange, onActiveChange, onRoundComplete, autoStartRoundId }: Props) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<PursuitPhase>("idle");
@@ -352,6 +365,17 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
       const correct = checkPursuitAnswer(latestByTeam.get(name)?.answer_text, q);
       const updated = applyOutcome(entry, correct);
       nextRace[name] = updated;
+      // Flat 10 points per correct answer, on top of the separate 100-point
+      // winner bonus finishRound() awards to whoever finishes with the most
+      // correct. eventKey is per team+question+round so a re-render or a
+      // safety-net poll re-running advanceRace can never double-pay it.
+      if (correct) {
+        const result = await applyScoreDelta(supabase, sessionPin, name, PURSUIT_CORRECT_POINTS, {
+          roundDelta: PURSUIT_CORRECT_POINTS,
+          eventKey: `pursuit-correct:${sessionId}:${chosenRound?.id || "round"}:${name}:${qIndex}`,
+        });
+        if (result.scoreboardSyncError) console.error("Pursuit correct-answer points landed but scoreboard sync failed:", result.scoreboardSyncError);
+      }
     }
 
     setRace(nextRace);
@@ -385,8 +409,14 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
   function closePanel() {
     setOpen(false);
     setStatus("idle");
-    pushState({ pursuit_status: "idle", phase: "waiting", pursuit_data: {}, current_question: null });
+    // Leave the Pursuit-specific state, but let the parent's own end-of-round
+    // sequence (see onRoundComplete) own the actual phase/session_rounds
+    // bookkeeping - previously this pushed phase:"waiting" directly, which
+    // never told the parent's hostPhase to leave the race, so Space did
+    // nothing afterwards and there was no way to move to the next round.
+    pushState({ pursuit_status: "idle", pursuit_data: {}, current_question: null });
     onScoreChange?.();
+    onRoundComplete?.();
   }
 
   const summary = summariseRace(race, teamNames);

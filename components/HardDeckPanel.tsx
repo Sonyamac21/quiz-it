@@ -44,6 +44,9 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
   const [wheelTarget, setWheelTarget] = useState<number | null>(null);
   const [stealGuesses, setStealGuesses] = useState<Record<string, string>>({});
   const [stealWinners, setStealWinners] = useState<string[]>([]);
+  // Held separately from `potential` (which is zeroed on a bust) purely so
+  // the "lost" screen can still show what the steal was actually worth.
+  const [stealPoints, setStealPoints] = useState(0);
   const [playId, setPlayId] = useState("");
   const revealInFlightRef = useRef(false);
 
@@ -125,6 +128,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
     setWheelTarget(targetIdx);
     setStealGuesses({});
     setStealWinners([]);
+    setStealPoints(0);
     setPlayId(nextPlayId);
     pushState({ hard_deck_status: "wheel", hard_deck_team: null, hard_deck_cards: [], hard_deck_guess: null, hard_deck_potential: 0, hard_deck_has_swapped: false, hard_deck_wheel_target: targetIdx, hard_deck_wheel_spinning: false, hard_deck_steal_guesses: {}, hard_deck_steal_winners: [], hard_deck_play_id: nextPlayId, phase: "hard_deck" });
   }
@@ -186,12 +190,17 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
       const winners = actualDirection
         ? Object.entries(lockedSteals).filter(([name, answer]) => name !== team && answer === actualDirection).map(([name]) => name)
         : [];
+      // Steal winners take exactly what the busting team was playing for -
+      // the pot at risk at the moment of the bust - not a flat consolation
+      // amount, so a steal on a big pot is actually worth stealing.
+      const stolenPoints = potential;
       setPotential(0);
-      await Promise.all(winners.map(name => applyScoreDelta(supabase, sessionPin, name, 2, {
+      await Promise.all(winners.map(name => applyScoreDelta(supabase, sessionPin, name, stolenPoints, {
         eventKey: `harddeck-steal:${sessionId}:${playId}:${cards.length}:${name}`,
       })));
       setStatus("lost");
       setStealWinners(winners);
+      setStealPoints(stolenPoints);
       await pushState({ hard_deck_cards: newCards, hard_deck_status: "lost", hard_deck_potential: 0, hard_deck_guess: null, hard_deck_steal_winners: winners });
       onScoreChange?.();
       revealInFlightRef.current = false;
@@ -336,7 +345,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
           )}
 
           {status === "lost" && (
-            <div style={{ textAlign: "center" }}><div style={{ fontSize: 26, fontWeight: 800, color: "#ef4444", letterSpacing: 0.5 }}>Bust — 0 points</div>{stealWinners.length > 0 && <div style={{ marginTop: 8, color: "#22c55e", fontWeight: 800 }}>+2 steal: {stealWinners.join(", ")}</div>}</div>
+            <div style={{ textAlign: "center" }}><div style={{ fontSize: 26, fontWeight: 800, color: "#ef4444", letterSpacing: 0.5 }}>Bust — 0 points</div>{stealWinners.length > 0 && <div style={{ marginTop: 8, color: "#22c55e", fontWeight: 800 }}>+{stealPoints} steal: {stealWinners.join(", ")}</div>}</div>
           )}
 
           {(status === "won" || status === "lost") && (

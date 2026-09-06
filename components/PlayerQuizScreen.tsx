@@ -1057,7 +1057,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     const rankLabels: Record<number,string> = { 1:"A", 11:"J", 12:"Q", 13:"K" };
     const rankLabel = (r: number) => rankLabels[r] || String(r);
     return (
-      <div className="qi-player-state qi-player-hard-deck" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const }}>
+      <div className="qi-player-state qi-player-hard-deck" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-evenly", padding: 24, gap: 16, textAlign: "center" as const }}>
         <PlayerStatusBar teamName={teamName} roundName="The Hard Deck" powerCardsEnabled={false} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: (hardDeckTeam && hardDeckStatus !== "wheel") ? 14 : 20, color: (hardDeckTeam && hardDeckStatus !== "wheel") ? "rgba(190,38,193,0.5)" : purple, letterSpacing: (hardDeckTeam && hardDeckStatus !== "wheel") ? 2 : 3, fontWeight: (hardDeckTeam && hardDeckStatus !== "wheel") ? 600 : 400 }}>THE HARD DECK</div>
 
@@ -1093,21 +1093,40 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           // large, instead of the whole squashed row.
           const recent = hardDeckCards.slice(-2);
           const n = recent.length;
-          const widthCap = n <= 1 ? 190 : 150;
+          const widthCap = n <= 1 ? 260 : 210;
           const heightCap = Math.round(widthCap * 1.42);
-          const widthVw = n <= 1 ? 42 : 34;
+          const widthVw = n <= 1 ? 56 : 46;
           const heightVw = Math.round(widthVw * 1.42);
-          const rankFontCap = n <= 1 ? 56 : 46;
-          const suitFontCap = Math.round(rankFontCap * 1.2);
+          const rankFontCap = n <= 1 ? 76 : 62;
+          const cornerFontCap = Math.round(rankFontCap * 0.34);
+          const cornerSuitCap = Math.round(cornerFontCap * 0.85);
+          const pipFontCap = Math.round(rankFontCap * 1.5);
           return (
             <div className="qi-player-harddeck-cards" style={{ padding: "clamp(8px,3vw,16px)", borderRadius: 18, maxWidth: "96vw", boxSizing: "border-box" as const, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 16px rgba(0,0,0,0.4), 0 0 24px rgba(190,38,193,0.15)" }}>
               <div style={{ display: "flex", gap: "clamp(8px,3vw,20px)", justifyContent: "center", flexWrap: "nowrap" as const }}>
-                {recent.map((c, i) => (
-                  <div key={i} style={{ width: `min(${widthCap}px,${widthVw}vw)`, height: `min(${heightCap}px,${heightVw}vw)`, flexShrink: 0, borderRadius: 12, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: `min(${rankFontCap}px,${Math.round(widthVw*0.35)}vw)`, fontWeight: 900, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -8px 12px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)" }}>
-                    <div>{rankLabel(c.rank)}</div>
-                    <div style={{ fontSize: `min(${suitFontCap}px,${Math.round(widthVw*0.42)}vw)` }}>{c.suit}</div>
-                  </div>
-                ))}
+                {recent.map((c, i) => {
+                  const red = c.suit === "♥" || c.suit === "♦";
+                  const ink = red ? "#dc2626" : "#111";
+                  return (
+                    <div key={i} style={{ width: `min(${widthCap}px,${widthVw}vw)`, height: `min(${heightCap}px,${heightVw}vw)`, flexShrink: 0, borderRadius: 12, position: "relative", background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -8px 12px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)" }}>
+                      {/* Corner indices, top-left and bottom-right (mirrored) - what
+                          actually makes this read as a playing card rather than a
+                          plain badge with a number stacked over a suit. */}
+                      <div style={{ position: "absolute", top: "6%", left: "8%", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1, color: ink }}>
+                        <div style={{ fontSize: `min(${cornerFontCap}px,${Math.round(widthVw*0.14)}vw)`, fontWeight: 900 }}>{rankLabel(c.rank)}</div>
+                        <div style={{ fontSize: `min(${cornerSuitCap}px,${Math.round(widthVw*0.12)}vw)` }}>{c.suit}</div>
+                      </div>
+                      <div style={{ position: "absolute", bottom: "6%", right: "8%", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1, color: ink, transform: "rotate(180deg)" }}>
+                        <div style={{ fontSize: `min(${cornerFontCap}px,${Math.round(widthVw*0.14)}vw)`, fontWeight: 900 }}>{rankLabel(c.rank)}</div>
+                        <div style={{ fontSize: `min(${cornerSuitCap}px,${Math.round(widthVw*0.12)}vw)` }}>{c.suit}</div>
+                      </div>
+                      {/* Large central pip - the card's face. */}
+                      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: `min(${pipFontCap}px,${Math.round(widthVw*0.5)}vw)`, color: ink, opacity: 0.92 }}>
+                        {c.suit}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );

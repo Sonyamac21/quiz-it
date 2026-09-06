@@ -28,9 +28,14 @@ type Props = {
   sessionPin: string;
   teams: { team_name: string }[];
   onScoreChange?: () => void;
+  // The launch button only makes sense while the host is actually on a Hard
+  // Deck round - it used to be always-visible for the entire quiz (a
+  // Regular round, Hot Seat, anything), permanently occupying the header/
+  // now-centered call-to-action even when there was nothing to start.
+  showLaunchButton?: boolean;
 };
 
-export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: Props) {
+export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, showLaunchButton = true }: Props) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
   const [team, setTeam] = useState<string | null>(null);
@@ -256,6 +261,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange }: P
   // it at a glance regardless of what else is on screen, matching how the
   // main overlay itself is already portaled straight to <body>.
   if (!open) {
+    if (!showLaunchButton) return null;
     return createPortal(
       <div style={{ position: "fixed", top: 84, left: "50%", transform: "translateX(-50%)", zIndex: 190, pointerEvents: "none" }}>
         <button onClick={startHardDeck} style={{ pointerEvents: "auto", padding: "14px 32px", borderRadius: 999, background: "linear-gradient(145deg,#BE26C1,#8A1B8D)", border: "1px solid #D94FDC", color: "#fff", fontSize: 16, fontWeight: 800, letterSpacing: 1, cursor: "pointer", boxShadow: "0 6px 24px rgba(190,38,193,0.5), 0 0 30px rgba(217,79,220,0.35)" }}>

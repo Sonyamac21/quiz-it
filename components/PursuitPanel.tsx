@@ -19,7 +19,6 @@ import {
   buildPursuitData,
   initRace,
   applyOutcome,
-  summariseRace,
   checkPursuitAnswer,
   pursuitCorrectAnswerText,
   PURSUIT_WINNER_BONUS,
@@ -444,171 +443,171 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     onRoundComplete?.();
   }
 
-  const summary = summariseRace(race, teamNames);
   const questionsAsked = qIndex + 1;
   const canAskMore = questionsAsked < pursuitQuestions.length;
   const currentQuestion = qIndex >= 0 ? pursuitQuestions[qIndex] : null;
 
+  // Next-action button state, computed once and reused both for the fixed
+  // bar (below) and the keyboard handler above.
+  const pursuitNextLabel =
+    status === "intro" ? "Rules read · Start Question 1"
+    : status === "question" ? (timerNotStarted ? "Start Timer" : answersLocked ? "Reveal Answer" : "Lock Answers")
+    : status === "reveal" ? "Update Scores"
+    : status === "advance" ? (canAskMore ? `Next Question (${qIndex + 2})` : "Finish Round")
+    : status === "complete" ? "Show Results"
+    // Same gap as the spacebar handler above - "results" had no label at
+    // all, so the whole "Next action" button vanished right when the host
+    // needed it most (the final screen of the round), with closePanel()
+    // (which correctly returns the session to a normal waiting state and
+    // closes Pursuit) sitting unreachable.
+    : status === "results" ? "Close Pursuit & Continue" : "";
+  const pursuitNextHandler =
+    status === "intro" ? nextQuestion
+    : status === "question" ? (timerNotStarted ? startTimer : answersLocked ? revealAnswer : lockAnswers)
+    : status === "reveal" ? advanceRace
+    : status === "advance" ? (canAskMore ? nextQuestion : finishRound)
+    : status === "complete" ? showResults
+    : status === "results" ? closePanel : undefined;
+  const showNextTimer = status === "question" && !answersLocked && !timerNotStarted;
+
+  const latestAnswerByTeam = new Map<string, AnswerRow>();
+  for (const a of liveAnswers) {
+    const prev = latestAnswerByTeam.get(a.team_name);
+    if (!prev || new Date(a.submitted_at).getTime() > new Date(prev.submitted_at).getTime()) latestAnswerByTeam.set(a.team_name, a);
+  }
+  const submissionOrdered = [...latestAnswerByTeam.values()].sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
+  const submissionOrderIndex = new Map(submissionOrdered.map((a, i) => [a.team_name, i + 1]));
+
   const overlay = (
-    // Restyled onto the same surface/border/shadow tokens the rest of the host
-    // console uses (--qi-bg-surface-elevated/--qi-border/--qi-shadow-sm etc,
-    // see .qi-mc-desk / .qi-mc-question in globals.css) instead of a bespoke
-    // near-black backdrop - Pursuit previously looked like a completely
-    // different app bolted on, per direct host feedback ("still look so
-    // different from normal rounds").
-    <div className="qi-pursuit-host-console" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100vh", boxSizing: "border-box" as const, background: "var(--qi-bg-page, #0A0118)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 18, padding: 24, overflowY: "auto" }}>
-      {/* Header kept to a single line - the phase name and "Question X of Y"
-          are already shown inside the board's own gate bar just below, so
-          repeating them here was pure clutter. */}
-      <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 22, color: "#D94FDC", letterSpacing: 3 }}>THE PURSUIT</div>
+    // Same overall shell as the main host console (fixed header, fixed
+    // Next-Action bar, then a qi-mc-workspace two-column area below) instead
+    // of Pursuit's old single scrolling column - that layout buried the
+    // Next-Action button and team scores at the bottom of a long scroll,
+    // and clipped the race graphic, per direct host feedback ("impossible
+    // to read... start the pursuit should be on space... team scores on the
+    // right side, like all other rounds").
+    <div className="qi-pursuit-host-console" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box" as const, background: "var(--qi-bg-page, #0A0118)", zIndex: 200, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
+        <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 20, color: "#D94FDC", letterSpacing: 3 }}>THE PURSUIT</div>
+        <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+          <button onClick={recoverGraphics} disabled={recovering} title="Re-pull the race board from the last saved state — use this if the graphics ever look stuck or out of sync" style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(217,79,220,0.4)", color: recovering ? "rgba(217,79,220,0.4)" : "#D94FDC", fontSize: 12, cursor: recovering ? "default" : "pointer" }}>
+            {recovering ? "Recovering…" : "Recover Graphics"}
+          </button>
+          <button onClick={closePanel} style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
+        </div>
+      </div>
 
-      {/* THE RUNNING GRAPHIC — the exact same PursuitBoard the Display shows,
-          embedded here so the host sees the live race (not just a text answer
-          list) without needing a second screen in view. Bounded to a fixed
-          card instead of full-stage sizing; PursuitBoard measures its own
-          container via ResizeObserver, so it scales its lanes/runners to fit
-          this box automatically. */}
-      {qIndex >= 0 && status !== "idle" && status !== "waiting" && status !== "intro" && (
-        <div style={{ width: "100%", maxWidth: 900, height: "min(52vh, 460px)", position: "relative", borderRadius: "var(--qi-radius-lg, 20px)", overflow: "hidden", border: "1px solid var(--qi-border, rgba(255,255,255,0.14))", boxShadow: "var(--qi-shadow-sm, 0 4px 20px rgba(0,0,0,0.3))", flexShrink: 0 }}>
-          <PursuitBoard
-            status={status}
-            race={race}
-            teamNames={teamNames}
-            qIndex={qIndex}
-            timeLeft={timeLeft}
-            questionText={currentQuestion?.question_text ?? null}
-            questionCategory={currentQuestion?.question_type ?? null}
-            correctAnswer={currentQuestion ? pursuitCorrectAnswerText(currentQuestion) : null}
-            style={{ height: "100%", maxHeight: "100%" }}
-          />
+      {/* Fixed Next-Action bar - matches the main host console exactly
+          (same .qi-mc-next classes), and stays pinned above the workspace
+          instead of scrolling out of view at the bottom of a long page. */}
+      {pursuitNextLabel && (
+        <button onClick={pursuitNextHandler} disabled={status === "intro" && pursuitQuestions.length === 0} className={`qi-mc-next${showNextTimer ? " qi-mc-next--timer" : ""}`} style={{ flexShrink: 0 }}>
+          <span className="qi-mc-next__eyebrow">Next action</span>
+          <span className="qi-mc-next__label">{pursuitNextLabel}</span>
+          {showNextTimer && <span className={`qi-mc-next__timer${(timeLeft ?? 0) <= 5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft ?? "—"}s</span>}
+          <span className="qi-mc-next__key">Space ↵</span>
+        </button>
+      )}
+      {status === "advance" && canAskMore && (
+        <div style={{ flexShrink: 0, textAlign: "center" as const, padding: "8px 0" }}>
+          <SecondaryButton onClick={finishRound} label="Finish Round Early" />
         </div>
       )}
 
-      {/* No rules/round-picker screen here anymore. The host already saw the
-          Pursuit rules and question count on the shared round announcement
-          screen before pressing Space to launch this - repeating them on a
-          second, differently-styled screen was the mismatch the host flagged
-          ("doesn't look like the other rounds... rules should be on screen
-          before the start"). The round to play is already resolved via
-          autoStartRoundId below, and the moment it (and its questions) is
-          ready, the effect below skips straight to Question 1. The only
-          remaining case handled here is a genuine setup problem - no Pursuit
-          round exists at all - which needs a visible way out. */}
-      {status === "intro" && rounds.length === 0 && (
-        <div style={{ fontSize: 14, color: "#fbbf24", textAlign: "center" as const }}>No Pursuit rounds yet — create one in the Round Builder (Round Type &rarr; The Pursuit).</div>
-      )}
-
-      {/* The question text itself is already large and centered inside the
-          PursuitBoard graphic above (pu-qtext) - repeating it in a second box
-          here was the duplicate the host flagged. This strip now carries only
-          what the board DOESN'T show: the host-only correct answer, plus the
-          timer sub-state (the board's own clock only appears once the timer
-          is actually running). */}
-      {currentQuestion && status !== "complete" && status !== "results" && (
-        <div className="qi-pursuit-host-question" style={{ width: "100%", maxWidth: 680, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 18px", borderRadius: "var(--qi-radius-md, 12px)", background: "var(--qi-bg-surface-elevated, rgba(255,255,255,0.04))", border: "1px solid var(--qi-border, rgba(217,79,220,0.25))" }}>
-          <div style={{ padding: "9px 12px", borderRadius: 9, background: "rgba(46,224,110,.1)", border: "1px solid rgba(46,224,110,.35)", color: "#2EE06E", fontSize: 14, fontWeight: 800 }}>
-            HOST ANSWER: {currentQuestion.correct_answer}
-          </div>
-          {status === "question" && (
-            answersLocked
-              ? <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#ef4444" }}>ANSWERS LOCKED</span>
-              : timerNotStarted
-              ? <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#fbbf24" }}>TIMER NOT STARTED</span>
-              : <span style={{ fontSize: 20, fontWeight: 800, color: (timeLeft ?? 0) <= 5 ? "#ef4444" : "#D94FDC" }}>{timeLeft ?? "—"}s</span>
+      <div className="qi-mc-workspace" style={{ flex: 1, minHeight: 0 }}>
+        <main className="qi-mc-desk">
+          {/* THE RUNNING GRAPHIC — the exact same PursuitBoard the Display
+              shows, so the host sees the live race without a second screen
+              in view. PursuitBoard measures its own container via
+              ResizeObserver, so it scales to fit whatever height it's given. */}
+          {qIndex >= 0 && status !== "idle" && status !== "waiting" && status !== "intro" && (
+            <div style={{ width: "100%", maxWidth: 900, height: "min(46vh, 420px)", margin: "0 auto 20px", position: "relative", borderRadius: "var(--qi-radius-lg, 20px)", overflow: "hidden", border: "1px solid var(--qi-border, rgba(255,255,255,0.14))", boxShadow: "var(--qi-shadow-sm, 0 4px 20px rgba(0,0,0,0.3))" }}>
+              <PursuitBoard
+                status={status}
+                race={race}
+                teamNames={teamNames}
+                qIndex={qIndex}
+                timeLeft={timeLeft}
+                questionText={currentQuestion?.question_text ?? null}
+                questionCategory={currentQuestion?.question_type ?? null}
+                correctAnswer={currentQuestion ? pursuitCorrectAnswerText(currentQuestion) : null}
+                style={{ height: "100%", maxHeight: "100%" }}
+              />
+            </div>
           )}
-        </div>
-      )}
 
-      {/* HOST ANSWER CONSOLE — real submitted answers per team. */}
-      {currentQuestion && (status === "question" || status === "reveal") && (() => {
-        const latestByTeam = new Map<string, AnswerRow>();
-        for (const a of liveAnswers) {
-          const prev = latestByTeam.get(a.team_name);
-          if (!prev || new Date(a.submitted_at).getTime() > new Date(prev.submitted_at).getTime()) latestByTeam.set(a.team_name, a);
-        }
-        const ordered = [...latestByTeam.values()].sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
-        const orderIndex = new Map(ordered.map((a, i) => [a.team_name, i + 1]));
-        return (
-          <div className="qi-pursuit-host-answers" style={{ width: "100%", maxWidth: 680, display: "flex", flexDirection: "column", gap: 5 }}>
-            <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)" }}>ANSWERS IN — SUBMISSION ORDER</div>
-            {teamNames.map((name) => {
-              const ans = latestByTeam.get(name);
+          {/* No rules/round-picker screen here anymore. The host already saw
+              the Pursuit rules and question count on the shared round
+              announcement screen before pressing Space to launch this. The
+              round to play is already resolved via autoStartRoundId, and the
+              moment it (and its questions) is ready, the effect above skips
+              straight to Question 1. The only remaining case handled here is
+              a genuine setup problem - no Pursuit round exists at all. */}
+          {status === "intro" && rounds.length === 0 && (
+            <div style={{ fontSize: 14, color: "#fbbf24", textAlign: "center" as const }}>No Pursuit rounds yet — create one in the Round Builder (Round Type &rarr; The Pursuit).</div>
+          )}
+
+          {/* THE QUESTION — large and legible, matching every other round's
+              .qi-mc-question treatment instead of the small text buried
+              inside the race graphic's own header. */}
+          {currentQuestion && status !== "complete" && status !== "results" && (
+            <div className="qi-mc-question">
+              <div className="qi-mc-question__meta">
+                <span style={{ background: "rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.4)", color: "#BE26C1", padding: "5px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>Question {qIndex + 1} of {PURSUIT_TOTAL_QUESTIONS}</span>
+                {status === "question" && (
+                  answersLocked
+                    ? <span style={{ padding: "5px 16px", borderRadius: 999, background: "rgba(239,68,68,0.15)", border: "1px solid #ef4444", fontSize: 12, fontWeight: 700, color: "#ef4444" }}>ANSWERS LOCKED</span>
+                    : timerNotStarted
+                    ? <span style={{ padding: "5px 16px", borderRadius: 999, background: "rgba(251,191,36,0.15)", border: "1px solid #fbbf24", fontSize: 12, fontWeight: 700, color: "#fbbf24" }}>TIMER NOT STARTED</span>
+                    : <div style={{ marginLeft: "auto", width: 52, height: 52, borderRadius: "50%", background: (timeLeft ?? 0) <= 5 ? "rgba(239,68,68,0.3)" : "rgba(190,38,193,0.2)", border: "3px solid " + ((timeLeft ?? 0) <= 5 ? "#ef4444" : "#BE26C1"), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, color: (timeLeft ?? 0) <= 5 ? "#ef4444" : "#BE26C1" }}>{timeLeft}</div>
+                )}
+              </div>
+              <h1 className="qi-mc-question__title">{currentQuestion.question_text}</h1>
+              <div className="qi-mc-answer-key">
+                <div style={{ fontSize: 12, marginBottom: 4, letterSpacing: 2 }}>ANSWER</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: "#22c55e" }}>{pursuitCorrectAnswerText(currentQuestion)}</div>
+              </div>
+            </div>
+          )}
+        </main>
+
+        <aside className="qi-mc-rail" aria-label="Teams and round scores">
+          <section className="qi-mc-teams">
+            <div className="qi-mc-teams__header"><div><span>Live answers</span><strong>Teams & scores</strong></div></div>
+            {standings.length === 0 ? (
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", padding: "8px 0" }}>Waiting for scores…</div>
+            ) : standings.map((s, i) => {
+              const stage = race[s.team_name]?.stage ?? 0;
+              const rs = race[s.team_name]?.status;
+              const ans = latestAnswerByTeam.get(s.team_name);
+              const ord = submissionOrderIndex.get(s.team_name) ?? null;
               const correct = (status === "reveal" && ans && currentQuestion) ? checkPursuitAnswer(ans.answer_text, currentQuestion) : null;
               const ansColor = correct === true ? "#2EE06E" : correct === false ? "#FF3B4E" : "rgba(255,255,255,0.72)";
+              const medal = i === 0 ? "#E8C36A" : i === 1 ? "#C9CDD6" : i === 2 ? "#C08A5A" : null;
               return (
-                <div key={name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: 10, background: "rgba(255,255,255,0.03)", border: "1px solid #2E1A52" }}>
-                  <span style={{ width: 18, textAlign: "center", font: "700 11px 'Inter'", color: "#6B5A8E", fontVariantNumeric: "tabular-nums" }}>{ans ? orderIndex.get(name) : "·"}</span>
-                  <span className="fbh-crest" style={{ width: 20, height: 20, fontSize: 7, flexShrink: 0 }}>{teamInitials(name)}</span>
-                  <span style={{ font: "700 12.5px 'Inter'", color: "#fff", maxWidth: "30%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-                  <span style={{ marginLeft: "auto", font: "600 12.5px 'Inter'", color: ansColor, maxWidth: "42%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {ans ? ans.answer_text : "waiting…"}
-                  </span>
-                  <span style={{ font: "700 10px 'Inter'", color: "#6B5A8E", letterSpacing: 1, flexShrink: 0 }}>{race[name]?.stage ?? 0}/7</span>
+                <div key={s.team_name} className="qi-mc-team-card" style={{ width: "100%", boxSizing: "border-box" as const, borderColor: rs === "completed" ? "rgba(232,195,106,0.5)" : medal || "rgba(255,255,255,0.12)" }}>
+                  <div className="qi-mc-team-card__summary" style={{ display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) auto", gap: 8 }}>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: medal || "rgba(255,255,255,0.45)", minWidth: 26 }}>{i + 1}.</span>
+                    <span className="fbh-crest" style={{ width: 20, height: 20, fontSize: 7, flexShrink: 0 }}>{teamInitials(s.team_name)}</span>
+                    <span style={{ fontWeight: 700, fontSize: 14, flex: 1, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{s.team_name}</span>
+                    <span style={{ fontSize: 19, fontWeight: 800, color: "#BE26C1", minWidth: 42, textAlign: "right" as const, fontVariantNumeric: "tabular-nums" }}>{s.total_points}</span>
+                  </div>
+                  <div className="qi-mc-team-card__answer" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {ans ? (
+                      <>
+                        {ord !== null && <span style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.4)", flexShrink: 0, minWidth: 22 }}>#{ord}</span>}
+                        <span style={{ fontSize: 13, color: ansColor, fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{ans.answer_text}</span>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontStyle: "italic" as const, flex: 1 }}>waiting…</span>
+                    )}
+                    <span style={{ font: "700 10px 'Inter'", color: "#B9A8D9", letterSpacing: 1, flexShrink: 0 }}>{stage}/{PURSUIT_TOTAL_QUESTIONS} CORRECT</span>
+                  </div>
                 </div>
               );
             })}
-          </div>
-        );
-      })()}
-
-      {/* OVERALL LEADERBOARD — stays visible through the Pursuit. Overall quiz
-          score (total_points) shown alongside Pursuit status/gate, never hidden. */}
-      {standings.length > 0 && status !== "intro" && (
-        <div className="qi-pursuit-host-standings" style={{ width: "100%", maxWidth: 680 }}>
-          <div style={{ fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.4)", marginBottom: 6 }}>OVERALL LEADERBOARD</div>
-          {standings.map((s, i) => {
-            const rs = race[s.team_name]?.status;
-            const stage = race[s.team_name]?.stage ?? 0;
-            return (
-              <div key={s.team_name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 8, background: rs === "completed" ? "rgba(232,195,106,0.12)" : "rgba(255,255,255,0.03)", border: "1px solid #2E1A52", marginBottom: 4 }}>
-                <span style={{ width: 18, font: "800 13px 'Inter'", color: i === 0 ? "#E8C36A" : i === 1 ? "#C9CDD6" : i === 2 ? "#C08A5A" : "rgba(255,255,255,0.4)", fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
-                <span style={{ font: "700 13px 'Inter'", color: "#fff", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.team_name}</span>
-                <span style={{ font: "700 10px 'Inter'", color: "#B9A8D9", letterSpacing: 1, flexShrink: 0 }}>{stage}/7 CORRECT</span>
-                <span style={{ font: "800 15px 'Inter'", color: "#D94FDC", fontVariantNumeric: "tabular-nums", minWidth: 44, textAlign: "right" }}>{s.total_points}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <TeamStatus summary={summary} race={race} />
-
-      {(() => {
-        const pursuitNextLabel =
-          status === "intro" ? "Rules read · Start Question 1"
-          : status === "question" ? (timerNotStarted ? "Start Timer" : answersLocked ? "Reveal Answer" : "Lock Answers")
-          : status === "reveal" ? "Update Scores"
-          : status === "advance" ? (canAskMore ? `Next Question (${qIndex + 2})` : "Finish Round")
-          : status === "complete" ? "Show Results"
-          // Same gap as the spacebar handler above - "results" had no label
-          // at all, so the whole "Next action" button vanished right when the
-          // host needed it most (the final screen of the round), with
-          // closePanel() (which correctly returns the session to a normal
-          // waiting state and closes Pursuit) sitting unreachable.
-          : status === "results" ? "Close Pursuit & Continue" : "";
-        const pursuitNextHandler =
-          status === "intro" ? nextQuestion
-          : status === "question" ? (timerNotStarted ? startTimer : answersLocked ? revealAnswer : lockAnswers)
-          : status === "reveal" ? advanceRace
-          : status === "advance" ? (canAskMore ? nextQuestion : finishRound)
-          : status === "complete" ? showResults
-          : status === "results" ? closePanel : undefined;
-        const showTimer = status === "question" && !answersLocked && !timerNotStarted;
-        return pursuitNextLabel ? (
-          <button onClick={pursuitNextHandler} disabled={status === "intro" && pursuitQuestions.length === 0} className={`qi-mc-next${showTimer ? " qi-mc-next--timer" : ""}`}>
-            <span className="qi-mc-next__eyebrow">Next action</span>
-            <span className="qi-mc-next__label">{pursuitNextLabel}</span>
-            {showTimer && <span className={`qi-mc-next__timer${(timeLeft ?? 0) <= 5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft ?? "—"}s</span>}
-            <span className="qi-mc-next__key">Space ↵</span>
-          </button>
-        ) : null;
-      })()}
-      {status === "advance" && canAskMore && <SecondaryButton onClick={finishRound} label="Finish Round Early" />}
-      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-        <button onClick={recoverGraphics} disabled={recovering} title="Re-pull the race board from the last saved state — use this if the graphics ever look stuck or out of sync" style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(217,79,220,0.4)", color: recovering ? "rgba(217,79,220,0.4)" : "#D94FDC", fontSize: 12, cursor: recovering ? "default" : "pointer" }}>
-          {recovering ? "Recovering…" : "Recover Graphics"}
-        </button>
-        <button onClick={closePanel} style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
+          </section>
+        </aside>
       </div>
     </div>
   );
@@ -620,35 +619,10 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
   return open && typeof document !== "undefined" ? createPortal(overlay, document.body) : null;
 }
 
-function PrimaryButton({ onClick, label, disabled }: { onClick: () => void; label: string; disabled?: boolean }) {
-  return (
-    <button onClick={onClick} disabled={disabled} style={{ padding: "12px 30px", borderRadius: 12, background: disabled ? "rgba(255,255,255,0.08)" : "rgba(217,79,220,0.3)", border: "1px solid " + (disabled ? "rgba(255,255,255,0.2)" : "#D94FDC"), color: "#fff", fontWeight: 700, fontSize: 15, cursor: disabled ? "not-allowed" : "pointer", boxShadow: disabled ? "none" : "0 2px 10px rgba(0,0,0,0.3)" }}>
-      {label}
-    </button>
-  );
-}
-
 function SecondaryButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button onClick={onClick} style={{ padding: "11px 24px", borderRadius: 12, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.25)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>
       {label}
     </button>
-  );
-}
-
-function TeamStatus({ summary, race }: { summary: { active: string[]; eliminated: string[]; completed: string[] }; race: PursuitRace }) {
-  const all = [...summary.active, ...summary.completed, ...summary.eliminated].sort((a, b) => (race[b]?.stage ?? 0) - (race[a]?.stage ?? 0));
-  return (
-    <div style={{ borderRadius: 12, padding: 12, background: "rgba(255,255,255,0.03)", border: "1px solid #D94FDC44", width: "100%", maxWidth: 680 }}>
-      <div style={{ fontSize: 11, letterSpacing: 2, color: "#D94FDC", marginBottom: 8, fontWeight: 700 }}>ALL TEAMS · {all.length}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 4 }}>
-        {all.map((name) => (
-          <div key={name} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13, color: "rgba(255,255,255,0.85)" }}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-            <span style={{ color: "#D94FDC", fontWeight: 700 }}>{race[name]?.stage ?? 0}/7</span>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }

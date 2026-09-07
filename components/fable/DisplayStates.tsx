@@ -23,7 +23,16 @@ export function Wordmark({ size }: { size?: number | string }) {
 }
 
 function DisplayBadge({ label = BADGE }: { label?: string }) {
-  return <div className="badge">{label}</div>;
+  // Deliberately its own class, not "badge" - QuizItBadge (app/host/display/
+  // page.tsx) is a completely different corner-badge system (avatar + pill
+  // background) that also uses the class "badge". Sharing the name meant
+  // this plain text label picked up QuizItBadge's pill/backdrop-blur styling
+  // by accident, and vice versa QuizItBadge picked up rules meant only for
+  // this simple label - two unrelated badge designs bleeding into each other
+  // wherever both happened to render. Keeping the position rule (still
+  // shared, both badges pin to the same corner) but splitting the visual
+  // rule apart.
+  return <div className="qi-legacy-badge">{label}</div>;
 }
 
 /** Generic stage wrapper so every state shares the bloom + safe area. */

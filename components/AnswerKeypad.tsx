@@ -22,11 +22,11 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
     minWidth: 0,
     padding: isCompact ? "clamp(8px, 2.2vh, 24px) 0" : "clamp(14px, 3.4vh, 30px) 0",
     borderRadius: 12,
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(255,255,255,0.15)",
+    background: "rgba(255,255,255,0.14)",
+    border: "1.5px solid rgba(255,255,255,0.32)",
     color: "#fff",
-    fontSize: isCompact ? "clamp(14px, 3.4vh, 28px)" : "clamp(18px, 4vh, 32px)",
-    fontWeight: 700 as const,
+    fontSize: isCompact ? "clamp(16px, 3.6vh, 28px)" : "clamp(20px, 4.2vh, 32px)",
+    fontWeight: 800 as const,
     fontFamily: font,
     cursor: "pointer",
     touchAction: "manipulation" as const,
@@ -49,7 +49,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
         fontSize: isCompact ? 26 : 32, fontWeight: 800, fontFamily: font, color: "#fff", letterSpacing: 1,
         wordBreak: "break-word" as const,
       }}>
-        {value || <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 17, fontWeight: 400 }}>Tap letters to answer…</span>}
+        {value || <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 17, fontWeight: 600 }}>Tap letters to answer…</span>}
       </div>
 
       {mode === "number" ? (
@@ -82,7 +82,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
             width: "100%", padding: "clamp(8px, 1.6vh, 16px) 0", borderRadius: 12,
             background: pressedKey === " " ? purple : "rgba(190,38,193,0.18)",
             border: "1.5px solid " + purple,
-            color: "#fff", fontSize: 14, fontWeight: 700 as const, fontFamily: font, letterSpacing: 4,
+            color: "#fff", fontSize: 16, fontWeight: 800 as const, fontFamily: font, letterSpacing: 4,
             cursor: "pointer", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent",
             transform: pressedKey === " " ? "scale(0.97)" : "scale(1)", transition: "all 0.1s",
           }}>
@@ -92,7 +92,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
 
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
         <button type="button" className="qi-player-keypad__delete" onClick={backspace} disabled={!value}
-          style={{ flex: 1, padding: isCompact ? "clamp(10px, 2.2vh, 22px)" : "22px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: value ? "#fff" : "rgba(255,255,255,0.3)", fontSize: 17, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
+          style={{ flex: 1, padding: isCompact ? "clamp(10px, 2.2vh, 22px)" : "22px", borderRadius: 10, background: "rgba(255,255,255,0.1)", border: "1.5px solid rgba(255,255,255,0.28)", color: value ? "#fff" : "rgba(255,255,255,0.35)", fontSize: 17, fontWeight: 800 as const, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
           {"\u232B"} DELETE
         </button>
         <button type="button" className="qi-player-keypad__submit" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}

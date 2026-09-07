@@ -1166,6 +1166,17 @@ function QuizControllerInner() {
         }).eq("id", q.id).then(({ error }) => { if (error) console.error("Failed to update question usage:", error); });
       });
     }
+    // Questions added from the Question Library carry a bank_question_id -
+    // mark that row as used so it drops out of future library picks.
+    const bankQuestionId = (q as Record<string, unknown>).bank_question_id as string | undefined;
+    if (bankQuestionId) {
+      supabase.from("question_bank").select("times_used").eq("id", bankQuestionId).maybeSingle().then(({ data }) => {
+        supabase.from("question_bank").update({
+          times_used: ((data?.times_used as number) || 0) + 1,
+          last_used_at: new Date().toISOString(),
+        }).eq("id", bankQuestionId).then(({ error }) => { if (error) console.error("Failed to update library question usage:", error); });
+      });
+    }
   }
 
   async function doRevealPictureQuestion() {

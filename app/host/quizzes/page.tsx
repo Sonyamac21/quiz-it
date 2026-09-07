@@ -49,6 +49,7 @@ type BankQuestion = {
   correct_answer: string;
   difficulty: string;
   round_type: string;
+  times_used?: number | null;
 };
 
 export default function QuizBuilderPage() {
@@ -137,7 +138,7 @@ export default function QuizBuilderPage() {
   // it, it lets a host configure several rounds at once and generate them all
   // in parallel via generateAllRounds() (lib/quiz/generateRound.ts).
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkConfig, setBulkConfig] = useState<Record<string, { selected: boolean; count: number; theme: string; difficulty: string }>>({});
+  const [bulkConfig, setBulkConfig] = useState<Record<string, { selected: boolean; count: number; theme: string; difficulty: string; allowedQuestionTypes?: string[] }>>({});
   const [bulkRunning, setBulkRunning] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<Record<string, string>>({});
   // Which round is currently mid-"generate more" from the per-round Questions
@@ -258,7 +259,9 @@ export default function QuizBuilderPage() {
     // The Question Library is reusable across round types. Filtering by the
     // saved round_type made a question appear to vanish when the host opened
     // the picker from a different round, even though it still existed.
-    let query = supabase.from("question_bank").select("*").order("created_at", { ascending: false }).limit(100);
+    // Already-played questions are excluded so a host can't accidentally
+    // pick the same question a second time for a returning venue/team.
+    let query = supabase.from("question_bank").select("*").or("times_used.is.null,times_used.eq.0").order("created_at", { ascending: false }).limit(100);
     if (search.trim()) {
       const term = search.trim().replace(/[%_,]/g, " ");
       query = query.or(`question_text.ilike.%${term}%,correct_answer.ilike.%${term}%,topic.ilike.%${term}%`);
@@ -274,6 +277,9 @@ export default function QuizBuilderPage() {
       question_text: bankQ.question_text, question_type: bankQ.question_type,
       option_a: bankQ.option_a, option_b: bankQ.option_b, option_c: bankQ.option_c, option_d: bankQ.option_d, option_e: bankQ.option_e, option_f: bankQ.option_f,
       correct_answer: bankQ.correct_answer, difficulty: bankQ.difficulty,
+      // Carried through to play-time so doSendQuestion can mark this library
+      // row as used, keeping it out of future library picks.
+      bank_question_id: bankQ.id,
     };
     const supabase = createSupabaseBrowserClient();
     try {
@@ -513,6 +519,7 @@ export default function QuizBuilderPage() {
       theme: bulkConfig[r.id]?.theme ?? r.theme ?? "",
       count: shortfalls[r.id],
       existingQuestions: validQuestionsForRound(r.round_type, r.questions),
+      allowedQuestionTypes: bulkConfig[r.id]?.allowedQuestionTypes,
     }));
     // Persist the theme/difficulty each round is being generated with right
     // away, so it survives a reload and SWAP picks it back up later instead
@@ -1259,6 +1266,31 @@ export default function QuizBuilderPage() {
                             </select>
                           </label>
                         </div>
+                        {(activeRound.round_type === "bonus" || activeRound.round_type === "regular") && (
+                          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", paddingTop: 4, borderTop: "1px solid #2E1A52", marginTop: 2 }}>
+                            <span style={{ font: "400 13px 'Inter'", color: "#B9A8D9" }}>Include:</span>
+                            {(["picture", "audio"] as const).map(t => {
+                              const base = ["mc", "text", "number"];
+                              const current = cfg.allowedQuestionTypes && cfg.allowedQuestionTypes.length > 0 ? cfg.allowedQuestionTypes : base;
+                              const checked = current.includes(t);
+                              return (
+                                <label key={t} style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#fff" }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={e => {
+                                      const next = e.target.checked
+                                        ? Array.from(new Set([...current, t]))
+                                        : current.filter(x => x !== t);
+                                      updateBulkConfig(activeRound.id, { allowedQuestionTypes: next.length > 0 ? next : base });
+                                    }}
+                                  />
+                                  {t === "picture" ? "Picture" : "Music"}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
                         {progress && <div style={{ font: "400 12px 'Inter'", color: "#2EE06E" }}>{progress}</div>}
                       </div>
                     )}

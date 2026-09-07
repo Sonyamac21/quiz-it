@@ -1197,6 +1197,13 @@ export type RoundGenerationSpec = {
   // Questions already present in this Quiz Plan round. They are validation
   // context only: never returned as newly generated questions.
   existingQuestions?: Array<Question | Record<string, unknown>>;
+  // Host override for which question types this round draws from - only
+  // honoured for "bonus" and "regular" rounds (the other round types have a
+  // structurally fixed type mix for functional reasons: multi_tap/music/
+  // pursuit/hot_seat all need a specific answer shape). Lets a host include
+  // Picture and/or Music in a Bonus round, which the default bonus mix
+  // deliberately excludes (see the roundType==="bonus" branch below).
+  allowedQuestionTypes?: string[];
 };
 
 export type RoundGenerationResult = {
@@ -1269,7 +1276,13 @@ export async function generateValidatedRound(
   };
 
   let types: string[];
-  if (roundType === "music") {
+  if ((roundType === "bonus" || roundType === "regular") && spec.allowedQuestionTypes && spec.allowedQuestionTypes.length > 0) {
+    // Host-picked type mix (e.g. "include Picture and Music in this Bonus
+    // round") overrides the default fixed pool below. Cycled + shuffled the
+    // same way every other fixed-pool branch here builds its array.
+    const pool = spec.allowedQuestionTypes;
+    types = shuffle(Array.from({ length: count }, (_, i) => pool[i % pool.length]));
+  } else if (roundType === "music") {
     types = Array(count).fill("audio");
   } else if (roundType === "multi_tap") {
     types = Array(count).fill("multi_tap");

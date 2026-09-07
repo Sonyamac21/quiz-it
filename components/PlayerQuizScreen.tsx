@@ -1162,18 +1162,29 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
                 {recent.map((c, i) => {
                   const red = c.suit === "♥" || c.suit === "♦";
                   const ink = red ? "#dc2626" : "#111";
+                  // A real playing card's corner radius is a small, fixed
+                  // fraction of its width (~4-5%), not a flat 12px that reads
+                  // as a generic rounded chip at large sizes. widthCap is the
+                  // card's own max px width, so this scales sensibly without
+                  // touching window/viewport APIs during render.
+                  const cardRadius = Math.max(8, Math.round(widthCap * 0.045));
                   return (
-                    <div key={i} style={{ width: `min(${widthCap}px,${widthVw}vw)`, height: `min(${heightCap}px,${heightVw}vw)`, flexShrink: 0, borderRadius: 12, position: "relative", overflow: "hidden", backgroundColor: "#f5f5f7", backgroundImage: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -8px 12px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", colorScheme: "light" }}>
+                    <div key={i} style={{ width: `min(${widthCap}px,${widthVw}vw)`, height: `min(${heightCap}px,${heightVw}vw)`, aspectRatio: "2.5 / 3.5", flexShrink: 0, borderRadius: cardRadius, position: "relative", overflow: "hidden", backgroundColor: "#fafafa", backgroundImage: "linear-gradient(160deg, #ffffff 0%, #ececec 100%)", border: "1px solid rgba(20,20,20,0.5)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -8px 12px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.45), 0 0 0 2px rgba(212,175,90,0.35)", colorScheme: "light" }}>
+                      {/* A visible inner frame - the thin margin every real
+                          playing card face has - is what actually reads as
+                          "a card" rather than a rounded panel with a symbol
+                          on it. */}
+                      <div style={{ position: "absolute", inset: "4%", borderRadius: Math.max(4, cardRadius - 4), border: `1px solid ${red ? "rgba(220,38,38,0.35)" : "rgba(0,0,0,0.22)"}` }} />
                       {/* Corner indices, top-left and bottom-right (mirrored) - what
                           actually makes this read as a playing card rather than a
                           plain badge with a number stacked over a suit. */}
-                      <div style={{ position: "absolute", top: "6%", left: "8%", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1, color: ink }}>
+                      <div style={{ position: "absolute", top: "7%", left: "9%", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1, color: ink }}>
                         <div style={{ fontSize: `min(${cornerFontCap}px,${Math.round(widthVw*0.14)}vw)`, fontWeight: 900 }}>{rankLabel(c.rank)}</div>
-                        <div style={{ fontSize: `min(${cornerSuitCap}px,${Math.round(widthVw*0.12)}vw)` }}>{c.suit}</div>
+                        <div style={{ fontSize: `min(${cornerSuitCap}px,${Math.round(widthVw*0.12)}vw)`, marginTop: "2%" }}>{c.suit}</div>
                       </div>
-                      <div style={{ position: "absolute", bottom: "6%", right: "8%", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1, color: ink, transform: "rotate(180deg)" }}>
+                      <div style={{ position: "absolute", bottom: "7%", right: "9%", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1, color: ink, transform: "rotate(180deg)" }}>
                         <div style={{ fontSize: `min(${cornerFontCap}px,${Math.round(widthVw*0.14)}vw)`, fontWeight: 900 }}>{rankLabel(c.rank)}</div>
-                        <div style={{ fontSize: `min(${cornerSuitCap}px,${Math.round(widthVw*0.12)}vw)` }}>{c.suit}</div>
+                        <div style={{ fontSize: `min(${cornerSuitCap}px,${Math.round(widthVw*0.12)}vw)`, marginTop: "2%" }}>{c.suit}</div>
                       </div>
                       {/* Large central pip - the card's face. */}
                       <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: `min(${pipFontCap}px,${Math.round(widthVw*0.5)}vw)`, color: ink, opacity: 0.92 }}>

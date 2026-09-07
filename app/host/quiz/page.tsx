@@ -1940,10 +1940,16 @@ function QuizControllerInner() {
                   {spinFeedback && (
                     <div role="status" style={{ maxWidth:520, margin:"0 auto 16px", padding:"12px 16px", borderRadius:12, background: spinFeedback.ok ? "rgba(46,224,110,.12)" : "rgba(255,59,78,.14)", border:`1px solid ${spinFeedback.ok ? "rgba(46,224,110,.45)" : "rgba(255,59,78,.5)"}`, color:spinFeedback.ok ? "#2EE06E" : "#ff8290", fontWeight:800 }}>{spinFeedback.message}</div>
                   )}
-                  <button onClick={() => { if (isLastQ) doEndRound(); else doPreviewQuestion(qIdx + 1); }} style={{ padding:"12px 32px", borderRadius:10, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", marginBottom:24, marginTop:16 }}>Continue ▶</button>
+                  {/* Was a small grey afterthought BELOW the Continue button -
+                      easy to miss entirely, and easy to mistake for "nothing
+                      happened" rather than a deliberate pass. Styled like the
+                      spin result banner above (bordered, colored, its own
+                      line) and moved ahead of Continue so it reads as the
+                      actual outcome of this moment, not a footnote. */}
                   {spinChoice === "pass" && (
-                    <div style={{ fontSize:16, color:"rgba(255,255,255,0.5)", marginBottom:24 }}>{fastestTeam} passed</div>
+                    <div role="status" style={{ maxWidth:420, margin:"0 auto 20px", padding:"12px 20px", borderRadius:12, background:"rgba(251,191,36,0.14)", border:"1px solid rgba(251,191,36,0.5)", color:"#fbbf24", fontSize:18, fontWeight:800, letterSpacing:1 }}>{fastestTeam} passed on the spin</div>
                   )}
+                  <button onClick={() => { if (isLastQ) doEndRound(); else doPreviewQuestion(qIdx + 1); }} style={{ padding:"12px 32px", borderRadius:10, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", marginBottom:24, marginTop:16 }}>Continue ▶</button>
                 </>
               ) : (
                 <div style={{ fontSize:24, color:"rgba(255,255,255,0.4)", marginBottom:32 }}>{currentQ?.question_type === "multi_tap" ? "Nobody got all answers correct." : "No correct answers for this question"}</div>

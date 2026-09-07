@@ -487,6 +487,19 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     // to read... start the pursuit should be on space... team scores on the
     // right side, like all other rounds").
     <div className="qi-pursuit-host-console" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box" as const, background: "var(--qi-bg-page, #0A0118)", zIndex: 200, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* Fixed Next-Action bar - the very first thing on screen, matching the
+          main host console's own layout (its Next-Action bar sits above
+          everything else too), so the host's next move is the first thing
+          they see instead of something to hunt for further down. */}
+      {pursuitNextLabel && (
+        <button onClick={pursuitNextHandler} disabled={status === "intro" && pursuitQuestions.length === 0} className={`qi-mc-next${showNextTimer ? " qi-mc-next--timer" : ""}`} style={{ flexShrink: 0 }}>
+          <span className="qi-mc-next__eyebrow">Next action</span>
+          <span className="qi-mc-next__label">{pursuitNextLabel}</span>
+          {showNextTimer && <span className={`qi-mc-next__timer${(timeLeft ?? 0) <= 5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft ?? "—"}s</span>}
+          <span className="qi-mc-next__key">Space ↵</span>
+        </button>
+      )}
+
       <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
         <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 20, color: "#D94FDC", letterSpacing: 3 }}>THE PURSUIT</div>
         <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
@@ -497,17 +510,6 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
         </div>
       </div>
 
-      {/* Fixed Next-Action bar - matches the main host console exactly
-          (same .qi-mc-next classes), and stays pinned above the workspace
-          instead of scrolling out of view at the bottom of a long page. */}
-      {pursuitNextLabel && (
-        <button onClick={pursuitNextHandler} disabled={status === "intro" && pursuitQuestions.length === 0} className={`qi-mc-next${showNextTimer ? " qi-mc-next--timer" : ""}`} style={{ flexShrink: 0 }}>
-          <span className="qi-mc-next__eyebrow">Next action</span>
-          <span className="qi-mc-next__label">{pursuitNextLabel}</span>
-          {showNextTimer && <span className={`qi-mc-next__timer${(timeLeft ?? 0) <= 5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft ?? "—"}s</span>}
-          <span className="qi-mc-next__key">Space ↵</span>
-        </button>
-      )}
       {status === "advance" && canAskMore && (
         <div style={{ flexShrink: 0, textAlign: "center" as const, padding: "8px 0" }}>
           <SecondaryButton onClick={finishRound} label="Finish Round Early" />

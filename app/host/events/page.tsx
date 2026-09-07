@@ -162,7 +162,32 @@ export default function EventCalendarPage() {
           </div>
         );
       })()}
-      <div className="qi-bo-event-summary"><div><span>Date and time</span><strong>{formatEventDate(draft.date)} · {draft.start}</strong></div><div><span>Host</span><strong>{draft.hostName||"Inherited from venue"}</strong></div><div><span>Quiz Plan</span><strong style={!draft.quizId?{color:"#FFC533"}:undefined}>{draft.quizId ? (() => { const q = quizzes.find(q => q.id === draft.quizId); return q ? `${q.name} - ${q.quiz_rounds.length} round${q.quiz_rounds.length === 1 ? "" : "s"}` : "Loading…"; })() : "Not assigned"}</strong></div></div>
+      {/* Date and time used to be plain read-only text here, with the actual
+          inputs hidden inside the collapsed "Event overrides" section below -
+          the host had to know to open that section to change tonight's time
+          at all. Editable directly here now, since it's the single most
+          common thing to adjust per-event. */}
+      <div className="qi-bo-event-summary" style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <label className="fbh-lbl">Date</label>
+            <input style={field} type="date" value={draft.date} onChange={e=>setDraft({...draft,date:e.target.value})}/>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label className="fbh-lbl">Start</label>
+            <input style={field} type="time" value={draft.start} onChange={e=>setDraft({...draft,start:e.target.value})}/>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label className="fbh-lbl">End</label>
+            <input style={field} type="time" value={draft.end} onChange={e=>setDraft({...draft,end:e.target.value})}/>
+          </div>
+        </div>
+        <div>
+          <label className="fbh-lbl">Host</label>
+          <input style={field} placeholder="Inherited from venue" value={draft.hostName} onChange={e=>setDraft({...draft,hostName:e.target.value,hostId:draft.hostId||currentHost.id})}/>
+        </div>
+        <div><span>Quiz Plan</span><strong style={!draft.quizId?{color:"#FFC533"}:undefined}>{draft.quizId ? (() => { const q = quizzes.find(q => q.id === draft.quizId); return q ? `${q.name} - ${q.quiz_rounds.length} round${q.quiz_rounds.length === 1 ? "" : "s"}` : "Loading…"; })() : "Not assigned"}</strong></div>
+      </div>
       {draft.quizId ? <div style={{display:"flex",gap:8,minWidth:0}}><select style={{...field,flex:"1 1 auto",minWidth:0}} value={draft.quizId} onChange={e=>setDraft({...draft,quizId:e.target.value})}><option value="">Not assigned</option>{quizzes.filter(q=>!q.archived||q.id===draft.quizId).map(q=><option key={q.id} value={q.id}>{q.name}{q.archived?" (archived)":""}</option>)}</select><Link href="/host/quizzes" className="fbh-btn" style={{whiteSpace:"nowrap",flexShrink:0}}>Manage Quiz Plans</Link></div>
       : draft.id ? <div>
         <button type="button" className="fbh-btn pri" style={{width:"100%"}} aria-expanded={showQuizOptions} aria-haspopup="true" onClick={()=>setShowQuizOptions(v=>!v)}>CREATE / ASSIGN QUIZ</button>
@@ -174,7 +199,9 @@ export default function EventCalendarPage() {
         <p style={{fontSize:12,color:"#8E7AAA",margin:"8px 0 0"}}>Pick one - you&apos;ll be brought straight back to this event once the Quiz Plan is ready.</p>
       </div>
       : <p style={{fontSize:12,color:"#8E7AAA"}}>Choose a venue to inherit its default Quiz Plan, or save this event and attach another plan afterwards.</p>}
-      <details className="qi-bo-event-options"><summary>Event overrides</summary><p>Only open this when tonight differs from the venue defaults.</p><div className="qi-bo-form-grid"><div><label className="fbh-lbl">Date</label><input style={field} type="date" value={draft.date} onChange={e=>setDraft({...draft,date:e.target.value})}/></div><div><label className="fbh-lbl">Status</label><select style={field} value={draft.status} onChange={e=>setDraft({...draft,status:e.target.value as EventStatus})}>{["draft","scheduled","live","completed","cancelled"].map(s=><option key={s}>{s}</option>)}</select></div><div><label className="fbh-lbl">Start</label><input style={field} type="time" value={draft.start} onChange={e=>setDraft({...draft,start:e.target.value})}/></div><div><label className="fbh-lbl">End</label><input style={field} type="time" value={draft.end} onChange={e=>setDraft({...draft,end:e.target.value})}/></div></div><label className="fbh-lbl">Host</label><input style={field} value={draft.hostName} onChange={e=>setDraft({...draft,hostName:e.target.value,hostId:draft.hostId||currentHost.id})}/><label className="fbh-lbl">Special Offers</label><textarea style={field} rows={3} value={draft.offers} onChange={e=>setDraft({...draft,offers:e.target.value})} placeholder="Leave empty to inherit venue offers"/><label className="fbh-lbl">Sponsors</label><input style={field} value={draft.sponsors} onChange={e=>setDraft({...draft,sponsors:e.target.value})} placeholder="Leave empty to inherit venue sponsors"/><label className="fbh-lbl">Internal Notes</label><textarea style={field} rows={4} value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})}/></details>
+      {/* Date/Start/End/Host moved up to the always-visible summary above -
+          only Status and the rarer per-night overrides stay collapsed here. */}
+      <details className="qi-bo-event-options"><summary>Event overrides</summary><p>Only open this when tonight differs from the venue defaults.</p><label className="fbh-lbl">Status</label><select style={field} value={draft.status} onChange={e=>setDraft({...draft,status:e.target.value as EventStatus})}>{["draft","scheduled","live","completed","cancelled"].map(s=><option key={s}>{s}</option>)}</select><label className="fbh-lbl">Special Offers</label><textarea style={field} rows={3} value={draft.offers} onChange={e=>setDraft({...draft,offers:e.target.value})} placeholder="Leave empty to inherit venue offers"/><label className="fbh-lbl">Sponsors</label><input style={field} value={draft.sponsors} onChange={e=>setDraft({...draft,sponsors:e.target.value})} placeholder="Leave empty to inherit venue sponsors"/><label className="fbh-lbl">Internal Notes</label><textarea style={field} rows={4} value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})}/></details>
       {!draft.id&&<div className="fbh-panel" style={{marginTop:16}}><div className="fbh-lbl">Recurrence</div><select style={field} value={draft.recurrence.frequency} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,frequency:e.target.value as RecurrenceRule["frequency"]}})}><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="custom_weeks">Every X weeks</option></select>{draft.recurrence.frequency!=="none"&&<><label className="fbh-lbl" style={{marginTop:10}}>Interval</label><input style={field} type="number" min={1} max={52} value={draft.recurrence.interval} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,interval:Number(e.target.value)||1}})}/><label className="fbh-lbl" style={{marginTop:10}}>Ends</label><select style={field} value={draft.recurrence.end} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,end:e.target.value as RecurrenceRule["end"]}})}><option value="never">Never (create next 52)</option><option value="date">Specific date</option><option value="occurrences">Number of occurrences</option></select>{draft.recurrence.end==="date"&&<input style={{...field,marginTop:8}} type="date" value={draft.recurrence.endDate||draft.date} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,endDate:e.target.value}})}/>} {draft.recurrence.end==="occurrences"&&<input style={{...field,marginTop:8}} type="number" min={1} max={104} value={draft.recurrence.occurrences||1} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,occurrences:Number(e.target.value)||1}})}/>}</>}</div>}
       <button className={`fbh-btn ${draft.id&&draft.quizId?"":"pri "}big`} disabled={saving||!draft.venueId||!draft.hostId} onClick={saveDraft} style={{width:"100%",marginTop:18}}>{saving?"SAVING…":draft.id?"SAVE CHANGES":"CREATE EVENT"}</button>
       {draft.id&&draft.quizId&&(()=>{

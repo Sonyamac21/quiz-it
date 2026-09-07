@@ -97,6 +97,12 @@ export default function QuizBuilderPage() {
   const [draggedQuestionIndex, setDraggedQuestionIndex] = useState<number | null>(null);
   const [dragOverQuestionIndex, setDragOverQuestionIndex] = useState<number | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  // Same uniform-card-size/hover-to-expand treatment as the Question Library
+  // (app/host/question-bank/page.tsx) - a card with a long question and every
+  // option listed used to stretch tall while its neighbours stayed short,
+  // leaving a ragged grid. Collapsing to a fixed height and expanding the
+  // full text in a popover on hover fixes that here too.
+  const [hoveredQuestionKey, setHoveredQuestionKey] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Record<string, string>>({});
   const [draggedQuestionSource, setDraggedQuestionSource] = useState<{ roundId: string; index: number } | null>(null);
   const [dragOverRoundId, setDragOverRoundId] = useState<string | null>(null);
@@ -1490,11 +1496,18 @@ export default function QuizBuilderPage() {
                           setDraggedQuestionSource(null);
                         }}
                         onDragEnd={() => { setDraggedQuestionIndex(null); setDragOverQuestionIndex(null); setDraggedQuestionSource(null); }}
+                        onMouseEnter={() => setHoveredQuestionKey(editKey)}
+                        onMouseLeave={() => setHoveredQuestionKey(prev => prev === editKey ? null : prev)}
                         style={{
                           position: "relative", padding: "12px 34px 12px 14px", borderRadius: 12, background: "#150A2E",
                           border: dragOverQuestionIndex === qi && draggedQuestionIndex !== qi ? "1px dashed #BE26C1" : "1px solid #2E1A52",
                           opacity: draggedQuestionIndex === qi ? 0.4 : 1,
                           cursor: "grab",
+                          // Only clamp to a uniform height while just viewing (not
+                          // mid-edit, where the full form needs to stay visible).
+                          height: isEditing ? undefined : 260,
+                          display: isEditing ? undefined : "flex",
+                          flexDirection: isEditing ? undefined : "column",
                         }}
                       >
                         <button
@@ -1631,8 +1644,9 @@ export default function QuizBuilderPage() {
                               <HostButton onClick={() => { setEditingKey(null); setEditDraft({}); setPhotoCandidates([]); }} style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>CANCEL</HostButton>
                             </div>
                           </div>
-                        ) : (
-                          <>
+                        ) : (() => {
+                          const cardBody = (
+                            <>
                             <div style={{ font: "400 13px 'Inter'", color: "#D9CCF2", lineHeight: 1.5 }}>
                               <strong style={{ color: "#6B5A8E" }}>{"⠿ "}{qi + 1}.</strong> {String(qr.question_text ?? "")}
                             </div>
@@ -1679,13 +1693,30 @@ export default function QuizBuilderPage() {
                                 </>
                               );
                             })()}
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                              <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>EDIT</HostButton>
-                              <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace with a new AI-generated question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
-                              <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Drag to reorder</span>
-                            </div>
-                          </>
-                        )}
+                            </>
+                          );
+                          const isCardHovered = hoveredQuestionKey === editKey;
+                          return (
+                            <>
+                              {/* Uniform-height collapsed view, clipped so every card in
+                                  the round lines up the same - matches the Question
+                                  Library's card treatment. */}
+                              <div style={{ flex: 1, overflow: "hidden" }}>{cardBody}</div>
+                              {/* Hover expands the full, untruncated question/options in a
+                                  popover above everything else, same as the Question Library. */}
+                              {isCardHovered && (
+                                <div style={{ position: "absolute", top: -1, left: -1, right: -1, zIndex: 40, background: "#150A2E", border: "1px solid #BE26C1", borderRadius: 12, padding: "12px 34px 12px 14px", boxShadow: "0 12px 32px rgba(0,0,0,0.55)", maxHeight: 480, overflowY: "auto" }}>
+                                  {cardBody}
+                                </div>
+                              )}
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                                <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>EDIT</HostButton>
+                                <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace with a new AI-generated question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
+                                <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Drag to reorder</span>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     );
                   })}

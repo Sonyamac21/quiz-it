@@ -1155,12 +1155,13 @@ export default function QuizBuilderPage() {
                       background: dragOverRoundId === round.id ? "rgba(46,224,110,0.12)" : round.id === activeRound.id ? "rgba(190,38,193,0.15)" : "#150A2E",
                       opacity: draggedRoundIndex === index ? 0.4 : 1,
                       color: "#fff", display: "flex", flexDirection: "column", gap: 2,
-                      // Fixed width + clipped status line so a round that's
-                      // hit a long "stalled after 25 questions..." message
-                      // stays the same compact rectangle as every other
-                      // round tab instead of stretching full-width and
-                      // pushing the actual question cards below off screen.
-                      width: 220, flexShrink: 0,
+                      // Grows to fill the row (so 5 rounds span the full width
+                      // instead of leaving a dead gap after the last one) but
+                      // never shrinks below 200px, and the status line inside
+                      // stays clipped (overflow/textOverflow below) so a round
+                      // that's hit a long "stalled after 25 questions..."
+                      // message still can't stretch a single tile oversized.
+                      flex: "1 1 200px", minWidth: 200,
                     }}
                   >
                     {isRoundGeneratable && (

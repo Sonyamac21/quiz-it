@@ -88,6 +88,19 @@ async function main() {
   console.log(`Skipping ${skippedStale.length} stale-flagged questions (not imported at all).`);
   console.log(`Importing ${toImport.length} questions as needs_review...`);
 
+  const TOPIC_ALIASES = {
+    "fashion": "Art & Culture",
+    "fashion & language": "Art & Culture",
+    "fashion/general knowledge": "General Knowledge",
+    "fashion & culture": "Art & Culture",
+    "religion": "History",
+  };
+  function normalizeTopic(t) {
+    if (!t) return t;
+    const alias = TOPIC_ALIASES[t.trim().toLowerCase()];
+    return alias || t;
+  }
+
   const payload = toImport.map(r => ({
     question_text: r.question_text,
     question_type: r.question_type,
@@ -100,7 +113,7 @@ async function main() {
     option_f: null,
     difficulty: "mixed",
     round_type: null, // library questions are reusable across round types - see loadLibraryQuestions() in app/host/quizzes/page.tsx
-    topic: r.topic || null,
+    topic: normalizeTopic(r.topic) || null,
     source: "speedquizzing_import",
     needs_review: true,
     stale_risk: false,

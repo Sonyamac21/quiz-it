@@ -133,6 +133,11 @@ export default function QuizBuilderPage() {
   const [libraryResults, setLibraryResults] = useState<BankQuestion[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryAddingId, setLibraryAddingId] = useState<string | null>(null);
+  const [randomOpenId, setRandomOpenId] = useState<string | null>(null);
+  const [randomTopic, setRandomTopic] = useState("");
+  const [randomCount, setRandomCount] = useState(5);
+  const [randomBusy, setRandomBusy] = useState(false);
+  const [randomStatus, setRandomStatus] = useState("");
   // Bulk/parallel question generation ("Generate All Rounds"). Lives alongside
   // the existing per-round generator at /host/questions - this does not replace
   // it, it lets a host configure several rounds at once and generate them all
@@ -259,11 +264,13 @@ export default function QuizBuilderPage() {
     // The Question Library is reusable across round types. Filtering by the
     // saved round_type made a question appear to vanish when the host opened
     // the picker from a different round, even though it still existed.
-    // Already-played questions are excluded so a host can't accidentally
-    // pick the same question a second time for a returning venue/team.
+    // This is a manual, deliberate pick - already-used questions are still
+    // shown (with a "used" badge in the UI) so a host can knowingly reuse
+    // one for a themed round. Only auto-selection (AI generation, Random
+    // From Library) hard-excludes anything already used.
     // Bulk-imported questions (e.g. the SpeedQuizzing archive) land as
     // needs_review=true and stay out of this picker until reviewed/approved.
-    let query = supabase.from("question_bank").select("*").or("times_used.is.null,times_used.eq.0").or("needs_review.is.null,needs_review.eq.false").order("created_at", { ascending: false }).limit(100);
+    let query = supabase.from("question_bank").select("*").or("needs_review.is.null,needs_review.eq.false").order("created_at", { ascending: false }).limit(100);
     if (search.trim()) {
       const term = search.trim().replace(/[%_,]/g, " ");
       query = query.or(`question_text.ilike.%${term}%,correct_answer.ilike.%${term}%,topic.ilike.%${term}%`);
@@ -309,6 +316,67 @@ export default function QuizBuilderPage() {
       showToast("Question was not added: " + (error instanceof Error ? error.message : "database save failed"), "error", 6500);
     } finally {
       setLibraryAddingId(null);
+    }
+  }
+  async function addRandomFromLibrary(round: QuizRound, count: number, topic: string) {
+    if (randomBusy) return;
+    setRandomBusy(true); setRandomStatus("Picking...");
+    const supabase = createSupabaseBrowserClient();
+    try {
+      // Approved (needs_review=false), not flagged stale, and not already
+      // played live - the same "don't repeat a used question" guarantee
+      // the manual library picker gets. Over-fetch a pool and shuffle
+      // client-side since Postgres random() ordering isn't available
+      // through the query builder here.
+      let query = supabase.from("question_bank").select("*")
+        .eq("needs_review", false)
+        .or("stale_risk.is.null,stale_risk.eq.false")
+        .or("times_used.is.null,times_used.eq.0")
+        .limit(300);
+      if (topic) query = query.eq("topic", topic);
+      const { data, error } = await query;
+      if (error) throw error;
+      const pool = (data || []) as BankQuestion[];
+      if (pool.length === 0) {
+        showToast(topic ? `No approved, unused ${topic} questions in the library yet.` : "No approved, unused questions in the library yet.", "info", 5000);
+        return;
+      }
+      const { data: liveRow, error: readError } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
+      if (readError) throw readError;
+      const liveQuestions = (liveRow?.questions || []) as Record<string, unknown>[];
+      const existingKeys = new Set(liveQuestions.map(q => questionKey(q)));
+      const shuffled = [...pool].sort(() => Math.random() - 0.5);
+      const picked: BankQuestion[] = [];
+      for (const bq of shuffled) {
+        if (picked.length >= count) break;
+        if (existingKeys.has(questionKey(bq))) continue;
+        picked.push(bq);
+        existingKeys.add(questionKey(bq));
+      }
+      if (picked.length === 0) {
+        showToast("Every matching question is already in this round.", "info", 4000);
+        return;
+      }
+      const toAdd = picked.map(bq => ({
+        question_text: bq.question_text, question_type: bq.question_type,
+        option_a: bq.option_a, option_b: bq.option_b, option_c: bq.option_c, option_d: bq.option_d, option_e: bq.option_e, option_f: bq.option_f,
+        correct_answer: bq.correct_answer, difficulty: bq.difficulty,
+        bank_question_id: bq.id,
+      }));
+      const { data: savedRow, error: saveError } = await supabase.from("quiz_rounds")
+        .update({ questions: [...liveQuestions, ...toAdd] })
+        .eq("id", round.id)
+        .select("questions")
+        .single();
+      if (saveError) throw saveError;
+      const persistedQuestions = (savedRow?.questions || []) as Record<string, unknown>[];
+      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: persistedQuestions } : r) }));
+      showToast(`Added ${picked.length} random question${picked.length === 1 ? "" : "s"} from the library. Round now has ${persistedQuestions.length}.`, "success", 4000);
+      setRandomOpenId(null);
+    } catch (error) {
+      showToast("Random pick failed: " + (error instanceof Error ? error.message : "database error"), "error", 6500);
+    } finally {
+      setRandomBusy(false); setRandomStatus("");
     }
   }
   async function deleteLibraryQuestion(bankQ: BankQuestion) {
@@ -947,7 +1015,7 @@ export default function QuizBuilderPage() {
           </div>
         </>}
       </div>
-      <Link className="fbh-btn" href="/host/rounds">Round Library</Link><Link className="fbh-btn pri" href="/host/session">Open Live Session</Link></div></header>
+      <Link className="fbh-btn" href="/host/rounds">Round Library</Link><Link className="fbh-btn" href="/host/library">Question Library</Link><Link className="fbh-btn pri" href="/host/session">Open Live Session</Link></div></header>
     {guidedIntent&&guidedEvent&&<section className="fbh-panel" role="status" style={{marginBottom:16,borderColor: guidedAttached ? "#2EE06E" : "#BE26C1"}}>
       <strong style={{display:"block",marginBottom:4}}>
         {guidedIntent==="create"&&"Create a new Quiz Plan for this event"}
@@ -1320,10 +1388,22 @@ export default function QuizBuilderPage() {
                         </HostButton>
                       </div>
                     )}
-                    <HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); loadLibraryQuestions(""); } return next; }); setAddQuestionOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
-                    <HostButton onClick={() => { setAddQuestionOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); }}>{addQuestionOpen ? "CLOSE" : "+ ADD QUESTION"}</HostButton>
+                    <HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); loadLibraryQuestions(""); } return next; }); setAddQuestionOpenId(null); setRandomOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
+                    <HostButton onClick={() => { setRandomOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); setAddQuestionOpenId(null); }}>{randomOpenId === activeRound.id ? "CLOSE" : "🎲 RANDOM FROM LIBRARY"}</HostButton>
+                    <HostButton onClick={() => { setAddQuestionOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); setRandomOpenId(null); }}>{addQuestionOpen ? "CLOSE" : "+ ADD QUESTION"}</HostButton>
                   </div>
                 </div>
+                {randomOpenId === activeRound.id && (
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
+                    <select value={randomTopic} onChange={e => setRandomTopic(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}>
+                      <option value="">Any topic</option>
+                      {["Sport", "Geography", "History", "Science & Nature", "Music", "Film & TV", "Literature & Language", "Food & Drink", "General Knowledge", "Current Affairs", "Art & Culture"].map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <input type="number" min={1} max={50} value={randomCount} onChange={e => setRandomCount(Math.max(1, Math.min(50, Math.floor(Number(e.target.value)) || 1)))} style={{ width: 56, padding: "8px 6px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff", textAlign: "center" }} />
+                    <HostButton variant="pri" disabled={randomBusy} onClick={() => addRandomFromLibrary(activeRound, randomCount, randomTopic)}>{randomBusy ? (randomStatus || "PICKING…") : "ADD RANDOM QUESTIONS"}</HostButton>
+                    <span style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>Only pulls approved, never-used library questions.</span>
+                  </div>
+                )}
                 {libraryOpenId === activeRound.id && (
                   <div style={{ display: "grid", gap: 8, padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
                     <input
@@ -1340,7 +1420,10 @@ export default function QuizBuilderPage() {
                         const alreadyAdded = activeRound.questions.some(question => questionKey(question) === questionKey(bq));
                         return (
                         <div key={bq.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52" }}>
-                          <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2" }}>{bq.question_text} <span style={{ color: "#2EE06E" }}>{"-> " + bq.correct_answer}</span></div>
+                          <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2" }}>
+                            {!!bq.times_used && <span style={{ color: "#FFC533", fontWeight: 700, marginRight: 6 }}>USED {bq.times_used}×</span>}
+                            {bq.question_text} <span style={{ color: "#2EE06E" }}>{"-> " + bq.correct_answer}</span>
+                          </div>
                           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                             <HostButton disabled={alreadyAdded || libraryAddingId !== null} onClick={() => addLibraryQuestion(activeRound, bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12 }}>{alreadyAdded ? "ADDED" : libraryAddingId === bq.id ? "ADDING…" : "ADD"}</HostButton>
                             <HostButton onClick={() => deleteLibraryQuestion(bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12, color: "#ff8f9a" }}>DELETE</HostButton>

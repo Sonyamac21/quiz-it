@@ -1281,22 +1281,15 @@ Return ONLY a valid JSON array with 1 item, no markdown:
 
   async function pickFromLibrary(type: string, excludeIds: Set<number>): Promise<Question | null> {
     const supabase = createSupabaseBrowserClient();
-    const cutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-    const [{ data: poolA }, { data: poolB }, { data: poolC }] = await Promise.all([
-      supabase.from("questions").select("*").eq("question_type", type).eq("is_active", true).is("last_used_at", null).limit(50),
-      supabase.from("questions").select("*").eq("question_type", type).eq("is_active", true).lt("last_used_at", cutoff).limit(50),
-      supabase.from("questions").select("*").eq("question_type", type).eq("is_active", true).gte("last_used_at", cutoff).order("last_used_at", { ascending: true }).limit(50),
-    ]);
-    const filterEx = (arr: Record<string, unknown>[] | null) => (arr || []).filter(r => !excludeIds.has(r.id as number) && isLibraryRowUsable(r));
-    const a = filterEx(poolA), b = filterEx(poolB), c = filterEx(poolC);
-    if (a.length === 0 && b.length === 0 && c.length === 0) return null;
-    const roll = Math.random();
-    let pool = a.length ? a : (b.length ? b : c);
-    if (roll < 0.7 && a.length) pool = a;
-    else if (roll < 0.9 && b.length) pool = b;
-    else if (c.length) pool = c;
-    if (!pool.length) pool = a.length ? a : (b.length ? b : c);
-    const row = pool[Math.floor(Math.random() * pool.length)];
+    // Auto-generation must never repeat a question that's already been used
+    // live, full stop - only ever draw from rows with no last_used_at at
+    // all. Manually picking an already-used question back into a round is
+    // still fine (that's a deliberate host choice, handled elsewhere); this
+    // function only feeds the automatic generator.
+    const { data: poolA } = await supabase.from("questions").select("*").eq("question_type", type).eq("is_active", true).is("last_used_at", null).limit(50);
+    const a = (poolA || []).filter(r => !excludeIds.has(r.id as number) && isLibraryRowUsable(r));
+    if (a.length === 0) return null;
+    const row = a[Math.floor(Math.random() * a.length)];
     return rowToQuestion(row);
   }
 

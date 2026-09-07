@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HostShell, HostButton, HostInput, HostLoading, Chip } from "@/components/fable/HostConsole";
@@ -22,12 +22,16 @@ type BankQuestion = {
   difficulty: string;
   round_type: string;
   topic: string | null;
+  needs_review: boolean | null;
+  review_note: string | null;
+  times_used: number | null;
   created_at: string;
 };
 
 type RoundTarget = { id: string; name: string; round_type: string; questions: BankQuestion[]; table: "rounds" | "quiz_rounds"; quizName?: string };
 
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", multi_tap:"Multi Tap", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture", audio:"Music" };
+const TOPICS = ["Sport", "Geography", "History", "Science & Nature", "Music", "Film & TV", "Literature & Language", "Food & Drink", "General Knowledge", "Current Affairs", "Art & Culture"];
 const PAGE_SIZE = 20;
 const selectStyle: React.CSSProperties = { height: 32, minWidth: 148, padding: "0 9px", borderRadius: 8, background: "#150A2E", color: "#F4EFFF", border: "1px solid #4D3175", fontSize: 11, fontFamily: "'Inter',sans-serif", cursor: "pointer", outline: "none" };
 const questionKey = (question: { question_text?: unknown; correct_answer?: unknown }) => {
@@ -36,16 +40,24 @@ const questionKey = (question: { question_text?: unknown; correct_answer?: unkno
 };
 
 // Keep the full question payload, including explanation and media playback
-// settings, but never copy the library row's identity/ownership metadata.
-const copyQuestion = (question: BankQuestion) => Object.fromEntries(Object.entries(question).filter(([key]) => !["id", "created_at", "updated_at", "user_id", "owner_id"].includes(key)));
+// settings, but never copy the library row's identity/ownership/review metadata.
+const copyQuestion = (question: BankQuestion) => Object.fromEntries(Object.entries(question).filter(([key]) => !["id", "created_at", "updated_at", "user_id", "owner_id", "needs_review", "stale_risk", "review_note", "times_used", "source", "topic"].includes(key)));
 
 export default function QuestionBankPage() {
   const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
   const { promptDialog, dialog: promptDialogEl } = usePromptDialog();
   const [questions, setQuestions] = useState<BankQuestion[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [matchingCount, setMatchingCount] = useState(0);
+  const [needsReviewCount, setNeedsReviewCount] = useState(0);
   const [rounds, setRounds] = useState<RoundTarget[]>([]);
   const [loading, setLoading] = useState(true);
+  const [listLoading, setListLoading] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [topicFilter, setTopicFilter] = useState("");
+  // Default view NEVER shows unreviewed/imported-but-unapproved questions -
+  // "review" mode is opt-in, specifically for approving/rejecting them.
+  const [reviewMode, setReviewMode] = useState<"approved" | "needs_review" | "all">("approved");
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -53,27 +65,64 @@ export default function QuestionBankPage() {
   type Mismatch = { roundId: string; roundName: string; index: number; question_text: string; correct_answer: string };
   const [fullRounds, setFullRounds] = useState<RoundWithQuestions[]>([]);
   const [showTypeFixer, setShowTypeFixer] = useState(false);
-  const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
+  const [selectedQuestions, setSelectedQuestions] = useState<Map<string, BankQuestion>>(new Map());
   const [buildRoundType, setBuildRoundType] = useState("regular");
   const [pickerQuestion, setPickerQuestion] = useState<BankQuestion | null>(null);
   const [roundSearch, setRoundSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  const loadCounts = useCallback(async () => {
+    const supabase = createSupabaseBrowserClient();
+    const { count: total } = await supabase.from("question_bank").select("id", { count: "exact", head: true });
+    const { count: needsReview } = await supabase.from("question_bank").select("id", { count: "exact", head: true }).eq("needs_review", true);
+    setTotalCount(total || 0);
+    setNeedsReviewCount(needsReview || 0);
+  }, []);
+
+  const loadQuestions = useCallback(async (targetPage: number) => {
+    setListLoading(true);
+    const supabase = createSupabaseBrowserClient();
+    let query = supabase.from("question_bank").select("*", { count: "exact" }).order("created_at", { ascending: false });
+    if (reviewMode === "approved") query = query.or("needs_review.is.null,needs_review.eq.false");
+    else if (reviewMode === "needs_review") query = query.eq("needs_review", true);
+    if (filter !== "all") query = query.eq("question_type", filter);
+    if (topicFilter) query = query.eq("topic", topicFilter);
+    if (search.trim().length >= 2) {
+      const term = search.trim().replace(/[%_,]/g, " ");
+      query = query.or(`question_text.ilike.%${term}%,correct_answer.ilike.%${term}%,topic.ilike.%${term}%`);
+    }
+    const from = (targetPage - 1) * PAGE_SIZE;
+    const { data, count, error } = await query.range(from, from + PAGE_SIZE - 1);
+    if (!error) {
+      setQuestions((data || []) as BankQuestion[]);
+      setMatchingCount(count || 0);
+    }
+    setListLoading(false);
+  }, [reviewMode, filter, topicFilter, search]);
+
   useEffect(() => {
     (async () => {
       const supabase = createSupabaseBrowserClient();
-      const [{ data: qs }, { data: rs }, { data: plans }] = await Promise.all([
-        supabase.from("question_bank").select("*").order("created_at", { ascending: false }),
+      const [{ data: rs }, { data: plans }] = await Promise.all([
         supabase.from("rounds").select("id, name, round_type, questions").order("created_at", { ascending: false }),
         supabase.from("quizzes").select("id,name,quiz_rounds(id,name,round_type,questions,position)").eq("archived", false).order("updated_at", { ascending: false }),
       ]);
-      if (qs) setQuestions(qs);
       const reusable = (rs || []).map(round => ({ ...round, questions: (round.questions || []) as BankQuestion[], table: "rounds" as const }));
       const planRounds = (plans || []).flatMap(plan => ((plan.quiz_rounds || []) as { id: string; name: string; round_type: string; questions: BankQuestion[]; position: number }[]).sort((a, b) => a.position - b.position).map(round => ({ id: round.id, name: round.name, round_type: round.round_type, questions: round.questions || [], table: "quiz_rounds" as const, quizName: plan.name })));
       setRounds([...planRounds, ...reusable]);
       if (rs) setFullRounds(rs as RoundWithQuestions[]);
+      await loadCounts();
+      await loadQuestions(1);
       setLoading(false);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => { if (!loading) { setPage(1); void loadQuestions(1); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [reviewMode, filter, topicFilter, search]);
+  useEffect(() => { if (!loading) void loadQuestions(page); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [page]);
+
   const numberTypeMismatches: Mismatch[] = fullRounds.flatMap(r =>
     (r.questions || []).map((q, index) => ({ q, index })).filter(({ q }) =>
       q.question_type !== "number" && /^-?\d+$/.test((q.correct_answer || "").trim())
@@ -99,6 +148,38 @@ export default function QuestionBankPage() {
     const { error } = await supabase.from("question_bank").delete().eq("id", id);
     if (error) { setStatus("Could not delete question: " + error.message); return; }
     setQuestions(prev => prev.filter(q => q.id !== id));
+    await loadCounts();
+  }
+
+  async function approveQuestion(id: string) {
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.from("question_bank").update({ needs_review: false }).eq("id", id);
+    if (error) { setStatus("Could not approve: " + error.message); return; }
+    setQuestions(prev => reviewMode === "needs_review" ? prev.filter(q => q.id !== id) : prev.map(q => q.id === id ? { ...q, needs_review: false } : q));
+    await loadCounts();
+  }
+
+  async function approveAllInView() {
+    if (bulkBusy) return;
+    const label = topicFilter ? `${topicFilter}${filter !== "all" ? ` / ${typeLabel[filter]}` : ""}` : (filter !== "all" ? typeLabel[filter] : "all");
+    const confirmed = window.confirm(`Approve all ${matchingCount.toLocaleString()} needs-review question(s) matching ${label}? They'll immediately become pickable in Quiz Plans and Random From Library.`);
+    if (!confirmed) return;
+    setBulkBusy(true);
+    const supabase = createSupabaseBrowserClient();
+    let query = supabase.from("question_bank").update({ needs_review: false }).eq("needs_review", true);
+    if (filter !== "all") query = query.eq("question_type", filter);
+    if (topicFilter) query = query.eq("topic", topicFilter);
+    if (search.trim().length >= 2) {
+      const term = search.trim().replace(/[%_,]/g, " ");
+      query = query.or(`question_text.ilike.%${term}%,correct_answer.ilike.%${term}%,topic.ilike.%${term}%`);
+    }
+    const { error } = await query;
+    setBulkBusy(false);
+    if (error) { setStatus("Bulk approve failed: " + error.message); return; }
+    setStatus(`Approved matching questions.`);
+    await loadCounts();
+    await loadQuestions(1);
+    setPage(1);
   }
 
   async function addToRound(q: BankQuestion, targetKey: string) {
@@ -127,31 +208,25 @@ export default function QuestionBankPage() {
   }
 
   async function buildRoundFromSelection() {
-    const selectedQuestions = selectedQuestionIds.map(id => questions.find(question => question.id === id)).filter((question): question is BankQuestion => Boolean(question));
-    if (!selectedQuestions.length) { setStatus("Select at least one question first."); return; }
-    if (buildRoundType === "multi_tap" && selectedQuestions.some(question => question.question_type !== "multi_tap")) { setStatus("A Multi Tap round can only contain Multi Tap questions."); return; }
-    if (buildRoundType === "music" && selectedQuestions.some(question => question.question_type !== "audio")) { setStatus("A Music round can only contain prepared music questions."); return; }
-    if (buildRoundType === "hot_seat" && selectedQuestions.length !== 5) { setStatus("A Hot Seat round must contain exactly 5 questions."); return; }
-    if (buildRoundType === "pursuit" && selectedQuestions.length !== 7) { setStatus("A Pursuit round must contain exactly 7 questions."); return; }
+    const selectedList = Array.from(selectedQuestions.values());
+    if (!selectedList.length) { setStatus("Select at least one question first."); return; }
+    if (buildRoundType === "multi_tap" && selectedList.some(question => question.question_type !== "multi_tap")) { setStatus("A Multi Tap round can only contain Multi Tap questions."); return; }
+    if (buildRoundType === "music" && selectedList.some(question => question.question_type !== "audio")) { setStatus("A Music round can only contain prepared music questions."); return; }
+    if (buildRoundType === "hot_seat" && selectedList.length !== 5) { setStatus("A Hot Seat round must contain exactly 5 questions."); return; }
+    if (buildRoundType === "pursuit" && selectedList.length !== 7) { setStatus("A Pursuit round must contain exactly 7 questions."); return; }
     const name = await promptDialog("Name this new reusable round.", `New ${buildRoundType === "regular" ? "General Knowledge" : typeLabel[buildRoundType] || buildRoundType} Round`, { title: "Build a round", confirmLabel: "Create round", placeholder: "Round name" });
     if (!name?.trim()) return;
     const supabase = createSupabaseBrowserClient();
-    const payload = selectedQuestions.map(copyQuestion);
+    const payload = selectedList.map(copyQuestion);
     const { data, error } = await supabase.from("rounds").insert({ name: name.trim(), round_type: buildRoundType, difficulty: "mixed", questions: payload, hide_leaderboard: false, allow_power_cards: true, points_per_question: null }).select("id,name,questions").single();
     if (error || !data) { setStatus("Round was not created: " + (error?.message || "Unknown error")); return; }
     setRounds(prev => [...prev, { id: data.id, name: data.name, round_type: buildRoundType, questions: (data.questions || []) as BankQuestion[], table: "rounds" }]);
     setFullRounds(prev => [...prev, { id: data.id, name: data.name, questions: (data.questions || []) as BankQuestion[] }]);
-    setSelectedQuestionIds([]);
-    setStatus(`Created “${data.name}” with ${selectedQuestions.length} question${selectedQuestions.length === 1 ? "" : "s"}.`);
+    setSelectedQuestions(new Map());
+    setStatus(`Created “${data.name}” with ${selectedList.length} question${selectedList.length === 1 ? "" : "s"}.`);
   }
 
-  const byType = filter === "all" ? questions : questions.filter(q => q.question_type === filter);
-  const filtered = search.trim().length < 2 ? byType : byType.filter(q => {
-    const haystack = (q.question_text + " " + (q.topic || "") + " " + q.correct_answer).toLowerCase();
-    return haystack.includes(search.trim().toLowerCase());
-  });
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const visibleQuestions = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageCount = Math.max(1, Math.ceil(matchingCount / PAGE_SIZE));
   const roundUnavailableReason = (round: RoundTarget, question: BankQuestion): string => {
     if (round.questions.some(existing => questionKey(existing) === questionKey(question))) return "already added";
     if (round.round_type === "multi_tap" && question.question_type !== "multi_tap") return "Multi Tap questions only";
@@ -160,6 +235,7 @@ export default function QuestionBankPage() {
     if (round.round_type === "pursuit" && round.questions.length >= 7) return "full (7 questions)";
     return "";
   };
+  const selectedList = Array.from(selectedQuestions.values());
 
   return (
     <HostShell>
@@ -170,15 +246,31 @@ export default function QuestionBankPage() {
         </header>
 
         <section className="qi-bo-library-summary" aria-label="Question library summary">
-          <div><strong>{questions.length}</strong><span>Saved questions</span></div>
-          <div><strong>{filtered.length}</strong><span>Matching this view</span></div>
+          <div><strong>{totalCount.toLocaleString()}</strong><span>Saved questions</span></div>
+          <div><strong>{needsReviewCount.toLocaleString()}</strong><span>Needs review</span></div>
+          <div><strong>{matchingCount.toLocaleString()}</strong><span>Matching this view</span></div>
           <div><strong>{rounds.length}</strong><span>Available rounds</span></div>
         </section>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+          <Chip on={reviewMode === "approved"} onClick={() => setReviewMode("approved")}>Approved (usable)</Chip>
+          <Chip on={reviewMode === "needs_review"} onClick={() => setReviewMode("needs_review")}>Needs review {needsReviewCount > 0 ? `(${needsReviewCount.toLocaleString()})` : ""}</Chip>
+          <Chip on={reviewMode === "all"} onClick={() => setReviewMode("all")}>All</Chip>
+        </div>
+
         {status && <div role="status" style={{ padding: 12, border: "1px solid #4D3175", borderRadius: 10, color: "#D9CCF2", font: "600 13px 'Inter'", marginBottom: 16 }}>{status}<button type="button" onClick={() => setStatus("")} style={{ marginLeft: 12, background: "none", border: 0, color: "#D94FDC", cursor: "pointer" }}>Dismiss</button><div style={{ marginTop: 8 }}><Link href="/host/rounds">Open Round Library</Link> · <Link href="/host/quizzes">Open Quiz Plans / add a saved round</Link></div></div>}
+
+        {reviewMode === "needs_review" && matchingCount > 0 && (
+          <div className="fbh-panel" style={{ marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ color: "#B9A8D9", font: "400 13px 'Inter'" }}>These questions won't appear anywhere else - not in round-building, not in Random From Library, not in AI generation - until approved.</span>
+            <HostButton onClick={approveAllInView} disabled={bulkBusy} style={{ height: 34, padding: "0 14px" }}>{bulkBusy ? "APPROVING…" : `APPROVE ALL ${matchingCount.toLocaleString()} IN THIS VIEW`}</HostButton>
+          </div>
+        )}
+
         {numberTypeMismatches.length > 0 && (
           <div className="fbh-panel" style={{ marginBottom: 20, border: "1px solid rgba(250,204,21,0.4)", background: "rgba(250,204,21,0.06)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setShowTypeFixer(v => !v)}>
-              <strong style={{ color: "#facc15" }}>{"\u26A0"} {numberTypeMismatches.length} question{numberTypeMismatches.length === 1 ? "" : "s"} may show the wrong keyboard to players</strong>
+              <strong style={{ color: "#facc15" }}>{"⚠"} {numberTypeMismatches.length} question{numberTypeMismatches.length === 1 ? "" : "s"} may show the wrong keyboard to players</strong>
               <span style={{ font: "600 12px 'Inter'", color: "#facc15" }}>{showTypeFixer ? "Hide" : "Review"}</span>
             </div>
             {showTypeFixer && (
@@ -201,85 +293,115 @@ export default function QuestionBankPage() {
         <HostInput
           type="text"
           value={search}
-          onChange={e => { setSearch(e.target.value); setPage(1); }}
+          onChange={e => setSearch(e.target.value)}
           placeholder="Search questions, topics or answers…"
           aria-label="Search saved questions"
           style={{ marginBottom: 14 }}
         />
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
           {["all", "multiple_choice", "multi_tap", "text_answer", "number", "sequence", "picture", "audio"].map(f => (
-            <Chip key={f} on={filter === f} onClick={() => { setFilter(f); setPage(1); }}>{f === "all" ? "All questions" : typeLabel[f]}</Chip>
+            <Chip key={f} on={filter === f} onClick={() => setFilter(f)}>{f === "all" ? "All questions" : typeLabel[f]}</Chip>
           ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+          <Chip on={topicFilter === ""} onClick={() => setTopicFilter("")}>All topics</Chip>
+          {TOPICS.map(t => <Chip key={t} on={topicFilter === t} onClick={() => setTopicFilter(t)}>{t}</Chip>)}
         </div>
 
         <section className="fbh-panel" style={{ marginBottom: 18, padding: 14, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", position: "sticky", bottom: 0, zIndex: 10 }} aria-label="Build a round from selected questions">
-          <div style={{ minWidth: 180, flex: 1 }}><strong style={{ display: "block", font: "700 14px 'Inter'" }}>Build a round</strong><span style={{ color: "#B9A8D9", font: "400 11px 'Inter'" }}>{selectedQuestionIds.length ? `${selectedQuestionIds.length} question${selectedQuestionIds.length === 1 ? "" : "s"} selected` : "Select question cards below"}</span></div>
+          <div style={{ minWidth: 180, flex: 1 }}><strong style={{ display: "block", font: "700 14px 'Inter'" }}>Build a round</strong><span style={{ color: "#B9A8D9", font: "400 11px 'Inter'" }}>{selectedList.length ? `${selectedList.length} question${selectedList.length === 1 ? "" : "s"} selected` : "Select question cards below"}</span></div>
           <select value={buildRoundType} onChange={event => setBuildRoundType(event.target.value)} aria-label="New round type" style={selectStyle}>
             <option value="regular">General Knowledge</option><option value="bonus">Bonus / Themed</option><option value="music">Music</option><option value="multi_tap">Multi Tap</option><option value="pursuit">The Pursuit</option><option value="hot_seat">Hot Seat</option>
           </select>
-          <HostButton onClick={async () => { setSaving(true); try { await buildRoundFromSelection(); } finally { setSaving(false); } }} disabled={saving || !selectedQuestionIds.length} style={{ height: 34, padding: "0 12px", fontSize: 11 }}>{saving ? "SAVING…" : "CREATE ROUND"}</HostButton>
-          {selectedQuestionIds.length > 0 && <HostButton onClick={() => setSelectedQuestionIds([])} style={{ height: 34, padding: "0 10px", fontSize: 11 }}>Clear</HostButton>}
-          {selectedQuestionIds.length > 0 && <details style={{ width: "100%" }}><summary style={{ cursor: "pointer", color: "#D94FDC" }}>Preview and reorder selected questions</summary><ol style={{ maxHeight: 220, overflowY: "auto", paddingLeft: 24 }}>{selectedQuestionIds.map((id, index) => <li key={id} style={{ margin: "8px 0", fontSize: 12 }}>{questions.find(question => question.id === id)?.question_text}<div><button disabled={index === 0} onClick={() => setSelectedQuestionIds(prev => { const next = [...prev]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}>Move up</button> <button disabled={index === selectedQuestionIds.length - 1} onClick={() => setSelectedQuestionIds(prev => { const next = [...prev]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })}>Move down</button> <button onClick={() => setSelectedQuestionIds(prev => prev.filter(value => value !== id))}>Remove</button></div></li>)}</ol></details>}
+          <HostButton onClick={async () => { setSaving(true); try { await buildRoundFromSelection(); } finally { setSaving(false); } }} disabled={saving || !selectedList.length} style={{ height: 34, padding: "0 12px", fontSize: 11 }}>{saving ? "SAVING…" : "CREATE ROUND"}</HostButton>
+          {selectedList.length > 0 && <HostButton onClick={() => setSelectedQuestions(new Map())} style={{ height: 34, padding: "0 10px", fontSize: 11 }}>Clear</HostButton>}
+          {selectedList.length > 0 && <details style={{ width: "100%" }}><summary style={{ cursor: "pointer", color: "#D94FDC" }}>Preview selected questions</summary><ol style={{ maxHeight: 220, overflowY: "auto", paddingLeft: 24 }}>{selectedList.map(q => <li key={q.id} style={{ margin: "8px 0", fontSize: 12 }}>{q.question_text}<div><button onClick={() => setSelectedQuestions(prev => { const next = new Map(prev); next.delete(q.id); return next; })}>Remove</button></div></li>)}</ol></details>}
         </section>
 
-        {loading && <HostLoading title="Question Bank" note="Loading saved questions…" />}
-        {!loading && filtered.length === 0 && (
+        {(loading || listLoading) && <HostLoading title="Question Bank" note="Loading saved questions…" />}
+        {!loading && !listLoading && questions.length === 0 && (
           <p style={{ textAlign: "center", color: "#6B5A8E", font: "400 13px 'Inter'" }}>
-            {search.trim().length >= 2 ? "No questions match your search." : "No questions in the bank yet."}
+            {search.trim().length >= 2 ? "No questions match your search." : reviewMode === "needs_review" ? "Nothing waiting for review." : "No questions in the bank yet."}
           </p>
         )}
 
+        {!loading && !listLoading && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))", gap: 12, alignItems: "start" }}>
-        {visibleQuestions.map(q => {
+        {questions.map(q => {
           const optionLetters = q.question_type === "multi_tap" ? ["a", "b", "c", "d", "e", "f"] : ["a", "b", "c", "d"];
           const correctLetters = q.correct_answer.toLowerCase().split(",").map(value => value.trim());
           const isPicture = q.question_type === "picture";
           const isAudio = q.question_type === "audio";
-          return (
-          <article key={q.id} className="fbh-panel" style={{ margin: 0, padding: 14, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-              <label style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", color: selectedQuestionIds.includes(q.id) ? "#2EE06E" : "#B9A8D9", font: "600 11px 'Inter'" }}><input type="checkbox" checked={selectedQuestionIds.includes(q.id)} onChange={event => setSelectedQuestionIds(prev => event.target.checked ? [...prev, q.id] : prev.filter(id => id !== q.id))} /> Select</label>
-              <span className="fbh-chip">{typeLabel[q.question_type] || q.question_type}</span>
-              <span style={{ color: "#B9A8D9", font: "500 11px 'Inter'" }}>{q.difficulty}</span>
-              <div style={{ flex: 1 }} />
-            </div>
-            <p style={{ font: "500 13px/1.45 'Inter'", color: "#D9CCF2", margin: "0 0 8px" }}>{q.question_text}</p>
-            {isPicture && q.option_b && <img src={getMediaUrl(q.option_b) ?? undefined} alt={q.option_a || "Question picture"} style={{ display: "block", width: "100%", height: 118, objectFit: "cover", borderRadius: 7, marginBottom: 7 }} />}
-            {isAudio && q.option_a && <div style={{ padding: "6px 8px", borderRadius: 7, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.35)", color: "#D9CCF2", font: "500 11px/1.35 'Inter'", marginBottom: 7 }}><strong style={{ color: "#D94FDC" }}>TRACK:</strong> {q.option_a}</div>}
-            {(q.question_type === "multiple_choice" || q.question_type === "multi_tap") && (
-              <div style={{ display: "grid", gap: 3 }}>
-                {optionLetters.map(l => {
-                  const option = q[("option_" + l) as keyof BankQuestion] as string | null;
-                  if (!option) return null;
-                  const correct = correctLetters.includes(l);
-                  return <div key={l} style={{ font: "400 12px/1.35 'Inter'", padding: "3px 5px", borderRadius: 6, background: correct ? "rgba(46,224,110,0.1)" : "transparent", color: correct ? "#2EE06E" : "#B9A8D9" }}>
-                    <span style={{ color: correct ? "#2EE06E" : "#6B5A8E", fontWeight: 700, marginRight: 5 }}>{l.toUpperCase()}.</span>{option}
-                  </div>
-                })}
+          const isHovered = hoveredId === q.id;
+          const body = (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", color: selectedQuestions.has(q.id) ? "#2EE06E" : "#B9A8D9", font: "600 11px 'Inter'" }}><input type="checkbox" checked={selectedQuestions.has(q.id)} onChange={event => setSelectedQuestions(prev => { const next = new Map(prev); if (event.target.checked) next.set(q.id, q); else next.delete(q.id); return next; })} /> Select</label>
+                <span className="fbh-chip">{typeLabel[q.question_type] || q.question_type}</span>
+                <span style={{ color: "#B9A8D9", font: "500 11px 'Inter'" }}>{q.difficulty}</span>
+                {q.topic && <span style={{ color: "#6B5A8E", font: "500 11px 'Inter'" }}>{q.topic}</span>}
+                {!!q.times_used && <span style={{ color: "#FFC533", font: "700 11px 'Inter'" }}>USED {q.times_used}×</span>}
+                <div style={{ flex: 1 }} />
+                {q.needs_review && <span style={{ color: "#facc15", font: "700 11px 'Inter'" }}>NEEDS REVIEW</span>}
               </div>
-            )}
-            {q.question_type === "sequence" && (
-              <div>{[q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean).map((item, idx) => (
-                <div key={idx} style={{ font: "400 12px/1.35 'Inter'", padding: "3px 5px", color: "#B9A8D9", display: "flex", gap: 5 }}>
-                  <span style={{ color: "#6B5A8E", fontWeight: 700 }}>{idx + 1}.</span>{item}
+              <p style={{ font: "500 13px/1.45 'Inter'", color: "#D9CCF2", margin: "0 0 8px" }}>{q.question_text}</p>
+              {isPicture && q.option_b && <img src={getMediaUrl(q.option_b) ?? undefined} alt={q.option_a || "Question picture"} style={{ display: "block", width: "100%", height: 118, objectFit: "cover", borderRadius: 7, marginBottom: 7 }} />}
+              {isAudio && q.option_a && <div style={{ padding: "6px 8px", borderRadius: 7, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.35)", color: "#D9CCF2", font: "500 11px/1.35 'Inter'", marginBottom: 7 }}><strong style={{ color: "#D94FDC" }}>TRACK:</strong> {q.option_a}</div>}
+              {(q.question_type === "multiple_choice" || q.question_type === "multi_tap") && (
+                <div style={{ display: "grid", gap: 3 }}>
+                  {optionLetters.map(l => {
+                    const option = q[("option_" + l) as keyof BankQuestion] as string | null;
+                    if (!option) return null;
+                    const correct = correctLetters.includes(l);
+                    return <div key={l} style={{ font: "400 12px/1.35 'Inter'", padding: "3px 5px", borderRadius: 6, background: correct ? "rgba(46,224,110,0.1)" : "transparent", color: correct ? "#2EE06E" : "#B9A8D9" }}>
+                      <span style={{ color: correct ? "#2EE06E" : "#6B5A8E", fontWeight: 700, marginRight: 5 }}>{l.toUpperCase()}.</span>{option}
+                    </div>
+                  })}
                 </div>
-              ))}</div>
-            )}
-            {(q.question_type === "text_answer" || q.question_type === "number") && (
-              <div>
-                {q.option_a && <p style={{ color: "#6B5A8E", font: "400 11px 'Inter'", margin: "0 0 4px" }}>Hint: {q.option_a}</p>}
+              )}
+              {q.question_type === "sequence" && (
+                <div>{[q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean).map((item, idx) => (
+                  <div key={idx} style={{ font: "400 12px/1.35 'Inter'", padding: "3px 5px", color: "#B9A8D9", display: "flex", gap: 5 }}>
+                    <span style={{ color: "#6B5A8E", fontWeight: 700 }}>{idx + 1}.</span>{item}
+                  </div>
+                ))}</div>
+              )}
+              {(q.question_type === "text_answer" || q.question_type === "number") && (
+                <div>
+                  {q.option_a && <p style={{ color: "#6B5A8E", font: "400 11px 'Inter'", margin: "0 0 4px" }}>Hint: {q.option_a}</p>}
+                </div>
+              )}
+              <div style={{ color: "#2EE06E", font: "600 12px/1.35 'Inter'", marginTop: 6 }}>→ {q.correct_answer}</div>
+              {q.review_note && <div style={{ color: "#FFC533", font: "400 11px/1.35 'Inter'", marginTop: 4 }}>⚠ {q.review_note}</div>}
+            </>
+          );
+          return (
+          <article
+            key={q.id}
+            className="fbh-panel"
+            onMouseEnter={() => setHoveredId(q.id)}
+            onMouseLeave={() => setHoveredId(prev => prev === q.id ? null : prev)}
+            style={{ margin: 0, padding: 14, minWidth: 0, position: "relative", border: q.needs_review ? "1px solid rgba(250,204,21,0.35)" : undefined, display: "flex", flexDirection: "column", height: 320 }}
+          >
+            {/* Uniform-height collapsed view - clipped so every card lines up the same */}
+            <div style={{ flex: 1, overflow: "hidden" }}>{body}</div>
+            {/* Hover expands the full, untruncated content in a popover above everything else */}
+            {isHovered && (
+              <div style={{ position: "absolute", top: -1, left: -1, right: -1, zIndex: 40, background: "#150A2E", border: "1px solid #BE26C1", borderRadius: 12, padding: 14, boxShadow: "0 12px 32px rgba(0,0,0,0.55)", maxHeight: 480, overflowY: "auto" }}>
+                {body}
               </div>
             )}
-            <div style={{ color: "#2EE06E", font: "600 12px/1.35 'Inter'", marginTop: 6 }}>→ {q.correct_answer}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-              <HostButton onClick={() => { setPickerQuestion(q); setRoundSearch(""); }} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Add to round…</HostButton>
+              {q.needs_review && <HostButton onClick={() => approveQuestion(q.id)} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Approve</HostButton>}
+              {!q.needs_review && <HostButton onClick={() => { setPickerQuestion(q); setRoundSearch(""); }} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Add to round…</HostButton>}
               <HostButton onClick={() => deleteQuestion(q.id)} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Delete</HostButton>
             </div>
           </article>
         );})}
         </div>
-        {!loading && filtered.length > PAGE_SIZE && <nav className="qi-bo-pagination" aria-label="Question pages"><HostButton disabled={page === 1} onClick={() => setPage(value => Math.max(1, value - 1))}>Previous</HostButton><span>Page {page} of {pageCount}</span><HostButton disabled={page === pageCount} onClick={() => setPage(value => Math.min(pageCount, value + 1))}>Next</HostButton></nav>}
+        )}
+        {!loading && !listLoading && matchingCount > PAGE_SIZE && <nav className="qi-bo-pagination" aria-label="Question pages"><HostButton disabled={page === 1} onClick={() => setPage(value => Math.max(1, value - 1))}>Previous</HostButton><span>Page {page} of {pageCount}</span><HostButton disabled={page === pageCount} onClick={() => setPage(value => Math.min(pageCount, value + 1))}>Next</HostButton></nav>}
       </main>
       {confirmDialogEl}
       {promptDialogEl}

@@ -1256,10 +1256,10 @@ function DisplayScreenInner() {
   if (phase === "hard_deck") {
     const rankLabels: Record<number,string> = { 1:"A", 11:"J", 12:"Q", 13:"K" };
     const rankLabel = (r: number) => rankLabels[r] || String(r);
-    // Matches HardDeckPanel's actual POINTS_LADDER - this was previously its
-    // own hardcoded [5,10,20,40], so the ladder markers the room saw never
-    // matched the real payout amounts the host panel was tracking.
-    const LADDER = [10, 25, 50, 100];
+    // Matches HardDeckPanel's actual CARD_POINTS (flat 10 per correct card,
+    // cumulative) - this used to be an escalating ladder [10,25,50,100],
+    // replaced per the host's request for a flat 10/card payout.
+    const LADDER = [10, 20, 30, 40];
     const nextRung = LADDER.find(v => v > hardDeckPotential) ?? LADDER[LADDER.length - 1];
     const inProgress = hardDeckStatus !== "idle" && hardDeckStatus !== "won" && hardDeckStatus !== "lost" && hardDeckStatus !== "wheel";
     return (

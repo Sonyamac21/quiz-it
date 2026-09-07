@@ -21,7 +21,10 @@ function rankLabel(rank: number): string {
   return RANK_LABELS[rank] || String(rank);
 }
 
-const POINTS_LADDER = [10, 25, 50, 100];
+// Flat points per correct card - replaces the old escalating ladder
+// (10/25/50/100). A steal always takes exactly this amount too, since it's
+// what the busting team was gambling for on the card that broke them.
+const CARD_POINTS = 10;
 
 type Props = {
   sessionId: string;
@@ -220,16 +223,13 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
       const winners = actualDirection
         ? Object.entries(lockedSteals).filter(([name, answer]) => name !== team && answer === actualDirection).map(([name]) => name)
         : [];
-      // Steal winners take exactly what the busting team was GAMBLING FOR on
-      // this card - the ladder tier this reveal was reaching for, using the
-      // same formula as the success branch below - not `potential`, which is
-      // only what they'd already banked from the PREVIOUS successful reveal.
-      // On a first-guess bust (no card successfully revealed yet) `potential`
+      // Steal winners take exactly what the busting team was gambling FOR on
+      // this card - a flat CARD_POINTS, same as every successful reveal
+      // below - not `potential`, which is only what they'd already banked
+      // from PREVIOUS successful reveals. On a first-guess bust `potential`
       // is still 0, which was paying stealing teams nothing even though the
-      // busting team was genuinely gambling for the first ladder tier.
-      const bustCardNumber = newCards.length;
-      const bustLadderIdx = bustCardNumber - 2;
-      const stolenPoints = POINTS_LADDER[bustLadderIdx] ?? POINTS_LADDER[POINTS_LADDER.length - 1];
+      // busting team was genuinely gambling for CARD_POINTS on that guess.
+      const stolenPoints = CARD_POINTS;
       setPotential(0);
       await Promise.all(winners.map(name => applyScoreDelta(supabase, sessionPin, name, stolenPoints, {
         eventKey: `harddeck-steal:${sessionId}:${playId}:${cards.length}:${name}`,
@@ -244,8 +244,9 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
     }
 
     const cardNumber = newCards.length;
-    const ladderIdx = cardNumber - 2;
-    const newPotential = POINTS_LADDER[ladderIdx] ?? POINTS_LADDER[POINTS_LADDER.length - 1];
+    // Flat 10 points per correct card, cumulative - replaces the old ladder
+    // (10/25/50/100 to fixed tiers) per the host's explicit request.
+    const newPotential = potential + CARD_POINTS;
     setPotential(newPotential);
     setGuess(null);
     setStealGuesses({});

@@ -704,7 +704,7 @@ button, input, select, textarea { font: inherit; }
    is a video, a photo, or nothing at all. */
 .fbl .lb-venue-intro{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vh;text-align:center;padding:0 6%;z-index:2;}
 .fbl .lb-venue-intro.has-media{background:linear-gradient(180deg,rgba(10,1,24,.05) 0%,rgba(10,1,24,.15) 55%,rgba(10,1,24,.72) 100%);border-radius:20px;justify-content:flex-end;padding-bottom:6%;}
-.fbl .lb-venue-intro-logo{width:min(220px,27vw);height:min(180px,22vw);object-fit:contain;border-radius:20px;background:rgba(10,1,24,.4);padding:12px;box-shadow:0 0 60px rgba(190,38,193,.45);animation:lbVenueLogoPop 1s var(--settle) both;}
+.fbl .lb-venue-intro-logo{width:min(320px,27vw);height:min(260px,22vw);object-fit:contain;border-radius:20px;background:rgba(10,1,24,.4);padding:12px;box-shadow:0 0 60px rgba(190,38,193,.45);animation:lbVenueLogoPop 1s var(--settle) both;}
 .fbl .lb-venue-intro-name{font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:clamp(30px,5.4vw,64px);letter-spacing:.03em;color:#fff;text-shadow:0 12px 50px rgba(190,38,193,.55);animation:lbVenueNameSweep 1s var(--settle) .25s both;}
 .fbl .lb-venue-intro-tagline{font:700 clamp(13px,1.7vw,20px) 'Inter';letter-spacing:.28em;text-transform:uppercase;color:var(--purple-b);animation:lbVenueTaglineFade .8s var(--settle) .6s both;}
 .fbl .lb-venue-intro-bg{position:absolute;inset:0;border-radius:20px;overflow:hidden;background:radial-gradient(ellipse 70% 60% at 50% 40%,rgba(190,38,193,.28),transparent 70%),#150A2E;}

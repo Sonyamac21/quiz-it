@@ -229,33 +229,38 @@ function PowerCardOverlays({ currentAnnounce, announceVisible, roundCardPlays, r
     <>
       {currentAnnounce && (
         <div style={{
-          position: "fixed", top: 28, left: "50%",
+          // Fixed px offsets/sizes here used to be tuned for one screen size -
+          // on a venue's actual TV/projector (which varies wildly, unlike a
+          // laptop preview) that meant this could sit too close to the edge
+          // or read too small/large relative to everything else on screen.
+          // vh/vw-based sizing scales with the actual display instead.
+          position: "fixed", top: "2.2vh", left: "50%",
           transform: announceVisible ? "translate(-50%, 0) scale(1)" : "translate(-50%, -16px) scale(0.96)",
           opacity: announceVisible ? 1 : 0,
           transition: "opacity 0.35s ease, transform 0.35s ease",
           zIndex: 9999, pointerEvents: "none",
-          display: "flex", alignItems: "center", gap: 18,
-          padding: "18px 34px", borderRadius: 18,
+          display: "flex", alignItems: "center", gap: "1.2vw",
+          padding: "1.4vh 2.2vw", borderRadius: 18,
           background: "rgba(20,5,40,0.96)",
           border: "2px solid " + (POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#BE26C1"),
           boxShadow: "0 8px 40px rgba(0,0,0,0.55), 0 0 30px " + (POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#BE26C1") + "66",
           fontFamily: "'Inter', sans-serif",
         }}>
-          <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1.5, color: POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#BE26C1" }}>
+          <span style={{ fontSize: "clamp(14px,1.5vw,24px)", fontWeight: 800, letterSpacing: 1.5, color: POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#BE26C1" }}>
             {"\u26A1 POWER CARD"}
           </span>
-          <span style={{ fontSize: 24, fontWeight: 800, color: "#fff" }}>{currentAnnounce.team}</span>
-          <span style={{ fontSize: 22, fontWeight: 700, color: POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#fff" }}>
+          <span style={{ fontSize: "clamp(15px,1.7vw,26px)", fontWeight: 800, color: "#fff" }}>{currentAnnounce.team}</span>
+          <span style={{ fontSize: "clamp(14px,1.5vw,24px)", fontWeight: 700, color: POWER_CARDS.find(p => p.type === currentAnnounce.type)?.color || "#fff" }}>
             {POWER_CARDS.find(p => p.type === currentAnnounce.type)?.title || currentAnnounce.type}
           </span>
         </div>
       )}
       {thisRoundCards.length > 0 && (
-        <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 9998, display: "flex", flexDirection: "column", gap: 6, fontFamily: "'Inter', sans-serif" }}>
+        <div style={{ position: "fixed", bottom: "2vh", right: "1.6vw", zIndex: 9998, display: "flex", flexDirection: "column", gap: "0.6vh", fontFamily: "'Inter', sans-serif" }}>
           {thisRoundCards.map((c, i) => {
             const card = POWER_CARDS.find(p => p.type === c.card_type);
             return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 10, background: "rgba(20,5,40,0.9)", border: "1px solid " + (card?.color || "#888"), color: "#fff", fontSize: 13, fontWeight: 600 }}>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.6vw", padding: "0.6vh 1vw", borderRadius: 10, background: "rgba(20,5,40,0.9)", border: "1px solid " + (card?.color || "#888"), color: "#fff", fontSize: "clamp(11px,0.9vw,15px)", fontWeight: 600 }}>
                 <span>{card?.emoji}</span><span>{c.team_name}</span><span style={{ color: "rgba(255,255,255,0.5)" }}>{card?.title}</span>
               </div>
             );

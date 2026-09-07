@@ -113,7 +113,9 @@ export default function EventCalendarPage() {
     // the calendar; the Quiz Plan can be attached now or later. Launching a
     // live session (app/host/session/page.tsx) is the one place a valid
     // quiz_definition_id is actually required.
-    if(!draft||!draft.venueId||!draft.hostId)return; setSaving(true);setError("");
+    if(!draft)return;
+    if(!draft.venueId||!draft.hostId){setError(!draft.venueId?"Pick a venue before saving - the event won't be created without one.":"A host is required before saving.");return;}
+    setSaving(true);setError("");
     const venue=venues.find(v=>v.id===draft.venueId)!; const supabase=createSupabaseBrowserClient();
     const existing=draft.id?events.find(event=>event.id===draft.id):null;
     const values={event_name:`${venue.venue_name} Quiz`,venue_id:venue.day_of_week,venue_record_id:venue.id,start_time:draft.start,end_time:draft.end||null,host_id:draft.hostId,host_name:draft.hostName,quiz_definition_id:draft.quizId||null,status:draft.status,special_offers:draft.offers||null,sponsors:draft.sponsors.split(",").map(v=>v.trim()).filter(Boolean),notes:draft.notes||null,brand_kit:existing?.brand_kit||null,music_pack:existing?.music_pack||null,prizes:existing?.prizes||null,power_cards:existing?.power_cards??false,overrides:{special_offers:!!draft.offers,sponsors:!!draft.sponsors,notes:!!draft.notes}};

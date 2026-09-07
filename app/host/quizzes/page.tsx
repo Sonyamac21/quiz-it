@@ -171,7 +171,7 @@ export default function QuizBuilderPage() {
     setBulkProgress({});
     setBulkOpen(true);
   }
-  function updateBulkConfig(roundId: string, patch: Partial<{ selected: boolean; count: number; theme: string; difficulty: string }>) {
+  function updateBulkConfig(roundId: string, patch: Partial<{ selected: boolean; count: number; theme: string; difficulty: string; allowedQuestionTypes: string[] }>) {
     setBulkConfig(prev => ({ ...prev, [roundId]: { ...prev[roundId], ...patch } }));
     // Persist the target count itself (not just theme/difficulty, which were
     // already saved elsewhere) the moment a host changes it, so "Hot Seat =
@@ -261,7 +261,9 @@ export default function QuizBuilderPage() {
     // the picker from a different round, even though it still existed.
     // Already-played questions are excluded so a host can't accidentally
     // pick the same question a second time for a returning venue/team.
-    let query = supabase.from("question_bank").select("*").or("times_used.is.null,times_used.eq.0").order("created_at", { ascending: false }).limit(100);
+    // Bulk-imported questions (e.g. the SpeedQuizzing archive) land as
+    // needs_review=true and stay out of this picker until reviewed/approved.
+    let query = supabase.from("question_bank").select("*").or("times_used.is.null,times_used.eq.0").or("needs_review.is.null,needs_review.eq.false").order("created_at", { ascending: false }).limit(100);
     if (search.trim()) {
       const term = search.trim().replace(/[%_,]/g, " ");
       query = query.or(`question_text.ilike.%${term}%,correct_answer.ilike.%${term}%,topic.ilike.%${term}%`);
@@ -1270,7 +1272,7 @@ export default function QuizBuilderPage() {
                           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", paddingTop: 4, borderTop: "1px solid #2E1A52", marginTop: 2 }}>
                             <span style={{ font: "400 13px 'Inter'", color: "#B9A8D9" }}>Include:</span>
                             {(["picture", "audio"] as const).map(t => {
-                              const base = ["mc", "text", "number"];
+                              const base = ["multiple_choice", "text_answer", "number"];
                               const current = cfg.allowedQuestionTypes && cfg.allowedQuestionTypes.length > 0 ? cfg.allowedQuestionTypes : base;
                               const checked = current.includes(t);
                               return (

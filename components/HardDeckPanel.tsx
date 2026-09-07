@@ -262,8 +262,11 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, sho
   // main overlay itself is already portaled straight to <body>.
   if (!open) {
     if (!showLaunchButton) return null;
+    // top:230 clears the host header's session-info row AND the toolbar row
+    // beneath it (Leaderboard controls / Show on handsets / Show scores) -
+    // at top:84 this button sat directly on top of those buttons.
     return createPortal(
-      <div style={{ position: "fixed", top: 84, left: "50%", transform: "translateX(-50%)", zIndex: 190, pointerEvents: "none" }}>
+      <div style={{ position: "fixed", top: 230, left: "50%", transform: "translateX(-50%)", zIndex: 190, pointerEvents: "none" }}>
         <button onClick={startHardDeck} style={{ pointerEvents: "auto", padding: "14px 32px", borderRadius: 999, background: "linear-gradient(145deg,#BE26C1,#8A1B8D)", border: "1px solid #D94FDC", color: "#fff", fontSize: 16, fontWeight: 800, letterSpacing: 1, cursor: "pointer", boxShadow: "0 6px 24px rgba(190,38,193,0.5), 0 0 30px rgba(217,79,220,0.35)" }}>
           🃏 Start The Hard Deck
         </button>

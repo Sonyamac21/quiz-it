@@ -98,7 +98,15 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
         const { data: cards } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin);
         if (cards) setUsed([...new Set(cards.map(d => d.card_type))]);
         const reason = String(row?.reason || "");
-        setFeedback({ ok: false, text: reason === "card-already-used" ? "Reverse has already been used this quiz." : reason === "reverse-only-in-rounds-1-2" || reason === "reverse-only-in-round-1" ? "Reverse is only available in Rounds 1 and 2." : reason === "cards-disabled" ? "Power Cards are paused for this round." : "Reverse was not accepted. Please tap again." });
+        // Surface the raw reason in the console for every unhandled case
+        // (e.g. "handset-not-authorised", "session-not-active") instead of
+        // only for network errors - a silent "not accepted" message with no
+        // trace of WHY made a genuine rejection indistinguishable from a
+        // transient blip when reported live.
+        if (!["card-already-used", "reverse-only-in-rounds-1-2", "reverse-only-in-round-1", "cards-disabled"].includes(reason)) {
+          console.error("Reverse card rejected:", reason || "(no reason returned)");
+        }
+        setFeedback({ ok: false, text: reason === "card-already-used" ? "Reverse has already been used this quiz." : reason === "reverse-only-in-rounds-1-2" || reason === "reverse-only-in-round-1" ? "Reverse is only available in Rounds 1 and 2." : reason === "cards-disabled" ? "Power Cards are paused for this round." : reason === "handset-not-authorised" ? "This handset isn't recognised for this team - rejoin the quiz on this phone, then try again." : reason === "session-not-active" ? "This quiz session isn't live." : "Reverse was not accepted. Please tap again." });
         setPlaying(null);
         return;
       }

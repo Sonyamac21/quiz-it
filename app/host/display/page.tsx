@@ -1901,15 +1901,24 @@ function DisplayScreenInner() {
 
     // PICTURE ROUND - image + question (second space)
     if (isPicture && pictureSubPhase === "question_visible") {
+      const pTLeft = timeLeft ?? 0;
       return (
         <div className="qi-display-picture-question">
       <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
+          {/* Same final-5s red vignette + threshold every other question type
+              uses (see qd-urgent below) - a Picture question previously had its
+              own quieter timer chip (urgent only inside the last 3s, no glow),
+              so a round mixing question types looked inconsistent depending on
+              which question happened to be showing. */}
+          <div className="qd-urgent" style={{ boxShadow: pTLeft > 0 && pTLeft <= 5
+            ? `inset 0 0 ${110 + (6 - pTLeft) * 34}px ${18 + (6 - pTLeft) * 14}px rgba(255,59,78,${(0.12 + (6 - pTLeft) * 0.11).toFixed(3)})`
+            : "none" }} />
           <div className="qi-display-picture-header">
             <div className="qi-display-question-number">QUESTION {questionIndex+1}</div>
             <div className="qi-display-picture-chip">PICTURE ROUND</div>
             <div style={{ flex:1 }} />
             {timeLeft !== null && timeLeft > 0 && (
-              <div className={"qi-display-picture-timer" + (timeLeft<=3 ? " is-urgent" : "")}>{timeLeft}</div>
+              <div className={"qi-display-picture-timer" + (timeLeft<=5 ? " is-urgent" : "")}>{timeLeft}</div>
             )}
             <div style={{ fontSize:18, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Quiz-It</div>
           </div>

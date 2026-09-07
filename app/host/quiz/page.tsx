@@ -1307,7 +1307,19 @@ function QuizControllerInner() {
     }
     const team = teams.find(t => fastestTeamName && sameTeam(t.team_name, fastestTeamName));
     const song = team?.victory_song || null;
-    const fastestPoints = fastestTeamName ? (lastDeltasRef.current[fastestTeamName] ?? 0) : 0;
+    // Exact-key lookup first (the normal path - autoScore keys lastDeltasRef
+    // with the same team_name string used here). Falls back to a
+    // case/whitespace-insensitive match for the safety-net branch above,
+    // where fastestTeamName can come from a raw DB row (persistedAnswers)
+    // instead of the host's canonical teamList entry - a team recorded as
+    // e.g. "Mama " vs "Mama" would otherwise silently miss the exact key and
+    // report 0 points despite genuinely being paid, showing "FASTEST
+    // CORRECT ANSWER" next to "No points this time" on the handset.
+    const fastestPoints = fastestTeamName
+      ? (lastDeltasRef.current[fastestTeamName]
+          ?? Object.entries(lastDeltasRef.current).find(([name]) => sameTeam(name, fastestTeamName))?.[1]
+          ?? 0)
+      : 0;
     setFastestTeam(fastestTeamName); fastestTeamRef.current = fastestTeamName;
     setFastestSong(song);
     setSpinOffered(false);

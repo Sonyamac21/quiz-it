@@ -30,7 +30,7 @@ type BankQuestion = {
 
 type RoundTarget = { id: string; name: string; round_type: string; questions: BankQuestion[]; table: "rounds" | "quiz_rounds"; quizName?: string };
 
-const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", multi_tap:"Multi Tap", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture", audio:"Music" };
+const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", multi_tap:"Multi Tap", text_answer:"Text Answer", number:"Number", nearest_wins:"Nearest Wins", sequence:"Sequence", picture:"Picture", audio:"Music" };
 const TOPICS = ["Sport", "Geography", "History", "Science & Nature", "Music", "Film & TV", "Literature & Language", "Food & Drink", "General Knowledge", "Current Affairs", "Art & Culture"];
 const PAGE_SIZE = 20;
 const selectStyle: React.CSSProperties = { height: 32, minWidth: 148, padding: "0 9px", borderRadius: 8, background: "#150A2E", color: "#F4EFFF", border: "1px solid #4D3175", fontSize: 11, fontFamily: "'Inter',sans-serif", cursor: "pointer", outline: "none" };
@@ -300,7 +300,7 @@ export default function QuestionBankPage() {
         />
 
         <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-          {["all", "multiple_choice", "multi_tap", "text_answer", "number", "sequence", "picture", "audio"].map(f => (
+          {["all", "multiple_choice", "multi_tap", "text_answer", "number", "nearest_wins", "sequence", "picture", "audio"].map(f => (
             <Chip key={f} on={filter === f} onClick={() => setFilter(f)}>{f === "all" ? "All questions" : typeLabel[f]}</Chip>
           ))}
         </div>

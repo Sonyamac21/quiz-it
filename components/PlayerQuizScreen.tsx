@@ -1535,9 +1535,16 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       : question.question_type === "multi_tap"
         ? tappedItems.join(",")
         : mySubmittedDisplay;
-    const verdict = submitted && submittedAnswerText
-      ? isAnswerCorrect({ answer_text: submittedAnswerText }, question)
-      : null;
+    // Nearest Wins has no right/wrong per player - isAnswerCorrect always
+    // returns false for it (see lib/quiz/answerScoring.ts) since the real
+    // ranking is by distance across every team's guess, not a fixed verdict.
+    // Keep this screen neutral ("ANSWER REVEALED") rather than flashing
+    // INCORRECT at a team that may well have won on closeness.
+    const verdict = question.question_type === "nearest_wins"
+      ? null
+      : submitted && submittedAnswerText
+        ? isAnswerCorrect({ answer_text: submittedAnswerText }, question)
+        : null;
     return (
       <div className={"fbl fbl-phone qi-player-state qi-player-answer" + (verdict === true ? " is-correct" : verdict === false ? " is-incorrect" : "")} style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", padding: 20 }}>
         <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={powerCardsUsableNow} photoUrl={teamPhotoUrl} points={myRunningPoints} />
@@ -1704,7 +1711,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
         {timerReady && !isMultiChoice && !isSequence && !isMultiTap && !submitted && (
           <div style={{ marginBottom: 16 }}>
-            <AnswerKeypad mode={question.question_type === "number" ? "number" : "text"} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
+            <AnswerKeypad mode={question.question_type === "number" || question.question_type === "nearest_wins" ? "number" : "text"} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
           </div>
         )}
 

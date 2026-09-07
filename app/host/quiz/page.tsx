@@ -18,7 +18,7 @@ import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { FEATURE_FLAGS } from "@/lib/platform/featureFlags";
 import { platformLogger } from "@/lib/platform/logger";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
-import { isAnswerCorrect as sharedIsAnswerCorrect, getCorrectAnswerText as sharedGetCorrectAnswerText } from "@/lib/quiz/answerScoring";
+import { isAnswerCorrect as sharedIsAnswerCorrect, getCorrectAnswerText as sharedGetCorrectAnswerText, nearestWinsDistance } from "@/lib/quiz/answerScoring";
 import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
@@ -622,6 +622,31 @@ function QuizControllerInner() {
     // the exact bug being fixed here. Computed once, up front, from every
     // team's latest answer, so every team in the loop below is judged by the
     // same single determination.
+    // Nearest Wins: no fixed right/wrong, every team's numeric guess is ranked
+    // against every other team's, by distance from the correct number.
+    // Closest guess wins full points; being close still counts for something
+    // even without winning outright (tapered by rank, not winner-takes-all).
+    // Ties on distance go to whoever submitted first, same convention as the
+    // speed bonus above.
+    const nwPointShares = [1, 0.6, 0.3];
+    const nwEntries = q.question_type === "nearest_wins"
+      ? teamList
+          .map(team => {
+            const ans = getLatestAnswer(team.team_name);
+            if (!ans) return null;
+            const distance = nearestWinsDistance(ans, q);
+            if (distance === null) return null;
+            return { teamName: team.team_name, distance, submittedAt: new Date(ans.submitted_at).getTime() };
+          })
+          .filter((e): e is { teamName: string; distance: number; submittedAt: number } => e !== null)
+          .sort((a, b) => a.distance - b.distance || a.submittedAt - b.submittedAt)
+      : [];
+    if (q.question_type === "nearest_wins") {
+      // The closest guess is this question's "winner" - reuse the same
+      // celebration/badge slot the speed bonus uses for every other type.
+      scoredFastestTeamRef.current = nwEntries[0]?.teamName || null;
+    }
+
     const anyTeamWipedOutThisQuestion = q.question_type === "multi_tap" && wipeoutMode && qIdx >= 5 && teamList.some(team => {
       const ans = getLatestAnswer(team.team_name);
       if (!ans) return false;
@@ -633,6 +658,16 @@ function QuizControllerInner() {
     for (const team of teamList) {
       const ans = getLatestAnswer(team.team_name);
       if (!ans) continue;
+      if (q.question_type === "nearest_wins") {
+        const rank = nwEntries.findIndex(e => e.teamName === team.team_name);
+        if (rank === -1) continue; // no numeric guess submitted - scores nothing
+        const nwDelta = Math.round(pointsPerQ * (nwPointShares[rank] ?? 0)) * (hasBoost(team.team_name) ? 2 : 1);
+        lastDeltasRef.current[team.team_name] = nwDelta;
+        if (nwDelta === 0) continue;
+        const nwResult = await applyScoreDelta(supabase, sessionPin, team.team_name, nwDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:nearestwins` });
+        if (nwResult.scoreboardSyncError) console.error(`autoScore (nearest wins, ${team.team_name}): score updated but scoreboard_data sync failed:`, nwResult.scoreboardSyncError);
+        continue;
+      }
       if (q.question_type === "multi_tap") {
         const correctKeys = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
         const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
@@ -2206,8 +2241,14 @@ function QuizControllerInner() {
                       // reveal the answer shows neutral, never green.
                       const ord = submissionOrder(s.team_name);
                       const ansObj = teamAnswerObj(s.team_name);
-                      const correct = answersRevealed && ansObj && currentQ ? isAnswerCorrect(ansObj, currentQ) : null;
-                      const ansColor = correct === true ? "#2EE06E" : correct === false ? "#FF3B4E" : "rgba(255,255,255,0.72)";
+                      // Nearest Wins has no right/wrong - only closer/farther - so
+                      // it gets its own coloring: closest guess in the room is
+                      // green, everyone else stays neutral (never red; a guess
+                      // that's merely further away isn't "wrong").
+                      const isNearestWins = currentQ?.question_type === "nearest_wins";
+                      const nwIsClosest = isNearestWins && answersRevealed && s.team_name === fastestTeam;
+                      const correct = !isNearestWins && answersRevealed && ansObj && currentQ ? isAnswerCorrect(ansObj, currentQ) : null;
+                      const ansColor = nwIsClosest ? "#2EE06E" : correct === true ? "#2EE06E" : correct === false ? "#FF3B4E" : "rgba(255,255,255,0.72)";
                       return (
                         <>
                           {ord !== null && <span style={{ fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.4)", flexShrink:0, minWidth:22 }}>#{ord}</span>}

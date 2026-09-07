@@ -91,7 +91,24 @@ export function getCorrectAnswerText(q: ScorableQuestion): string {
   return q.correct_answer;
 }
 
+// Nearest Wins (SpeedQuizzing's closest-guess mechanic) has no single
+// right/wrong answer - every numeric guess is judged relative to every other
+// team's guess, not against a fixed target in isolation. So "correct" is
+// meaningless here; the real ranking-by-distance logic lives in autoScore
+// (app/host/quiz/page.tsx), which is the only place with visibility into
+// every team's answer at once. Always returning false here keeps this type
+// out of the exact-match speed-bonus ranking (correctEntries) that every
+// other type uses, and out of the plain green/red reveal coloring - both of
+// which assume a binary right/wrong that doesn't apply.
+export function nearestWinsDistance(ans: ScorableAnswer, q: ScorableQuestion): number | null {
+  const guess = parseFloat(ans.answer_text);
+  const target = parseFloat(q.correct_answer);
+  if (!Number.isFinite(guess) || !Number.isFinite(target)) return null;
+  return Math.abs(guess - target);
+}
+
 export function isAnswerCorrect(ans: ScorableAnswer, q: ScorableQuestion): boolean {
+  if (q.question_type === "nearest_wins") return false;
   if (q.question_type === "multiple_choice") {
     const submitted = ans.answer_text.trim().toLowerCase();
     const stored = q.correct_answer.trim().toLowerCase();

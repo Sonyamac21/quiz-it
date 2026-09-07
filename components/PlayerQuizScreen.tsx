@@ -247,6 +247,11 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [fastestPoints, setFastestPoints] = useState(0);
   const [showScoreboardOnPhone, setShowScoreboardOnPhone] = useState(false);
   const [hideLeaderboard, setHideLeaderboard] = useState(false);
+  // is_final_round was already being fetched on every poll but never read
+  // into state or used anywhere - the running score was never actually
+  // hidden on the last round despite that being the intent (teams shouldn't
+  // see their own total ticking up mid-question right before the reveal).
+  const [isFinalRound, setIsFinalRound] = useState(false);
   const [allowPowerCards, setAllowPowerCards] = useState(true);
   const [phoneScoreboardData, setPhoneScoreboardData] = useState<{team_name:string; total_points:number}[]>([]);
   const [activeSessionRoundId, setActiveSessionRoundId] = useState<string | null>(null);
@@ -276,8 +281,11 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // - so a slow, failed, or RLS-blocked fetch (silently swallowed, no error
   // handling) hid the score for the round's entire duration, not just a brief
   // flash. Now defaults to VISIBLE and hides only once Danger Zone is
-  // positively confirmed for the current round.
-  const hideRunningPoints = scoreVisibilityRound?.id === activeSessionRoundId && scoreVisibilityRound.dangerZone;
+  // positively confirmed for the current round. Also hidden for the whole
+  // final round, so teams don't see their own total ticking up mid-question
+  // right before the live leaderboard reveal at quiz end - is_final_round was
+  // already being fetched but never actually acted on.
+  const hideRunningPoints = isFinalRound || (scoreVisibilityRound?.id === activeSessionRoundId && scoreVisibilityRound.dangerZone);
   const myRunningPoints = hideRunningPoints ? undefined : (phoneScoreboardData.find(s => s.team_name === teamName)?.total_points ?? 0);
   const [roundName, setRoundName] = useState("");
   // The team's own photo (uploaded at join), shown in the status bar crest
@@ -707,6 +715,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     setRoundName((data.round_name as string) || "");
     const leaderboardHidden = !!data.hide_leaderboard;
     setHideLeaderboard(leaderboardHidden);
+    setIsFinalRound(!!data.is_final_round);
     setAllowPowerCards(data.allow_power_cards !== false);
     const hotSeat = readHotSeatState(data);
     setHotSeatStatus(hotSeat.status);

@@ -1312,7 +1312,7 @@ function DisplayScreenInner() {
                   </div>
                 )}
                 {hardDeckStatus === "won" && <div style={{ font: "800 clamp(16px,2.4vw,30px) Inter", color: "var(--green)", letterSpacing: "0.06em" }}>WON {hardDeckPotential} POINTS</div>}
-                {hardDeckStatus === "lost" && <div style={{ textAlign:"center" }}><div style={{ font: "800 clamp(16px,2.4vw,30px) Inter", color: "var(--red)", letterSpacing: "0.14em" }}>BUST</div>{hardDeckStealWinners.length > 0 && <div style={{ marginTop:8, font:"800 clamp(13px,1.5vw,20px) Inter", color:"var(--green)" }}>2-POINT STEALS · {hardDeckStealWinners.join(" · ")}</div>}</div>}
+                {hardDeckStatus === "lost" && <div style={{ textAlign:"center" }}><div style={{ font: "800 clamp(16px,2.4vw,30px) Inter", color: "var(--red)", letterSpacing: "0.14em" }}>BUST</div>{hardDeckStealWinners.length > 0 && <div style={{ marginTop:8, font:"800 clamp(13px,1.5vw,20px) Inter", color:"var(--green)" }}>STEAL · {hardDeckStealWinners.join(" · ")}</div>}</div>}
               </div>
               {hdCelebration && (
                 <div key={hdCelebration.key} className={"hd-celebrate " + hdCelebration.type}>

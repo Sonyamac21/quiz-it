@@ -189,6 +189,13 @@ function QuizControllerInner() {
   // passed into PursuitPanel to launch it directly, instead of the host having
   // to separately reach for the always-visible header button.
   const [pursuitAutoStartId, setPursuitAutoStartId] = useState<string | null>(null);
+  // Same pattern as Pursuit above - Hard Deck used to have its own always-
+  // visible floating "Start The Hard Deck" button, on screen for the whole
+  // quiz regardless of round and sitting directly on top of the toolbar.
+  // It now launches only from the round_start screen of an actual Hard Deck
+  // round, exactly like every other round type.
+  const [hardDeckAutoStartId, setHardDeckAutoStartId] = useState<string | null>(null);
+  const [hardDeckActive, setHardDeckActive] = useState(false);
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
@@ -308,10 +315,11 @@ function QuizControllerInner() {
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [hostPhase, selectedRound, qIdx, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, timerDuration, dangerZone, dangerPenalty, wipeoutMode, timeLeft, isLastQ, pursuitActive]);
+  }, [hostPhase, selectedRound, qIdx, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, timerDuration, dangerZone, dangerPenalty, wipeoutMode, timeLeft, isLastQ, pursuitActive, hardDeckActive]);
 
   function handleSpacebar() {
     if (pursuitActive) return; // The Pursuit panel owns Space while it's running.
+    if (hardDeckActive) return; // The Hard Deck panel owns Space while it's running.
     if (!connected || !selectedRound) return;
     if (advancingRef.current) return;
     advancingRef.current = true;
@@ -332,6 +340,11 @@ function QuizControllerInner() {
         // other round). This Space press is what actually launches it -
         // matching "SPACE to preview Q1" for a normal round.
         setPursuitAutoStartId(selectedRound.id);
+      }
+      else if (selectedRound?.round_type === "hard_deck") {
+        // Same reasoning as Pursuit above - launch from here, not from an
+        // always-visible button floating over the rest of the host UI.
+        setHardDeckAutoStartId(selectedRound.id);
       }
       else if ((selectedRound?.questions.length ?? 0) === 0) doEndRound();
       else doPreviewQuestion(qIdx);
@@ -1599,6 +1612,7 @@ function QuizControllerInner() {
     // branch of handleSpacebar, exactly where every other round type's first
     // question would appear, so clear any stale id from a previous round.
     setPursuitAutoStartId(null);
+    setHardDeckAutoStartId(null);
     if (r?.hide_leaderboard) { setShowScoreboard(false); setShowScoreboardOnHandsets(false); }
     roundQuestionsRef.current = r ? [...r.questions] : [];
     const isFinalRound = !!r && rounds.length > 0 && r.position === rounds[rounds.length - 1].position;
@@ -1615,7 +1629,7 @@ function QuizControllerInner() {
 
   const spacebarHint =
     hostPhase === "waiting" ? (roundNumber === 1 ? "SPACE: Start Quiz" : "SPACE: Start Round") :
-    hostPhase === "round_start" ? (selectedRound?.round_type === "pursuit" ? "SPACE: Start The Pursuit" : "SPACE: Preview First Question") :
+    hostPhase === "round_start" ? (selectedRound?.round_type === "pursuit" ? "SPACE: Start The Pursuit" : selectedRound?.round_type === "hard_deck" ? "SPACE: Start The Hard Deck" : "SPACE: Preview First Question") :
     hostPhase === "preview" ? "SPACE: Send Question Live" :
     hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "SPACE: Reveal Question Text" :
     hostPhase === "question" ? "SPACE: Start Timer" :
@@ -1763,7 +1777,7 @@ function QuizControllerInner() {
             </div>
           </div>
         )}
-          {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} />}
+          {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setHardDeckActive(active); if (!active) setHardDeckAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={hardDeckAutoStartId} />}
           {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pursuitAutoStartId} />}
           {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
           <a href={sessionPin ? `/host/display?pin=${encodeURIComponent(sessionPin)}` : "/host/display"} target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
@@ -1859,7 +1873,7 @@ function QuizControllerInner() {
             <div style={{ textAlign:"center", marginTop:60 }}>
               <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#fff", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>{selectedRound.name}</div>
               <div style={{ font:"600 18px 'Inter'", color:"#B9A8D9", marginBottom:32 }}>{selectedRound.questions.length} questions</div>
-              <div style={{ font:"400 13px 'Inter'", color:"#6B5A8E", letterSpacing:".16em" }}>{selectedRound.round_type === "pursuit" ? "Announce the round — then SPACE to begin" : "Announce the round — then SPACE to preview Q1"}</div>
+              <div style={{ font:"400 13px 'Inter'", color:"#6B5A8E", letterSpacing:".16em" }}>{selectedRound.round_type === "pursuit" || selectedRound.round_type === "hard_deck" ? "Announce the round — then SPACE to begin" : "Announce the round — then SPACE to preview Q1"}</div>
             </div>
           ) : hostPhase === "round_end" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>

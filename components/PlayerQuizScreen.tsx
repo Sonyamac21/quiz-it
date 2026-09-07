@@ -214,6 +214,17 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       window.scrollTo(0, scrollY);
     };
   }, []);
+  // A team name read back from the session row (e.g. fastest_team, written by
+  // the host from ITS OWN team list) can differ from this device's own
+  // `teamName` prop by case or stray whitespace even when they're the same
+  // team - the host side has its own sameTeam() helper for exactly this
+  // reason. A strict === here meant a genuinely-fastest team could land on
+  // the "not the winner" branch of the celebration screen purely because of
+  // a casing mismatch, showing someone else's outcome layout instead of
+  // their own "That's you!" - reported live as "FASTEST CORRECT ANSWER"
+  // next to their own name, immediately followed by "No answer submitted".
+  const sameTeamName = (a: string | null | undefined, b: string | null | undefined) =>
+    !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
   const [phase, setPhase] = useState<Phase>("waiting");
   const [question, setQuestion] = useState<Question | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -292,6 +303,41 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     const interval = setInterval(fetchPhoto, PLATFORM_CONFIG.polling.playerHeartbeatMilliseconds);
     return () => { cancelled = true; clearInterval(interval); };
   }, [sessionPin, teamName]);
+  // mySubmittedDisplay/selectedAnswer/tappedItems are pure in-memory state,
+  // set only at the moment this device submits an answer (see the
+  // setMySubmittedDisplay call sites below). A phone locking, backgrounding,
+  // or reconnecting mid-question drops this component and remounts it with
+  // that state back at its initial empty value - the DATABASE answer is
+  // still there and still scored (the host console shows it correctly), but
+  // this handset's own celebration screen has no memory of ever submitting
+  // one, showing "No answer submitted" for an answer that was in fact
+  // correct and fastest. Backfill from the authoritative answers row the
+  // moment the reveal/celebration screens need it, if local state is empty.
+  useEffect(() => {
+    if (phase !== "celebration" && phase !== "answer") return;
+    if (mySubmittedDisplay || submitted) return;
+    if (!sessionPin || !teamName || !question) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createSupabaseBrowserClient();
+      const { data } = await supabase.from("answers")
+        .select("answer_text")
+        .eq("session_pin", sessionPin)
+        .eq("question_index", questionIndex)
+        .ilike("team_name", teamName.trim())
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled || !data?.answer_text) return;
+      const text = data.answer_text as string;
+      setMySubmittedDisplay(text);
+      setSubmitted(true);
+      if (question.question_type === "multiple_choice") setSelectedAnswer(text);
+      else if (question.question_type === "multi_tap") setTappedItems(text.split(",").filter(Boolean));
+      else setAnswerText(text);
+    })();
+    return () => { cancelled = true; };
+  }, [phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex]);
   const [hardDeckGuess, setHardDeckGuess] = useState<string | null>(null);
   const [hardDeckStealGuesses, setHardDeckStealGuesses] = useState<Record<string, string>>({});
   const [hardDeckStealWinners, setHardDeckStealWinners] = useState<string[]>([]);
@@ -997,7 +1043,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     );
   }
   if (phase === "spin_to_win") {
-    const isWinner = fastestTeamName === teamName;
+    const isWinner = sameTeamName(fastestTeamName, teamName);
     // The host now moves the session into this phase as soon as they click
     // "Offer Spin to Win" - before the winning team has actually chosen
     // Spin or Pass (see doOfferSpinToWin in app/host/quiz/page.tsx). This
@@ -1108,7 +1154,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
                   const red = c.suit === "♥" || c.suit === "♦";
                   const ink = red ? "#dc2626" : "#111";
                   return (
-                    <div key={i} style={{ width: `min(${widthCap}px,${widthVw}vw)`, height: `min(${heightCap}px,${heightVw}vw)`, flexShrink: 0, borderRadius: 12, position: "relative", background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -8px 12px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)" }}>
+                    <div key={i} style={{ width: `min(${widthCap}px,${widthVw}vw)`, height: `min(${heightCap}px,${heightVw}vw)`, flexShrink: 0, borderRadius: 12, position: "relative", overflow: "hidden", backgroundColor: "#f5f5f7", backgroundImage: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -8px 12px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", colorScheme: "light" }}>
                       {/* Corner indices, top-left and bottom-right (mirrored) - what
                           actually makes this read as a playing card rather than a
                           plain badge with a number stacked over a suit. */}
@@ -1300,7 +1346,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     );
   }
   if (phase === "celebration") {
-    const isWinnerForSpin = fastestTeamName === teamName;
+    const isWinnerForSpin = sameTeamName(fastestTeamName, teamName);
     if (isWinnerForSpin && spinOffered && !spinChoice) {
       return (
         <div className="qi-player-state qi-player-spin-choice" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24, textAlign: "center" as const }}>
@@ -1313,7 +1359,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         </div>
       );
     }
-    const isWinner = fastestTeamName === teamName;
+    const isWinner = sameTeamName(fastestTeamName, teamName);
     const confettiColors = ["#BE26C1","#fbbf24","#22c55e","#38bdf8","#f87171","#a78bfa"];
     return (
       <div className="qi-player-state qi-player-celebration" style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, position: "relative", overflow: "hidden" }}>

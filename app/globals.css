@@ -821,8 +821,14 @@ button, input, select, textarea { font: inherit; }
 @keyframes fblChargeF{0%{width:20%}70%{width:78%}85%{width:64%}100%{width:78%}}
 .fbl .hd-choice span{position:relative;z-index:2;}
 .fbl .hd-choice small{display:block;position:relative;z-index:2;font:600 clamp(10px,1.3vw,17px) 'Inter';color:var(--text2);letter-spacing:.08em;}
-/* Whose turn — the single most important context on the Hard Deck stage. */
-.fbl .hd-crowd{position:absolute;bottom:5%;left:0;right:0;text-align:center;font:800 clamp(17px,2.6vw,38px) 'Inter';color:var(--text);letter-spacing:.06em;z-index:3;text-shadow:0 0 24px rgba(190,38,193,.4);}
+/* Whose turn — the single most important context on the Hard Deck stage.
+   bottom:5% + a two-line instruction (e.g. "TEAM — HIGHER OR LOWER? ·
+   EVERYONE ELSE: PLAY FOR A STEAL") ran the second line down into the
+   branding badge's corner, where the badge's own backdrop-filter blur
+   partially obscured both - the "blurred bottom" the host flagged. Raised
+   clear of that zone and capped to a width that wraps sooner, higher on
+   screen, instead of stretching edge-to-edge into the badge's row. */
+.fbl .hd-crowd{position:absolute;bottom:12%;left:0;right:0;max-width:82%;margin:0 auto;text-align:center;font:800 clamp(17px,2.6vw,38px) 'Inter';color:var(--text);letter-spacing:.06em;z-index:3;text-shadow:0 0 24px rgba(190,38,193,.4);}
 .fbl .hd-crowd b{color:var(--purple-b);}
 /* Transient "DOUBLED! -> N" / "+N POINTS" callout - fires on a correct
    gamble (pot survives to the next rung) and again when the team banks at
@@ -1845,19 +1851,20 @@ button, input, select, textarea { font: inherit; }
 
 /* Hot Seat — one unmistakable action on the handset, broadcast-scale status on
    the display, and a compact operational readout for the speaking host. */
-.qi-pursuit-host-console { display: grid !important; grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr); align-content: start; align-items: start !important; background: #0d031d !important; }
-.qi-pursuit-host-console > * { grid-column: 1 / -1; max-width: none !important; min-width: 0; width: 100%; }
-.qi-pursuit-host-console > .qi-mc-next { order: -1; position: sticky; top: 0; z-index: 3; }
-.qi-pursuit-host-console > .qi-pursuit-host-question { grid-column: 1; grid-row: span 2; padding: 28px !important; }
+/* This used to force the console into a 2-column CSS grid (question card
+   spanning two rows on the left, answers/standings on the right) with a
+   sticky, translucent Next-Action bar pinned above everything. That grid
+   assumed a markup shape the component no longer has after simplifying the
+   Pursuit flow (no more separate rules/round-picker step, the race board
+   embedded directly) - the mismatch produced exactly the "impossible to
+   read" overlap the host reported: a translucent sticky button smeared over
+   a duplicate title and a clipped race board. The component's own inline
+   flex-column layout already stacks everything cleanly and in the right
+   order (title, board, question strip, answers, standings, button) - same
+   as every other round's console - so it no longer needs a competing grid
+   here. Only the solid page background is worth keeping.  */
+.qi-pursuit-host-console { background: #0d031d !important; }
 .qi-pursuit-host-question-text { font-size: clamp(26px, 3vw, 46px) !important; line-height: 1.2; margin: 20px 0; }
-.qi-pursuit-host-console > .qi-pursuit-host-answers,
-.qi-pursuit-host-console > .qi-pursuit-host-standings { grid-column: 2; }
-@media (max-width: 850px) {
-  .qi-pursuit-host-console { grid-template-columns: minmax(0, 1fr); padding: 16px !important; }
-  .qi-pursuit-host-console > .qi-pursuit-host-question,
-  .qi-pursuit-host-console > .qi-pursuit-host-answers,
-  .qi-pursuit-host-console > .qi-pursuit-host-standings { grid-column: 1; grid-row: auto; }
-}
 .qi-hot-seat-host { display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin:0 0 22px; padding:18px 20px; border:1px solid var(--qi-border); border-radius:var(--qi-radius-md); background:rgb(255 255 255 / .045); text-align:left; box-shadow:var(--qi-shadow-sm); transition:border-color .2s,background .2s,box-shadow .2s; }
 .qi-hot-seat-host__label { color:var(--qi-accent-bright); font-size:11px; font-weight:900; letter-spacing:.2em; }
 .qi-hot-seat-host strong { color:#fff; font-family:'Inter',sans-serif; font-size:clamp(22px,2.2vw,32px); letter-spacing:.01em; }

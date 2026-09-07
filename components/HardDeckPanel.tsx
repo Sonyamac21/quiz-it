@@ -28,14 +28,21 @@ type Props = {
   sessionPin: string;
   teams: { team_name: string }[];
   onScoreChange?: () => void;
-  // The launch button only makes sense while the host is actually on a Hard
-  // Deck round - it used to be always-visible for the entire quiz (a
-  // Regular round, Hot Seat, anything), permanently occupying the header/
-  // now-centered call-to-action even when there was nothing to start.
-  showLaunchButton?: boolean;
+  // Tells the host page when this overlay is up so its global spacebar
+  // handler stands down (mirrors PursuitPanel's onActiveChange).
+  onActiveChange?: (active: boolean) => void;
+  // Runs the parent's normal end-of-round sequence when Hard Deck is closed -
+  // mirrors PursuitPanel's onRoundComplete, so closing properly advances
+  // hostPhase to "round_end" instead of silently pushing phase:"waiting".
+  onRoundComplete?: () => void;
+  // Set by the host's main round list when a Hard Deck round is reached in
+  // the running order (via its round_start screen, exactly like every other
+  // round type) - see PursuitPanel's identical autoStartRoundId for the
+  // full reasoning. Each distinct value triggers one launch.
+  autoStartRoundId?: string | null;
 };
 
-export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, showLaunchButton = true }: Props) {
+export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onActiveChange, onRoundComplete, autoStartRoundId }: Props) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
   const [team, setTeam] = useState<string | null>(null);
@@ -118,6 +125,24 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, sho
     return () => { cancelled = true; };
   }, [sessionId, supabase]);
 
+  // Tell the host page when this overlay is up so its global spacebar
+  // handler stands down while Hard Deck is running (mirrors PursuitPanel).
+  useEffect(() => { onActiveChange?.(open); }, [open, onActiveChange]);
+
+  // Auto-launch: fires when the host reaches this Hard Deck round's
+  // round_start screen and presses Space, exactly like Pursuit's identical
+  // effect. lastAutoStartRef guards against relaunching on every render once
+  // a value is set - only a genuinely new id triggers a launch.
+  const lastAutoStartRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoStartRoundId) { lastAutoStartRef.current = null; return; }
+    if (open) return;
+    if (lastAutoStartRef.current === autoStartRoundId) return;
+    lastAutoStartRef.current = autoStartRoundId;
+    startHardDeck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStartRoundId, open]);
+
   function startHardDeck() {
     const targetIdx = Math.floor(Math.random() * teams.length);
     const nextPlayId = crypto.randomUUID();
@@ -195,10 +220,16 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, sho
       const winners = actualDirection
         ? Object.entries(lockedSteals).filter(([name, answer]) => name !== team && answer === actualDirection).map(([name]) => name)
         : [];
-      // Steal winners take exactly what the busting team was playing for -
-      // the pot at risk at the moment of the bust - not a flat consolation
-      // amount, so a steal on a big pot is actually worth stealing.
-      const stolenPoints = potential;
+      // Steal winners take exactly what the busting team was GAMBLING FOR on
+      // this card - the ladder tier this reveal was reaching for, using the
+      // same formula as the success branch below - not `potential`, which is
+      // only what they'd already banked from the PREVIOUS successful reveal.
+      // On a first-guess bust (no card successfully revealed yet) `potential`
+      // is still 0, which was paying stealing teams nothing even though the
+      // busting team was genuinely gambling for the first ladder tier.
+      const bustCardNumber = newCards.length;
+      const bustLadderIdx = bustCardNumber - 2;
+      const stolenPoints = POINTS_LADDER[bustLadderIdx] ?? POINTS_LADDER[POINTS_LADDER.length - 1];
       setPotential(0);
       await Promise.all(winners.map(name => applyScoreDelta(supabase, sessionPin, name, stolenPoints, {
         eventKey: `harddeck-steal:${sessionId}:${playId}:${cards.length}:${name}`,
@@ -252,7 +283,14 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, sho
 
   function closePanel() {
     setOpen(false);
-    pushState({ hard_deck_status: "idle", phase: "waiting" });
+    // Leave the Hard Deck-specific state, but let the parent's own
+    // end-of-round sequence (onRoundComplete) own the actual phase/
+    // session_rounds bookkeeping - mirrors PursuitPanel's closePanel.
+    // Previously this pushed phase:"waiting" directly, which never told the
+    // parent's hostPhase to leave round_start, so Space did nothing
+    // afterwards.
+    pushState({ hard_deck_status: "idle" });
+    onRoundComplete?.();
   }
 
   // Previously a tiny 11px pill buried in the header nav next to "Open
@@ -260,20 +298,10 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, sho
   // portaled to a fixed, centered, large call-to-action so the host can spot
   // it at a glance regardless of what else is on screen, matching how the
   // main overlay itself is already portaled straight to <body>.
-  if (!open) {
-    if (!showLaunchButton) return null;
-    // top:230 clears the host header's session-info row AND the toolbar row
-    // beneath it (Leaderboard controls / Show on handsets / Show scores) -
-    // at top:84 this button sat directly on top of those buttons.
-    return createPortal(
-      <div style={{ position: "fixed", top: 230, left: "50%", transform: "translateX(-50%)", zIndex: 190, pointerEvents: "none" }}>
-        <button onClick={startHardDeck} style={{ pointerEvents: "auto", padding: "14px 32px", borderRadius: 999, background: "linear-gradient(145deg,#BE26C1,#8A1B8D)", border: "1px solid #D94FDC", color: "#fff", fontSize: 16, fontWeight: 800, letterSpacing: 1, cursor: "pointer", boxShadow: "0 6px 24px rgba(190,38,193,0.5), 0 0 30px rgba(217,79,220,0.35)" }}>
-          🃏 Start The Hard Deck
-        </button>
-      </div>,
-      document.body
-    );
-  }
+  // No floating launch button anymore - Hard Deck now starts only from its
+  // own round_start screen in the running order (see autoStartRoundId
+  // above), exactly like Pursuit has zero manual launch button of its own.
+  if (!open) return null;
 
   const showRevealBaseButton = !showWheel && team && cards.length === 0;
 

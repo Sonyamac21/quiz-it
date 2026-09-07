@@ -351,8 +351,12 @@ export function HandsetSettings({
           </div>
         ))}
       </div>
-      <div className="pstB" style={{ marginTop: "auto", fontSize: "clamp(12px,3.2vw,14px)" }}>
-        Quiz-It · Powered by Mac Entertainment
+      <div className="pstB" style={{ marginTop: "auto", fontSize: "clamp(12px,3.2vw,14px)", display: "flex", alignItems: "baseline", gap: 6, justifyContent: "center" }}>
+        {/* Same purple/white wordmark used on the back office, host console,
+            and venue display - the handset previously just had plain casual
+            text here with no brand styling at all. */}
+        <span className="fbh-wm" style={{ fontSize: 15 }}><span className="q">QUIZ-</span>IT</span>
+        <span>· Powered by Mac Entertainment</span>
       </div>
     </HStage>
   );

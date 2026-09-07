@@ -378,7 +378,7 @@ export default function SessionPage() {
         {/* TOP BAR — wordmark · breadcrumb · fixed nav */}
         <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 24 }}>
           <img src="/me-logo.jpg" alt="ME" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} />
-          <span className="fbh-wm" style={{ fontSize: 16 }}><span className="q">QUIZ-</span>IT</span>
+          <span className="fbh-wm"><span className="q">QUIZ-</span>IT</span>
           <span className="fbh-bc">Live Preparation</span>
           <TopSpacer />
           <a className="fbh-btn" href="/host/events">Events</a>

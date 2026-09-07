@@ -528,7 +528,7 @@ export default function MusicPrepPage() {
       <div style={{ height: "100dvh", overflowY: "auto", WebkitOverflowScrolling: "touch" as const, background: STAGE_BG, color: "#fff", padding: "24px", maxWidth: 980, margin: "0 auto", boxSizing: "border-box" as const }}>
         {/* TOP BAR */}
         <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 20 }}>
-          <span className="fbh-wm" style={{ fontSize: 16 }}><span className="q">QUIZ-</span>IT</span>
+          <span className="fbh-wm"><span className="q">QUIZ-</span>IT</span>
           <span className="fbh-bc">Music Prep</span>
           <span style={{ font: "400 11px 'Inter'", color: "#6B5A8E" }}>Deezer · Auto-search · Waveform trim</span>
           <TopSpacer />

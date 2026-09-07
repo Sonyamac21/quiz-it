@@ -382,7 +382,7 @@ export default function QuestionBankPage() {
             className="fbh-panel"
             onMouseEnter={() => setHoveredId(q.id)}
             onMouseLeave={() => setHoveredId(prev => prev === q.id ? null : prev)}
-            style={{ margin: 0, padding: 14, minWidth: 0, position: "relative", border: q.needs_review ? "1px solid rgba(250,204,21,0.35)" : undefined, display: "flex", flexDirection: "column", height: 320 }}
+            style={{ margin: 0, padding: 14, minWidth: 0, position: "relative", border: q.needs_review ? "1px solid rgba(250,204,21,0.35)" : undefined, display: "flex", flexDirection: "column", height: 380 }}
           >
             {/* Uniform-height collapsed view - clipped so every card lines up the same */}
             <div style={{ flex: 1, overflow: "hidden" }}>{body}</div>

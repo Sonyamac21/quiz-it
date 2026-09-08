@@ -1557,17 +1557,63 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         ) : (
           <>
             <div style={{ position: "relative", zIndex: 2, fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 14, letterSpacing: ".14em", color: "#B9A8D9", marginBottom: 12 }}>
-              {verdict === false ? "INCORRECT" : "ANSWER REVEALED"}
+              {/* Multi Tap almost never lands on a flat "wrong" - a team
+                  usually gets several taps right even without a perfect
+                  exact-match verdict, so this reads "NOT A PERFECT MATCH"
+                  rather than a blanket INCORRECT that the breakdown below
+                  would immediately contradict. */}
+              {verdict === false ? (question.question_type === "multi_tap" ? "NOT A PERFECT MATCH" : "INCORRECT") : "ANSWER REVEALED"}
             </div>
             <div style={{ position: "relative", zIndex: 2, font: "700 clamp(15px,4.2vw,17px) 'Inter'", lineHeight: 1.4, marginBottom: 16, color: "rgba(255,255,255,0.6)" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
-            <div style={{ position: "relative", zIndex: 2, padding: "18px 20px", borderRadius: 16, background: "rgba(46,224,110,0.15)", border: "1px solid rgba(46,224,110,0.5)", marginBottom: 14 }}>
-              <div style={{ font: "700 13px 'Inter'", color: "#2EE06E", letterSpacing: ".18em", marginBottom: 6 }}>CORRECT ANSWER</div>
-              <div style={{ font: "800 clamp(24px,7vw,32px) 'Inter'", color: "#2EE06E" }}>{correctText}</div>
-            </div>
-            {submitted && (
-              <div style={{ position: "relative", zIndex: 2, font: "600 14px 'Inter'", color: verdict === false ? "#FF3B4E" : "#B9A8D9", marginBottom: 12 }}>
-                Your answer: {mySubmittedDisplay || "(no answer submitted)"}
-              </div>
+            {question.question_type === "multi_tap" ? (() => {
+              // Multi Tap is never a flat right/wrong: a team almost always
+              // taps SOME options correctly even when they don't get a
+              // perfect exact-match verdict, but this screen used to only
+              // ever say "INCORRECT" plus a comma-joined answer list -
+              // showing no feedback at all about which specific taps were
+              // right or wrong. A per-option breakdown (matching the colours
+              // the host's reveal screen already uses) replaces that.
+              const mtOptions = [
+                { key: "a", text: question.option_a }, { key: "b", text: question.option_b },
+                { key: "c", text: question.option_c }, { key: "d", text: question.option_d },
+                { key: "e", text: question.option_e }, { key: "f", text: question.option_f },
+              ].filter((o): o is { key: string; text: string } => !!o.text);
+              const correctKeys = (question.correct_answer || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+              const tappedKeys = tappedItems.map(k => k.toLowerCase());
+              return (
+                <div style={{ position: "relative", zIndex: 2, display: "grid", gap: 6, marginBottom: 14 }}>
+                  {mtOptions.map(o => {
+                    const isCorrectOption = correctKeys.includes(o.key);
+                    const wasTapped = tappedKeys.includes(o.key);
+                    const gotItRight = isCorrectOption === wasTapped;
+                    return (
+                      <div key={o.key} style={{
+                        display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10,
+                        background: gotItRight ? "rgba(46,224,110,0.12)" : "rgba(255,59,75,0.12)",
+                        border: "1px solid " + (gotItRight ? "rgba(46,224,110,0.4)" : "rgba(255,59,75,0.4)"),
+                      }}>
+                        <span style={{ fontSize: 16 }}>{gotItRight ? "✓" : "✗"}</span>
+                        <span style={{ font: "600 14px 'Inter'", color: "#fff", flex: 1 }}>{o.text}</span>
+                        <span style={{ font: "700 10px 'Inter'", letterSpacing: ".08em", color: gotItRight ? "#2EE06E" : "#FF3B4E" }}>
+                          {isCorrectOption ? (wasTapped ? "TAPPED - RIGHT" : "MISSED") : (wasTapped ? "TAPPED - WRONG" : "LEFT - RIGHT")}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })() : (
+              <>
+                <div style={{ position: "relative", zIndex: 2, padding: "18px 20px", borderRadius: 16, background: "rgba(46,224,110,0.15)", border: "1px solid rgba(46,224,110,0.5)", marginBottom: 14 }}>
+                  <div style={{ font: "700 13px 'Inter'", color: "#2EE06E", letterSpacing: ".18em", marginBottom: 6 }}>CORRECT ANSWER</div>
+                  <div style={{ font: "800 clamp(24px,7vw,32px) 'Inter'", color: "#2EE06E" }}>{correctText}</div>
+                </div>
+                {submitted && (
+                  <div style={{ position: "relative", zIndex: 2, font: "600 14px 'Inter'", color: verdict === false ? "#FF3B4E" : "#B9A8D9", marginBottom: 12 }}>
+                    Your answer: {mySubmittedDisplay || "(no answer submitted)"}
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

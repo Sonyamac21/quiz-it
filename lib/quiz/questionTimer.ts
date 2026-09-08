@@ -16,6 +16,10 @@ export const TIMER_BY_TYPE: Record<string, number> = {
   multi_tap: 15,
   number: 15,
   text_answer: 30,
+  // Slightly longer than a plain Number question - a closest-guess estimate
+  // (e.g. "How many floors does the Burj Khalifa have?") genuinely takes a
+  // beat longer to reason about than an exact-answer number question does.
+  nearest_wins: 20,
 };
 
 export function getTimerForQuestion(q: { question_type?: string } | null | undefined, fallback: number): number {

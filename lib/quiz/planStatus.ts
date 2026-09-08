@@ -33,7 +33,7 @@ export type QuizPreflight = {
   warnings: QuizPreflightIssue[];
 };
 
-const QUESTION_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "pursuit", "hot_seat", "bonus"]);
+const QUESTION_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "nearest_wins", "pursuit", "hot_seat", "bonus"]);
 
 function normalisedKeys(value: unknown): string[] {
   return String(value ?? "").toLowerCase().split(",").map(item => item.trim()).filter(Boolean);

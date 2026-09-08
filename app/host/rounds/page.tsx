@@ -37,13 +37,14 @@ type Round = {
   synced_from_quiz_round_id: string | null;
 };
 
-const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence" };
+const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", multi_tap:"Multi Tap", picture:"Picture", audio:"Music", nearest_wins:"Nearest Wins" };
 
 const ROUND_LAUNCHER_TYPES: { key: string; label: string }[] = [
   { key: "regular",   label: "General Knowledge" },
   { key: "bonus",     label: "Bonus / Themed" },
   { key: "music",     label: "Music" },
   { key: "multi_tap", label: "Multi Tap" },
+  { key: "nearest_wins", label: "Nearest Wins" },
   { key: "pursuit",   label: "The Pursuit" },
   { key: "hot_seat",  label: "Hot Seat" },
 ];

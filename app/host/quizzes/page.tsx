@@ -42,6 +42,7 @@ function questionKey(question: { question_text?: unknown; correct_answer?: unkno
 const LIBRARY_TYPE_POOLS: Record<string, string[]> = {
   music: ["audio"],
   multi_tap: ["multi_tap"],
+  nearest_wins: ["nearest_wins"],
   pursuit: ["multiple_choice", "text_answer", "number", "sequence"],
   hot_seat: ["multiple_choice", "text_answer", "number", "sequence"],
   bonus: ["multiple_choice", "text_answer", "number"],
@@ -247,6 +248,7 @@ export default function QuizBuilderPage() {
   const ROUND_TYPE_LABELS: Record<string, string> = {
     regular: "Regular",
     multi_tap: "Multi Tap",
+    nearest_wins: "Nearest Wins",
     pursuit: "The Pursuit",
     hot_seat: "Hot Seat",
     bonus: "Bonus",

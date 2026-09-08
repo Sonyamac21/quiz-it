@@ -1598,7 +1598,7 @@ function DisplayScreenInner() {
           {fastestTeam && (
             <div key={"spin-winner-" + fastestTeam} className="qi-display-spin-winner-wrap">
               <div className="qi-display-spin-sparkle" />
-              <div className="qi-display-eyebrow qi-display-fastest-eyebrow">FASTEST CORRECT ANSWER</div>
+              <div className="qi-display-eyebrow qi-display-fastest-eyebrow">{question?.question_type === "nearest_wins" ? "CLOSEST GUESS" : "FASTEST CORRECT ANSWER"}</div>
               <div className="qi-display-spin-winner qi-display-spin-winner-name">{fastestTeam.toUpperCase()}</div>
             </div>
           )}
@@ -1746,7 +1746,7 @@ function DisplayScreenInner() {
         {fastestTeam && <div key={"flash-" + fastestTeam} className="qi-display-celebration-flash" />}
         {fastestTeam ? (
           <div className="qi-display-celebration-content">
-            <div className="qi-display-eyebrow qi-display-fastest-eyebrow">FASTEST CORRECT ANSWER</div>
+            <div className="qi-display-eyebrow qi-display-fastest-eyebrow">{question?.question_type === "nearest_wins" ? "CLOSEST GUESS" : "FASTEST CORRECT ANSWER"}</div>
             <div className="qi-display-fastest-team">
               {fastestTeam}
             </div>

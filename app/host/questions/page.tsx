@@ -115,7 +115,7 @@ function createPictureTopicPicker(): (launchIndex: number) => string {
     return shuffledPictureTopics[launchIndex % shuffledPictureTopics.length];
   };
 }
-const typeLabel: Record<string,string> = { multi_tap:"Multi Tap", multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune" };
+const typeLabel: Record<string,string> = { multi_tap:"Multi Tap", multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune", nearest_wins:"Nearest Wins" };
 
 export default function QuestionsPage() {
   const [roundType, setRoundType] = useState("regular");
@@ -304,6 +304,8 @@ export default function QuestionsPage() {
       types = Array(count).fill("audio");
     } else if (roundType === "multi_tap") {
       types = Array(count).fill("multi_tap");
+    } else if (roundType === "nearest_wins") {
+      types = Array(count).fill("nearest_wins");
     } else if (roundType === "pursuit") {
       // The Pursuit runs on the standard, text-answerable question types (no
       // picture/audio, whose media the race board doesn't display), 7 gates.
@@ -656,6 +658,7 @@ export default function QuestionsPage() {
     const types =
       roundType === "music" ? ["audio"] :
       roundType === "multi_tap" ? ["multi_tap"] :
+      roundType === "nearest_wins" ? ["nearest_wins"] :
       ["multiple_choice","multiple_choice","text_answer","text_answer","number","sequence","picture","picture","audio"];
     const musicTopicList = shuffle(MUSIC_TOPICS);
     const pickGeneralTopic = createGeneralTopicPicker();
@@ -749,6 +752,7 @@ export default function QuestionsPage() {
                 <option value="bonus">Bonus / themed</option>
                 <option value="music">Music round</option>
                 <option value="multi_tap">Multi Tap round</option>
+                <option value="nearest_wins">Nearest Wins round</option>
                 <option value="pursuit">The Pursuit</option>
                 <option value="hot_seat">Hot Seat</option>
               </select>

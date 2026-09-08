@@ -197,6 +197,8 @@ export async function generateValidatedRound(
     types = Array(count).fill("audio");
   } else if (roundType === "multi_tap") {
     types = Array(count).fill("multi_tap");
+  } else if (roundType === "nearest_wins") {
+    types = Array(count).fill("nearest_wins");
   } else if (roundType === "pursuit") {
     types = shuffle(Array.from({ length: count }, (_, i) => ["multiple_choice", "text_answer", "number", "sequence"][i % 4]));
   } else if (roundType === "hot_seat") {

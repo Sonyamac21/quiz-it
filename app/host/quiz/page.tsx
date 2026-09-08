@@ -57,8 +57,8 @@ type Answer = { session_pin: string; id: string; team_name: string; question_ind
 type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
 type Score = { team_name: string; total_points: number; round_points: number; };
 
-const typeColor: Record<string,string> = { multiple_choice:"#D94FDC", multi_tap:"#D94FDC", text_answer:"#D94FDC", number:"#D94FDC", sequence:"#D94FDC", picture:"#D94FDC", audio:"#D94FDC" };
-const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", multi_tap:"Multi Tap", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune" };
+const typeColor: Record<string,string> = { multiple_choice:"#D94FDC", multi_tap:"#D94FDC", text_answer:"#D94FDC", number:"#D94FDC", sequence:"#D94FDC", picture:"#D94FDC", audio:"#D94FDC", nearest_wins:"#D94FDC" };
+const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", multi_tap:"Multi Tap", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune", nearest_wins:"Nearest Wins" };
 const cardColor: Record<string,string> = { block:"#38A8FF", reverse:"#FF3B4E", x2:"#FFC533" };
 const cardLabel: Record<string,string> = { block:"Time-Out", reverse:"Reverse", x2:"Boost" };
 
@@ -103,6 +103,12 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
       "Listen to the track, then answer the question about it.",
       `Same scoring as a normal round \u2014 ${pointsPerQ} points for a correct answer, plus up to +${timeBonus} for the fastest.`,
     ],
+    nearest_wins: [
+      "Closest guess wins \u2014 there's no exact right answer to type in, just your best estimate.",
+      `The team whose guess is closest to the true number scores the most; 2nd and 3rd closest still score a share of the points. Everyone else gets zero for that question.`,
+      "Ties are broken by whoever submitted first, so don't wait around once you've settled on a number.",
+      timerLine,
+    ],
     hard_deck: [
       "One team gets picked by the wheel to play.",
       "Every other team predicts Higher or Lower privately for a possible 2-point steal.",
@@ -128,7 +134,7 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
   };
 }
 
-const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "Multi Tap", music: "Music Round", hot_seat: "Hot Seat", pursuit: "The Pursuit", bonus: "Bonus Round", hard_deck: "The Hard Deck" };
+const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "Multi Tap", music: "Music Round", hot_seat: "Hot Seat", pursuit: "The Pursuit", bonus: "Bonus Round", hard_deck: "The Hard Deck", nearest_wins: "Nearest Wins" };
 
 
 
@@ -1783,7 +1789,7 @@ function QuizControllerInner() {
 
               {selectedRound && (() => {
                 const rt = selectedRound.questions[0]?.round_type || "regular";
-                const key = (rt === "multi_tap" || rt === "music") ? rt : "regular";
+                const key = (rt === "multi_tap" || rt === "music" || rt === "nearest_wins") ? rt : "regular";
                 return (
                   <div style={{ marginBottom:20 }}>
                     <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>{(ROUND_TYPE_LABEL[key]||"GENERAL KNOWLEDGE").toUpperCase()} \u2014 CURRENT ROUND</div>

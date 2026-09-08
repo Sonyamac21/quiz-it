@@ -164,6 +164,13 @@ export default function QuizBuilderPage() {
   const [manualAText, setManualAText] = useState("");
   const [libraryOpenId, setLibraryOpenId] = useState<string | null>(null);
   const [librarySearch, setLibrarySearch] = useState("");
+  // Which question_type the manual "+ FROM LIBRARY" search is restricted to
+  // - "" means all types. Previously this panel had no type filter at all,
+  // so it just showed the 100 most-recently-saved questions regardless of
+  // type: after a bulk multi_tap generation session, that meant every
+  // "+ FROM LIBRARY" search on every round - including a plain Regular
+  // round - was dominated by multi_tap results, with no way to narrow it.
+  const [libraryTypeFilter, setLibraryTypeFilter] = useState("");
   const [libraryResults, setLibraryResults] = useState<BankQuestion[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryAddingId, setLibraryAddingId] = useState<string | null>(null);
@@ -299,7 +306,7 @@ export default function QuizBuilderPage() {
     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
     setManualQText(""); setManualAText("");
   }
-  async function loadLibraryQuestions(search: string) {
+  async function loadLibraryQuestions(search: string, typeOverride?: string) {
     setLibraryLoading(true);
     const supabase = createSupabaseBrowserClient();
     // The Question Library is reusable across round types. Filtering by the
@@ -312,6 +319,12 @@ export default function QuizBuilderPage() {
     // Bulk-imported questions (e.g. the SpeedQuizzing archive) land as
     // needs_review=true and stay out of this picker until reviewed/approved.
     let query = supabase.from("question_bank").select("*").or("needs_review.is.null,needs_review.eq.false").order("created_at", { ascending: false }).limit(100);
+    // Type filter is explicit and host-controlled (see libraryTypeFilter) -
+    // "" means no filter. typeOverride lets a caller apply a just-changed
+    // filter value immediately, since setLibraryTypeFilter's state update
+    // wouldn't be visible in this closure until the next render.
+    const activeType = typeOverride !== undefined ? typeOverride : libraryTypeFilter;
+    if (activeType) query = query.eq("question_type", activeType);
     if (search.trim()) {
       const term = search.trim().replace(/[%_,]/g, " ");
       query = query.or(`question_text.ilike.%${term}%,correct_answer.ilike.%${term}%,topic.ilike.%${term}%`);
@@ -1489,7 +1502,7 @@ export default function QuizBuilderPage() {
                         </HostButton>
                       </div>
                     )}
-                    <HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); loadLibraryQuestions(""); } return next; }); setAddQuestionOpenId(null); setRandomOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
+                    <HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); const allowed = allowedLibraryTypesForRound(activeRound.round_type); const defaultType = allowed.length === 1 ? allowed[0] : ""; setLibraryTypeFilter(defaultType); loadLibraryQuestions("", defaultType); } return next; }); setAddQuestionOpenId(null); setRandomOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
                     <HostButton onClick={() => { setRandomOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); setAddQuestionOpenId(null); }}>{randomOpenId === activeRound.id ? "CLOSE" : "🎲 RANDOM FROM LIBRARY"}</HostButton>
                     <HostButton onClick={() => { setAddQuestionOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); setRandomOpenId(null); }}>{addQuestionOpen ? "CLOSE" : "+ ADD QUESTION"}</HostButton>
                   </div>
@@ -1507,15 +1520,31 @@ export default function QuizBuilderPage() {
                 )}
                 {libraryOpenId === activeRound.id && (
                   <div style={{ display: "grid", gap: 8, padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
-                    <input
-                      value={librarySearch}
-                      onChange={e => { setLibrarySearch(e.target.value); loadLibraryQuestions(e.target.value); }}
-                      placeholder="Search all saved questions and answers..."
-                      className="fbh-input"
-                      style={{ width: "100%" }}
-                    />
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <input
+                        value={librarySearch}
+                        onChange={e => { setLibrarySearch(e.target.value); loadLibraryQuestions(e.target.value); }}
+                        placeholder="Search all saved questions and answers..."
+                        className="fbh-input"
+                        style={{ flex: "1 1 220px" }}
+                      />
+                      <select
+                        value={libraryTypeFilter}
+                        onChange={e => { setLibraryTypeFilter(e.target.value); loadLibraryQuestions(librarySearch, e.target.value); }}
+                        style={{ padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}
+                      >
+                        <option value="">All types</option>
+                        <option value="multiple_choice">Multiple Choice</option>
+                        <option value="text_answer">Text Answer</option>
+                        <option value="number">Number</option>
+                        <option value="sequence">Sequence</option>
+                        <option value="picture">Picture</option>
+                        <option value="audio">Music</option>
+                        <option value="multi_tap">Multi Tap</option>
+                      </select>
+                    </div>
                     {libraryLoading && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>Searching...</div>}
-                    {!libraryLoading && libraryResults.length === 0 && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>No saved questions found in the Question Library.</div>}
+                    {!libraryLoading && libraryResults.length === 0 && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>No saved questions found in the Question Library{libraryTypeFilter ? " for this question type" : ""}.</div>}
                     <div style={{ display: "grid", gap: 6, maxHeight: 260, overflowY: "auto" }}>
                       {libraryResults.map(bq => {
                         const alreadyAdded = activeRound.questions.some(question => questionKey(question) === questionKey(bq));
@@ -1523,6 +1552,7 @@ export default function QuizBuilderPage() {
                         <div key={bq.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52" }}>
                           <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2" }}>
                             {!!bq.times_used && <span style={{ color: "#FFC533", fontWeight: 700, marginRight: 6 }}>USED {bq.times_used}×</span>}
+                            {!libraryTypeFilter && <span style={{ color: "#B9A8D9", fontWeight: 700, marginRight: 6, textTransform: "uppercase", fontSize: 10 }}>{bq.question_type.replace("_", " ")}</span>}
                             {bq.question_text} <span style={{ color: "#2EE06E" }}>{"-> " + bq.correct_answer}</span>
                           </div>
                           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { HostShell, HostButton, HostLoading, HostEmpty, TopSpacer } from "@/components/fable/HostConsole";
+import { HostShell, HostButton, HostLoading, HostEmpty } from "@/components/fable/HostConsole";
 import { useConfirmDialog, usePromptDialog } from "@/components/ui/quiz-it-ui";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -171,18 +171,16 @@ export default function RoundsPage() {
       {confirmDialogEl}
       {promptDialogEl}
       <div style={{ minHeight: "100vh", background: STAGE_BG, color: "#fff", padding: "24px", maxWidth: 980, margin: "0 auto" }}>
-        {/* TOP BAR */}
-        <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 20 }}>
-          <span className="fbh-wm"><span className="q">QUIZ-</span>IT</span>
-          <span className="fbh-bc">Round Library</span>
-          <TopSpacer />
-          <a className="fbh-btn" href="/host/events">Events</a>
-          <a className="fbh-btn" href="/host/music-prep">Music Prep</a>
-          <a className="fbh-btn" href="/host/question-bank">Question Bank</a>
-          <a className="fbh-btn" href="/host/quizzes">Quiz Plans</a>
-          <a className="fbh-btn pri" href="/host/questions">Generate Questions</a>
-        </div>
-
+        {/* The site-wide header (QUIZ-IT wordmark, Home/Quiz Plans/Questions &
+            Rounds/Media & Music/Calendar/Manage nav, "Run a quiz") already
+            renders above this page via app/host/layout.tsx's BackOfficeShell.
+            This page used to also render its own separate mini header here
+            (its own tiny wordmark + a different set of nav links styled with
+            plain dark pill buttons) - a leftover from before that shared
+            shell existed. That gave every visit to Round Library a jarring
+            second, differently-styled header stacked under the real one.
+            Removed - the shared header's "Questions & Rounds" sub-nav already
+            covers Saved rounds/Saved questions/Generate questions. */}
         <p style={{ font: "400 13px 'Inter'", color: "#8D7AAE", marginBottom: 18, lineHeight: 1.5 }}>
           Individual rounds live here. To build a full night's running order (and assign it to a date), combine rounds into a <a href="/host/quizzes" style={{ color: "#D94FDC" }}>Quiz Plan</a>.
         </p>

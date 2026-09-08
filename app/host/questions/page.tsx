@@ -6,7 +6,7 @@ import { AudioUploader } from "@/components/AudioUploader";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pixabayMatch";
-import { HostShell, HostButton, HostInput, Chip, TopSpacer } from "@/components/fable/HostConsole";
+import { HostShell, HostButton, HostInput, Chip } from "@/components/fable/HostConsole";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const fableSelect: React.CSSProperties = { width: "100%", padding: "9px 12px", borderRadius: 14, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", fontSize: 13, fontFamily: "'Inter',sans-serif", outline: "none" };
@@ -1737,13 +1737,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     <HostShell>
       <div style={{ height:"100dvh", overflowY:"auto", WebkitOverflowScrolling:"touch" as const, background:STAGE_BG, color:"#fff", padding:"24px", maxWidth:980, margin:"0 auto", boxSizing:"border-box" as const }}>
         {/* TOP BAR */}
-        <div className="fbh-top" style={{ border:"1px solid #2E1A52", borderRadius:16, marginBottom:20 }}>
-          <span className="fbh-wm"><span className="q">QUIZ-</span>IT</span>
-          <span className="fbh-bc">AI Question Generation</span>
-          <TopSpacer />
-          <a className="fbh-btn" href="/host/events">Events</a>
-          <a className="fbh-btn" href="/host/rounds">Round Library</a>
-        </div>
+        {/* Same leftover-duplicate-header cleanup as Round Library and Music
+            Prep - the site-wide header/nav already renders above this page
+            via app/host/layout.tsx's BackOfficeShell, so this page's own
+            separate mini header (tiny wordmark, its own Events/Round Library
+            links) was a jarring, differently-styled second header. */}
 
         {/* GENERATOR PANEL */}
         <div className="fbh-panel">

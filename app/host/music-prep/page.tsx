@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { encodeWavFromBuffer, sliceAudioBuffer } from "@/lib/audio/wavEncoder";
 import { getMediaUrl } from "@/lib/getMediaUrl";
-import { HostShell, HostButton, HostLoading, HostEmpty, TopSpacer } from "@/components/fable/HostConsole";
+import { HostShell, HostButton, HostLoading, HostEmpty } from "@/components/fable/HostConsole";
 import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
 import { generateValidatedRound, quickExclusionState } from "@/lib/quiz/generateRound";
 
@@ -526,16 +526,16 @@ export default function MusicPrepPage() {
     <HostShell>
       {confirmDialogEl}
       <div style={{ height: "100dvh", overflowY: "auto", WebkitOverflowScrolling: "touch" as const, background: STAGE_BG, color: "#fff", padding: "24px", maxWidth: 980, margin: "0 auto", boxSizing: "border-box" as const }}>
-        {/* TOP BAR */}
-        <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 20 }}>
-          <span className="fbh-wm"><span className="q">QUIZ-</span>IT</span>
-          <span className="fbh-bc">Music Prep</span>
-          <span style={{ font: "400 11px 'Inter'", color: "#6B5A8E" }}>Deezer · Auto-search · Waveform trim</span>
-          <TopSpacer />
-          <a className="fbh-btn" href="/host/events">Events</a>
-          {openRound
-            ? <HostButton onClick={() => setOpenRound(null)}>← All Rounds</HostButton>
-            : <a className="fbh-btn" href="/host/rounds">Round Library</a>}
+        {/* This page used to render its own separate mini header here (tiny
+            wordmark, "Music Prep" breadcrumb, its own Events/Round Library
+            links) - a leftover from before the site-wide header (rendered
+            above this page by app/host/layout.tsx's BackOfficeShell) existed.
+            That gave Music Prep a jarring second, differently-styled header.
+            Only the genuinely page-specific "back to the round list" control
+            survives, since that's real in-page navigation, not global nav. */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
+          <span style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>Deezer · Auto-search · Waveform trim</span>
+          {openRound && <HostButton onClick={() => setOpenRound(null)}>← All Rounds</HostButton>}
         </div>
 
         {status && <div style={{ textAlign: "center", color: "#D94FDC", font: "600 13px 'Inter'", marginBottom: 16 }}>{status}</div>}

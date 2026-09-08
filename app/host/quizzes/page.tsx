@@ -1606,8 +1606,18 @@ export default function QuizBuilderPage() {
                       >
                         <button
                           onClick={() => removeRoundQuestion(activeRound, qi)}
+                          onMouseDown={e => e.stopPropagation()}
+                          draggable={false}
                           title="Remove question"
-                          style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", fontSize: 14, lineHeight: "22px", padding: 0 }}
+                          // zIndex 41 (above the hover-expand popover's 40, see
+                          // below) and draggable=false + stopping the mousedown
+                          // from bubbling to the card's own draggable="true" -
+                          // without these, hovering near this button triggered
+                          // the card's hover-to-expand popover covering it AND
+                          // the card's own drag gesture starting instead of a
+                          // click landing on the button underneath, making it
+                          // effectively unclickable.
+                          style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", fontSize: 14, lineHeight: "22px", padding: 0, zIndex: 41 }}
                         >×</button>
                         {isEditing ? (
                           <div style={{ display: "grid", gap: 6 }}>

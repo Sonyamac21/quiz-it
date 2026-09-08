@@ -46,7 +46,14 @@ const LIBRARY_TYPE_POOLS: Record<string, string[]> = {
   hot_seat: ["multiple_choice", "text_answer", "number", "sequence"],
   bonus: ["multiple_choice", "text_answer", "number"],
 };
-const REGULAR_LIBRARY_TYPES = ["multiple_choice", "text_answer", "number", "sequence", "picture", "audio"];
+// nearest_wins (the closest-guess format) has no dedicated round type of its
+// own the way Multi Tap/Pursuit/Music do - it's meant to be inserted as an
+// individual question into an otherwise-regular round, the same way
+// picture/audio/sequence already are. It was missed here when this list was
+// first written, which meant a "regular" round's Random From Library pull
+// could never surface one even though the scoring/gameplay support for it
+// is fully built.
+const REGULAR_LIBRARY_TYPES = ["multiple_choice", "text_answer", "number", "sequence", "picture", "audio", "nearest_wins"];
 function allowedLibraryTypesForRound(roundType: string): string[] {
   return LIBRARY_TYPE_POOLS[roundType] || REGULAR_LIBRARY_TYPES;
 }
@@ -1562,6 +1569,7 @@ export default function QuizBuilderPage() {
                         <option value="picture">Picture</option>
                         <option value="audio">Music</option>
                         <option value="multi_tap">Multi Tap</option>
+                        <option value="nearest_wins">Nearest Wins</option>
                       </select>
                     </div>
                     {libraryLoading && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>Searching...</div>}

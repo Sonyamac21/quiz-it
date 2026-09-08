@@ -647,7 +647,14 @@ export default function QuizBuilderPage() {
     // our own storage now so it doesn't quietly go dead later. Already-hosted
     // blob URLs and empty values pass straight through.
     if (updated.question_type === "picture" && typeof updated.option_b === "string" && updated.option_b && !updated.option_b.includes("blob.vercel-storage.com")) {
-      updated.option_b = await persistPixabayImage(updated.option_b);
+      // persistPixabayImage now returns { url, persisted } instead of a bare
+      // string (see lib/quiz/persistPixabayImage.ts) - this call site was
+      // missed when that changed, so option_b was being set to the whole
+      // object instead of its url. Because `updated` is typed as
+      // Record<string, unknown>, TypeScript never caught the mismatch; it
+      // would have silently saved a broken image reference on every manual
+      // picture-question edit until now.
+      updated.option_b = (await persistPixabayImage(updated.option_b)).url;
     }
     const newQuestions = round.questions.map((q, i) => i === qIndex ? updated : q);
     const supabase = createSupabaseBrowserClient();
@@ -802,9 +809,23 @@ export default function QuizBuilderPage() {
     setLastGenerateMoreResult(prev => { const next = { ...prev }; delete next[round.id]; return next; });
     const supabase = createSupabaseBrowserClient();
     const cfg = bulkConfig[round.id];
+    const effectiveTheme = cfg?.theme ?? round.theme ?? "";
+    const effectiveDifficulty = cfg?.difficulty || round.difficulty || "mixed";
+    // Persist the theme/difficulty this round is actually being generated
+    // with, the same way runBulkGenerate already does. Without this, a
+    // theme typed here only ever lived in the in-memory bulkConfig state -
+    // fine until that state reset (a page reload, or this specific round
+    // never being ticked "Include in Generate All" so it never went through
+    // the one code path that DID persist it), at which point round.theme
+    // read back empty and a later action reading it (most notably a single
+    // question's REGENERATE button) silently fell back to generating
+    // untethered, off-theme content for what the host still saw as a themed
+    // round on screen.
+    await supabase.from("quiz_rounds").update({ theme: effectiveTheme || null, difficulty: effectiveDifficulty }).eq("id", round.id);
+    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, theme: effectiveTheme || null, difficulty: effectiveDifficulty } : r) }));
     try {
       const [result] = await generateAllRounds(
-        [{ roundType: round.round_type, difficulty: cfg?.difficulty || round.difficulty || "mixed", theme: cfg?.theme ?? round.theme ?? "", count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions) }],
+        [{ roundType: round.round_type, difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions) }],
         (_idx, status) => setGeneratingMoreStatus(status + capNote),
       );
       // Same stale-snapshot bug as runBulkGenerate above: `round` here is

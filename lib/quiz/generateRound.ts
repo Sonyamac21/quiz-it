@@ -46,6 +46,7 @@ import {
   generateOne,
   validateCandidate,
   commitToMemory,
+  multiTapSuitabilityError,
   REGULAR_TYPE_WEIGHTS,
   REQUIRED_REGULAR_TYPES,
   MAX_AI_CONCURRENCY,
@@ -63,6 +64,7 @@ export {
   emptyExclusionState,
   loadUsedQuestions,
   quickExclusionState,
+  multiTapSuitabilityError,
 } from "@/lib/quiz/questionGenerationCore";
 
 function allocateRegularTypes(count: number): string[] {

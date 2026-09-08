@@ -405,6 +405,14 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // "celebration" (nonce cleared) isn't re-forced back into the spin.
   const spinNonceHandledRef = useRef<number | null>(null);
   const connectionFailuresRef = useRef(0);
+  // Snapshot of this team's cumulative total right as a NEW question starts
+  // (i.e. before this question's scoring has happened) - the delta between
+  // this and the current total once the celebration screen shows is exactly
+  // how many points THIS question awarded. Only the fastest team ever saw an
+  // explicit points number before (fastest_points, a single value on the
+  // session row); every other team only had the small running-total number
+  // to notice ticking up, with no "+N this question" feedback at all.
+  const pointsBeforeQuestionRef = useRef(0);
   // DIAGNOSTIC ONLY (temporary): timestamp of the first failure in the current
   // run of consecutive fetchSession failures, used only for log timing.
   const firstFailureAtRef = useRef<number | null>(null);
@@ -781,6 +789,11 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       submittingAnswerRef.current = false;
       setTappedItems([]);
       setMySubmittedDisplay("");
+      // This fires exactly once per new question, before any scoring for it
+      // can have happened - the earliest possible moment to capture "my
+      // total right before this question's points land".
+      const freshScoreboard = (data.scoreboard_data as { team_name: string; total_points: number }[]) || [];
+      pointsBeforeQuestionRef.current = freshScoreboard.find(s => sameTeamName(s.team_name, teamName))?.total_points ?? 0;
     }
     if (newPhase === "hot_seat" && hotSeat.status === "submitted" && hotSeat.team === teamName) {
       setSubmitted(true);
@@ -1453,6 +1466,13 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               : mySubmittedDisplay)
             : "";
           const myAnswerCorrect = !!question && !!submittedAnswerText && isAnswerCorrect({ answer_text: submittedAnswerText }, question);
+          // Every non-fastest team used to see nothing about what THIS
+          // question actually earned them - only the small cumulative
+          // "Your team total" number at the very top of this screen, which
+          // doesn't isolate the delta and is easy to miss over a long round.
+          // This total-before/total-after diff works for every question
+          // type, not just multi_tap's partial credit.
+          const myQuestionPoints = myRunningPoints !== undefined ? myRunningPoints - pointsBeforeQuestionRef.current : null;
           return (
             <>
               <div className="qi-player-outcome-heading">{myAnswerCorrect ? "Correct answer" : mySubmittedDisplay ? "Not quite this time" : "No answer submitted"}</div>
@@ -1460,12 +1480,46 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               {fastestTeamName && (
                 <div style={{ fontSize: 32, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 24px rgba(190,38,193,0.6)", marginBottom: 16 }}>{fastestTeamName}</div>
               )}
+              {myQuestionPoints !== null && (
+                <div style={{ padding: "8px 20px", borderRadius: 14, background: myQuestionPoints > 0 ? "rgba(46,224,110,0.15)" : "rgba(255,255,255,0.06)", border: "1px solid " + (myQuestionPoints > 0 ? "rgba(46,224,110,0.5)" : "rgba(255,255,255,0.12)"), marginBottom: 16, textAlign: "center" as const }}>
+                  <div style={{ font: "800 26px 'Inter'", color: myQuestionPoints > 0 ? "#2EE06E" : "rgba(255,255,255,0.5)" }}>{myQuestionPoints > 0 ? "+" + myQuestionPoints : "0"} {myQuestionPoints === 1 ? "point" : "points"}</div>
+                </div>
+              )}
               {myAnswerCorrect ? (
                 <>
                 <div style={{ fontSize: 16, color: "#22c55e", fontWeight: 700, marginBottom: 6 }}>Your answer was correct</div>
                   <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginBottom: 24 }}>{fastestTeamName ? "Just not the fastest this time" : "Nice work!"}</div>
                 </>
-              ) : (
+              ) : question?.question_type === "multi_tap" ? (() => {
+                // Same per-option breakdown as the earlier "answer" reveal
+                // screen (see there for the full rationale) - this
+                // celebration screen used to fall back to a plain
+                // comma-joined text comparison for multi_tap right after
+                // that better breakdown, undoing the consistency it
+                // established just moments earlier in the same flow.
+                const mtOptions = [
+                  { key: "a", text: question.option_a }, { key: "b", text: question.option_b },
+                  { key: "c", text: question.option_c }, { key: "d", text: question.option_d },
+                  { key: "e", text: question.option_e }, { key: "f", text: question.option_f },
+                ].filter((o): o is { key: string; text: string } => !!o.text);
+                const correctKeys = (question.correct_answer || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+                const tappedKeys = tappedItems.map(k => k.toLowerCase());
+                return (
+                  <div style={{ width: "100%", maxWidth: 340, display: "grid", gap: 6, marginBottom: 24 }}>
+                    {mtOptions.map(o => {
+                      const isCorrectOption = correctKeys.includes(o.key);
+                      const wasTapped = tappedKeys.includes(o.key);
+                      const gotItRight = isCorrectOption === wasTapped;
+                      return (
+                        <div key={o.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 10, background: gotItRight ? "rgba(46,224,110,0.12)" : "rgba(255,59,75,0.12)", border: "1px solid " + (gotItRight ? "rgba(46,224,110,0.4)" : "rgba(255,59,75,0.4)") }}>
+                          <span style={{ fontSize: 14 }}>{gotItRight ? "✓" : "✗"}</span>
+                          <span style={{ font: "600 13px 'Inter'", color: "#fff", flex: 1 }}>{o.text}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })() : (
                 <div className="qi-player-answer-comparison" style={{ width: "100%", maxWidth: 340, display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
                   <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 14px" }}>
                     <div style={{ fontSize: 10, letterSpacing: 1, color: "rgba(255,255,255,0.35)", marginBottom: 4 }}>YOUR ANSWER</div>

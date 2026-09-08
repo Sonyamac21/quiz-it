@@ -31,6 +31,34 @@ function questionKey(question: { question_text?: unknown; correct_answer?: unkno
   return `${normalise(question.question_text)}|${normalise(question.correct_answer)}`;
 }
 
+// Which question_type values a random library pull is allowed to draw from
+// for a given round type - mirrors the fixed type mixes generateRound.ts's
+// generateValidatedRound() uses for AI generation (music=audio only,
+// multi_tap=multi_tap only, pursuit/hot_seat=the four non-media formats,
+// bonus=the three simple formats by default), so a "normal"/regular round's
+// random library pull can no longer surface a multi_tap question the round
+// isn't built to play, and a themed/format-restricted round can't surface a
+// question type it structurally can't use either.
+const LIBRARY_TYPE_POOLS: Record<string, string[]> = {
+  music: ["audio"],
+  multi_tap: ["multi_tap"],
+  pursuit: ["multiple_choice", "text_answer", "number", "sequence"],
+  hot_seat: ["multiple_choice", "text_answer", "number", "sequence"],
+  bonus: ["multiple_choice", "text_answer", "number"],
+};
+const REGULAR_LIBRARY_TYPES = ["multiple_choice", "text_answer", "number", "sequence", "picture", "audio"];
+function allowedLibraryTypesForRound(roundType: string): string[] {
+  return LIBRARY_TYPE_POOLS[roundType] || REGULAR_LIBRARY_TYPES;
+}
+function shuffleArr<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 type GuidedIntent = "create" | "duplicate" | "assign";
 type GuidedEvent = { id: string; label: string };
 const VALID_INTENTS: GuidedIntent[] = ["create", "duplicate", "assign"];
@@ -142,6 +170,13 @@ export default function QuizBuilderPage() {
   const [randomOpenId, setRandomOpenId] = useState<string | null>(null);
   const [randomTopic, setRandomTopic] = useState("");
   const [randomCount, setRandomCount] = useState(5);
+  // Library rows removed from a round after a random pull (i.e. the host
+  // rejected them) - keyed by round id, so the NEXT random pull for that
+  // round excludes them instead of them re-surfacing. Without this, removing
+  // a randomly-picked question just took it out of `existingKeys` (built
+  // from the round's current questions), so the very next pull was free to
+  // hand back the exact same row.
+  const [rejectedLibraryIds, setRejectedLibraryIds] = useState<Record<string, Set<string>>>({});
   const [randomBusy, setRandomBusy] = useState(false);
   const [randomStatus, setRandomStatus] = useState("");
   // Bulk/parallel question generation ("Generate All Rounds"). Lives alongside
@@ -329,6 +364,13 @@ export default function QuizBuilderPage() {
     setRandomBusy(true); setRandomStatus("Picking...");
     const supabase = createSupabaseBrowserClient();
     try {
+      // Only draw question_type(s) this round's format can actually use -
+      // e.g. a "regular" round gets the full mix, a Multi Tap round ONLY
+      // gets multi_tap, a Music round ONLY gets audio. Previously this
+      // queried the whole question_bank table with no type filter at all,
+      // so a regular round could get handed a multi_tap question it has no
+      // business playing.
+      const allowedTypes = allowedLibraryTypesForRound(round.round_type);
       // Approved (needs_review=false), not flagged stale, and not already
       // played live - the same "don't repeat a used question" guarantee
       // the manual library picker gets. Over-fetch a pool and shuffle
@@ -338,29 +380,67 @@ export default function QuizBuilderPage() {
         .eq("needs_review", false)
         .or("stale_risk.is.null,stale_risk.eq.false")
         .or("times_used.is.null,times_used.eq.0")
+        .in("question_type", allowedTypes)
         .limit(300);
       if (topic) query = query.eq("topic", topic);
       const { data, error } = await query;
       if (error) throw error;
       const pool = (data || []) as BankQuestion[];
       if (pool.length === 0) {
-        showToast(topic ? `No approved, unused ${topic} questions in the library yet.` : "No approved, unused questions in the library yet.", "info", 5000);
+        showToast(topic ? `No approved, unused ${topic} questions in the library yet for this round's question types.` : "No approved, unused questions in the library yet for this round's question types.", "info", 5000);
         return;
       }
       const { data: liveRow, error: readError } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
       if (readError) throw readError;
       const liveQuestions = (liveRow?.questions || []) as Record<string, unknown>[];
       const existingKeys = new Set(liveQuestions.map(q => questionKey(q)));
-      const shuffled = [...pool].sort(() => Math.random() - 0.5);
+      // Rows the host already rejected (removed after a previous random
+      // pull) for this specific round - excluded by id, not just content,
+      // since a rejected question is no longer in liveQuestions at all and
+      // would otherwise be free to come straight back.
+      const rejectedIds = rejectedLibraryIds[round.id] || new Set<string>();
+      const eligible = pool.filter(bq => !existingKeys.has(questionKey(bq)) && !rejectedIds.has(bq.id));
+      if (eligible.length === 0) {
+        showToast("Every matching question is already in this round or was already rejected - try removing some, or add a wider topic.", "info", 4500);
+        return;
+      }
+      // Group by type and round-robin across whichever allowed types are
+      // actually present in the eligible pool, instead of one flat random
+      // shuffle. A flat shuffle silently starves whichever type has fewer
+      // rows in the library (typically picture/audio, since they're a
+      // smaller slice of question_bank) - round-robin guarantees a mixed
+      // pull spreads across every available type rather than defaulting to
+      // whichever type happens to dominate the table.
+      const byType = new Map<string, BankQuestion[]>();
+      for (const bq of eligible) {
+        const list = byType.get(bq.question_type) || [];
+        list.push(bq);
+        byType.set(bq.question_type, list);
+      }
+      for (const list of byType.values()) {
+        const shuffledList = shuffleArr(list);
+        list.length = 0;
+        list.push(...shuffledList);
+      }
+      const typeCycle = shuffleArr(allowedTypes.filter(t => byType.has(t)));
       const picked: BankQuestion[] = [];
-      for (const bq of shuffled) {
-        if (picked.length >= count) break;
-        if (existingKeys.has(questionKey(bq))) continue;
-        picked.push(bq);
-        existingKeys.add(questionKey(bq));
+      if (typeCycle.length > 0) {
+        let cycleIndex = 0;
+        let emptyStreak = 0;
+        while (picked.length < count && emptyStreak < typeCycle.length) {
+          const type = typeCycle[cycleIndex % typeCycle.length];
+          cycleIndex++;
+          const list = byType.get(type);
+          if (list && list.length > 0) {
+            picked.push(list.shift()!);
+            emptyStreak = 0;
+          } else {
+            emptyStreak++;
+          }
+        }
       }
       if (picked.length === 0) {
-        showToast("Every matching question is already in this round.", "info", 4000);
+        showToast("Every matching question is already in this round or was already rejected - try removing some, or add a wider topic.", "info", 4500);
         return;
       }
       const toAdd = picked.map(bq => ({
@@ -403,10 +483,24 @@ export default function QuizBuilderPage() {
     showToast("Question deleted from the library.", "success", 3000);
   }
   async function removeRoundQuestion(round: QuizRound, qIndex: number) {
+    const removed = round.questions[qIndex] as (Record<string, unknown> & { bank_question_id?: string }) | undefined;
     const newQuestions = round.questions.filter((_, i) => i !== qIndex);
     const supabase = createSupabaseBrowserClient();
     await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
+    // If this question came from the Question Library, remember it as
+    // rejected for THIS round so a future "random from library" pull for
+    // the same round won't hand it straight back - removing/rejecting it
+    // otherwise left no trace once it fell out of the round's own question
+    // list.
+    if (removed?.bank_question_id) {
+      const bankId = removed.bank_question_id;
+      setRejectedLibraryIds(prev => {
+        const next = new Set(prev[round.id] || []);
+        next.add(bankId);
+        return { ...prev, [round.id]: next };
+      });
+    }
   }
   // Move a question from one round to another (drag-and-drop between round
   // tabs) - removes it from the source round's questions array and appends

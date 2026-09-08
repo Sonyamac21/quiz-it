@@ -703,8 +703,17 @@ Return ONLY a valid JSON array with 1 item, no markdown:
             context.report.stages.media = { status: "failed", note: "Matched Pixabay result had no usable image URL" };
             return null;
           }
-          q.option_b = await persistPixabayImage(pixabayUrl);
-          context.report.stages.media = { status: "passed", note: "Pixabay image found" };
+          const persisted = await persistPixabayImage(pixabayUrl);
+          q.option_b = persisted.url;
+          // If the re-host silently failed, option_b is still a raw Pixabay
+          // hotlink - which Pixabay's own terms say not to rely on
+          // long-term, and which has been observed going dead over time
+          // (see persistPixabayImage.ts). Surface that in the generation
+          // report immediately rather than letting it look identical to a
+          // durably-hosted image until it breaks, unnoticed, weeks later.
+          context.report.stages.media = persisted.persisted
+            ? { status: "passed", note: "Pixabay image found and re-hosted" }
+            : { status: "passed", note: "Pixabay image found, but re-hosting to permanent storage failed - this image is a temporary Pixabay link and may go dead later. Check /host/question-bank if this photo stops loading." };
         } else {
           context.report.stages.media = { status: "failed", note: "No Pixabay image matched the requested subject" };
           return null;

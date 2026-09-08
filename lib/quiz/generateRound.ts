@@ -1,154 +1,69 @@
 // lib/quiz/generateRound.ts
 //
-// Shared, parameterized version of the question-generation pipeline that lives
-// in app/host/questions/page.tsx. This file is a DELIBERATE, near-verbatim copy
-// of that page's validators/prompts (moderation, theme-relevance, round-balance,
-// permanent Question Memory, final quality, and the generate() retry loop) - not
-// a reimplementation - so the bulk/parallel generator gets IDENTICAL quality and
-// duplicate-safety behaviour to the existing single-round generator.
+// Batch/parallel round-generation orchestrator. The actual generation and
+// validation logic (prompts, validators, AI concurrency queue, exclusion
+// state) has been consolidated into ./questionGenerationCore, shared with
+// the older standalone single-round generator in
+// app/host/questions/page.tsx (see that file and questionGenerationCore.ts's
+// header comment for the full history of why these two used to drift).
 //
-// The one real difference: the original page keeps all "session state" (used
-// questions, used answers, rejected blacklist) in React refs shared across the
-// whole page. That's fine for one round at a time, but unsafe for several rounds
-// generating concurrently - two parallel calls would stomp on the same refs and
+// This file keeps only its own orchestration layer: generateValidatedRound's
+// retry/pipelining loop and generateAllRounds' batch/concurrency-scaling
+// wrapper, plus the two pure round-level allocation helpers
+// (allocateRegularTypes/allocateMixedDifficulties) that are specific to this
+// orchestration and have no equivalent shared with page.tsx's inline logic.
+//
+// The one real behavioural difference from the single-round generator: the
+// original page keeps all "session state" (used questions, used answers,
+// rejected blacklist) in React refs shared across the whole page. That's
+// fine for one round at a time, but unsafe for several rounds generating
+// concurrently - two parallel calls would stomp on the same refs and
 // corrupt each other's exclusion lists. Here that state is an explicit
 // `ExclusionState` object passed in and returned, so each round generating in
 // parallel gets (and mutates) its own bundle. Callers that want cross-round
 // duplicate protection within one "Generate All" batch should pass the SAME
 // bundle into each call sequentially seeded, or merge bundles between waves -
 // see generateAllRounds() in this file for the batch orchestrator.
-//
-// This module does NOT touch app/host/questions/page.tsx - the existing
-// single-round generator is untouched and keeps working exactly as it does now.
 
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
-import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
-import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pixabayMatch";
+import {
+  type Question,
+  type ExclusionState,
+  type GenerationContext,
+  type GenerationReportEntry,
+  type ValidationStage,
+  type ValidationResult,
+  shuffle,
+  genUid,
+  createGenerationContext,
+  stageLabel,
+  loadUsedQuestions,
+  registerAccepted,
+  blacklistRejected,
+  duplicateRejectionReason,
+  questionFingerprint,
+  resolveAnswerText,
+  generateOne,
+  validateCandidate,
+  commitToMemory,
+  REGULAR_TYPE_WEIGHTS,
+  REQUIRED_REGULAR_TYPES,
+  MAX_AI_CONCURRENCY,
+  MUSIC_TOPICS,
+  PICTURE_TOPICS,
+} from "@/lib/quiz/questionGenerationCore";
 
-// ── Types (copied from app/host/questions/page.tsx) ────────────────────────
-
-export type Question = {
-  id?: number;
-  _uid?: string;
-  // Transient, never persisted as a real column (this whole object round-trips
-  // through a jsonb column, so extra keys are harmless): set when this
-  // question was generated from a recency/news topic, and - if a search
-  // verification call succeeded - a short note the validators can use to
-  // confirm the fact instead of rejecting it purely because Haiku's own
-  // frozen training data doesn't recognise something genuinely recent.
-  _recency?: boolean;
-  _recencyNote?: string;
-  question_text: string;
-  question_type: string;
-  option_a: string | null;
-  option_b: string | null;
-  option_c: string | null;
-  option_d: string | null;
-  option_e: string | null;
-  option_f: string | null;
-  correct_answer: string;
-  explanation: string;
-  difficulty: string;
-  round_type: string;
-  playback_mode?: string;
-  replay_mode?: string;
-  fade_in?: boolean;
-  fade_out?: boolean;
-};
-
-export function multiTapSuitabilityError(q: Pick<Question, "question_text" | "question_type" | "option_a" | "option_b" | "option_c" | "option_d" | "option_e" | "option_f" | "correct_answer">): string | null {
-  if (q.question_type !== "multi_tap") return "Question type is not multi_tap";
-  const stem = (q.question_text || "").trim().toLowerCase();
-  if (!/^(which of (these|the following)|select all|select each|tap all)/.test(stem)) {
-    return "Multi Tap must be a genuine select-all category question";
-  }
-  const options = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f];
-  if (options.some(option => typeof option !== "string" || !option.trim())) return "Multi Tap requires all six options";
-  const letters = (q.correct_answer || "").split(",").map(letter => letter.trim().toLowerCase()).filter(Boolean);
-  const uniqueLetters = new Set(letters);
-  if (uniqueLetters.size < 2) return "Multi Tap requires at least two correct answers";
-  if (uniqueLetters.size !== letters.length || letters.some(letter => !["a", "b", "c", "d", "e", "f"].includes(letter))) {
-    return "Multi Tap answer key is invalid";
-  }
-  return null;
-}
-
-function sequenceSuitabilityError(q: Pick<Question, "question_text" | "question_type" | "option_a" | "option_b" | "option_c" | "option_d" | "correct_answer">): string | null {
-  if (q.question_type !== "sequence") return "Question type is not sequence";
-  const options = [q.option_a, q.option_b, q.option_c, q.option_d];
-  if (options.some(option => typeof option !== "string" || !option.trim())) return "Sequence requires four options";
-  if ((q.correct_answer || "").replace(/\s/g, "").toLowerCase() !== "a,b,c,d") return "Sequence source answer must be a,b,c,d";
-  const stem = (q.question_text || "").toLowerCase();
-  const repeated = options.find(option => option && option.trim().length >= 3 && stem.includes(option.trim().toLowerCase()));
-  if (repeated) return "Sequence question must not repeat its option items in the question text";
-  return null;
-}
-
-type ValidationStatus = "passed" | "failed" | "not_run" | "not_applicable";
-type ValidationStage = "moderation" | "theme" | "duplicate" | "balance" | "memory" | "quality" | "media";
-type RoundBalanceDetails = {
-  candidate_subtopic: string | null;
-  candidate_entity: string | null;
-  conflict_index: number | null;
-  rejection_reason: string;
-};
-type ValidationResult = { status: ValidationStatus; note: string; details?: RoundBalanceDetails };
-type ValidationResults = Record<ValidationStage, ValidationResult>;
-export type GenerationReportEntry = {
-  id: string;
-  outcome: "accepted" | "rejected";
-  questionText: string;
-  questionType: string;
-  category: string;
-  reason: string;
-  stages: ValidationResults;
-};
-type CandidateReport = Omit<GenerationReportEntry, "id" | "outcome" | "category" | "reason">;
-type GenerationContext = { error: string; report: CandidateReport };
-
-// ── Constants (copied verbatim) ─────────────────────────────────────────────
-
-const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
-
-// A small, permanent "don't use this again" list, separate from the
-// per-session/per-round exclusion lists below - those only cover what THIS
-// generation run has already produced, so a well-known, obvious fact (Burj
-// Khalifa's height, Japan's flag) that got generated last week keeps coming
-// back on the next run, sometimes worded just differently enough to slip
-// past the trigram-similarity duplicate check. Entries here are always
-// included in every prompt's exclusion note, regardless of session, so the
-// model steers away from these specific facts on every single generation
-// from now on. Add to this list as repeats get reported - there's currently
-// no in-app UI for it, so it's a direct code edit (ask for that if you'd
-// rather manage it yourself from the host screens).
-const PERMANENT_EXCLUDED_FACTS = [
-  "How tall is the Burj Khalifa (world's tallest building)",
-  "Which country is this flag from? (Japan)",
-  "What is the name of Fred Flintstone's pet dinosaur? (Dino)",
-  "Which car brand has a logo featuring a prancing horse? (Ferrari)",
-  "Which movie features a character who can see dead people? (The Sixth Sense)",
-  "Which comedian played the character David Brent in the original UK version of The Office? (Ricky Gervais)",
-  "What is the surname of the chef who created the 'Naked Chef' TV persona? (Oliver / Jamie Oliver)",
-];
-// A picture-type candidate's photo query is restricted (see generateOne's
-// picture instructions) to only: a famous landmark/building, an animal or
-// species, a national flag, a well-known food/dish, or a sports venue/
-// stadium - because that's what stock photo sites actually carry (no
-// logos, celebrities, movie stills, TV characters, artwork). Without its
-// own topic pool, picture slots were drawing from the SAME general TOPICS
-// list as every other question type - most of which (movies, celebrities,
-// logos and brands, video games, reality TV, fashion, royals and politics,
-// crime and mystery, awards and records...) are flatly incompatible with
-// that whitelist, so a picture candidate's topic mismatched its own allowed
-// subject matter more often than not, failed moderation/quality on that
-// mismatch, and picture questions barely ever survived to be accepted.
-const PICTURE_TOPICS = ["famous landmarks","world flags","animals and wildlife","iconic buildings","national dishes and cuisine","famous bridges","sports stadiums","big cats and safari animals","dog and cat breeds","famous mountains and natural wonders","tropical destinations","classic desserts and sweets","famous rivers and waterfalls","farm animals","street food dishes"];
-const REGULAR_TYPE_WEIGHTS: [string, number][] = [
-  ["multiple_choice", 0.25], ["text_answer", 0.20], ["number", 0.15],
-  ["sequence", 0.10], ["picture", 0.20], ["audio", 0.10],
-];
-const REQUIRED_REGULAR_TYPES = ["multiple_choice", "text_answer", "number", "picture", "audio"];
+export type {
+  Question,
+  ExclusionState,
+  GenerationContext,
+  GenerationReportEntry,
+} from "@/lib/quiz/questionGenerationCore";
+export {
+  emptyExclusionState,
+  loadUsedQuestions,
+  quickExclusionState,
+} from "@/lib/quiz/questionGenerationCore";
 
 function allocateRegularTypes(count: number): string[] {
   const allocated = count >= REQUIRED_REGULAR_TYPES.length ? [...REQUIRED_REGULAR_TYPES] : [];
@@ -179,1021 +94,6 @@ function allocateMixedDifficulties(count: number): string[] {
     .sort((a, b) => b.fraction - a.fraction)
     .forEach(({ index }) => { if (remainder > 0) { base[index]++; remainder--; } });
   return shuffle([...allocated, ...weights.flatMap(([level], index) => Array(base[index]).fill(level))]);
-}
-const VARIETY_ANGLES = [
-  "from the 1960s or 1970s", "from the 1980s", "from the 1990s", "from the 2000s", "from the 2010s or later",
-  "that's a deeper cut, not the most obvious example", "with a British/UK angle", "with a US angle",
-  "that's slightly more obscure but still well-known", "involving a lesser-discussed fact about the topic",
-  "from a different decade than you'd first think of", "that most people would NOT guess first",
-];
-
-// Shared AI concurrency queue. A module-level singleton - the older
-// app/host/questions/page.tsx generator used to be stuck at 3 (with a
-// comment here incorrectly claiming parity), which meant retries paced very
-// differently between the two screens even after other fixes were mirrored
-// across both. Matched to 8 in that file too -
-// every round generating in parallel shares this one queue/limit so the total
-// number of simultaneous Anthropic calls across ALL rounds never exceeds the
-// same cap the single-round generator already respects.
-// Was 3 - raised now that most calls per candidate (moderation/theme/
-// quality/balance) run on Haiku instead of Sonnet: those are faster and far
-// cheaper per call, so more of them can genuinely run at once without
-// pushing total token throughput anywhere near Anthropic's rate limits. If
-// this ever starts producing 429 rate-limit errors in the generation
-// status text, drop it back down.
-const MAX_AI_CONCURRENCY = 8;
-let activeAiRequests = 0;
-const aiRequestQueue: Array<() => void> = [];
-
-async function withAiRequestSlot<T>(task: () => Promise<T>): Promise<T> {
-  if (activeAiRequests >= MAX_AI_CONCURRENCY) {
-    await new Promise<void>(resolve => aiRequestQueue.push(resolve));
-  }
-  activeAiRequests++;
-  try {
-    return await task();
-  } finally {
-    activeAiRequests--;
-    const next = aiRequestQueue.shift();
-    if (next) next();
-  }
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function parseModelJson<T>(text: string, container: "object" | "array"): T {
-  const trimmed = text.trim();
-  const start = container === "array" ? trimmed.indexOf("[") : trimmed.indexOf("{");
-  const end = container === "array" ? trimmed.lastIndexOf("]") : trimmed.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("No JSON " + container + " found in response");
-  return JSON.parse(trimmed.slice(start, end + 1)) as T;
-}
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-function normalizeQuestionText(s: string): string {
-  return (s || "").toLowerCase().trim().replace(/\s+/g, " ");
-}
-
-function questionFingerprint(q: Question): string {
-  const opts = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f]
-    .map(o => (o || "").toLowerCase().trim())
-    .join("|");
-  return normalizeQuestionText(q.question_text) + "::" + (q.correct_answer || "").toLowerCase().trim() + "::" + opts;
-}
-
-let uidCounter = 0;
-function genUid(): string {
-  try {
-    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  } catch {}
-  uidCounter += 1;
-  return "q_" + Date.now().toString(36) + "_" + uidCounter;
-}
-
-function emptyValidationResults(hasTheme: boolean, isMedia: boolean): ValidationResults {
-  return {
-    moderation: { status: "not_run", note: "" },
-    theme: { status: hasTheme ? "not_run" : "not_applicable", note: "" },
-    duplicate: { status: "not_run", note: "" },
-    balance: { status: "not_run", note: "" },
-    memory: { status: "not_run", note: "" },
-    quality: { status: "not_run", note: "" },
-    media: { status: isMedia ? "not_run" : "not_applicable", note: "" },
-  };
-}
-
-function createGenerationContext(type: string, hasTheme: boolean): GenerationContext {
-  return {
-    error: "",
-    report: { questionText: "", questionType: type, stages: emptyValidationResults(hasTheme, type === "picture" || type === "audio") },
-  };
-}
-
-function stageLabel(stage: ValidationStage): string {
-  const labels: Record<ValidationStage, string> = {
-    moderation: "Moderation", theme: "Theme relevance", duplicate: "Duplicate",
-    balance: "Round balance", memory: "Permanent memory", quality: "Final quality", media: "Media lookup",
-  };
-  return labels[stage];
-}
-
-// ── Exclusion state (the parallel-safe replacement for the page's refs) ────
-
-export type ExclusionState = {
-  used: string[];
-  usedFingerprints: Set<string>;
-  usedAnswers: string[];
-  rejectedFingerprints: Set<string>;
-  rejectedTexts: Set<string>;
-};
-
-export function emptyExclusionState(): ExclusionState {
-  return { used: [], usedFingerprints: new Set(), usedAnswers: [], rejectedFingerprints: new Set(), rejectedTexts: new Set() };
-}
-
-// Loads the same permanent all-time history the single-round generator loads
-// (rounds table, question_bank, questions library). Must stay all-time/no
-// cutoff - a time-windowed version was tried and rejected earlier because it
-// let genuinely-repeated questions resurface once they aged past the window.
-export async function loadUsedQuestions(): Promise<ExclusionState> {
-  const supabase = createSupabaseBrowserClient();
-  const [{ data: rounds }, { data: bank }, { data: library }] = await Promise.all([
-    supabase.from("rounds").select("questions"),
-    supabase.from("question_bank").select("question_text,question_type,option_a,option_b,option_c,option_d,option_e,option_f,correct_answer"),
-    supabase.from("questions").select("question_text,question_type,option_a,option_b,option_c,option_d,option_e,option_f,correct_answer"),
-  ]);
-  const state = emptyExclusionState();
-  const remember = (q: Question) => {
-    if (q.question_text) state.used.push(q.question_text);
-    state.usedFingerprints.add(questionFingerprint(q));
-  };
-  if (rounds) rounds.forEach((r: { questions: Question[] }) => r.questions?.forEach(remember));
-  if (bank) bank.forEach((q) => remember(q as Question));
-  if (library) library.forEach((q) => remember(q as Question));
-  return state;
-}
-
-// A lighter-weight alternative to loadUsedQuestions() for regenerating ONE
-// question (the REGENERATE button on a single question, in either the Quiz
-// Plan builder or Music Prep). loadUsedQuestions() deliberately fetches the
-// entire all-time history across three tables to seed exclusions - correct
-// for a full "Generate All" batch, but overkill for swapping a single
-// question, where that same full fetch was making the button visibly slow
-// to respond, especially as an account's saved-question history grows over
-// months of use. The permanent, all-time duplicate catch still happens
-// regardless - it's server-side, per-candidate, via check_question_memory
-// in isDuplicateInMemory() - so skipping the big client-side preload here
-// only means the model's prompt has fewer "don't repeat these" examples
-// up front, not that duplicates can slip through unchecked.
-export function quickExclusionState(currentRoundQuestions: Record<string, unknown>[]): ExclusionState {
-  const state = emptyExclusionState();
-  currentRoundQuestions.forEach(q => {
-    const text = q.question_text as string | undefined;
-    if (text) state.used.push(text);
-    state.usedFingerprints.add(questionFingerprint(q as Question));
-  });
-  return state;
-}
-
-function blacklistRejected(state: ExclusionState, q: Question) {
-  const fingerprint = questionFingerprint(q);
-  if (fingerprint) state.rejectedFingerprints.add(fingerprint);
-  const text = normalizeQuestionText(q.question_text);
-  if (text) state.rejectedTexts.add(text);
-}
-
-function registerAccepted(state: ExclusionState, q: Question) {
-  state.used = [...state.used, q.question_text];
-  state.usedFingerprints.add(questionFingerprint(q));
-  const normAnswer = resolveAnswerText(q).toLowerCase().trim();
-  if (normAnswer) state.usedAnswers = [...state.usedAnswers, normAnswer];
-}
-
-// ── AI calls (copied verbatim, same /api/generate-questions server route) ──
-
-// Sonnet is only actually needed for the creative writing call (the question
-// itself) - moderation/quality/balance are simple pass/fail judgment calls on
-// content that already exists, which Haiku handles just as reliably for a
-// fraction of the per-token cost. Since every candidate triggers 3-4 of
-// these calls (1 generation + up to 3 validation checks, each retried on
-// failed attempts), and validation was silently the majority of spend, this
-// is the single biggest lever on the Anthropic bill without touching output
-// quality - the part that actually needs the stronger model is untouched.
-const VALIDATION_MODEL = "claude-haiku-4-5-20251001";
-// Final factual/quality judgment needs stronger reasoning than formatting,
-// moderation and theme classification. A single consolidated Sonnet check is
-// still cheaper than the former three separate validator calls, while avoiding
-// confident nonsense such as calling Wimbledon's trophy simply "Venus".
-const FACT_CHECK_MODEL = "claude-sonnet-5";
-// Cost-first commercial configuration: Haiku writes the candidate as well as
-// validating it. Sonnet produced good questions, but costs twice as much per
-// input and output token; the existing moderation, memory, balance and final
-// quality gates remain responsible for rejecting any weaker candidate.
-const GENERATION_MODEL = VALIDATION_MODEL;
-
-// The server route already caps itself at 30s (maxDuration) so Vercel can't
-// silently kill the function with no response, but nothing on the CLIENT
-// side ever gave up on a request that hangs somewhere between here and
-// there (a stalled connection, a proxy that swallows the close signal,
-// etc). Without this, one stuck fetch holds its AI concurrency slot
-// (MAX_AI_CONCURRENCY above) forever, and everything queued behind it -
-// every other round, every other question - waits with it indefinitely.
-// Observed directly as "Checking question 4 of 5..." sitting frozen for
-// 5+ minutes with no error and no progress. 35s gives the server's own 30s
-// ceiling a little headroom before the client gives up on it too.
-const CLIENT_REQUEST_TIMEOUT_MS = 35_000;
-
-async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false, model?: string, combinedValidation: boolean = false) {
-  const res = await withAiRequestSlot(() => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), CLIENT_REQUEST_TIMEOUT_MS);
-    return fetch("/api/generate-questions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch, model, combinedValidation }),
-      signal: controller.signal,
-    }).catch(e => {
-      if (e instanceof Error && e.name === "AbortError") throw new Error("Request to Anthropic timed out after 35s (no response) - retrying.");
-      throw e;
-    }).finally(() => clearTimeout(timer));
-  });
-  const rawText = await res.text();
-  let data;
-  try {
-    data = JSON.parse(rawText);
-  } catch {
-    throw new Error("Our own API route returned non-JSON (status " + res.status + "). Raw body (first 500 chars): " + (rawText || "[EMPTY BODY]").slice(0, 500));
-  }
-  if (!data?.content) {
-    const reason = data?.error?.message || "Unknown API error";
-    throw new Error("API error (status " + res.status + "): " + reason);
-  }
-  const toolResult = data.content.find((block: { type: string; name?: string }) =>
-    block.type === "tool_use" && block.name === "return_validation_result"
-  ) as { input?: unknown } | undefined;
-  if (structuredOutput && toolResult?.input) return JSON.stringify(toolResult.input);
-  const text = data.content.filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
-  return text.replace(/```json/g, "").replace(/```/g, "").trim();
-}
-
-async function checkQuestion(q: Question, theme: string, recencyNote?: string): Promise<{ ok: boolean; note: string; unavailable?: boolean }> {
-  const optionTexts = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f];
-  let answerForCheck: string = q.correct_answer;
-  if (q.question_type === "multi_tap") {
-    const letters = ["a", "b", "c", "d", "e", "f"];
-    const correctTexts = (q.correct_answer || "")
-      .split(",")
-      .map(s => s.trim().toLowerCase())
-      .map(l => optionTexts[letters.indexOf(l)])
-      .filter(Boolean);
-    if (correctTexts.length) answerForCheck = correctTexts.join(", ");
-  }
-  const isMedia = q.question_type === "picture" || q.question_type === "audio";
-  const labelledContent = {
-    Question: q.question_text || "",
-    Options: isMedia ? [] : optionTexts.filter(Boolean),
-    Answer: answerForCheck || "",
-    "Player-visible media": q.question_type === "audio"
-      ? "An audio clip is played; no lyric transcript or other content description is supplied to the moderator."
-      : q.question_type === "picture"
-        ? "An image is shown; no visual-content description is supplied to the moderator."
-        : "None",
-    "Internal media lookup": isMedia ? (q.option_a || "None") : "None",
-    Theme: (theme || "").trim() || "None",
-  };
-  const prompt =
-    "You are a content moderator and factual checker for a commercial quiz night in Dubai, UAE. " +
-    "Judge this question independently. Moderate ONLY content actually presented to quiz players: the Question, visible Options, Answer, and any Player-visible media content explicitly described below. " +
-    "The Internal media lookup is private metadata. You may use its literal title, artist, subject or work name to identify the answer and check factual correctness, but MUST NOT infer, research or analyse any underlying lyrics, plot, themes, subtext, artist history, character history or other content that is not explicitly presented to players. " +
-    "Do NOT reject mainstream commercial songs, films, books or TV programmes solely because the referenced work contains mature themes. Allow well-known commercial music suitable for ordinary radio play and mainstream public venues unless the actual title, question, answer, quoted content, described image or described media presented to players is itself inappropriate. " +
-    "Distinguish factual reference from promotion: a neutral factual reference to alcohol or another restricted subject may pass; reject content that promotes, celebrates or encourages restricted activity. " +
-    "Reject only when the presented content itself contains genuinely explicit sexual material, crude anatomical language, illegal-drug promotion, pork promotion, religious or LGBTQ+ advocacy or sensitive discussion, Iran or Israel political content, hate speech, slurs, harassment, discriminatory content, graphic violence, or other clearly offensive or prohibited material. " +
-    "Example that MUST pass: Question 'Name this song.' with Internal media lookup 'Mr. Brightside - The Killers'. Do not analyse the song's lyrics or themes. " +
-    "Also verify that the Answer is factually correct for the Question, using the literal reference metadata when needed. Pay special attention to geographic facts (city, country, capital, venue) and named entities - these are common error points, so check them precisely rather than assuming they are right. " +
-    (recencyNote
-      ? "This question is about a recent/current event that may be AFTER your own training cutoff, so you may not personally recognise it - that is expected and is NOT itself a reason to reject it. A live web search was already run to verify it; treat the following as ground truth for this fact-check: " + recencyNote + " "
-      : "") +
-    "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"short reason based only on presented content\"}. " +
-    "Labelled fields: " + JSON.stringify(labelledContent);
-  let firstError = "";
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const text = await callAPI(prompt, 300, true, false, VALIDATION_MODEL);
-      const parsed = parseModelJson<{ ok: boolean; note?: string }>(text, "object");
-      return { ok: parsed.ok, note: parsed.note ?? (parsed.ok ? "OK" : "No reason given") };
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "Unknown moderation error";
-      if (attempt === 0) {
-        firstError = reason;
-        await wait(750);
-        continue;
-      }
-      return { ok: false, unavailable: true, note: "Moderation service unavailable: " + reason + (reason === firstError ? "" : " (first attempt: " + firstError + ")") };
-    }
-  }
-  return { ok: false, unavailable: true, note: "Moderation service unavailable" };
-}
-
-async function checkThemeRelevance(q: Question, activeTheme: string): Promise<{ ok: boolean; note: string }> {
-  const options = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f].filter(Boolean).join(" | ");
-  const isMedia = q.question_type === "picture" || q.question_type === "audio";
-  const subject = isMedia ? (q.option_a || "") : "";
-  const prompt =
-    "You are validating whether a pub-quiz question genuinely belongs to the theme \"" + activeTheme + "\". " +
-    "A question belongs to the theme ONLY IF answering it REQUIRES specific knowledge of " + activeTheme + " AND the correct answer is itself part of " + activeTheme + ". " +
-    "Judge ONLY the question and its answer" + (isMedia ? " and the described media subject" : "") + ". IGNORE any explanation entirely - a generic question is NOT made themed by an explanation that merely mentions " + activeTheme + ". " +
-    "Decisive test: could a generally-knowledgeable person who knows NOTHING about " + activeTheme + " still answer correctly? If yes, it does NOT belong to the theme - reject it. " +
-    "Example: theme 'Disney', question 'What animal is this?', answer 'Chameleon' => REJECT (a chameleon is a real animal; no Disney knowledge is required, even if an explanation mentions Pascal from Tangled). " +
-    "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"reason\"}. " +
-    "Theme: " + activeTheme + " | Question: " + (q.question_text || "") + " | Answer(key): " + (q.correct_answer || "") +
-    (options ? " | Options: " + options : "") +
-    (subject ? " | Media subject (internal search query, not shown to players): " + subject : "");
-  try {
-    const text = await callAPI(prompt, 300, true, false, VALIDATION_MODEL);
-    return parseModelJson<{ ok: boolean; note: string }>(text, "object");
-  } catch {
-    return { ok: true, note: "theme-check-unavailable" };
-  }
-}
-
-function resolveAnswerText(q: Question): string {
-  const map: Record<string, string | null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d, e: q.option_e, f: q.option_f };
-  const key = (q.correct_answer || "").trim().toLowerCase();
-  if (q.question_type === "multiple_choice") return map[key] || q.correct_answer;
-  if (q.question_type === "multi_tap" || q.question_type === "sequence") {
-    const parts = key.split(",").map(s => s.trim()).map(l => map[l]).filter(Boolean) as string[];
-    return parts.length ? parts.join(", ") : q.correct_answer;
-  }
-  return q.correct_answer;
-}
-
-async function finalQualityCheck(q: Question, theme: string, recencyNote?: string): Promise<{ ok: boolean; note: string }> {
-  const resolvedAnswer = resolveAnswerText(q);
-  const options = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f].filter(Boolean).join(" | ");
-  const isMedia = q.question_type === "picture" || q.question_type === "audio";
-  const subject = isMedia ? (q.option_a || "") : "";
-  const activeTheme = (theme || "").trim();
-  const prompt =
-    "You are an experienced professional pub quiz host performing FINAL quality control on ONE question before it goes live. " +
-    "Ask yourself: \"Would an experienced professional quiz host WILLINGLY use this EXACT question in a live pub quiz?\" Pass ONLY if the answer is an unequivocal YES. " +
-    "Reject (ok:false) if it suffers from ANY of: (1) unnatural wording; (2) awkward grammar; (3) artificially restricted answers; (4) an answer that is technically correct but not what a player would naturally type; (5) it depends on the explanation to make sense; (6) trivial or pointless; (7) poor quiz design; (8) misleading; (9) a generic question disguised as themed; (10) an image that does not directly represent the answer; (11) it gives the answer away; (12) it could reasonably have multiple correct answers; (13) it requires excessive interpretation; (14) it doesn't feel enjoyable to play; (15) anything a competent quiz writer would immediately rewrite. " +
-    "Examples that MUST fail: Text Answer 'In which movie does a boy say \"I see dead people\"?' answer 'Sixth' (nobody naturally types 'Sixth'). 'What trophy is awarded to the winner of Wimbledon?' answer 'Venus' (factually wrong, truncated, and ambiguous between events: women receive the Venus Rosewater Dish; men receive the Gentlemen's Singles Trophy). Number 'How many teams are in the Premier League? To the nearest 5' (the 'nearest 5' is pointless). A picture of a real bear asking 'What animal is Yogi Bear?' (the image gives away 'bear'). Disney-themed 'What animal is this?' over a real chameleon (not actually a Disney question). " +
-    "Judge the question exactly as a player would experience it. DO NOT rely on the explanation to make it make sense. " +
-    (recencyNote
-      ? "This question is about a recent/current event you may not personally recognise (it may post-date your training) - do not judge it unnatural or reject it purely for unfamiliarity. A live web search already verified: " + recencyNote + " "
-      : "") +
-    "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"short reason\"}. " +
-    "Type: " + q.question_type + " | Theme: " + (activeTheme || "none") +
-    " | Question: " + (q.question_text || "") +
-    " | Answer a player would type: " + (resolvedAnswer || "") +
-    (options ? " | Options: " + options : "") +
-    (subject ? " | Image/Audio subject (internal search query, not shown to players): " + subject : "");
-  try {
-    const text = await callAPI(prompt, 300, true, false, FACT_CHECK_MODEL);
-    return parseModelJson<{ ok: boolean; note: string }>(text, "object");
-  } catch {
-    return { ok: true, note: "quality-check-unavailable" };
-  }
-}
-
-async function generateOne(
-  type: string,
-  topic: string,
-  context: GenerationContext,
-  opts: { theme: string; difficulty: string; roundType: string; exclusions: ExclusionState; forceObscure?: boolean; multiTapCorrectCount?: number },
-): Promise<Question | null> {
-  const { theme, difficulty, roundType, exclusions, forceObscure, multiTapCorrectCount } = opts;
-  context.error = "";
-  context.report = { questionText: "", questionType: type, stages: emptyValidationResults(Boolean(theme.trim()), type === "picture" || type === "audio") };
-  const typeInstructions: Record<string, string> = {
-    multi_tap: `multi_tap: this MUST be a genuine SELECT-ALL set-membership question with MULTIPLE correct answers, never an ordinary single-answer trivia question padded to 6 choices. Begin question_text with "Which of these..." or "Select all..." and ask which options independently belong to a clearly defined category, have a stated property, or satisfy a condition. BAD and forbidden: "Which country landed on the Moon?", "Which band released American Idiot?", "Who won...?", "What is...?", or any fact that logically has one unique answer. GOOD: "Which of these countries have hosted the Summer Olympics?" or "Select all artists who have won Album of the Year." Exactly 6 options in option_a through option_f, ALL SIX FILLED IN. This question MUST have EXACTLY ${multiTapCorrectCount ?? 3} correct options; the remaining options must be wrong decoys. correct_answer must list exactly those ${multiTapCorrectCount ?? 3} correct option letters, comma-separated and in letter order. Make every decoy plausible, not obviously wrong.`,
-    multiple_choice: "multiple_choice: 4 options A/B/C/D, correct_answer is a, b, c, or d",
-    text_answer: "text_answer: the correct_answer MUST be a SINGLE word - no spaces, no commas, no \"and\", no \"&\", no \"/\", no multiple names, no multiple items, no hyphen-joined names. If the natural answer would be more than one word, choose a different question whose answer is a single word. All options must be null.",
-    number: "number: numeric answer, options null except option_a which has a helpful hint e.g. \"To the nearest 10\"",
-    sequence: "sequence: 4 items that have a definite correct chronological/logical order, written into option_a/b/c/d in that correct order. correct_answer must be exactly \"a,b,c,d\" (the options will be randomized programmatically afterward, so always write them in true correct order here). question_text must state only the ordering rule, such as \"Put these artists in order of when they first topped the global charts, earliest first.\" NEVER repeat, enumerate, or list the four option items in question_text; players must see each item exactly once in the tappable option list.",
-    picture: theme.trim()
-      ? `picture: create a THEMED picture question for "${theme.trim()}". option_a is a short internal Pixabay search query for a stock-safe REAL subject (landmark/building, animal, flag, food/dish, or stadium); never use logos, people, film stills, characters, album covers or copyrighted artwork. question_text is shown with that image and MUST require specific knowledge of "${theme.trim()}" to answer—the stock image is a meaningful clue, not the answer itself. Example pattern: an image of Neuschwanstein Castle with "This castle inspired the royal home in which Disney film?" Do NOT ask generic identification such as "What animal is this?"; that tests general knowledge rather than the theme. Never write "Show teams this image" or reveal the answer. option_b/c/d null; correct_answer must answer the themed question.`
-      // Used to hand the AI "Name this landmark" / "What animal is this?" as
-      // literal examples, which it then reproduced verbatim (or near enough)
-      // on question after question - every "animal" photo asked the exact
-      // same bare "What animal is this?" regardless of which animal it
-      // actually was, so a round of 5+ picture questions felt duplicated even
-      // though every photo was different. The fix is naming the specific
-      // subject CATEGORY per question (landmark/animal/flag/food/stadium all
-      // phrase differently) and explicitly forbidding the bare generic form,
-      // rather than modelling one bare template the AI then just repeats.
-      : "picture: option_a is a short internal Pixabay query for a stock-safe subject: landmark/building, animal, flag, food/dish, or stadium. Never use logos, famous people, film stills, characters, album covers or copyrighted artwork. question_text must name what KIND of identification is being asked using the specific subject category - e.g. \"Name this landmark\", \"Which country's flag is this?\", \"Which dish is pictured here?\", \"Which stadium is shown?\" - so a landmark question never reads the same as an animal question or a flag question. NEVER use the bare generic forms \"What is this?\" or \"What animal is this?\" with no other detail - every picture question in a round covers a different subject, so its phrasing must be specific enough to that subject's category to not read identically to every other picture question in the same round. Do not name the subject itself or say 'Show teams this image'. option_b/c/d null; correct_answer identifies what is shown.",
-    audio: theme.trim()
-      ? `audio: create a THEMED music-clip question for "${theme.trim()}". option_a is an internal YouTube search query identifying the exact track. question_text is shown after the clip and MUST require specific knowledge of "${theme.trim()}"—for example "Which animated film features this song?"—rather than merely naming a song that happens to be associated with the theme. Do not reveal the song, artist or answer. option_b/c/d null; correct_answer must answer the themed question.`
-      : "audio: option_a is an internal YouTube search query identifying the exact track. question_text is a short question answerable from the clip, such as 'Name this song', 'Which artist performs this song?' or 'What year was it released?'. Do not reveal the title or artist. option_b/c/d null; correct_answer must match what question_text asks.",
-  };
-  const rejectedList = Array.from(exclusions.rejectedTexts);
-  let exclusionsText = [...rejectedList, ...exclusions.used.slice(-25)].map((q, i) => (i + 1) + ". " + q).join("; ");
-  if (exclusionsText.length > 1800) exclusionsText = exclusionsText.slice(0, 1800);
-  const usedAnswersList = exclusions.usedAnswers.slice(-20).filter(Boolean).join(", ");
-  let sessionExclusionNote = (exclusionsText || usedAnswersList)
-    ? " Do NOT generate any of these already-used questions: " + exclusionsText + "."
-      + (usedAnswersList ? " Also do NOT use any of these already-used answers (even with different question wording): " + usedAnswersList + "." : "")
-    : "";
-  if (sessionExclusionNote.length > 1200) sessionExclusionNote = sessionExclusionNote.slice(0, 1200);
-  // Permanently-banned overused facts (see PERMANENT_EXCLUDED_FACTS above) -
-  // always included, independent of this session's own exclusion list, and
-  // appended AFTER the 1200-char truncation above so a long session
-  // exclusion list can never crowd these out.
-  const permanentExclusionNote = " Never generate a question about any of these overused facts, worded any way: " + PERMANENT_EXCLUDED_FACTS.join("; ") + ".";
-  // Only topics that actually need something from the last few years should
-  // get routed through Claude's live web search tool - everything else in
-  // TOPICS/MUSIC_TOPICS is evergreen trivia the model already knows solidly,
-  // and ungrounded generation was producing stale or occasionally wrong
-  // "recent" facts for anything genuinely current, since the model only
-  // knows whatever was true as of its training cutoff.
-  //
-  // This USED to only match the exact random-pick topic strings below, which
-  // meant it only ever fired for a randomly-chosen unthemed question (about
-  // 1 in 32 chance) and NEVER fired when a host actually typed a theme like
-  // "news", "current affairs", or "pop culture" - a theme becomes `topic`
-  // verbatim (see launchCandidate()'s `theme || ...` fallback above), so an
-  // explicit ask for current content was silently generating stale,
-  // ungrounded trivia instead. Now any theme or topic whose text itself
-  // signals "wants something current" gets web search too - covers the two
-  // original recency topics, a host-typed theme like "current affairs" or
-  // "pop culture", and the new "current chart hits" music topic.
-  const RECENCY_SIGNAL = /\bnews\b|current affairs|pop culture|\brecent\b|trending|this year|last year|chart hits|latest hits|new release/i;
-  const isRecencyTopic = RECENCY_SIGNAL.test(topic);
-  // A long-running account's permanent Question Memory eventually holds
-  // most of the OBVIOUS mainstream facts for a common topic (the ones a
-  // random angle pick keeps re-discovering) - so a run of consecutive
-  // Permanent-memory-match rejections stops picking a random angle and
-  // deliberately forces "deeper cut" instead, to push the model off the
-  // same well-trodden obvious answers it keeps proposing.
-  const angle = forceObscure ? "a deeper cut, not the most obvious example - genuinely less commonly asked, while still fair and answerable by a general pub-quiz crowd" : VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
-  const varietyNote = type === "audio"
-    ? " IMPORTANT - pick a well-known song: either a genuinely famous track a pub crowd would clap along to, OR any other song (even a deeper cut, B-side, or later single) by a genuinely famous, widely recognised artist/band - the artist being well-known is enough on its own, the specific song does not also have to be their single most famous hit. Not obscure/unknown artists either way. Vary the decade/genre/artist from recent picks."
-    : " IMPORTANT - avoid defaulting to the single most famous, first-thought-of example for this topic (e.g. for 'Disney songs' don't always pick Let It Go or Circle of Life). Where possible, lean toward something " + angle + ". Vary your answer choices across different eras, genres, and sub-topics rather than the most obvious pick. " +
-      "ALSO vary the QUESTION SENTENCE STRUCTURE itself, not just the topic and answer - do not default to the generic 'Which [brand/company]'s [logo/mascot/product] is/features/has [X]?' template. Mix in different natural phrasings appropriate to the fact: who/what/where/when/how questions, 'In [film/show], who/what...', 'What is the name of...', 'How many...', direct trivia phrasing, etc. Two consecutive questions in the same round should not read like the same template with the nouns swapped.";
-  const prompt = `You are writing questions for a LIVE PUB QUIZ at a bar or restaurant. Your audience is adults aged 25-55 having a social night out. This is entertainment, not education.
-BEFORE writing any question, ask yourself: "Would 8 friends sitting in a pub enjoy answering this?" If no, do not write it.
-FIRST-PASS CHECK (do silently): consider several different facts and entities; reject any that paraphrase an excluded question or reuse its entity, answer or knowledge test; then choose the strongest stable fact with one clear natural answer. Check only player-visible content for venue suitability—unseen plots, lyrics and themes do not make a mainstream work unsuitable.
-TOPIC: ${topic}
-${roundType === "bonus" ? `BONUS THEME CONTRACT: Every question must directly test the host's theme "${theme || topic}". Use a different fact and subject for each question. Do not drift into movie/music trivia merely associated with the theme. For a colour theme, ask about colours themselves in varied contexts (nature, flags, everyday objects, art or sport), not the name of a film with colourful characters. All text must stand alone: never say "this bird", "this picture" or "this song" without supplied media. Prefer natural, specific questions over tenuous associations.` : ""}
-TYPE: ${typeInstructions[type]}
-DIFFICULTY: ${difficulty === "easy" ? "EASY - almost everyone in the room should get this right" : difficulty === "hard" ? "HARD - a well-informed pub team might know this, but it is still based on widely-known popular culture or history, never specialist academic knowledge" : "MEDIUM - a mixed group of adults has a fair chance, about half the room gets it right"}
-TONE AND STYLE:
-- Fun, social, conversational
-- Think Kahoot or bar trivia night, not University Challenge
-- Questions should feel satisfying and recognisable when answered
-- Short question text - a host reads this aloud, keep it under 20 words where possible
-- Use plain everyday English, no jargon
-WHAT TO WRITE ABOUT (high priority):
-Music, movies, TV shows, celebrities, showbiz, football, world geography, famous brands, food and drink, famous landmarks, travel, pop culture, social media, consumer technology, accessible science and space, books, art and culture, simple history, sport, nature and everyday life
-WHAT TO NEVER WRITE ABOUT:
-Mathematics, advanced or specialist science, medicine, rare diseases, engineering detail, obscure geography, scientific terminology, specialist vocabulary, academic concepts, anything requiring university-level knowledge
-STRICT QUALITY RULES (every question must pass all of these):
-1. The answer must NOT appear anywhere inside the question text, including inside a show/film/song/book title, brand name, or other proper noun quoted in the question. Never give away or hint at the answer in the question itself. Example that MUST fail: "In which country is the reality show 'MasterChef Australia' filmed and set?" answer "Australia" (the country name is written right there in the show's title) - pick a different fact about the show, or a different question, instead.
-2. No words that are difficult to pronounce aloud at speed. A host reads this live to a noisy room.
-3. No specialist terminology. If an average person would not know the word, do not use it.
-4. Wrong answer options must be plausible. Use well-known alternatives someone might genuinely confuse, not obviously wrong fillers.
-5. Every question must be answerable by a reasonably well-informed adult with no specialist training.
-6. UAE venue safe: no alcohol references, no pork, no sexual content, no religion, no LGBTQ+ content, no Iran or Israel political references. This is a UAE venue with an international, mostly-expat crowd, NOT a UK pub - do not default to UK-only framing or phrasing ("UK hit", "UK number one", "as seen on British TV", assuming a British reader). Prefer facts and entities that are globally/internationally recognisable (worldwide chart hits, globally famous films/shows/people) over ones that are only well-known in the UK specifically. Frame chart/hit questions in globally neutral terms (e.g. "a global hit" or naming the artist/year) rather than labelling them by a single country's chart unless the topic is explicitly about that country's culture.
-7. Use one stable, verifiable fact: nothing disputed, subjective, or invented.${isRecencyTopic
-    ? " This question is for the \"" + topic + "\" topic - you have a web_search tool available and MUST use it before writing the question. Search for a genuinely well-known breaking or trending entertainment, showbiz, music, sport, technology or culture headline from roughly the last 1-12 months. Use only a completed, stable fact confirmed by reliable search results; never ask about a developing story, prediction, rumour or detail likely to change. If sources are unclear or conflicting, choose a different story. Never use politics, elections, war, crime, tragedy or disaster."
-    : " For current or trending topics only, use well-known, completed entertainment, showbiz, music, sport, technology or culture events confirmed by live search - never politics, developing stories, rumours or facts likely to change."}
-8. Wording must allow exactly one defensible, natural answer-not an abbreviation, fragment, trick or technicality.
-9. If the correct_answer is a person's name and only part of the full name (surname only, or first name only) will be stored as the answer, the question_text itself must explicitly state which part is required (e.g. "What is the SURNAME of the actress who played Katniss Everdeen?" with correct_answer "Lawrence", or "What is the FIRST NAME of the actor who played Iron Man?" with correct_answer "Robert"). Never ask an ambiguous full-name question and store only a partial name as the answer.
-10. The question must stand alone without its explanation and test one satisfying piece of knowledge.
-11. Stay on TOPIC but use a genuinely different entity and narrow subtopic from the exclusions.
-${varietyNote}${sessionExclusionNote}${permanentExclusionNote}
-Include a 1-2 sentence explanation of the answer in the explanation field.
-Silently check before writing: one array item, every schema key present, unused options null, exact requested type and answer format. Do not write out that checking process - it must not appear anywhere in your reply.
-Your entire reply must be ONLY the JSON array itself - no preamble, no "checking..." notes, no explanation of your reasoning, no markdown, nothing before the opening [ or after the closing ]. The very first character of your reply must be [.
-Return ONLY a valid JSON array with 1 item, no markdown:
-[{"question_text":"...","question_type":"${type}","option_a":"...","option_b":"...","option_c":"...","option_d":"...","option_e":"...","option_f":"...","correct_answer":"...","explanation":"...","difficulty":"${difficulty}","round_type":"${roundType}"}]`;
-  // Never truncate the completed prompt: its final lines contain the JSON
-  // contract. Once the quality guidance grew beyond 7,500 characters, the
-  // old slice() removed that contract and Haiku returned prose/incomplete
-  // JSON, causing every candidate to fail parsing. If the prompt needs
-  // shrinking, remove only optional recent-session exclusions; permanent
-  // exclusions and the output schema always survive intact.
-  const promptWithoutSessionExclusions = prompt.replace(sessionExclusionNote, "");
-  // Match the API route's 12k ceiling with headroom for future transport
-  // metadata. The complete base instructions are already above the former
-  // 8k limit, so targeting 7.9k could not possibly make a valid request.
-  const allowedSessionExclusionLength = Math.max(0, 11500 - promptWithoutSessionExclusions.length);
-  const safePrompt = prompt.replace(sessionExclusionNote, sessionExclusionNote.slice(0, allowedSessionExclusionLength));
-  try {
-    // Web-search-grounded calls need more token headroom than a plain
-    // generation call - the search results themselves, plus the model's
-    // tool-use turn, both count against the same max_tokens ceiling before
-    // it even gets to writing the final question JSON.
-    const text = await callAPI(safePrompt, 1200, false, isRecencyTopic, GENERATION_MODEL);
-    let q;
-    try {
-      q = parseModelJson<Array<Question & Record<string, unknown>>>(text, "array")[0];
-    } catch {
-      throw new Error("JSON parse failed. Raw text (first 500 chars): " + text.slice(0, 500));
-    }
-    if (q) { q.question_type = type; }
-    if (q) { context.report.questionText = q.question_text || "Untitled candidate"; }
-    // The generation call above ran with a real web_search tool and wrote a
-    // grounded fact, but the validators later (checkQuestion/finalQualityCheck/
-    // runCombinedValidation) run on VALIDATION_MODEL WITHOUT search - so a
-    // genuinely recent fact the validator doesn't personally recognise (it
-    // may post-date that model's own training) reads exactly like a
-    // hallucination and gets rejected. That silent rejection is why almost no
-    // news/current-affairs questions were ever surviving to a live round even
-    // though generation itself was correctly using search. Run one more
-    // search-grounded call here to produce a short, independently-verified
-    // fact summary and hand it to every validator as trusted context, so
-    // "I don't recognise this" stops being treated as "this is wrong".
-    if (q && isRecencyTopic) {
-      q._recency = true;
-      try {
-        const verifyPrompt = "Use the web_search tool to verify this pub-quiz question and answer against current, reliable sources. " +
-          "Question: " + (q.question_text || "") + " | Stated answer: " + resolveAnswerText(q) + ". " +
-          "Reply with ONE short sentence stating either the confirmed correct answer and source context, or that it could not be confirmed. No markdown, no preamble.";
-        const verifyText = await callAPI(verifyPrompt, 400, false, true, GENERATION_MODEL);
-        if (verifyText && verifyText.trim()) q._recencyNote = verifyText.trim().slice(0, 500);
-      } catch {
-        // No verification note is fine - validators still get the "this may
-        // be recent, don't reject for unfamiliarity" instruction on its own.
-      }
-    }
-    if (q && theme && theme.trim()) {
-      const themeCheck = await checkThemeRelevance(q, theme.trim());
-      context.report.stages.theme = { status: themeCheck.ok ? "passed" : "failed", note: themeCheck.note };
-      if (!themeCheck.ok) {
-        context.error = "Off-theme for '" + theme.trim() + "' (" + themeCheck.note + ") - retrying";
-        return null;
-      }
-    }
-    if (q && q.question_type === "audio" && q.option_a) {
-      try {
-        const ytKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
-        const ytRes = await fetch(
-          "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=" +
-          encodeURIComponent(q.option_a) + "&key=" + ytKey
-        );
-        const ytData = await ytRes.json();
-        const videoId = ytData?.items?.[0]?.id?.videoId;
-        if (videoId) {
-          q.option_b = "https://www.youtube.com/watch?v=" + videoId;
-          context.report.stages.media = { status: "passed", note: "YouTube media found" };
-        } else {
-          context.report.stages.media = { status: "failed", note: "No YouTube result found" };
-          return null;
-        }
-      } catch {
-        context.report.stages.media = { status: "failed", note: "YouTube lookup failed" };
-        return null;
-      }
-    }
-    if (q && q.question_type === "picture" && q.option_a) {
-      const brandCheck = (q.question_text + " " + q.option_a).toLowerCase();
-      if (/\blogo\b|\bbrand\b|\btrademark\b/.test(brandCheck)) {
-        context.report.stages.media = { status: "failed", note: "Picture subject requested a logo, brand or trademark" };
-        return null;
-      }
-      try {
-        const pixabayKey = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
-        const pixabayQuery = buildPixabaySearchQuery(q.option_a);
-        const pixRes = await fetch(
-          "https://pixabay.com/api/?key=" + pixabayKey +
-          "&q=" + encodeURIComponent(pixabayQuery) +
-          "&image_type=photo&per_page=5&safesearch=true"
-        );
-        const pixData = await pixRes.json();
-        const hit = selectMatchingPixabayHit(pixData?.hits || [], q.option_a);
-        if (hit) {
-          const pixabayUrl = hit.webformatURL || hit.largeImageURL;
-          if (!pixabayUrl) {
-            context.report.stages.media = { status: "failed", note: "Matched Pixabay result had no usable image URL" };
-            return null;
-          }
-          // Re-host in our own storage - Pixabay's hotlink URLs are not
-          // guaranteed permanent and have been observed going dead over time.
-          q.option_b = await persistPixabayImage(pixabayUrl);
-          context.report.stages.media = { status: "passed", note: "Pixabay image found" };
-        } else {
-          context.report.stages.media = { status: "failed", note: "No Pixabay image matched the requested subject" };
-          return null;
-        }
-      } catch {
-        context.report.stages.media = { status: "failed", note: "Pixabay lookup failed" };
-        return null;
-      }
-    }
-    if (q && q.question_type === "multiple_choice") {
-      const letters = ["a", "b", "c", "d"];
-      const items = letters.map(l => q["option_" + l]);
-      const correctLetter = (q.correct_answer || "").trim().toLowerCase();
-      const correctIndex = letters.indexOf(correctLetter);
-      const shuffledLetters = shuffle(letters);
-      const newOptions: Record<string, unknown> = {};
-      let newCorrect = correctLetter;
-      shuffledLetters.forEach((destL, i) => {
-        newOptions[destL] = items[i];
-        if (i === correctIndex) newCorrect = destL;
-      });
-      letters.forEach(l => { q["option_" + l] = newOptions[l]; });
-      q.correct_answer = newCorrect;
-    }
-    if (q && q.question_type === "sequence") {
-      const suitabilityError = sequenceSuitabilityError(q);
-      if (suitabilityError) {
-        context.error = suitabilityError + " - retrying";
-        return null;
-      }
-      const letters = ["a", "b", "c", "d"];
-      const items = letters.map(l => q["option_" + l]);
-      const shuffledLetters = shuffle(letters);
-      const newOptions: Record<string, unknown> = {};
-      shuffledLetters.forEach((slot, i) => { newOptions[slot] = items[i]; });
-      letters.forEach(l => { q["option_" + l] = newOptions[l]; });
-      q.correct_answer = shuffledLetters.join(",");
-    }
-    if (q && q.question_type === "multi_tap") {
-      const suitabilityError = multiTapSuitabilityError(q);
-      if (suitabilityError) {
-        context.error = suitabilityError + " - retrying";
-        return null;
-      }
-      const letters = ["a", "b", "c", "d", "e", "f"];
-      // Bug fixed here: this used to build `items` by filtering nulls out of
-      // the a-f option values, then separately compute `wasCorrect` against
-      // "the first N letters" (a, b, c...) rather than the ORIGINAL letter
-      // each surviving item actually came from. Those only lined up when the
-      // AI happened to leave options unfilled from the END (e.g. only
-      // option_f null) - if a MIDDLE slot was empty (e.g. option_c), every
-      // item after it shifted left while "usedLetters" didn't, silently
-      // pairing the wrong correctness flag with the wrong option text after
-      // shuffling. Tracking (letter, value) pairs together removes the
-      // possibility of that misalignment regardless of which slot the AI
-      // left empty.
-      const filledPairs = letters
-        .map(l => ({ letter: l, value: q["option_" + l] }))
-        .filter((p): p is { letter: string; value: string } => p.value !== null && p.value !== undefined && p.value !== "");
-      const items = filledPairs.map(p => p.value);
-      const correctLetters = (q.correct_answer || "").split(",").map((s: string) => s.trim().toLowerCase());
-      if (multiTapCorrectCount && new Set(correctLetters).size !== multiTapCorrectCount) {
-        context.error = "Multi Tap required exactly " + multiTapCorrectCount + " correct answers (got " + new Set(correctLetters).size + ") - retrying";
-        return null;
-      }
-      const usedLetters = letters.slice(0, items.length);
-      const wasCorrect = filledPairs.map(p => correctLetters.includes(p.letter));
-      const shuffledLetters = shuffle(usedLetters);
-      const newOptions: Record<string, unknown> = {};
-      const newCorrect: string[] = [];
-      usedLetters.forEach((_origL, i) => {
-        const destL = shuffledLetters[i];
-        newOptions[destL] = items[i];
-        if (wasCorrect[i]) newCorrect.push(destL);
-      });
-      letters.forEach(l => { q["option_" + l] = newOptions[l] ?? null; });
-      q.correct_answer = newCorrect.sort().join(",");
-      const finalKeyLetters = q.correct_answer.split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean);
-      const keyValid = finalKeyLetters.length > 0 && finalKeyLetters.every((l: string) => {
-        const opt = q["option_" + l];
-        return opt !== null && opt !== undefined && opt !== "";
-      });
-      if (!keyValid) {
-        context.error = "Multi Tap answer key invalid ('" + (q.correct_answer || "") + "') - retrying";
-        return null;
-      }
-    }
-    if (q && q.question_type === "text_answer") {
-      const ans = (q.correct_answer || "").trim();
-      const invalid =
-        ans === "" ||
-        /\s/.test(ans) ||
-        ans.includes(",") ||
-        ans.includes("&") ||
-        ans.includes("/") ||
-        /\band\b/i.test(ans) ||
-        /[A-Za-z]+-[A-Z][a-zA-Z]*/.test(ans);
-      if (invalid) {
-        context.error = "Text Answer must be a single word (got '" + ans + "') - retrying";
-        return null;
-      }
-    }
-    q._uid = genUid();
-    return q;
-  } catch (e) {
-    context.error = e instanceof Error ? e.message : "Unknown error";
-    return null;
-  }
-}
-
-function duplicateRejectionReason(q: Question, currentRound: Question[], theme: string, exclusions: ExclusionState): string | null {
-  const COMMON = new Set([
-    "what","which","where","when","who","that","this","with","from","have","been","were","they","their","about","only","does","into","than","other","more","over","some","also","after","before","known","the","and","for","are","but","not","you","all","can","had","her","him","his","how","man","new","now","old","see","two","way","boy","did","its","let","put","say","she","too","use","was","your","them","then","here","there","was","are",
-    "film","films","movie","movies","song","songs","music","character","characters","name","named","names","actor","actress","actors","voice","voiced","played","plays","play","called","feature","features","featured","animated","animation","show","shows","series","episode","famous","first","last","title","titled","released","release","year","years","won","wins","winner","story","stories","franchise","sequel","original","company","brand","team","player","country","city","capital","word","words","number",
-  ]);
-  const themeTokens = (theme || "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
-  const ignore = new Set<string>([...COMMON, ...themeTokens]);
-  const sigWords = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
-  const sigPairs = (s: string) => {
-    const words = sigWords(s);
-    return new Set(words.slice(0, -1).map((word, index) => word + " " + words[index + 1]));
-  };
-  // multiple_choice/multi_tap/sequence store correct_answer as a raw letter
-  // (a/b/c), not the answer text - comparing that directly across types
-  // would falsely collide any two questions that both happen to have "a" as
-  // the right option. resolveAnswerText() maps letter-types back to their
-  // real option text first; picture/text_answer/number already store the
-  // real answer directly, so it passes those through unchanged.
-  const normAnswer = resolveAnswerText(q).toLowerCase().trim();
-  const fingerprint = questionFingerprint(q);
-  if (exclusions.rejectedFingerprints.has(fingerprint)) return "blacklist";
-  if (exclusions.usedFingerprints.has(fingerprint)) return "exact-question:used-or-history";
-  if (exclusions.used.some(text => normalizeQuestionText(text) === normalizeQuestionText(q.question_text))) return "same-question-text:quiz-or-history";
-  if (currentRound.some(g => questionFingerprint(g) === fingerprint)) return "exact-question:current-round";
-  // Deliberately NOT scoped to matching question_type - a picture question
-  // about Niagara Falls and a text question about Niagara Falls are still
-  // the same subject asked twice in one round, which reads as repetitive to
-  // a host regardless of the two questions being differently formatted.
-  // Observed directly: two separate Niagara Falls questions (one picture,
-  // one not) both surviving in the same generated round because this check
-  // previously only ever compared questions of the identical type against
-  // each other.
-  if (normAnswer && currentRound.some(g =>
-    resolveAnswerText(g).toLowerCase().trim() === normAnswer
-  )) return "same-answer:current-round";
-  if (normAnswer && exclusions.usedAnswers.includes(normAnswer)) return "same-answer:quiz-plan";
-  const newWords = sigWords(q.question_text);
-  const newPairs = sigPairs(q.question_text);
-  if (newWords.length >= 2) {
-    for (const usedText of exclusions.used.slice(-100)) {
-      const usedWords = sigWords(usedText);
-      if (usedWords.length < 2) continue;
-      const usedPairs = sigPairs(usedText);
-      if ([...newPairs].some(pair => usedPairs.has(pair))) return "same-primary-entity:quiz-or-history";
-      const shared = newWords.filter(w => usedWords.includes(w)).length;
-      if (shared >= 2 && shared / Math.min(newWords.length, usedWords.length) >= 0.75) return "same-fact-reworded:quiz-or-history";
-    }
-    for (const g of currentRound) {
-      const existWords = sigWords(g.question_text);
-      if (existWords.length < 2) continue;
-      const shared = newWords.filter(w => existWords.includes(w)).length;
-      if (shared < 2) continue;
-      const overlap = shared / Math.min(newWords.length, existWords.length);
-      if (overlap >= 0.6) return "near-identical";
-    }
-  }
-  return null;
-}
-
-async function checkRoundBalance(q: Question, currentRound: Question[], theme: string): Promise<{
-  ok: boolean;
-  note: string;
-  details: RoundBalanceDetails;
-}> {
-  const emptyDetails: RoundBalanceDetails = { candidate_subtopic: null, candidate_entity: null, conflict_index: null, rejection_reason: "" };
-  if (currentRound.length === 0) return { ok: true, note: "First accepted question in round", details: emptyDetails };
-  const activeTheme = (theme || "").trim();
-  const candidate = {
-    type: q.question_type,
-    question: q.question_text || "",
-    answer: resolveAnswerText(q) || "",
-    internal_media_lookup: ["picture", "audio"].includes(q.question_type) ? (q.option_a || "None") : "None",
-  };
-  const accepted = currentRound.map((existing, index) => ({
-    index: index + 1,
-    type: existing.question_type,
-    question: existing.question_text || "",
-    answer: resolveAnswerText(existing) || "",
-    internal_media_lookup: ["picture", "audio"].includes(existing.question_type) ? (existing.option_a || "None") : "None",
-  }));
-  const prompt =
-    "You are an experienced professional pub-quiz host checking the balance of " + (activeTheme ? `a round themed "${activeTheme}". ` : "an UNTHEMED general-knowledge round. ") +
-    "Compare ONE candidate only with the already accepted questions supplied below. Reject only with HIGH confidence when an experienced host would consider the round noticeably repetitive because: (1) the same primary entity appears twice; (2) the same narrow subtopic appears twice; or (3) both questions effectively test the same underlying knowledge - even if the specific fact, clue, or answer is different. " +
-    (activeTheme ? `The shared theme "${activeTheme}" is intentional and MUST NOT itself count as repetition. But a broad theme still needs variety inside it: for "kids movies", two questions about Frozen, Shrek, or the same franchise must be rejected. If the theme itself explicitly names one work/entity (for example "Frozen"), allow that named entity but require different characters, scenes, songs, production facts or narrow subtopics. ` : "") +
-    "Examples that should be rejected: two tennis questions, two Beatles questions, two volcano questions, or two 'identify this car brand from a clue' questions (e.g. one from its logo, one from its slogan - different facts, but the player's actual task both times is 'name this car brand', which is repetitive even with different answers). " +
-    "Allow broad-category overlap such as two different sports or two different music subjects where the actual knowledge being tested differs each time (a football history fact vs a tennis rules fact), not just the same recurring task with a different answer plugged in. Allow incidental or weak relationships. Do NOT reject merely because two questions mention or concern the same country; reject only if they also share a genuinely narrow subtopic, primary entity, or underlying knowledge test. " +
-    "Be conservative: uncertainty MUST pass. The candidate must be judged against accepted questions only. conflict_index is the 1-based index of the accepted question it conflicts with, otherwise null. " +
-    "Reply ONLY with JSON {\"ok\":true,\"note\":\"No high-confidence round-balance conflict\",\"confidence\":\"low|medium|high\",\"candidate_subtopic\":\"short label or null\",\"candidate_entity\":\"primary entity or null\",\"conflict_index\":null,\"rejection_reason\":\"\"} or {\"ok\":false,\"note\":\"short reason\",\"confidence\":\"high\",\"candidate_subtopic\":\"short label\",\"candidate_entity\":\"primary entity or null\",\"conflict_index\":1,\"rejection_reason\":\"specific repeated subject\"}. " +
-    "Candidate: " + JSON.stringify(candidate) + " | Accepted questions: " + JSON.stringify(accepted);
-  try {
-    const parsed = parseModelJson<{
-      ok?: boolean; note?: string; confidence?: string;
-      candidate_subtopic?: string | null; candidate_entity?: string | null;
-      conflict_index?: number | null; rejection_reason?: string;
-    }>(await callAPI(prompt, 350, true, false, VALIDATION_MODEL), "object");
-    const conflictIndex = Number.isInteger(parsed.conflict_index) && (parsed.conflict_index as number) >= 1 && (parsed.conflict_index as number) <= currentRound.length
-      ? parsed.conflict_index as number
-      : null;
-    const details: RoundBalanceDetails = {
-      candidate_subtopic: parsed.candidate_subtopic || null,
-      candidate_entity: parsed.candidate_entity || null,
-      conflict_index: conflictIndex,
-      rejection_reason: parsed.rejection_reason || parsed.note || "",
-    };
-    const highConfidenceConflict = parsed.ok === false && parsed.confidence === "high" && conflictIndex !== null;
-    return {
-      ok: !highConfidenceConflict,
-      note: highConfidenceConflict ? (details.rejection_reason || "High-confidence repeated subject") : (parsed.note || "No high-confidence round-balance conflict"),
-      details,
-    };
-  } catch {
-    return { ok: true, note: "Round-balance check unavailable - allowed", details: emptyDetails };
-  }
-}
-
-async function runCombinedValidation(q: Question, currentRound: Question[], theme: string, recencyNote?: string): Promise<{
-  moderation: { ok: boolean; note: string; unavailable?: boolean };
-  balance: { ok: boolean; note: string; details: RoundBalanceDetails };
-  quality: { ok: boolean; note: string };
-}> {
-  const optionTexts = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f];
-  const isMedia = q.question_type === "picture" || q.question_type === "audio";
-  const candidate = {
-    type: q.question_type,
-    question: q.question_text || "",
-    options: isMedia ? [] : optionTexts.filter(Boolean),
-    answer: resolveAnswerText(q) || "",
-    player_visible_media: q.question_type === "audio"
-      ? "An audio clip is played; no lyric transcript or other content description is supplied."
-      : q.question_type === "picture"
-        ? "An image is shown; no visual-content description is supplied."
-        : "None",
-    internal_media_lookup: isMedia ? (q.option_a || "None") : "None",
-    theme: (theme || "").trim() || "None",
-  };
-  const accepted = currentRound.map((existing, index) => ({
-    index: index + 1,
-    type: existing.question_type,
-    question: existing.question_text || "",
-    answer: resolveAnswerText(existing) || "",
-    internal_media_lookup: ["picture", "audio"].includes(existing.question_type) ? (existing.option_a || "None") : "None",
-  }));
-  const prompt =
-    "Perform three INDEPENDENT checks on one commercial pub-quiz question and return all three verdicts in one tool call. " +
-    "MODERATION: Judge only player-visible Question, Options, Answer and explicitly described player-visible media. Internal media lookup is private metadata: use its literal title/artist/subject only to identify and fact-check the answer. Never infer or analyse lyrics, plot, themes, subtext, artist history or character history. Allow mainstream commercial music, films, books and TV unless the actual presented title/content is inappropriate. A neutral factual alcohol reference is allowed; promotion is not. Reject only genuinely explicit sexual material, crude anatomical language, illegal-drug promotion, pork promotion, religious or LGBTQ+ advocacy or sensitive discussion, Iran or Israel political content, hate speech, slurs, harassment, discrimination, graphic violence, or clearly offensive/prohibited presented content. 'Name this song' with lookup 'Mr. Brightside - The Killers' must pass. Also verify the answer is factually correct. " +
-    "ROUND BALANCE: Compare only with accepted questions. Reject only with HIGH confidence for the same primary entity, same narrow subtopic, or effectively the same underlying knowledge. Broad-category overlap is allowed; incidental/weak relationships pass; never reject merely for the same country. If themed, the shared theme is intentional, but repeated franchises/entities inside it are not. conflict_index is the 1-based accepted-question index, otherwise null. " +
-    "FINAL QUALITY AND FACTUAL ACCURACY: Independently verify that the exact answer is a real, complete, factually correct answer to the exact wording. Pass only if an experienced professional host would willingly use it. Reject invented or truncated names, unnatural/ambiguous/trivial/misleading wording, answers players would not naturally give, answer giveaways, multiple reasonable answers, category/event/gender ambiguity, poor quiz design, or media that does not directly support the question. Example that MUST fail: 'What trophy is awarded to the winner of Wimbledon?' answer 'Venus'—there is no trophy called Venus, and the event is unspecified; the women's trophy is the Venus Rosewater Dish and the men's is the Gentlemen's Singles Trophy. Do not rely on the explanation. " +
-    "Return moderation_ok/note, balance_ok/note/confidence, quality_ok/note, candidate_subtopic, candidate_entity, conflict_index and rejection_reason. Uncertainty in balance must pass. " +
-    (recencyNote
-      ? "This candidate concerns a recent/current event that may post-date your training data, so you may not personally recognise it - that unfamiliarity alone is NOT grounds for a factual-accuracy rejection. A live web search was already run to verify it; treat this as ground truth for the quality/factual check: " + recencyNote + " "
-      : "") +
-    "Candidate labelled fields: " + JSON.stringify(candidate) + " | Accepted questions: " + JSON.stringify(accepted);
-  try {
-    const parsed = parseModelJson<{
-      moderation_ok?: boolean; moderation_note?: string;
-      balance_ok?: boolean; balance_note?: string; balance_confidence?: string;
-      quality_ok?: boolean; quality_note?: string;
-      candidate_subtopic?: string | null; candidate_entity?: string | null;
-      conflict_index?: number | null; rejection_reason?: string;
-    }>(await callAPI(prompt, 550, true, false, FACT_CHECK_MODEL, true), "object");
-    const conflictIndex = Number.isInteger(parsed.conflict_index) && (parsed.conflict_index as number) >= 1 && (parsed.conflict_index as number) <= currentRound.length
-      ? parsed.conflict_index as number
-      : null;
-    const highConfidenceConflict = parsed.balance_ok === false && parsed.balance_confidence === "high" && conflictIndex !== null;
-    const details: RoundBalanceDetails = {
-      candidate_subtopic: parsed.candidate_subtopic || null,
-      candidate_entity: parsed.candidate_entity || null,
-      conflict_index: conflictIndex,
-      rejection_reason: parsed.rejection_reason || parsed.balance_note || "",
-    };
-    return {
-      moderation: { ok: parsed.moderation_ok === true, note: parsed.moderation_note || (parsed.moderation_ok ? "OK" : "Moderation rejected") },
-      balance: { ok: !highConfidenceConflict, note: highConfidenceConflict ? (details.rejection_reason || "High-confidence repeated subject") : (parsed.balance_note || "No high-confidence round-balance conflict"), details },
-      quality: { ok: parsed.quality_ok === true, note: parsed.quality_note || (parsed.quality_ok ? "OK" : "Final quality rejected") },
-    };
-  } catch {
-    // Compatibility fallback for a deployment where the API route has not
-    // yet picked up the expanded tool schema, or for an unexpected combined
-    // response. Preserve the established fail-closed moderation behaviour
-    // and fail-open balance/quality behaviour instead of losing validation.
-    const [moderation, balance, quality] = await Promise.all([
-      checkQuestion(q, theme, recencyNote),
-      checkRoundBalance(q, currentRound, theme),
-      finalQualityCheck(q, theme, recencyNote),
-    ]);
-    return { moderation, balance, quality };
-  }
-}
-
-async function isDuplicateInMemory(q: Question, exclusions: ExclusionState, onDegraded?: () => void): Promise<boolean> {
-  // The fingerprint check is exact-match only (normalized text + answer +
-  // options) - it catches a question regenerated verbatim, but NOT a
-  // paraphrase of one already used ("Which fashion house has two
-  // interlocking Gs?" vs "Which fashion house's logo is two interlocking
-  // Gs?" - same fact, same answer, different wording). That's a real gap:
-  // this used to be the ONLY check run for multiple_choice/multi_tap/
-  // sequence/picture/audio types, skipping the semantic similarity check
-  // entirely for most of what actually gets generated. Now every type gets
-  // both: the cheap exact check first, then the semantic one underneath.
-  if (exclusions.usedFingerprints.has(questionFingerprint(q))) return true;
-  try {
-    const supabase = createSupabaseBrowserClient();
-    const { data, error } = await supabase.rpc("check_question_memory", {
-      p_text: memoryText(q),
-      p_type: q.question_type,
-      // 0.82 required near-total word-for-word similarity to trigger, which
-      // let most paraphrased repeats straight through. 0.6 was tried next to
-      // fix that, but trigram similarity on SHORT strings (a lot of pub-quiz
-      // questions - "How many...", "In which year...", "Who was the
-      // first...") is noisy: short text has few total trigrams, so two
-      // genuinely different questions that just share a common opening
-      // phrase can already clear 0.6 similarity purely from that overlap. On
-      // an account with months of saved generation history, that meant
-      // EVERY candidate for a common phrasing pattern could get flagged as a
-      // "duplicate" of something else that merely started the same way -
-      // observed directly as a Pursuit round generating 0 of 25 attempts, all
-      // rejected as permanent-memory matches. 0.75 still requires genuinely
-      // close rewording (nowhere near "shares an opening phrase"), while no
-      // longer treating routine templated phrasing as proof of duplication.
-      p_threshold: 0.75,
-    });
-    if (error) { console.error("Question Memory check unavailable (allowing question):", error.message); onDegraded?.(); return false; }
-    return data != null;
-  } catch (e) {
-    console.error("Question Memory check error (allowing question):", e);
-    onDegraded?.();
-    return false;
-  }
-}
-
-async function validateCandidate(
-  q: Question,
-  currentRound: Question[],
-  stages: ValidationResults,
-  theme: string,
-  exclusions: ExclusionState,
-  onMemoryDegraded?: () => void,
-): Promise<{ ok: boolean; category: string; reason: string; stages: ValidationResults }> {
-  // Run the free deterministic duplicate gate before any paid AI validators.
-  // Previously an exact/near duplicate still incurred moderation, balance and
-  // quality calls even though it was guaranteed to be rejected afterwards.
-  const duplicateReason = duplicateRejectionReason(q, currentRound, theme, exclusions);
-  stages.duplicate = duplicateReason ? { status: "failed", note: duplicateReason } : { status: "passed", note: "No session or round duplicate" };
-  if (duplicateReason) return { ok: false, category: "Duplicate", reason: duplicateReason, stages };
-
-  // Permanent memory is a database check, not an AI call. Resolve it next so
-  // an already-used fact is rejected before spending on three AI judgments.
-  const memoryDuplicate = await isDuplicateInMemory(q, exclusions, onMemoryDegraded);
-  stages.memory = memoryDuplicate ? { status: "failed", note: "Matched permanent Question Memory" } : { status: "passed", note: "No permanent-memory match" };
-  if (memoryDuplicate) return { ok: false, category: "Permanent memory", reason: stages.memory.note, stages };
-
-  // These remain three independent validator decisions and retain their
-  // individual diagnostics, but share one model request. Previously every
-  // candidate made three separate network round trips here; under Generate
-  // All they saturated the shared queue and a 10-question round could time
-  // out after almost six minutes with only six accepted questions.
-  const { moderation, balance, quality } = await runCombinedValidation(q, currentRound, theme, q._recencyNote);
-  stages.moderation = { status: moderation.ok ? "passed" : "failed", note: moderation.note };
-  stages.balance = { status: balance.ok ? "passed" : "failed", note: balance.note, details: balance.details };
-  stages.quality = { status: quality.ok ? "passed" : "failed", note: quality.note };
-  if (!moderation.ok) return { ok: false, category: moderation.unavailable ? "Moderation unavailable" : "Moderation", reason: moderation.note, stages };
-  if (balance && !balance.ok) return { ok: false, category: "Round balance", reason: balance.note, stages };
-  if (!quality.ok) return { ok: false, category: "Final quality", reason: quality.note, stages };
-  return { ok: true, category: "Accepted", reason: "Passed every applicable validation stage", stages };
-}
-
-// Picture/audio questions share generic templated phrasing regardless of
-// subject ("Which country is this flag from?" is identical text for Japan,
-// France, Brazil...). The permanent memory table has a unique constraint on
-// (question_text, question_type), and check_question_memory matches on text
-// alone - so storing the raw templated text meant only the FIRST country/
-// animal/etc ever generated under a given template could ever occupy that
-// slot. Every other distinct subject silently failed to upsert (ignored as
-// a "duplicate" of a completely different answer) and got wrongly rejected
-// as a permanent-memory match on every later attempt, which is why the same
-// single answer (e.g. Japan) kept winning out and recurring across quiz
-// plans - it was the only flag question the system could ever successfully
-// remember. Suffixing the memory text with the answer for these two types
-// gives each distinct subject its own slot while leaving what's actually
-// shown to players (q.question_text) untouched.
-function memoryText(q: Question): string {
-  return ["picture", "audio"].includes(q.question_type) ? `${q.question_text} (${q.correct_answer})` : q.question_text;
-}
-
-async function commitToMemory(q: Question, onDegraded?: () => void) {
-  try {
-    const supabase = createSupabaseBrowserClient();
-    const libRow = {
-      question_text: memoryText(q),
-      correct_answer: q.correct_answer,
-      option_a: ["picture", "audio"].includes(q.question_type) ? null : q.option_a,
-      option_b: ["picture", "audio"].includes(q.question_type) ? null : q.option_b,
-      option_c: q.option_c,
-      option_d: q.option_d,
-      option_e: q.option_e,
-      option_f: q.option_f,
-      explanation: q.explanation,
-      difficulty: q.difficulty,
-      question_type: q.question_type,
-      media_url: ["picture", "audio"].includes(q.question_type) ? q.option_b : null,
-    };
-    const { data: libData } = await supabase
-      .from("questions")
-      .upsert(libRow, { onConflict: "question_text,question_type", ignoreDuplicates: true })
-      .select("id")
-      .maybeSingle();
-    if (libData?.id) {
-      q.id = libData.id;
-    } else {
-      const { data: existing } = await supabase
-        .from("questions")
-        .select("id")
-        .ilike("question_text", memoryText(q))
-        .eq("question_type", q.question_type)
-        .maybeSingle();
-      if (existing?.id) q.id = existing.id;
-    }
-  } catch (libErr) {
-    console.error("Failed to save question to permanent memory:", libErr);
-    onDegraded?.();
-  }
 }
 
 // ── Public API ───────────────────────────────────────────────────────────
@@ -1310,38 +210,15 @@ export async function generateValidatedRound(
     // This prevents a short regular round from silently omitting music or a
     // number answer because percentage rounding happened to favour another
     // category.
-    // Largest-remainder allocation instead of independently Math.round()-ing
-    // each category then giving audio whatever's left over. Rounding every
-    // OTHER category up first could already overshoot the full count (e.g.
-    // count=10: mc round(2.5)=3, ta round(2)=2, num round(1.5)=2, seq
-    // round(1)=1, pic round(2)=2 - that's 10 already), leaving audio's
-    // subtraction at exactly 0 - which is exactly why "Name That Tune"
-    // questions were silently missing from a first-pass 10-question Regular
-    // round despite having a nonzero intended share. This guarantees the
-    // allocations sum to `count` exactly while keeping every category's true
-    // proportional share (including audio's).
     types = allocateRegularTypes(count);
   }
 
   // A round with NO host-supplied theme used to draw its topic purely at
-  // random from the full flat TOPICS list every launch (shuffledTopics[i %
-  // length]). With 34 entries and only 3 slots for "recent entertainment
-  // news" and 3 for "celebrity and pop culture moments", pure random draw
-  // could easily (and did, per host reports) clump on movies/music several
-  // times in one round while geography, history, and current news never
-  // came up at all - "a mix" was never actually guaranteed, just possible.
-  // Bucketing TOPICS into categories and cycling ROUND-ROBIN through the
-  // buckets (picking a random not-yet-used topic within whichever bucket is
-  // due next) guarantees every category gets a fair, spread-out share of
-  // every unthemed round, the same way pickPictureTopic already guarantees
-  // no picture topic repeats early. A host who wants ONLY news/showbiz (or
-  // ONLY movies) should still type an explicit theme - this only fixes the
-  // default "mixed general knowledge" case.
-  // The recency bucket is listed TWICE (below) so it comes up roughly every
-  // 5-6 questions instead of every 10 - now that the validator-rejection bug
-  // above is fixed, a single slot in ten was still too thin to actually read
-  // as "fresh" across a normal-length round, per direct host feedback that
-  // current-affairs/pop-culture questions basically never appeared.
+  // random from the full flat TOPICS list every launch. Bucketing TOPICS
+  // into categories and cycling ROUND-ROBIN through the buckets (picking a
+  // random not-yet-used topic within whichever bucket is due next)
+  // guarantees every category gets a fair, spread-out share of every
+  // unthemed round.
   const TOPIC_BUCKETS: string[][] = [
     ["breaking and trending mainstream headlines from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent mainstream news from the last 3-12 months"],
     ["movies and TV", "celebrities and showbiz", "awards and entertainment"],
@@ -1363,8 +240,6 @@ export async function generateValidatedRound(
       const candidate = bucket[(Math.floor(launchIndex / shuffledBuckets.length) + offset) % bucket.length];
       if (!triedGeneralTopics.has(candidate)) { triedGeneralTopics.add(candidate); return candidate; }
     }
-    // Every topic in this bucket already tried this round - fall back to any
-    // untried topic across all buckets rather than forcing an exact repeat.
     for (const b of shuffledBuckets) {
       for (const candidate of b) {
         if (!triedGeneralTopics.has(candidate)) { triedGeneralTopics.add(candidate); return candidate; }
@@ -1376,88 +251,26 @@ export async function generateValidatedRound(
   const shuffledPictureTopics = shuffle(PICTURE_TOPICS);
   const good: Question[] = [];
   let attempts = 0;
-  // Multi Tap candidates fail/retry far more often than other types in
-  // practice - crafting 6 balanced options with the correct answer key
-  // referencing exactly the right filled letters, for a variable 1-to-6
-  // correct count, is a harder generation task than a 4-option multiple
-  // choice question, and the extra keyValid check (see the multi_tap
-  // post-processing block below) adds its own rejection path on top of the
-  // normal moderation/theme/balance/quality gates. Observed directly: a
-  // 4-question Multi Tap top-up hit the wall-clock budget at 92s having only
-  // completed 1 of 4, well before the same budget would ever bind for other
-  // types. Multi Tap gets a larger allowance on both axes so it actually has
-  // room to reach its target instead of reliably timing out short.
   const maxAttempts = roundType === "multi_tap" ? count * 24 : count * 18;
-  // Codex pre-launch review, finding #11: maxAttempts alone (up to 140
-  // candidate attempts for a 10-question round, each spawning generation
-  // plus several AI validators) can still add up to hundreds of real API
-  // calls and a very long visible wait in a genuinely hard case, even
-  // though it's bounded in COUNT. A wall-clock budget bails out with
-  // whatever's been generated so far well before that, rather than the host
-  // just watching the same status message for minutes with no idea if it's
-  // still working or has effectively stalled. ~20s/question is generous
-  // headroom above the typical per-candidate round-trip time, with a 90s
-  // floor so a small round (count=1-2) still gets a fair number of retries.
-  //
-  // The general 90s floor also got hit on a Hot Seat top-up (91s, 2 of 4) -
-  // not just Multi Tap - so the floor itself was too tight across the board,
-  // not just for one type. Raised generally to 120s/25s-per-question, on top
-  // of Multi Tap's own larger allowance above.
   const generationStartedAt = Date.now();
   const baseWallClockBudgetMs = roundType === "multi_tap"
     ? Math.max(150_000, count * 35_000)
     : Math.max(120_000, count * 25_000);
-  // Capped at 5x - a Generate All with many rounds still needs to finish in
-  // a bounded, sane amount of real time, not scale unboundedly with quiz size.
   const wallClockBudgetMs = Math.round(baseWallClockBudgetMs * Math.min(5, Math.max(1, wallClockScale)));
   let i = 0;
   let consecutiveFailures = 0;
   let consecutiveCheckFailures = 0;
-  // Tracks a streak of specifically Permanent-memory-match rejections (as
-  // opposed to moderation/theme/quality failures) - once an account has
-  // enough generation history, common topics genuinely start running out of
-  // not-yet-asked obvious facts, and that's the one failure mode a random
-  // "vary the angle" retry doesn't reliably escape (see forceObscure below).
   let consecutiveMemoryFailures = 0;
 
-  // PICTURE_TOPICS is a deliberately small, curated pool (15 entries, vs 32
-  // for general topics) - it has to be, since only photographable subjects
-  // belong in it. That smallness means the same picture topic (e.g. "famous
-  // rivers and waterfalls") can come up more than once within one round just
-  // from normal launchIndex cycling/retries, and the round-balance check
-  // doesn't reliably catch it because two different named waterfalls really
-  // are different entities - it's the shared SUBJECT that reads as
-  // repetitive to a host, not the specific answer. Tracking which picture
-  // topics this round has already tried and skipping straight to the next
-  // untried one closes that gap at the source, before it's ever generated,
-  // rather than hoping validation catches it after the fact.
   const triedPictureTopics = new Set<string>();
   const pickPictureTopic = (launchIndex: number): string => {
     for (let offset = 0; offset < shuffledPictureTopics.length; offset++) {
       const candidate = shuffledPictureTopics[(launchIndex + offset) % shuffledPictureTopics.length];
       if (!triedPictureTopics.has(candidate)) { triedPictureTopics.add(candidate); return candidate; }
     }
-    // Every picture topic already tried this round (more picture slots than
-    // the pool has entries) - allow repeats rather than getting stuck.
     return shuffledPictureTopics[launchIndex % shuffledPictureTopics.length];
   };
 
-  // The intended type MIX (e.g. 20% picture, 10% audio for a Regular round)
-  // only survives to the final round if retries stay targeted at whichever
-  // category is still short. The old approach walked `types[launchIndex %
-  // types.length]` forward on every single launch, including retries after a
-  // rejection - so once index i wrapped past the end of the list, the NEXT
-  // retry just picked up wherever the cycle had drifted to, not the type
-  // that actually failed. A harder-to-satisfy category (audio needs a real
-  // YouTube match, picture needs a brand-safe Pixabay result and passes a
-  // logo/brand filter) fails validation more often than multiple_choice, so
-  // its slots kept getting skipped over by the cycle while the loop quietly
-  // filled up on easier types instead - the round could hit its target
-  // COUNT while still missing most or all of its audio/picture quota, with
-  // nothing in the UI to say so. Tracking each category's remaining deficit
-  // (target minus accepted-or-in-flight) and always launching the type with
-  // the biggest shortfall keeps every retry aimed at the category that
-  // actually still needs it.
   const targetCounts: Record<string, number> = {};
   types.forEach(t => { targetCounts[t] = (targetCounts[t] || 0) + 1; });
   const acceptedCounts: Record<string, number> = {};
@@ -1467,12 +280,6 @@ export async function generateValidatedRound(
   difficultyPlan.forEach(level => { difficultyTargets[level] = (difficultyTargets[level] || 0) + 1; });
   const acceptedDifficultyCounts: Record<string, number> = {};
   const inFlightDifficultyCounts: Record<string, number> = {};
-  // A Multi Tap round is only meaningfully different from ordinary multiple
-  // choice when the number of correct selections varies. Spread the target
-  // counts across 2..6, then enforce the assigned count on every candidate.
-  // A one-correct-answer question is ordinary multiple choice and does not
-  // belong in Multi Tap. For ten questions, each count from 2 to 6 appears
-  // exactly twice.
   const multiTapAnswerPlan = roundType === "multi_tap"
     ? shuffle(Array.from({ length: count }, (_, index) => (index % 5) + 2))
     : [];
@@ -1487,10 +294,6 @@ export async function generateValidatedRound(
       const deficit = targetCounts[t] - (acceptedCounts[t] || 0) - (inFlightCounts[t] || 0);
       if (deficit > bestDeficit) { bestDeficit = deficit; best = t; }
     }
-    // Every category's quota is already covered by accepted+in-flight
-    // candidates (can happen with the 2-ahead pipeline near the end of a
-    // round) - fall back to whichever type has accepted the fewest so far,
-    // rather than defaulting to the first type in the object every time.
     if (!best) {
       best = Object.keys(targetCounts).reduce((a, b) => (acceptedCounts[a] || 0) <= (acceptedCounts[b] || 0) ? a : b);
     }
@@ -1535,32 +338,14 @@ export async function generateValidatedRound(
     inFlightDifficultyCounts[candidateDifficulty] = (inFlightDifficultyCounts[candidateDifficulty] || 0) + 1;
     if (multiTapCorrectCount) inFlightMultiTapCounts[multiTapCorrectCount] = (inFlightMultiTapCounts[multiTapCorrectCount] || 0) + 1;
     // forceObscure used to ONLY trigger reactively, after 4 consecutive
-    // duplicate/memory rejections in a row - i.e. only once a topic was
-    // already close to exhausted. That does nothing for the more general "it
-    // keeps reaching for the same handful of famous facts" feeling across
-    // otherwise-successful generations, since a candidate that passes
-    // validation on its FIRST try never gets a reason to reach for a less
-    // obvious angle. Now also fires proactively on a portion of candidates
-    // from the start (independent of any failures), so a meaningful share of
-    // every round leans toward a deeper cut by default rather than only
-    // after the well-trodden facts have already started colliding.
+    // duplicate/memory rejections in a row. Now also fires proactively on a
+    // portion of candidates from the start.
     const proactiveObscure = Math.random() < 0.3;
     pending.push({ type, candidateDifficulty, multiTapCorrectCount, context, promise: generateOne(type, topic, context, { theme, difficulty: candidateDifficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure, multiTapCorrectCount }) });
   };
   const refillPipeline = () => {
-    // Deliberately keeps up to 2 candidates in flight even once `count` is
-    // nearly/already covered by good+pending - e.g. a single-question
-    // REGENERATE (count=1) used to gate this at `good.length + pending.length
-    // < count`, which for count=1 blocked a second candidate from ever
-    // launching: candidate 1 had to fully finish (generate + moderation +
-    // theme + duplicate + quality checks, all real API round-trips) before
-    // candidate 2 could even start, making a run of rejections purely
-    // sequential and slow. Running 2 in parallel and taking whichever
-    // resolves and validates first cuts that latency roughly in half; the
-    // cost is an occasional wasted extra generation call near the very end
-    // of a round, which is cheap next to the host's time. Raised from 2 to
-    // 3 alongside the MAX_AI_CONCURRENCY increase above - more overlap per
-    // round now that the shared global slot count can actually support it.
+    // Deliberately keeps up to 3 candidates in flight even once `count` is
+    // nearly/already covered by good+pending.
     while (pending.length < 3 && attempts < maxAttempts) launchCandidate();
   };
   refillPipeline();
@@ -1598,16 +383,9 @@ export async function generateValidatedRound(
     const validation = await validateCandidate(q, [...existingQuestions, ...good], context.report.stages, theme, exclusions, () => { memoryDegradedCount++; });
     // validateCandidate's own duplicate check ran BEFORE the several awaited
     // moderation/quality/memory calls above - during that gap, a sibling
-    // round generating at the same time (generateAllRounds runs every
-    // selected round concurrently) can land the exact same fact-question and
-    // broadcast it into this round's exclusions mid-flight. That broadcast
-    // was landing too late to matter, since this candidate had already
-    // cleared the earlier check - which is exactly how the same question
-    // could reach two different rounds of the same quiz. Re-running the FULL
-    // duplicate comparison one last time, synchronously, right before commit
-    // closes that window. This includes repeated entities and reworded facts,
-    // not only exact fingerprints: two simultaneous questions about the
-    // Statue of Liberty must conflict even when they ask for different facts.
+    // round generating at the same time can land the exact same
+    // fact-question. Re-running the FULL duplicate comparison one last time,
+    // synchronously, right before commit closes that window.
     const finalDuplicateReason = validation.ok
       ? duplicateRejectionReason(q, [...existingQuestions, ...good], theme, exclusions)
       : null;
@@ -1642,13 +420,6 @@ export async function generateValidatedRound(
       consecutiveMemoryFailures = (validation.category === "Duplicate" || validation.category === "Permanent memory") ? consecutiveMemoryFailures + 1 : 0;
       const failReason = (validation.reason || "Unknown reason").substring(0, 40);
       onProgress?.("Question " + (good.length + 1) + " failed check (" + failReason + ") - retrying..." + (consecutiveMemoryFailures >= 4 ? " (widening search for a fresh angle)" : ""));
-      // Raised from 25: an account with months of generation history
-      // legitimately needs more than 25 tries to find a not-yet-used fact on
-      // a well-covered topic, especially now that repeated memory-match
-      // rejections are actively steered toward deeper-cut, less-obvious
-      // facts (forceObscure above) rather than just re-rolling the same
-      // random angle - that steering needs room to actually pay off instead
-      // of the round giving up right as it starts working.
       if (consecutiveCheckFailures >= 45) {
         const finalStatus = "Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + (validation.reason || "Unknown reason").substring(0, 60) + "). Got " + good.length + " of " + count + ". This topic/theme may be close to exhausted in your saved question history - try a different or more specific theme. See Generation Report for details." + degradedSuffix();
         onProgress?.(finalStatus);
@@ -1700,10 +471,8 @@ export async function generateAllRounds(
   });
   // Broadcasts a just-accepted question from one round into every OTHER
   // round's exclusion bundle immediately, so two rounds generating at the
-  // same time can't both land the same brand-new question (e.g. two rounds
-  // both accepting "Bat" for "only mammal capable of true flight") before
-  // either has been saved to the database. Previously this merge was only
-  // described in a comment but never actually implemented.
+  // same time can't both land the same brand-new question before either has
+  // been saved to the database.
   const broadcastAccept = (fromIdx: number, q: Question) => {
     perRoundExclusions.forEach((state, j) => {
       if (j === fromIdx) return;
@@ -1713,32 +482,16 @@ export async function generateAllRounds(
       if (normAnswer) state.usedAnswers = [...state.usedAnswers, normAnswer];
     });
   };
-  // Every round shares the same MAX_AI_CONCURRENCY slot pool (see
-  // withAiRequestSlot above), so the more rounds are generating at once, the
-  // less real throughput each one actually gets - roughly proportional to
-  // specs.length once there are more rounds than concurrency slots. Without
-  // this, a full "Generate All" on a 10-round quiz gave each round the same
-  // tight wall-clock budget as if it had the whole AI slot pool to itself,
-  // so most rounds spent the entire budget queued and bailed with 0-1
-  // questions - this is the "used to generate a whole quiz at once, now it
-  // doesn't" regression.
-  // Each round tries to keep up to 3 candidates in flight at once (see
-  // "pending.length < 3" below), so total demand across a Generate All is
-  // roughly specs.length * 3 requests competing for MAX_AI_CONCURRENCY slots
-  // - a plain specs.length/MAX_AI_CONCURRENCY ratio badly understated the
-  // real contention (a 10-round quiz only scored 1.25x when the actual
-  // slowdown is closer to 3-4x), which is why the earlier, smaller version
-  // of this scale still left most rounds timing out.
+  // Every round shares the same MAX_AI_CONCURRENCY slot pool, so the more
+  // rounds are generating at once, the less real throughput each one
+  // actually gets - roughly proportional to specs.length once there are
+  // more rounds than concurrency slots.
   const ROUND_PIPELINE_DEPTH = 3;
   const wallClockScale = Math.max(1, (specs.length * ROUND_PIPELINE_DEPTH) / MAX_AI_CONCURRENCY);
   return Promise.all(
     specs.map(async (spec, idx) => {
       // A single round throwing (network hiccup, unexpected API shape, etc.)
-      // must never reject the whole Promise.all - that would silently discard
-      // every OTHER round's results too, even ones that already succeeded,
-      // and leave the caller's "generating" state stuck forever with nothing
-      // saved. Catch here so this round reports itself as failed while every
-      // other round keeps running and saving independently.
+      // must never reject the whole Promise.all.
       try {
         const result = await generateValidatedRound(spec, perRoundExclusions[idx], status => onProgress?.(idx, status), q => broadcastAccept(idx, q), wallClockScale);
         await onRoundComplete?.(idx, result);

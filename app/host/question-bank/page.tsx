@@ -72,6 +72,15 @@ export default function QuestionBankPage() {
   const [saving, setSaving] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // Preparation reliability: surface broken/unhosted picture links live in the
+  // Library, rather than requiring a host to remember to run
+  // _maintenance_scripts/flagUnhostedPictureImages.mjs by hand. Two checks:
+  // (a) a proactive heuristic - a Pixabay/third-party hotlink that was never
+  // durably re-hosted (see persistPixabayImage.ts) is flagged even before it
+  // fails, since those links are known to degrade over time; (b) a reactive
+  // check - the browser's own <img onError> catches a link that's already
+  // dead right now, regardless of which host it's on.
+  const [brokenImageIds, setBrokenImageIds] = useState<Set<string>>(new Set());
 
   const loadCounts = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -334,6 +343,8 @@ export default function QuestionBankPage() {
           const isPicture = q.question_type === "picture";
           const isAudio = q.question_type === "audio";
           const isHovered = hoveredId === q.id;
+          const isUnhostedImage = isPicture && !!q.option_b && !q.option_b.includes("blob.vercel-storage.com");
+          const isBrokenImage = isPicture && brokenImageIds.has(q.id);
           const body = (
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
@@ -346,7 +357,20 @@ export default function QuestionBankPage() {
                 {q.needs_review && <span style={{ color: "#facc15", font: "700 11px 'Inter'" }}>NEEDS REVIEW</span>}
               </div>
               <p style={{ font: "500 13px/1.45 'Inter'", color: "#D9CCF2", margin: "0 0 8px" }}>{q.question_text}</p>
-              {isPicture && q.option_b && <img src={getMediaUrl(q.option_b) ?? undefined} alt={q.option_a || "Question picture"} style={{ display: "block", width: "100%", height: 118, objectFit: "cover", borderRadius: 7, marginBottom: 7 }} />}
+              {isPicture && q.option_b && (
+                <img
+                  src={getMediaUrl(q.option_b) ?? undefined}
+                  alt={q.option_a || "Question picture"}
+                  onError={() => setBrokenImageIds(prev => prev.has(q.id) ? prev : new Set(prev).add(q.id))}
+                  style={{ display: "block", width: "100%", height: 118, objectFit: "cover", borderRadius: 7, marginBottom: 7, opacity: isBrokenImage ? 0.25 : 1 }}
+                />
+              )}
+              {isBrokenImage && (
+                <div style={{ color: "#FF3B4E", font: "700 11px/1.35 'Inter'", marginBottom: 6 }}>⚠ Image failed to load - this question needs a new picture before it&apos;s used live.</div>
+              )}
+              {!isBrokenImage && isUnhostedImage && (
+                <div style={{ color: "#FFC533", font: "600 11px/1.35 'Inter'", marginBottom: 6 }}>⚠ Not durably hosted - this link may stop working over time.</div>
+              )}
               {isAudio && q.option_a && <div style={{ padding: "6px 8px", borderRadius: 7, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.35)", color: "#D9CCF2", font: "500 11px/1.35 'Inter'", marginBottom: 7 }}><strong style={{ color: "#D94FDC" }}>TRACK:</strong> {q.option_a}</div>}
               {(q.question_type === "multiple_choice" || q.question_type === "multi_tap") && (
                 <div style={{ display: "grid", gap: 3 }}>

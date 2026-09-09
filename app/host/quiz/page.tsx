@@ -55,7 +55,7 @@ type Team = { id: string; team_name: string; victory_song: string; session_pin: 
 const DEFAULT_POINTS_PER_QUESTION = 10;
 type Answer = { session_pin: string; id: string; team_name: string; question_index: number; answer_text: string; submitted_at: string; };
 type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
-type Score = { team_name: string; total_points: number; round_points: number; };
+type Score = { team_name: string; total_points: number; round_points: number; correct_count: number; fastest_count: number; };
 
 const typeColor: Record<string,string> = { multiple_choice:"#D94FDC", multi_tap:"#D94FDC", text_answer:"#D94FDC", number:"#D94FDC", sequence:"#D94FDC", picture:"#D94FDC", audio:"#D94FDC", nearest_wins:"#D94FDC" };
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", multi_tap:"Multi Tap", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune", nearest_wins:"Nearest Wins" };
@@ -179,6 +179,9 @@ function QuizControllerInner() {
   // `scores` data (round_points is already tracked and reset per round);
   // doesn't touch scoring logic or any other consumer of `scores`.
   const [showRoundLeaders, setShowRoundLeaders] = useState(false);
+  // Tap a team in the panel to open a small stats popup (victory song,
+  // correct-answer count, times fastest) - null when closed.
+  const [statsTeam, setStatsTeam] = useState<string | null>(null);
   const [adjustTeam, setAdjustTeam] = useState<string|null>(null);
   const [adjustAmount, setAdjustAmount] = useState("");
   const [showScoreboard, setShowScoreboard] = useState(false);
@@ -677,7 +680,7 @@ function QuizControllerInner() {
         const nwDelta = Math.round(pointsPerQ * (nwPointShares[rank] ?? 0)) * (hasBoost(team.team_name) ? 2 : 1);
         lastDeltasRef.current[team.team_name] = nwDelta;
         if (nwDelta === 0) continue;
-        const nwResult = await applyScoreDelta(supabase, sessionPin, team.team_name, nwDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:nearestwins` });
+        const nwResult = await applyScoreDelta(supabase, sessionPin, team.team_name, nwDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:nearestwins`, isFastest: rank === 0 });
         if (nwResult.scoreboardSyncError) console.error(`autoScore (nearest wins, ${team.team_name}): score updated but scoreboard_data sync failed:`, nwResult.scoreboardSyncError);
         continue;
       }
@@ -701,7 +704,7 @@ function QuizControllerInner() {
         const mtDelta = (mtBasePts + mtTimeBonus) * (hasBoost(team.team_name) ? 2 : 1);
         lastDeltasRef.current[team.team_name] = mtDelta;
         if (mtDelta === 0) continue;
-        const mtResult = await applyScoreDelta(supabase, sessionPin, team.team_name, mtDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:multitap` });
+        const mtResult = await applyScoreDelta(supabase, sessionPin, team.team_name, mtDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:multitap`, isCorrect: isAnswerCorrect(ans, q), isFastest: team.team_name === scoredFastestTeamRef.current });
         if (mtResult.scoreboardSyncError) console.error(`autoScore (multi tap, ${team.team_name}): score updated but scoreboard_data sync failed:`, mtResult.scoreboardSyncError);
         continue;
       }
@@ -714,7 +717,7 @@ function QuizControllerInner() {
       const delta = (basePts + timeBonusPts) * (hasBoost(team.team_name) ? 2 : 1) + penalty;
       lastDeltasRef.current[team.team_name] = delta;
       if (delta === 0) continue;
-      const scoreResult = await applyScoreDelta(supabase, sessionPin, team.team_name, delta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}` });
+      const scoreResult = await applyScoreDelta(supabase, sessionPin, team.team_name, delta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}`, isCorrect, isFastest: team.team_name === scoredFastestTeamRef.current });
       if (scoreResult.scoreboardSyncError) console.error(`autoScore (${team.team_name}): score updated but scoreboard_data sync failed:`, scoreResult.scoreboardSyncError);
     }
     loadScores(sessionPin);
@@ -1762,6 +1765,45 @@ function QuizControllerInner() {
     <div className="fbh qi-mc-shell">
       {confirmDialogEl}
       {toastEl}
+      {statsTeam && (() => {
+        const statTeamRow = teams.find(t => t.team_name === statsTeam);
+        const statScore = scores.find(s => s.team_name === statsTeam);
+        const song = statTeamRow?.victory_song ? statTeamRow.victory_song.replace(/\s*SQS\s*$/i, "").replace(/[-_]+$/, "").replace(/[-_]/g, " ").trim() : "";
+        return (
+          <div
+            onClick={() => setStatsTeam(null)}
+            style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          >
+            <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 360, background: "#150A2E", border: "1px solid #2E1A52", borderRadius: 16, padding: 20, boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <TeamBadge name={statsTeam} size={32} avatarUrl={statTeamRow?.photo_approved ? statTeamRow.photo_url : null} style={{ fontSize: 11, flexShrink: 0 }} />
+                <div style={{ fontWeight: 800, fontSize: 18, color: "#fff", flex: 1 }}>{statsTeam}</div>
+                <button onClick={() => setStatsTeam(null)} style={{ background: "transparent", border: "none", color: "#6B5A8E", fontSize: 20, cursor: "pointer", padding: 4 }}>×</button>
+              </div>
+              {song && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 14 }}>♪ {song}</div>}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 4 }}>
+                <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#BE26C1" }}>{statScore?.total_points ?? 0}</div>
+                  <div style={{ fontSize: 10, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>Total points</div>
+                </div>
+                <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#2EE06E" }}>+{statScore?.round_points ?? 0}</div>
+                  <div style={{ fontSize: 10, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>This round</div>
+                </div>
+                <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{statScore?.correct_count ?? 0}</div>
+                  <div style={{ fontSize: 10, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>Correct answers</div>
+                </div>
+                <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#FFC533" }}>{statScore?.fastest_count ?? 0}</div>
+                  <div style={{ fontSize: 10, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>Times fastest</div>
+                </div>
+              </div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 10 }}>Counts every question scored this session, live from the start of the quiz.</div>
+            </div>
+          </div>
+        );
+      })()}
       {/* HEADER */}
       <header className="qi-mc-header">
         <div className="qi-mc-brand">
@@ -2250,7 +2292,12 @@ function QuizControllerInner() {
               const isFastest = s.team_name === fastestTeam;
               return (
                 <div key={s.team_name} className={`qi-mc-team-card${isFastest ? " qi-mc-team-card--fastest" : ""}`} style={{ width: "100%", boxSizing: "border-box", borderColor:isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}>
-                  <div className="qi-mc-team-card__summary" style={{ display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) 8px auto", gap: 8 }}>
+                  <div
+                    className="qi-mc-team-card__summary"
+                    onClick={() => setStatsTeam(s.team_name)}
+                    title="Tap for this team's stats"
+                    style={{ display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) 8px auto", gap: 8, cursor: "pointer" }}
+                  >
                     <span style={{ fontSize:16, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
                     <TeamBadge name={s.team_name} size={20} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:7, flexShrink:0 }} />
                     <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff" }}>{s.team_name}{isFastest?" ⚡":""}</span>

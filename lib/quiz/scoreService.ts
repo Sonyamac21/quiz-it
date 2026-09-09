@@ -18,7 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // same call, so callers never need to remember to sync it separately.
 // ============================================================================
 
-export type ScoreRow = { team_name: string; total_points: number; round_points: number };
+export type ScoreRow = { team_name: string; total_points: number; round_points: number; correct_count: number; fastest_count: number };
 
 /**
  * Result of a score-mutating call. `applied` is false when the mutation was
@@ -50,7 +50,7 @@ export type ScoreMutationResult = {
 export async function getScores(supabase: SupabaseClient, sessionPin: string): Promise<ScoreRow[]> {
   const { data } = await supabase
     .from("scores")
-    .select("team_name, total_points, round_points")
+    .select("team_name, total_points, round_points, correct_count, fastest_count")
     .eq("session_pin", sessionPin)
     .order("total_points", { ascending: false });
   return data ?? [];
@@ -97,22 +97,27 @@ export async function applyScoreDelta(
   sessionPin: string,
   teamName: string,
   delta: number,
-  opts: { roundDelta?: number; eventKey?: string } = {}
+  opts: { roundDelta?: number; eventKey?: string; isCorrect?: boolean; isFastest?: boolean } = {}
 ): Promise<ScoreMutationResult> {
   const roundDelta = opts.roundDelta ?? delta;
   if (delta === 0 && roundDelta === 0) return { applied: false };
   // Atomic DB-side increment via apply_score_delta - see
-  // supabase/migrations/202608270001_atomic_score_functions.sql. The
-  // idempotency check (event_key) and the score increment happen in the
-  // SAME database transaction now, so a duplicate call is only ever
-  // recognised as a duplicate once the original's write has actually
-  // committed - not before, as the old in-memory guard did.
+  // supabase/migrations/202608270001_atomic_score_functions.sql and
+  // 202609090001_team_performance_counters.sql (added isCorrect/isFastest,
+  // incrementing scores.correct_count/fastest_count in the same
+  // transaction as the point award, for the host console's per-team stats
+  // popup). The idempotency check (event_key) and the score increment
+  // happen in the SAME database transaction now, so a duplicate call is
+  // only ever recognised as a duplicate once the original's write has
+  // actually committed - not before, as the old in-memory guard did.
   const { data, error } = await supabase.rpc("apply_score_delta", {
     p_session_pin: sessionPin,
     p_team_name: teamName,
     p_delta: delta,
     p_round_delta: roundDelta,
     p_event_key: opts.eventKey ?? null,
+    p_is_correct: opts.isCorrect ?? false,
+    p_is_fastest: opts.isFastest ?? false,
   });
   if (error) {
     console.error("scoreService: apply_score_delta failed for " + teamName + " (pin " + sessionPin + "):", error.message);

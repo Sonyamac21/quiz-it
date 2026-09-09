@@ -234,6 +234,13 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [error, setError] = useState("");
   const [blockUntil, setBlockUntil] = useState<string | null>(null);
   const [blockTeam, setBlockTeam] = useState<string | null>(null);
+  // Host-only "block this team from the current question" manual tool -
+  // distinct from blockUntil/blockTeam above (that's the Time-Out power
+  // card, which blocks everyone EXCEPT the named team for a fixed few
+  // seconds). This one is host-toggled per team, question-scoped rather than
+  // time-scoped, and auto-clears itself as soon as the host sends a new
+  // question (see supabase/migrations/202609090002_blocked_teams.sql).
+  const [hostBlockedTeams, setHostBlockedTeams] = useState<string[]>([]);
   const [blockSecondsLeft, setBlockSecondsLeft] = useState(0);
   const [answerText, setAnswerText] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -378,7 +385,10 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   useEffect(() => {
     if (phase !== "intermission") { setVenueOfferPhotos([]); return; }
     let cancelled = false;
-    fetchActiveVenueOffers(venueRecordId).then(urls => { if (!cancelled) { setVenueOfferPhotos(urls); setOfferPhotoIdx(0); } });
+    // The handset reel advertises the full Mac Entertainment venue network,
+    // not only the room the player is currently standing in. Empty/expired
+    // venue offer records are filtered out by fetchActiveVenueOffers.
+    fetchActiveVenueOffers(venueRecordId, true).then(urls => { if (!cancelled) { setVenueOfferPhotos(urls); setOfferPhotoIdx(0); } });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, venueRecordId]);
@@ -744,6 +754,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     setSpinNonce((data.spin_nonce as number) ?? null);
     setBlockUntil((data.block_until as string) || null);
     setBlockTeam((data.block_team as string) || null);
+    setHostBlockedTeams(Array.isArray(data.blocked_teams) ? (data.blocked_teams as string[]) : []);
     setHardDeckTeam((data.hard_deck_team as string) || null);
     {
       const newHDStatus = (data.hard_deck_status as string) || "idle";
@@ -1343,8 +1354,8 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           <img src="/me-logo.jpg" alt="ME" style={{ width: 70, height: 70, borderRadius: "50%", border: "2px solid " + purple, marginTop: 12 }} />
         )}
         {venueOfferPhotos.length > 0 && (
-          <div style={{ width: "100%", maxWidth: 340, aspectRatio: "1", borderRadius: 14, overflow: "hidden", border: "1.5px solid rgba(190,38,193,0.4)", position: "relative", background: "rgba(0,0,0,0.35)" }}>
-            <img key={venueOfferPhotos[offerPhotoIdx]} src={getMediaUrl(venueOfferPhotos[offerPhotoIdx]) || venueOfferPhotos[offerPhotoIdx]} alt="Offer" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+          <div className="qi-player-venue-ad" style={{ width: "100%", maxWidth: 340, aspectRatio: "1", borderRadius: 14, overflow: "hidden", border: "1.5px solid rgba(190,38,193,0.4)", position: "relative", background: "rgba(0,0,0,0.35)" }}>
+            <img className="qi-player-venue-ad__image" key={venueOfferPhotos[offerPhotoIdx]} src={getMediaUrl(venueOfferPhotos[offerPhotoIdx]) || venueOfferPhotos[offerPhotoIdx]} alt="Venue promotion" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
             {venueOfferPhotos.length > 1 && (
               <div style={{ position: "absolute", bottom: 8, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5 }}>
                 {venueOfferPhotos.map((_, i) => (
@@ -1692,6 +1703,16 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           <div style={{ fontSize: 40 }}>TIME-OUT</div>
           <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>{blockTeam} played Time-Out</div>
           <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", marginTop: 8 }}>{blockSecondsLeft}s</div>
+        </div>
+      );
+    }
+    const isHostBlocked = hostBlockedTeams.includes(teamName);
+    if (isHostBlocked && !submitted) {
+      return (
+        <div className="qi-player-state qi-player-timeout" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 12, textAlign: "center" as const, fontFamily: font }}>
+          <div style={{ fontSize: 40 }}>🚫</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Blocked this question</div>
+          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>The host has blocked your team from answering this question. Sit tight - you're back in for the next one.</div>
         </div>
       );
     }

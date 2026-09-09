@@ -197,6 +197,24 @@ function QuizControllerInner() {
   const [railWidthPx, setRailWidthPx] = useState<number | null>(null);
   const railDraggingRef = useRef(false);
 
+  // Host-only manual tool (item c of the bundled request): tap a team to
+  // block them from answering the CURRENT question only. Written to
+  // sessions.blocked_teams (see supabase/migrations/202609090002_blocked_teams.sql)
+  // so the player handset can gate its own submit button in near-real-time -
+  // the host is the sole writer, so this is plain local state rather than
+  // something read back over realtime. Cleared automatically every time a
+  // new question goes out (doSendQuestion/doPreviewQuestion), same as
+  // fastest_team/fastest_song above it.
+  const [blockedTeams, setBlockedTeams] = useState<string[]>([]);
+  async function toggleTeamBlocked(teamName: string) {
+    if (!sessionId) return;
+    const next = blockedTeams.includes(teamName) ? blockedTeams.filter(t => t !== teamName) : [...blockedTeams, teamName];
+    setBlockedTeams(next);
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.from("sessions").update({ blocked_teams: next }).eq("id", sessionId);
+    if (error) console.error("SESSION UPDATE FAILED [toggleTeamBlocked]:", error);
+  }
+
   const startRailDrag = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     railDraggingRef.current = true;
@@ -467,6 +485,7 @@ function QuizControllerInner() {
     // answer from a previous round (same question index, since indexes
     // restart each round) get pulled into current scoring/boost queries.
     if (data.round_started_at) roundStartedRef.current = new Date(data.round_started_at as string).getTime();
+    if (Array.isArray(data.blocked_teams)) setBlockedTeams(data.blocked_teams as string[]);
     if (data.fastest_team) { setFastestTeam(data.fastest_team as string); fastestTeamRef.current = data.fastest_team as string; }
     if (data.fastest_song) setFastestSong(data.fastest_song as string);
     const hotSeat = readHotSeatState(data);
@@ -1210,7 +1229,8 @@ function QuizControllerInner() {
     // push phase: "waiting" to Supabase so player handsets reset off the
     // celebration screen back to the Quiz-It idle/logo screen during preview.
     const supabase = createSupabaseBrowserClient();
-    const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", timer_started_at: null, fastest_team: null, fastest_song: null, spin_offered: false, spin_nonce: null, spin_target_idx: null, spin_choice: null, hot_seat_status: "idle", hot_seat_team: null, hot_seat_locked_teams: [], hot_seat_answer_started_at: null }).eq("id", sessionId);
+    setBlockedTeams([]);
+    const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", timer_started_at: null, fastest_team: null, fastest_song: null, spin_offered: false, spin_nonce: null, spin_target_idx: null, spin_choice: null, hot_seat_status: "idle", hot_seat_team: null, hot_seat_locked_teams: [], hot_seat_answer_started_at: null, blocked_teams: [] }).eq("id", sessionId);
     if (prevErr) console.error("SESSION UPDATE FAILED [doPreviewQuestion]:", prevErr);
     if (sessionPin) loadAnswers(sessionPin, idx);
   }
@@ -1229,6 +1249,7 @@ function QuizControllerInner() {
     }
     const isPicture = q.question_type === "picture";
     const supabase = createSupabaseBrowserClient();
+    setBlockedTeams([]);
     const { error: sendErr } = await supabase.from("sessions").update({
       phase: isHotSeat ? "hot_seat" : "question",
       current_question: q,
@@ -1242,6 +1263,7 @@ function QuizControllerInner() {
       hot_seat_locked_teams: [],
       hot_seat_answer_started_at: null,
       hot_seat_answer_duration: HOT_SEAT_ANSWER_SECONDS,
+      blocked_teams: [],
     }).eq("id", sessionId);
     if (sendErr) console.error("SESSION UPDATE FAILED [doSendQuestion]:", sendErr);
     // Record actual play-time usage for repeat-prevention - this only fires for
@@ -2357,17 +2379,18 @@ function QuizControllerInner() {
               const ans = teamAnswer(s.team_name);
               const medal = i===0 ? "gold" : i===1 ? "silver" : i===2 ? "#cd7f32" : null;
               const isFastest = s.team_name === fastestTeam;
+              const isBlocked = blockedTeams.includes(s.team_name);
               return (
-                <div key={s.team_name} className={`qi-mc-team-card${isFastest ? " qi-mc-team-card--fastest" : ""}`} style={{ width: "100%", boxSizing: "border-box", borderColor:isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}>
+                <div key={s.team_name} className={`qi-mc-team-card${isFastest ? " qi-mc-team-card--fastest" : ""}`} style={{ width: "100%", boxSizing: "border-box", borderColor:isBlocked?"#FF3B4E":isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}>
                   <div
                     className="qi-mc-team-card__summary"
                     onClick={() => setStatsTeam(s.team_name)}
                     title="Tap for this team's stats"
-                    style={{ display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) 8px auto", gap: 8, cursor: "pointer" }}
+                    style={{ display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) 8px auto 26px", gap: 8, cursor: "pointer" }}
                   >
                     <span style={{ fontSize:16, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
                     <TeamBadge name={s.team_name} size={20} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:7, flexShrink:0 }} />
-                    <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff" }}>{s.team_name}{isFastest?" ⚡":""}</span>
+                    <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff" }}>{s.team_name}{isFastest?" ⚡":""}{isBlocked?" 🚫":""}</span>
                     <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#D94FDC":"rgba(185,168,217,0.2)", flexShrink:0 }} />
                     {showRoundLeaders ? (
                       <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: 42 }}>
@@ -2377,6 +2400,11 @@ function QuizControllerInner() {
                     ) : (
                       <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const, fontVariantNumeric:"tabular-nums" }}>{s.total_points}</span>
                     )}
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleTeamBlocked(s.team_name); }}
+                      title={isBlocked ? "Unblock - let them answer this question" : "Block this team from answering the current question"}
+                      style={{ width:26, height:26, borderRadius:8, background:isBlocked?"rgba(255,59,78,0.25)":"#150A2E", border:"1px solid "+(isBlocked?"#FF3B4E":"#2E1A52"), color:isBlocked?"#fff":"#6B5A8E", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                    >🚫</button>
                   </div>
                   <div className="qi-mc-team-card__answer">
                     {answered ? (() => {

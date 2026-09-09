@@ -101,24 +101,75 @@ async function main() {
     return alias || t;
   }
 
-  const payload = toImport.map(r => ({
-    question_text: r.question_text,
-    question_type: r.question_type,
-    correct_answer: r.answer,
-    option_a: r.option_a || null,
-    option_b: r.option_b || null,
-    option_c: r.option_c || null,
-    option_d: r.option_d || null,
-    option_e: null,
-    option_f: null,
-    difficulty: "mixed",
-    round_type: null, // library questions are reusable across round types - see loadLibraryQuestions() in app/host/quizzes/page.tsx
-    topic: normalizeTopic(r.topic) || null,
-    source: "speedquizzing_import",
-    needs_review: true,
-    stale_risk: false,
-    review_note: r.has_picture === "True" ? "Has a picture in the original - image not yet imported, needs a picture attached before use." : null,
-  }));
+  // The app's scoring code (lib/quiz/answerScoring.ts) and the player screen
+  // (components/PlayerQuizScreen.tsx) only ever look at option_a-option_d -
+  // option_e/f are never shown and never checked. Each question_type also
+  // expects correct_answer in a specific shape that the raw SpeedQuizzing
+  // export does NOT reliably provide. Getting any of this wrong means the
+  // question silently always scores wrong, however it was previously fixed
+  // for ~existing rows via a one-time SQL data repair - this normalizes
+  // future imports the same way so that repair never has to be redone.
+  function normalizeMultipleChoice(r) {
+    // Source rows can have the correct answer text sitting in option_e/f
+    // (a-d holding only the four DISTRACTORS) instead of among a-d. Since
+    // a-d is all the app will ever display/check, swap the true answer into
+    // option_d when it isn't already present among a-d.
+    const opts = [r.option_a, r.option_b, r.option_c, r.option_d].map(o => (o || "").trim());
+    const answer = (r.answer || "").trim();
+    const alreadyPresent = opts.some(o => o.toLowerCase() === answer.toLowerCase());
+    return {
+      correct_answer: r.answer,
+      option_a: r.option_a || null,
+      option_b: r.option_b || null,
+      option_c: r.option_c || null,
+      option_d: alreadyPresent ? (r.option_d || null) : (r.answer || null),
+    };
+  }
+  function normalizeNumber(r) {
+    // correct_answer must be a plain digit string - the in-app number
+    // keypad has no decimal point, comma, currency symbol, or letters, so
+    // any answer text like "8 nuisance" or "£15" can never be typed to
+    // match. Strip to the first numeric token and drop thousands commas.
+    const raw = (r.answer || "").trim();
+    const match = raw.match(/[0-9][0-9,]*/);
+    return { correct_answer: match ? match[0].replace(/,/g, "") : raw };
+  }
+  function normalizeSequence(r) {
+    // Scoring expects correct_answer as comma-separated LETTER KEYS
+    // ("a,b,c,d"), not the source's arrow-joined item text ("Item -> Item").
+    // The source's option_a-d are already stored in the correct order, so
+    // the fix is just the letters for however many options are populated -
+    // never derived from the arrow text itself.
+    const letters = [["a", r.option_a], ["b", r.option_b], ["c", r.option_c], ["d", r.option_d]]
+      .filter(([, opt]) => (opt || "").trim() !== "")
+      .map(([letter]) => letter);
+    return { correct_answer: letters.join(",") };
+  }
+
+  const payload = toImport.map(r => {
+    const base = {
+      question_text: r.question_text,
+      question_type: r.question_type,
+      correct_answer: r.answer,
+      option_a: r.option_a || null,
+      option_b: r.option_b || null,
+      option_c: r.option_c || null,
+      option_d: r.option_d || null,
+      option_e: null,
+      option_f: null,
+      difficulty: "mixed",
+      round_type: null, // library questions are reusable across round types - see loadLibraryQuestions() in app/host/quizzes/page.tsx
+      topic: normalizeTopic(r.topic) || null,
+      source: "speedquizzing_import",
+      needs_review: true,
+      stale_risk: false,
+      review_note: r.has_picture === "True" ? "Has a picture in the original - image not yet imported, needs a picture attached before use." : null,
+    };
+    if (r.question_type === "multiple_choice") return { ...base, ...normalizeMultipleChoice(r) };
+    if (r.question_type === "number") return { ...base, ...normalizeNumber(r) };
+    if (r.question_type === "sequence") return { ...base, ...normalizeSequence(r) };
+    return base;
+  });
 
   let inserted = 0, failed = 0;
   const failures = [];

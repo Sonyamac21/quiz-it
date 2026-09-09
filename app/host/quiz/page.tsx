@@ -53,7 +53,7 @@ type Round = { id: string; name: string; questions: Question[]; round_type?: str
 // renders each team's crest, so it always fell back to plain initials.
 type Team = { id: string; team_name: string; victory_song: string; session_pin: string; photo_url?: string | null; photo_approved?: boolean | null; };
 const DEFAULT_POINTS_PER_QUESTION = 10;
-type Answer = { session_pin: string; id: string; team_name: string; question_index: number; answer_text: string; submitted_at: string; };
+type Answer = { session_pin: string; id: string; team_name: string; round_number?: number | null; question_index: number; answer_text: string; submitted_at: string; };
 type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
 type Score = { team_name: string; total_points: number; round_points: number; correct_count: number; fastest_count: number; };
 
@@ -353,7 +353,9 @@ function QuizControllerInner() {
   // it, a late INSERT for a *different* question index would be appended to the
   // current `answers` array and could be picked as "fastest correct".
   const qIdxRef = useRef(0);
+  const roundNumberRef = useRef(1);
   useEffect(() => { qIdxRef.current = qIdx; }, [qIdx]);
+  useEffect(() => { roundNumberRef.current = roundNumber; }, [roundNumber]);
   useEffect(() => {
     createSupabaseBrowserClient().auth.getUser().then(({ data }) => setHostIdentity(data.user?.email || data.user?.id || null));
   }, []);
@@ -494,7 +496,10 @@ function QuizControllerInner() {
       }
     }
     if (typeof data.current_question_index === "number") setQIdx(data.current_question_index);
-    if (typeof data.round_number === "number") setRoundNumber(data.round_number);
+    if (typeof data.round_number === "number") {
+      setRoundNumber(data.round_number);
+      roundNumberRef.current = data.round_number;
+    }
     // Restore the round-boundary timestamp so a refresh mid-round doesn't
     // reset roundStartedRef back to 0, which would otherwise let an old
     // answer from a previous round (same question index, since indexes
@@ -612,7 +617,8 @@ function QuizControllerInner() {
   // current-round-only set.
   function scopedAnswersQuery(pin: string, idx: number) {
     const supabase = createSupabaseBrowserClient();
-    let q = supabase.from("answers").select("*").eq("session_pin", pin).eq("question_index", idx);
+    let q = supabase.from("answers").select("*").eq("session_pin", pin).eq("question_index", idx)
+      .or(`round_number.eq.${roundNumber},round_number.is.null`);
     if (roundStartedRef.current) q = q.gte("submitted_at", new Date(roundStartedRef.current).toISOString());
     return q.order("submitted_at", { ascending: true });
   }
@@ -1022,7 +1028,7 @@ function QuizControllerInner() {
         // or retried insert for a previous question must never leak into the
         // live `answers` array (it would otherwise be eligible as "fastest
         // correct" even though it belongs to a different question).
-        if (a.session_pin === pin && a.question_index === qIdxRef.current) {
+        if (a.session_pin === pin && a.question_index === qIdxRef.current && (a.round_number == null || a.round_number === roundNumberRef.current)) {
           setRealtimeLastSync(diagnosticTimestamp());
           setAnswers(prev => prev.some(x => x.id === a.id) ? prev : [...prev, a]);
           createSupabaseBrowserClient().from("sessions")

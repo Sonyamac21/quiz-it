@@ -1143,7 +1143,8 @@ function DisplayScreenInner() {
       let q = supabase.from("answers")
         .select("team_name")
         .eq("session_pin", sessionPin)
-        .eq("question_index", questionIndex);
+        .eq("question_index", questionIndex)
+        .or(`round_number.eq.${roundNumber},round_number.is.null`);
       // Scope to the current round only - see roundStartedAt above.
       if (roundStartedAt) q = q.gte("submitted_at", roundStartedAt);
       const { data } = await q;
@@ -1153,7 +1154,7 @@ function DisplayScreenInner() {
     load();
     const id = window.setInterval(load, PLATFORM_CONFIG.polling.displayScoreboardMilliseconds);
     return () => { active = false; window.clearInterval(id); };
-  }, [connected, sessionPin, phase, questionIndex, roundStartedAt]);
+  }, [connected, sessionPin, phase, questionIndex, roundStartedAt, roundNumber]);
 
   useEffect(() => {
     const pinFromUrl = searchParams.get("pin");

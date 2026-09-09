@@ -899,11 +899,15 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     // Optimistically show locked-in, but verify the write actually succeeded -
     // on flaky venue wifi the insert can silently fail while the UI still says "locked in".
     setSubmitted(true);
-    const { error } = await supabase.from("answers").insert({
+    const { error } = await supabase.from("answers").upsert({
       session_pin: sessionPin,
       team_name: teamName,
+      round_number: roundNumber,
       question_index: questionIndex,
       answer_text: answer.trim(),
+    }, {
+      onConflict: "session_pin,team_name,round_number,question_index",
+      ignoreDuplicates: true,
     });
     if (error) {
       if (retryCount < 2) {

@@ -651,6 +651,19 @@ export default function QuizBuilderPage() {
   async function saveEditQuestion(round: QuizRound, qIndex: number) {
     const original = round.questions[qIndex] as Record<string, unknown>;
     const updated: Record<string, unknown> = { ...original, ...editDraft };
+    // Multi Tap's correct_answer is a comma-separated list of option
+    // letters (e.g. "A,C,D"), not option text - if a host clears/removes an
+    // option in this editor without also touching correct_answer, it can be
+    // left pointing at a letter whose option is now blank, which then
+    // silently can never be tapped correctly by any team. Strip any letter
+    // here whose corresponding option_<letter> is now empty, every save.
+    if (updated.question_type === "multi_tap" && typeof updated.correct_answer === "string") {
+      const survivingLetters = updated.correct_answer
+        .split(",")
+        .map(l => l.trim())
+        .filter(l => l && String(updated["option_" + l.toLowerCase()] ?? "").trim() !== "");
+      updated.correct_answer = survivingLetters.join(",");
+    }
     // Picture questions edited to point at a freshly-picked Pixabay photo (or a
     // pasted external URL) still have a hotlink at this point - re-host it in
     // our own storage now so it doesn't quietly go dead later. Already-hosted

@@ -1117,9 +1117,11 @@ export default function QuizBuilderPage() {
   async function deleteQuiz(quiz: QuizDefinition) {
     const supabase = createSupabaseBrowserClient();
     const { count } = await supabase.from("events").select("id", { count: "exact", head: true }).eq("quiz_definition_id", quiz.id);
-    if (count) { setError("This Quiz Plan is assigned to an event. Archive it instead of deleting it."); return; }
+    if (count) { showToast("This Quiz Plan is assigned to an event. Archive it instead of deleting it.", "error", 6000); return; }
     if (!await confirmDialog(`Delete "${quiz.name}"?`, { tone: "destructive", confirmLabel: "Delete" })) return;
-    await supabase.from("quizzes").delete().eq("id", quiz.id); setSelectedId(null); await load();
+    const { error: deleteErr } = await supabase.from("quizzes").delete().eq("id", quiz.id);
+    if (deleteErr) { showToast("Could not delete the Quiz Plan: " + deleteErr.message, "error", 6000); return; }
+    setSelectedId(null); await load();
   }
 
   return <HostShell>{confirmDialogEl}{toastEl}<main className="qi-bo-page" style={{ minHeight: "100vh", background: BG, color: "#fff" }}>

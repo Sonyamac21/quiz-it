@@ -653,8 +653,13 @@ function QuizControllerInner() {
 
   async function loadScores(pin: string) {
     const supabase = createSupabaseBrowserClient();
-    const data = await getScoresSvc(supabase, pin);
-    setScores(data);
+    try {
+      const data = await getScoresSvc(supabase, pin);
+      setScores(data);
+    } catch (error) {
+      console.error("Could not refresh host scores:", error);
+      showToast("Could not refresh scores. Keeping the last confirmed totals.", "error", 7000);
+    }
   }
 
   async function ensureScores(pin: string, teamList: Team[]) {
@@ -1542,7 +1547,14 @@ function QuizControllerInner() {
     // path from ever retrying. The verified pin threads through cleanly here.
     if (!pin) { console.error("applySpinResult: no session pin available"); return; }
     const supabase = createSupabaseBrowserClient();
-    const allScores = await getScoresSvc(supabase, pin);
+    let allScores: Score[];
+    try {
+      allScores = await getScoresSvc(supabase, pin);
+    } catch (error) {
+      console.error("Could not load Spin scores:", error);
+      setSpinFeedback({ ok: false, message: "Spin score could not be loaded. No points were changed." });
+      return;
+    }
     if (!allScores.length) {
       setSpinFeedback({ ok: false, message: "Spin score could not be loaded. No points were changed." });
       return;

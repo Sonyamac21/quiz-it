@@ -48,12 +48,14 @@ export type ScoreMutationResult = {
 
 /** Read the authoritative scoreboard for a session, highest first. */
 export async function getScores(supabase: SupabaseClient, sessionPin: string): Promise<ScoreRow[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("scores")
     .select("team_name, total_points, round_points, correct_count, fastest_count")
     .eq("session_pin", sessionPin)
     .order("total_points", { ascending: false });
-  return data ?? [];
+  if (error) throw new Error("Could not read scores: " + error.message);
+  if (!Array.isArray(data)) throw new Error("Could not read scores: missing response data");
+  return data;
 }
 
 /**
@@ -64,13 +66,17 @@ export async function getScores(supabase: SupabaseClient, sessionPin: string): P
  * should not call it directly as a "manual sync" step.
  */
 export async function syncScoreboardData(supabase: SupabaseClient, sessionPin: string): Promise<{ scores: ScoreRow[]; error?: string }> {
-  const scores = await getScores(supabase, sessionPin);
-  const { error } = await supabase.from("sessions").update({ scoreboard_data: scores }).eq("pin", sessionPin);
-  if (error) {
-    console.error("scoreService: scoreboard_data refresh failed for pin " + sessionPin + ":", error.message);
-    return { scores, error: error.message };
+  try {
+    const scores = await getScores(supabase, sessionPin);
+    const { data, error } = await supabase.from("sessions").update({ scoreboard_data: scores }).eq("pin", sessionPin).select("id");
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw new Error("No session was updated; scoreboard refresh was not confirmed");
+    return { scores };
+  } catch (cause) {
+    const error = cause instanceof Error ? cause.message : String(cause);
+    console.error("scoreService: scoreboard refresh failed:", error);
+    return { scores: [], error };
   }
-  return { scores };
 }
 
 /** Create a team's score row at 0/0 if it doesn't already exist, then refresh scoreboard_data. Safe to call repeatedly. */

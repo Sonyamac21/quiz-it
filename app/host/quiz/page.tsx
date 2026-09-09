@@ -18,7 +18,7 @@ import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { FEATURE_FLAGS } from "@/lib/platform/featureFlags";
 import { platformLogger } from "@/lib/platform/logger";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
-import { isAnswerCorrect as sharedIsAnswerCorrect, getCorrectAnswerText as sharedGetCorrectAnswerText, nearestWinsDistance } from "@/lib/quiz/answerScoring";
+import { calculateMultiTapScore, isAnswerCorrect as sharedIsAnswerCorrect, getCorrectAnswerText as sharedGetCorrectAnswerText, nearestWinsDistance } from "@/lib/quiz/answerScoring";
 import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
@@ -765,23 +765,11 @@ function QuizControllerInner() {
         continue;
       }
       if (q.question_type === "multi_tap") {
-        const correctKeys = (q.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
-        const tappedKeys = (ans.answer_text||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
-        const allKeys = (["a","b","c","d","e","f"] as const).filter(k => q["option_"+k as "option_a"]);
-        const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
-        // Two points for every option judged correctly: either selecting a
-        // true option or correctly leaving a false option unselected.
-        const wrongKeysUniverse = allKeys.filter(k => !correctKeys.includes(k));
-        const correctlyLeftWrong = wrongKeysUniverse.filter(k => !tappedKeys.includes(k));
-        const correctJudgements = correctTaps.length + correctlyLeftWrong.length;
-        let mtBasePts = correctJudgements * 2;
-        // Wipeout: ANY team's wrong tap this question zeroes EVERY team's
-        // score for it - base AND time bonus, for every team, not just
-        // whoever tapped wrong (see anyTeamWipedOutThisQuestion above).
-        const mtWipedOut = anyTeamWipedOutThisQuestion;
-        if (mtWipedOut) mtBasePts = 0;
-        const mtTimeBonus = mtWipedOut ? 0 : (rankBonus[team.team_name] ?? 0);
-        const mtDelta = (mtBasePts + mtTimeBonus) * (hasBoost(team.team_name) ? 2 : 1);
+        const mtDelta = calculateMultiTapScore(ans, q, {
+          timeBonus: rankBonus[team.team_name] ?? 0,
+          boosted: hasBoost(team.team_name),
+          wipedOut: anyTeamWipedOutThisQuestion,
+        }).totalPoints;
         lastDeltasRef.current[team.team_name] = mtDelta;
         if (mtDelta === 0) continue;
         const mtResult = await applyScoreDelta(supabase, sessionPin, team.team_name, mtDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:multitap`, isCorrect: isAnswerCorrect(ans, q), isFastest: team.team_name === scoredFastestTeamRef.current });

@@ -28,6 +28,45 @@ export type ScorableAnswer = {
   answer_text: string;
 };
 
+export type MultiTapScore = {
+  basePoints: number;
+  timeBonusPoints: number;
+  totalPoints: number;
+  correctJudgements: number;
+};
+
+const OPTION_KEYS = ["a", "b", "c", "d", "e", "f"] as const;
+
+function answerKeys(value: string): string[] {
+  return [...new Set(value.split(",").map(key => key.trim().toLowerCase()).filter(Boolean))];
+}
+
+/** Multi Tap awards for every correctly judged option, not only exact matches. */
+export function calculateMultiTapScore(
+  answer: ScorableAnswer,
+  question: ScorableQuestion,
+  options: { timeBonus?: number; boosted?: boolean; wipedOut?: boolean } = {},
+): MultiTapScore {
+  if (question.question_type !== "multi_tap") {
+    return { basePoints: 0, timeBonusPoints: 0, totalPoints: 0, correctJudgements: 0 };
+  }
+  const correctKeys = answerKeys(question.correct_answer);
+  const tappedKeys = answerKeys(answer.answer_text);
+  const availableKeys = OPTION_KEYS.filter(key => Boolean(question[`option_${key}`]));
+  const correctJudgements = availableKeys.filter(key =>
+    correctKeys.includes(key) === tappedKeys.includes(key)
+  ).length;
+  const wipedOut = options.wipedOut ?? false;
+  const basePoints = wipedOut ? 0 : correctJudgements * 2;
+  const timeBonusPoints = wipedOut ? 0 : Math.max(0, options.timeBonus ?? 0);
+  return {
+    basePoints,
+    timeBonusPoints,
+    totalPoints: (basePoints + timeBonusPoints) * (options.boosted ? 2 : 1),
+    correctJudgements,
+  };
+}
+
 export function normaliseAnswerText(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/^(the|a|an) /i, "").trim();
 }
@@ -121,8 +160,8 @@ export function isAnswerCorrect(ans: ScorableAnswer, q: ScorableQuestion): boole
     return submitted === matchingKey || isFuzzyMatch(ans.answer_text, q.correct_answer);
   }
   if (q.question_type === "multi_tap") {
-    const correctKeys = (q.correct_answer || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
-    const tappedKeys = (ans.answer_text || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+    const correctKeys = answerKeys(q.correct_answer || "");
+    const tappedKeys = answerKeys(ans.answer_text || "");
     const correctTaps = tappedKeys.filter(k => correctKeys.includes(k));
     const wrongTaps = tappedKeys.filter(k => !correctKeys.includes(k));
     // Exact match required both ways: every correct key tapped, AND no extra wrong taps.

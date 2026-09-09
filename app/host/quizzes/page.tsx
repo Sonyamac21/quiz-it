@@ -651,6 +651,19 @@ export default function QuizBuilderPage() {
   async function saveEditQuestion(round: QuizRound, qIndex: number) {
     const original = round.questions[qIndex] as Record<string, unknown>;
     const updated: Record<string, unknown> = { ...original, ...editDraft };
+    // Multi Tap's correct_answer is a comma-separated list of option
+    // letters (e.g. "A,C,D"), not option text - if a host clears/removes an
+    // option in this editor without also touching correct_answer, it can be
+    // left pointing at a letter whose option is now blank, which then
+    // silently can never be tapped correctly by any team. Strip any letter
+    // here whose corresponding option_<letter> is now empty, every save.
+    if (updated.question_type === "multi_tap" && typeof updated.correct_answer === "string") {
+      const survivingLetters = updated.correct_answer
+        .split(",")
+        .map(l => l.trim())
+        .filter(l => l && String(updated["option_" + l.toLowerCase()] ?? "").trim() !== "");
+      updated.correct_answer = survivingLetters.join(",");
+    }
     // Picture questions edited to point at a freshly-picked Pixabay photo (or a
     // pasted external URL) still have a hotlink at this point - re-host it in
     // our own storage now so it doesn't quietly go dead later. Already-hosted
@@ -1117,9 +1130,11 @@ export default function QuizBuilderPage() {
   async function deleteQuiz(quiz: QuizDefinition) {
     const supabase = createSupabaseBrowserClient();
     const { count } = await supabase.from("events").select("id", { count: "exact", head: true }).eq("quiz_definition_id", quiz.id);
-    if (count) { setError("This Quiz Plan is assigned to an event. Archive it instead of deleting it."); return; }
+    if (count) { showToast("This Quiz Plan is assigned to an event. Archive it instead of deleting it.", "error", 6000); return; }
     if (!await confirmDialog(`Delete "${quiz.name}"?`, { tone: "destructive", confirmLabel: "Delete" })) return;
-    await supabase.from("quizzes").delete().eq("id", quiz.id); setSelectedId(null); await load();
+    const { error: deleteErr } = await supabase.from("quizzes").delete().eq("id", quiz.id);
+    if (deleteErr) { showToast("Could not delete the Quiz Plan: " + deleteErr.message, "error", 6000); return; }
+    setSelectedId(null); await load();
   }
 
   return <HostShell>{confirmDialogEl}{toastEl}<main className="qi-bo-page" style={{ minHeight: "100vh", background: BG, color: "#fff" }}>

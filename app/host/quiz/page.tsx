@@ -10,7 +10,7 @@ import { PhotoApprovalPanel } from "@/components/PhotoApprovalPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc, syncScoreboardData } from "@/lib/quiz/scoreService";
 import { TeamBadge } from "@/components/TeamBadge";
-import { BrandLockup, Button, Field, Input, StatusPill, useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
+import { BrandLockup, Button, Field, Input, StatusPill, useConfirmDialog, usePromptDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 import { HostDiagnostics } from "@/components/HostDiagnostics";
 import { useDisplayHealth } from "@/lib/diagnostics/useDisplayHealth";
@@ -151,6 +151,7 @@ function QuizControllerInner() {
   // Quiz/Close Session, which used to be able to block the whole tab if a
   // host didn't immediately notice the native dialog.
   const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
+  const { promptDialog, dialog: promptDialogEl } = usePromptDialog();
   const { showToast, toastEl } = useToastQueue();
   const [sessionPin, setSessionPin] = useState("");
   const [sessionId, setSessionId] = useState<string|null>(null);
@@ -615,6 +616,41 @@ function QuizControllerInner() {
       setTeams(data);
       if (data.length > 0) ensureScores(pin, data);
     }
+  }
+
+  // Renames a team mid-quiz. team_name is the join key used across teams,
+  // scores, answers, and uno_cards (all also scoped by session_pin, since
+  // the same team name can exist in different live sessions) - so a rename
+  // has to be cascaded to all four tables in one go, or the team would
+  // silently lose its score/answer history/power-card history the moment
+  // any of those tables next got read back keyed on the old name.
+  async function renameTeam(oldName: string) {
+    if (!sessionPin) return;
+    const entered = await promptDialog(`Rename "${oldName}" to:`, oldName, { title: "Rename team", confirmLabel: "Rename" });
+    if (entered === null) return;
+    const newName = entered.trim();
+    if (!newName) { showToast("Team name can't be empty.", "error", 4000); return; }
+    if (newName === oldName) return;
+    if (teams.some(t => t.team_name.trim().toLowerCase() === newName.toLowerCase() && t.team_name !== oldName)) {
+      showToast(`"${newName}" is already in use by another team in this session.`, "error", 5000);
+      return;
+    }
+    const supabase = createSupabaseBrowserClient();
+    const { error: teamsErr } = await supabase.from("teams").update({ team_name: newName }).eq("session_pin", sessionPin).eq("team_name", oldName);
+    if (teamsErr) { showToast("Could not rename the team: " + teamsErr.message, "error", 6000); return; }
+    const [scoresRes, answersRes, unoRes] = await Promise.all([
+      supabase.from("scores").update({ team_name: newName }).eq("session_pin", sessionPin).eq("team_name", oldName),
+      supabase.from("answers").update({ team_name: newName }).eq("session_pin", sessionPin).eq("team_name", oldName),
+      supabase.from("uno_cards").update({ team_name: newName }).eq("session_pin", sessionPin).eq("team_name", oldName),
+    ]);
+    const followUpError = scoresRes.error || answersRes.error || unoRes.error;
+    if (followUpError) {
+      showToast("Team renamed, but some history (scores/answers/power cards) may still reference the old name: " + followUpError.message, "error", 8000);
+    } else {
+      showToast(`Renamed to "${newName}".`, "success", 3500);
+    }
+    setStatsTeam(newName);
+    await Promise.all([loadTeams(sessionPin), loadScores(sessionPin), loadAnswers(sessionPin, qIdx), loadUnoCards(sessionPin)]);
   }
 
   // answers.question_index resets to 0 every round, so filtering by index alone
@@ -1895,6 +1931,7 @@ function QuizControllerInner() {
   return (
     <div className="fbh qi-mc-shell">
       {confirmDialogEl}
+      {promptDialogEl}
       {toastEl}
       {scoringError && (
         <div role="alert" style={{ position:"fixed", zIndex:1000, top:16, left:"50%", transform:"translateX(-50%)", width:"min(760px,calc(100vw - 32px))", padding:"14px 16px", borderRadius:14, border:"2px solid #FF3B4E", background:"#260713", color:"#fff", boxShadow:"0 16px 50px rgba(0,0,0,.55)", display:"flex", alignItems:"center", gap:14 }}>
@@ -1915,6 +1952,7 @@ function QuizControllerInner() {
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                 <TeamBadge name={statsTeam} size={32} avatarUrl={statTeamRow?.photo_approved ? statTeamRow.photo_url : null} style={{ fontSize: 11, flexShrink: 0 }} />
                 <div style={{ fontWeight: 800, fontSize: 18, color: "#fff", flex: 1 }}>{statsTeam}</div>
+                <button onClick={() => renameTeam(statsTeam)} title="Rename team" style={{ background: "transparent", border: "1px solid #2E1A52", borderRadius: 8, color: "#B9A8D9", fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px" }}>RENAME</button>
                 <button onClick={() => setStatsTeam(null)} style={{ background: "transparent", border: "none", color: "#6B5A8E", fontSize: 20, cursor: "pointer", padding: 4 }}>×</button>
               </div>
               {song && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 14 }}>♪ {song}</div>}

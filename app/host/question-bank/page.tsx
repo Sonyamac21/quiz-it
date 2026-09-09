@@ -151,7 +151,22 @@ export default function QuestionBankPage() {
     await loadCounts();
   }
 
+  // Rows imported from SpeedQuizzing that originally had a picture never
+  // got that picture imported (the source export has no usable image URL,
+  // only a has_picture flag) - importToQuestionBank.mjs flags these with a
+  // review_note instead of setting question_type: "picture", so approving
+  // one as-is puts a text-only question live whose wording ("...in this
+  // photo?") refers to an image that will never actually appear on screen.
+  const hasMissingPicture = (q: BankQuestion) => !!q.review_note && /picture/i.test(q.review_note) && q.question_type !== "picture";
+
   async function approveQuestion(id: string) {
+    const target = questions.find(q => q.id === id);
+    if (target && hasMissingPicture(target)) {
+      const proceed = window.confirm(
+        "This question's original had a picture that was never imported - approving it now will show players the question text (which may reference \"this photo\") with no image at all. Attach a picture first (edit the question and set it up as a Picture question) unless you're sure it still makes sense without one.\n\nApprove anyway?"
+      );
+      if (!proceed) return;
+    }
     const supabase = createSupabaseBrowserClient();
     const { error } = await supabase.from("question_bank").update({ needs_review: false }).eq("id", id);
     if (error) { setStatus("Could not approve: " + error.message); return; }
@@ -162,11 +177,14 @@ export default function QuestionBankPage() {
   async function approveAllInView() {
     if (bulkBusy) return;
     const label = topicFilter ? `${topicFilter}${filter !== "all" ? ` / ${typeLabel[filter]}` : ""}` : (filter !== "all" ? typeLabel[filter] : "all");
-    const confirmed = window.confirm(`Approve all ${matchingCount.toLocaleString()} needs-review question(s) matching ${label}? They'll immediately become pickable in Quiz Plans and Random From Library.`);
+    const confirmed = window.confirm(`Approve all ${matchingCount.toLocaleString()} needs-review question(s) matching ${label}? They'll immediately become pickable in Quiz Plans and Random From Library.\n\nQuestions still flagged as missing an original picture will be skipped - approve those individually once a picture's attached.`);
     if (!confirmed) return;
     setBulkBusy(true);
     const supabase = createSupabaseBrowserClient();
-    let query = supabase.from("question_bank").update({ needs_review: false }).eq("needs_review", true);
+    // review_note is null for almost all rows - .not("ilike") alone would
+    // evaluate to NULL (and so exclude) every one of those, so null must be
+    // explicitly allowed through alongside "doesn't mention picture".
+    let query = supabase.from("question_bank").update({ needs_review: false }).eq("needs_review", true).or("review_note.is.null,review_note.not.ilike.%picture%");
     if (filter !== "all") query = query.eq("question_type", filter);
     if (topicFilter) query = query.eq("topic", topicFilter);
     if (search.trim().length >= 2) {
@@ -176,7 +194,7 @@ export default function QuestionBankPage() {
     const { error } = await query;
     setBulkBusy(false);
     if (error) { setStatus("Bulk approve failed: " + error.message); return; }
-    setStatus(`Approved matching questions.`);
+    setStatus(`Approved matching questions (any still missing a picture were skipped).`);
     await loadCounts();
     await loadQuestions(1);
     setPage(1);

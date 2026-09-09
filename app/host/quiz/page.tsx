@@ -179,6 +179,51 @@ function QuizControllerInner() {
   // `scores` data (round_points is already tracked and reset per round);
   // doesn't touch scoring logic or any other consumer of `scores`.
   const [showRoundLeaders, setShowRoundLeaders] = useState(false);
+  // Two-column team list (item f of the bundled host-console request): matches
+  // SpeedQuizzing's toggle that switches the team roster from one to two
+  // columns and widens the rail to fit up to 50 teams on screen without each
+  // card getting cramped. Purely a display toggle - `scores` itself is never
+  // touched, same pattern as showRoundLeaders above.
+  const [showTwoColumns, setShowTwoColumns] = useState(false);
+  // Manual drag-to-resize for the team rail (long team names get cut off in a
+  // narrow rail, and the auto-width the two-column toggle picks isn't always
+  // enough) - lets the host click-drag the divider between the question desk
+  // and the team panel to claim extra screen width, on top of the toggle
+  // above. null means "use the CSS/toggle default width"; once the host drags
+  // it, that pixel width sticks (surviving a toggle flip) until they drag
+  // again. Not persisted across a page reload - a fresh page just goes back
+  // to the default, which is fine since this is a per-session screen layout
+  // preference, not data.
+  const [railWidthPx, setRailWidthPx] = useState<number | null>(null);
+  const railDraggingRef = useRef(false);
+
+  const startRailDrag = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    railDraggingRef.current = true;
+    document.body.style.cursor = "col-resize";
+  }, []);
+
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!railDraggingRef.current) return;
+      // Rail width = distance from the cursor to the right edge of the
+      // viewport, clamped so it can never get so narrow team names truncate
+      // nor so wide the question desk has no room left.
+      const next = Math.min(900, Math.max(320, window.innerWidth - e.clientX));
+      setRailWidthPx(next);
+    }
+    function onUp() {
+      if (!railDraggingRef.current) return;
+      railDraggingRef.current = false;
+      document.body.style.cursor = "";
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
   // Tap a team in the panel to open a small stats popup (victory song,
   // correct-answer count, times fastest) - null when closed.
   const [statsTeam, setStatsTeam] = useState<string | null>(null);
@@ -1934,7 +1979,16 @@ function QuizControllerInner() {
       )}
 
       {/* MAIN CONTENT */}
-      <div className="qi-mc-workspace">
+      <div
+        className="qi-mc-workspace"
+        style={
+          railWidthPx != null
+            ? { gridTemplateColumns: `minmax(0, 1fr) ${railWidthPx}px` }
+            : showTwoColumns
+            ? { gridTemplateColumns: "minmax(0, 1fr) minmax(640px, 46vw)" }
+            : undefined
+        }
+      >
         <main className="qi-mc-desk">
           {!selectedRound ? (
             <div className="qi-mc-round-picker">
@@ -2087,7 +2141,7 @@ function QuizControllerInner() {
           ) : !currentQ ? (
             <div style={{ textAlign:"center", marginTop:80, color:"rgba(255,255,255,0.4)", fontSize:18 }}>No questions in this round</div>
           ) : (
-            <div className="qi-mc-question">
+            <div className={`qi-mc-question${hostPhase === "hot_seat" ? " qi-mc-question--hot-seat" : ""}`}>
               <div className="qi-mc-question__meta">
                 <span style={{ background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", padding:"5px 16px", borderRadius:999, fontSize:13, fontWeight:700 }}>Q{qIdx+1} of {selectedRound.questions.length}</span>
                 <span style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.15)", color:typeColor[currentQ.question_type]||"#aaa", padding:"5px 16px", borderRadius:999, fontSize:13, fontWeight:600 }}>{typeLabel[currentQ.question_type]||currentQ.question_type}</span>
@@ -2210,7 +2264,15 @@ function QuizControllerInner() {
         </main>
 
         {/* RIGHT PANEL */}
-        <aside className="qi-mc-rail" aria-label="Teams, answers and round settings">
+        <aside className="qi-mc-rail" aria-label="Teams, answers and round settings" style={{ position: "relative" }}>
+          <div
+            onMouseDown={startRailDrag}
+            title="Drag to resize - give the team panel more room if names are getting cut off"
+            style={{ position: "absolute", left: -6, top: 0, bottom: 0, width: 12, cursor: "col-resize", zIndex: 60, touchAction: "none" }}
+            onDoubleClick={() => setRailWidthPx(null)}
+          >
+            <div style={{ position: "absolute", left: 5, top: "50%", transform: "translateY(-50%)", width: 2, height: 40, borderRadius: 2, background: "rgba(255,255,255,0.18)" }} />
+          </div>
           <section className="qi-mc-settings">
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <div className="fbh-lbl" style={{ margin:0 }}>Round Settings</div>
@@ -2256,10 +2318,15 @@ function QuizControllerInner() {
             )}
           </section>
 
-          <section className="qi-mc-teams" aria-label="Team standings list" style={{ display: "block", minWidth: 0 }}>
+          <section className="qi-mc-teams" aria-label="Team standings list" style={showTwoColumns ? { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0 12px", minWidth: 0 } : { display: "block", minWidth: 0 }}>
             <div className="qi-mc-teams__header">
               <div><span>Live answers</span><strong>Teams & scores</strong></div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={() => setShowTwoColumns(v => !v)}
+                  title="Switch the team list between one and two columns, widening the panel to fit more teams on screen"
+                  style={{ padding: "5px 10px", borderRadius: 8, background: showTwoColumns ? "rgba(190,38,193,0.25)" : "#150A2E", border: "1px solid " + (showTwoColumns ? "#D94FDC" : "#2E1A52"), color: showTwoColumns ? "#fff" : "#6B5A8E", font: "700 11px 'Inter'", letterSpacing: ".04em", cursor: "pointer", whiteSpace: "nowrap" }}
+                >{showTwoColumns ? "2-COL" : "1-COL"}</button>
                 <button
                   onClick={() => setShowRoundLeaders(v => !v)}
                   title="Sort and highlight by points scored in THIS round instead of the running total"

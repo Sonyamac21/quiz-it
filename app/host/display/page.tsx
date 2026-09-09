@@ -513,9 +513,8 @@ function DisplayScreenInner() {
 
   const reelScenes = [
     "venue",
+    ...(intermissionOffers.trim() ? ["offers"] : []),
     ...(venuePrizeInfo ? ["prizes"] : []),
-    ...(venueScheduleText ? ["schedule"] : []),
-    ...(venueHostName ? ["host"] : []),
     // Always shown - this is Mac Entertainment's own handle for players to tag
     // when they post, not tied to whether a venue has its own social links set.
     "tag-us",
@@ -1423,8 +1422,25 @@ function DisplayScreenInner() {
                 )}
                 <div className={"lb-venue-intro" + ((venueHeroVideoUrl && !venueHeroVideoFailed) || venueHeroImageUrl ? " has-media" : "")}>
                   {venueLogoUrl && <img className="lb-venue-intro-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
-                  <div className="lb-venue-intro-name">{venueName || "TONIGHT'S QUIZ"}</div>
-                  <div className="lb-venue-intro-tagline">Quiz Night · Hosted by Quiz-It</div>
+                  <div className="lb-venue-intro-copy">
+                    <div className="lb-venue-intro-name">{venueName || "TONIGHT'S QUIZ"}</div>
+                    {venueScheduleText && <div className="lb-venue-intro-time">QUIZ NIGHT · {venueScheduleText}</div>}
+                    <div className="lb-venue-intro-tagline">Powered by Quiz-It</div>
+                  </div>
+                  {(venueHostPhotoUrl || venueHostName) && <div className="lb-venue-intro-host">
+                    {venueHostPhotoUrl && <img src={getMediaUrl(venueHostPhotoUrl) || undefined} alt={venueHostName || "Quiz host"} />}
+                    <div><small>YOUR HOST</small><strong>{venueHostName || "Quiz-It Host"}</strong></div>
+                  </div>}
+                </div>
+              </div>
+            )}
+
+            {currentReelScene === "offers" && intermissionOffers.trim() && (
+              <div className="lb-reel-scene lb-reel-brand lb-reel-brand-offers">
+                <div className="lb-reel-brand-panel">
+                  {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
+                  <div className="lb-cardkicker">TONIGHT AT {venueName?.toUpperCase() || "THE VENUE"}</div>
+                  <div className="lb-reel-brand-body">{intermissionOffers}</div>
                 </div>
               </div>
             )}
@@ -1434,25 +1450,6 @@ function DisplayScreenInner() {
                 <div className="lb-reel-brand-panel">
                   <div className="lb-cardkicker">TONIGHT&rsquo;S PRIZES</div>
                   <div className="lb-reel-brand-body">{venuePrizeInfo}</div>
-                </div>
-              </div>
-            )}
-
-            {currentReelScene === "schedule" && (
-              <div className="lb-reel-scene lb-reel-brand lb-reel-brand-schedule">
-                <div className="lb-reel-brand-panel">
-                  {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
-                  <div className="lb-cardkicker">EVERY WEEK</div>
-                  <div className="lb-reel-brand-headline">{venueScheduleText}</div>
-                </div>
-              </div>
-            )}
-
-            {currentReelScene === "host" && (
-              <div className="lb-reel-scene lb-reel-brand lb-reel-brand-host">
-                <div className="lb-reel-brand-panel lb-reel-host-panel">
-                  {venueHostPhotoUrl && <div className="lb-reel-host-frame"><img className="lb-reel-host-photo" src={getMediaUrl(venueHostPhotoUrl) || undefined} alt={venueHostName || "Host"} /></div>}
-                  <div className="lb-reel-host-copy"><div className="lb-cardkicker">YOUR HOST TONIGHT</div><div className="lb-reel-brand-headline">{venueHostName}</div></div>
                 </div>
               </div>
             )}

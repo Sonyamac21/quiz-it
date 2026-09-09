@@ -16,7 +16,7 @@ export type VenueOffer = {
 // offers that run at every venue, filtered to active + today's date range,
 // in a stable order. Used by both the display screen and player handsets
 // during intermission.
-export async function fetchActiveVenueOffers(venueId: string | null): Promise<string[]> {
+export async function fetchActiveVenueOffers(venueId: string | null, includeAllVenues = false): Promise<string[]> {
   const supabase = createSupabaseBrowserClient();
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
@@ -26,7 +26,7 @@ export async function fetchActiveVenueOffers(venueId: string | null): Promise<st
     .order("sort_order", { ascending: true });
   if (error || !data) return [];
   return (data as VenueOffer[])
-    .filter(row => row.venue_id === venueId || row.venue_id === null)
+    .filter(row => includeAllVenues || row.venue_id === venueId || row.venue_id === null)
     .filter(row => !row.start_date || row.start_date <= today)
     .filter(row => !row.end_date || row.end_date >= today)
     .map(row => getMediaUrl(row.image_url) || row.image_url);

@@ -1961,13 +1961,13 @@ button, input, select, textarea { font: inherit; }
 .qi-player-intermission { box-sizing:border-box; min-height:0 !important; max-height:100dvh; justify-content:flex-start !important; gap:clamp(5px,1.2dvh,12px) !important; padding:max(10px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom)) !important; }
 .qi-player-intermission-grid { width:min(100%,720px); flex:1; min-height:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:minmax(0,auto); align-content:center; gap:clamp(6px,1.1dvh,12px); overflow:hidden; }
 .qi-player-intermission-grid > * { width:100% !important; max-width:none !important; min-width:0; box-sizing:border-box; padding:clamp(7px,1.25dvh,13px) !important; margin:0 !important; }
-.qi-player-intermission-grid > div:has(> img[alt="Offer"]) { grid-column:1/-1; height:min(30dvh,250px); aspect-ratio:auto !important; }
+.qi-player-intermission-grid > .qi-player-venue-ad { grid-column:1/-1; height:min(30dvh,250px); aspect-ratio:auto !important; }
 .qi-player-intermission-grid img[alt="WhatsApp QR"] { width:min(12dvh,96px) !important; height:min(12dvh,96px) !important; }
 .qi-player-intermission-grid > img { grid-column:1/-1; justify-self:center; width:min(14dvh,70px) !important; height:min(14dvh,70px) !important; object-fit:contain; }
 @media (max-width:340px),(max-height:620px) {
   .qi-player-intermission-grid { gap:5px; }
   .qi-player-intermission-grid > * { padding:6px !important; font-size:11px !important; }
-  .qi-player-intermission-grid > div:has(> img[alt="Offer"]) { height:22dvh; }
+  .qi-player-intermission-grid > .qi-player-venue-ad { height:22dvh; }
 }
 
 .qi-host-harddeck { height:100dvh; min-height:0; gap:clamp(7px,1.8vh,20px) !important; padding:clamp(10px,2vh,22px) !important; }
@@ -2024,6 +2024,82 @@ button, input, select, textarea { font: inherit; }
 @keyframes qiVenueMediaDrift { from { transform:scale(1.025); filter:saturate(.9) brightness(.84); } to { transform:scale(1); filter:saturate(1.05) brightness(1); } }
 @media (prefers-reduced-motion:reduce) {
   .fbl .lb-reel-scene,.fbl .lb-reel-scene::after,.fbl .lb-reel-media { animation:none !important; clip-path:none; filter:none; }
+}
+
+/* Premium venue identity choreography. Logo, event details and host portrait
+   use the available frame proportionally and enter as one composed title card. */
+.fbl .lb-venue-intro-copy { min-width:0; max-width:min(68%,760px); display:flex; flex-direction:column; align-items:center; gap:clamp(6px,1.1vh,13px); }
+.fbl .lb-venue-intro-time { color:#fff; font:900 clamp(15px,1.55vw,25px)/1.15 'Inter'; letter-spacing:.13em; text-transform:uppercase; text-shadow:0 5px 24px rgba(0,0,0,.75); animation:qiVenueTimeIn .8s var(--settle) .48s both; }
+.fbl .lb-venue-intro-host { position:absolute; right:3%; bottom:9%; width:clamp(155px,20%,260px); display:grid; grid-template-columns:clamp(56px,6.5vw,94px) minmax(0,1fr); align-items:center; gap:clamp(9px,1.2vw,16px); padding:clamp(8px,1vw,14px); border:1px solid rgba(217,79,220,.52); border-radius:clamp(15px,1.5vw,22px); background:rgba(10,1,24,.82); box-shadow:0 18px 55px rgba(0,0,0,.48),0 0 35px rgba(190,38,193,.22); backdrop-filter:blur(10px); animation:qiVenueHostIn .9s var(--settle) .7s both; }
+.fbl .lb-venue-intro-host img { width:clamp(56px,6.5vw,94px); aspect-ratio:1; object-fit:contain; border-radius:12px; background:#090116; }
+.fbl .lb-venue-intro-host div { min-width:0; text-align:left; }
+.fbl .lb-venue-intro-host small { display:block; color:var(--purple-b); font:800 clamp(8px,.8vw,12px) 'Inter'; letter-spacing:.18em; }
+.fbl .lb-venue-intro-host strong { display:block; margin-top:4px; color:#fff; font:850 clamp(13px,1.2vw,20px)/1.15 'Inter'; overflow-wrap:anywhere; }
+.fbl .lb-venue-intro.has-media .lb-venue-intro-copy { max-width:62%; }
+.fbl .lb-venue-intro.has-media .lb-venue-intro-name { max-width:100%; }
+.fbl .lb-venue-intro.has-media .lb-venue-intro-logo { left:3%; bottom:11%; width:clamp(125px,16vw,220px); height:clamp(92px,12vw,165px); max-width:31%; }
+.fbl .lb-reel-brand-offers .lb-reel-brand-panel { border-color:rgba(232,195,106,.35); }
+@keyframes qiVenueTimeIn { from{opacity:0;transform:translateY(18px);letter-spacing:.28em} to{opacity:1;transform:none;letter-spacing:.13em} }
+@keyframes qiVenueHostIn { from{opacity:0;transform:translateX(55px) rotate(2deg) scale(.94)} to{opacity:1;transform:none} }
+
+/* Handset venue network reel. Each JPEG remounts with its own reveal, while
+   the sheen is clipped to the advert card so it never obscures controls. */
+.qi-player-venue-ad { isolation:isolate; box-shadow:0 16px 42px rgba(0,0,0,.38),0 0 30px rgba(190,38,193,.16); }
+.qi-player-venue-ad::after { content:""; position:absolute; inset:-30%; z-index:2; pointer-events:none; background:linear-gradient(112deg,transparent 39%,rgba(255,255,255,.2) 50%,transparent 61%); animation:qiHandsetAdSheen 1.25s ease-out .2s both; }
+.qi-player-venue-ad__image { animation:qiHandsetAdIn .75s cubic-bezier(.2,.8,.2,1) both; background:#090116; }
+@keyframes qiHandsetAdIn { from{opacity:0;transform:scale(1.06) translateY(8px);filter:brightness(.65)} to{opacity:1;transform:none;filter:none} }
+@keyframes qiHandsetAdSheen { from{transform:translateX(-65%);opacity:0} 30%{opacity:1} to{transform:translateX(65%);opacity:0} }
+
+/* Hot Seat one-viewport treatment across the host, handset and TV. */
+.qi-mc-desk:has(.qi-mc-question--hot-seat) { overflow:hidden; }
+.qi-mc-question--hot-seat { height:100%; min-height:0; display:flex; flex-direction:column; }
+.qi-mc-question--hot-seat .qi-mc-question__meta { flex:none; margin-bottom:clamp(5px,1vh,10px); }
+.qi-mc-question--hot-seat .qi-mc-question__title { flex:none; margin-bottom:clamp(6px,1.2vh,12px); font-size:clamp(20px,min(2.7vw,4.5vh),44px); line-height:1.08; }
+.qi-mc-question--hot-seat .qi-hot-seat-host { flex:none; gap:4px; margin-bottom:clamp(6px,1vh,12px); padding:clamp(8px,1.3vh,14px); }
+.qi-mc-question--hot-seat .qi-hot-seat-host strong { font-size:clamp(18px,2.6vh,28px); }
+.qi-mc-question--hot-seat .qi-hot-seat-host__answer { padding:clamp(7px,1vh,11px) 12px; }
+.qi-mc-question--hot-seat .qi-hot-seat-host__answer b { font-size:clamp(19px,3vh,30px); }
+.qi-mc-question--hot-seat .qi-mc-options { flex:none; gap:clamp(5px,1vh,9px); margin-bottom:clamp(5px,1vh,10px); }
+.qi-mc-question--hot-seat .qi-mc-option { min-height:clamp(34px,5.5vh,48px); padding:5px 11px; font-size:clamp(13px,1.8vh,16px); }
+.qi-mc-question--hot-seat .qi-mc-answer-key { flex:none; margin-bottom:clamp(5px,1vh,10px); padding:clamp(7px,1vh,11px) 13px; }
+.qi-mc-question--hot-seat .qi-mc-answer-key > div:last-child { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+.qi-mc-question--hot-seat .qi-mc-manual { flex:none; margin-top:auto; padding-top:clamp(5px,1vh,9px); gap:5px; }
+.qi-mc-question--hot-seat .qi-mc-manual__label { display:none; }
+.qi-mc-question--hot-seat .qi-mc-manual__button,.qi-mc-question--hot-seat .qi-mc-manual__last { min-height:32px; padding-inline:9px; font-size:11px; }
+
+.qi-player-hot-seat { box-sizing:border-box; min-height:0!important; max-height:100dvh; padding:max(7px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))!important; }
+.qi-player-hot-seat .qi-player-status { min-height:clamp(38px,7dvh,52px); margin-bottom:0; padding-block:3px 6px; }
+.qi-player-hot-seat__question { flex:0 1 auto; max-height:27dvh; overflow:hidden; margin:clamp(5px,1.2dvh,12px) 0; font-size:clamp(18px,min(7vw,4.2dvh),34px); }
+.qi-player-hot-seat__buzz { width:min(76vw,39dvh,310px); border-width:clamp(4px,1dvh,7px); font-size:clamp(40px,13vw,70px); }
+.qi-player-hot-seat__state { flex:0 1 auto; margin:auto 0; padding:clamp(15px,3dvh,28px) 14px; }
+.qi-player-hot-seat__error { flex:none; margin:7px 0 0; font-size:12px; }
+
+.qi-display-hot-seat { gap:clamp(10px,2.5vh,32px); padding:clamp(18px,3.5vh,52px) clamp(28px,5vw,80px); }
+.qi-display-hot-seat__meta { flex:none; font-size:clamp(13px,min(1.8vw,2.7vh),25px); }
+.qi-display-hot-seat h1 { flex:0 1 auto; max-height:38vh; overflow:hidden; font-size:clamp(30px,min(5.5vw,7.2vh),82px); line-height:1.06; }
+.qi-display-hot-seat__call,.qi-display-hot-seat__claim { flex:0 1 auto; min-height:0; gap:clamp(6px,1.4vh,12px); }
+.qi-display-hot-seat__call strong,.qi-display-hot-seat__claim strong { font-size:clamp(28px,min(5vw,7vh),76px); }
+.qi-display-hot-seat__claim>span { max-width:92vw; overflow-wrap:anywhere; font-size:clamp(38px,min(7vw,9vh),108px); }
+.qi-display-hot-seat__timer { width:clamp(72px,15vh,150px); border-width:clamp(3px,.7vh,5px); font-size:clamp(36px,8vh,82px); }
+@media (max-height:620px) {
+  .qi-mc-question--hot-seat .qi-mc-answer-key { margin-bottom:3px; padding:4px 8px; font-size:11px; }
+  .qi-display-hot-seat { gap:7px; padding-block:12px; }
+  .qi-player-hot-seat__question { max-height:22dvh; }
+  .qi-player-hot-seat__buzz { width:min(68vw,34dvh,250px); }
+}
+/* Landscape iPads are 4:3. Keep the venue reel visible there; the older
+   fallback hid it entirely and therefore removed all venue advertising. */
+@media (max-aspect-ratio:4/3) and (min-aspect-ratio:1/1) {
+  .qi-display-lobby .lb-split { grid-template-columns:minmax(280px,42%) minmax(0,58%); }
+  .qi-display-lobby .lb-cardstage { display:flex; }
+  .qi-display-lobby .lb-left { padding-inline:clamp(18px,3vw,42px); }
+  .fbl .lb-venue-intro-copy { max-width:72%; }
+  .fbl .lb-venue-intro.has-media .lb-venue-intro-copy { max-width:66%; }
+  .fbl .lb-venue-intro-host { right:2%; bottom:4%; width:min(42%,220px); }
+  .fbl .lb-venue-intro.has-media .lb-venue-intro-logo { left:2%; bottom:5%; max-width:29%; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .fbl .lb-venue-intro-time,.fbl .lb-venue-intro-host,.qi-player-venue-ad::after,.qi-player-venue-ad__image { animation:none!important; }
 }
 /* Compact answering mode; waiting/results retain their larger team photo.
    Inner overflow remains available for unusually long text/accessibility zoom. */

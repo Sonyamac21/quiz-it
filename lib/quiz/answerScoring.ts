@@ -35,10 +35,59 @@ export type MultiTapScore = {
   correctJudgements: number;
 };
 
+export type TimestampedTeamAnswer = ScorableAnswer & {
+  team_name: string;
+  submitted_at: string;
+};
+
+export type NearestWinsEntry = {
+  teamName: string;
+  distance: number;
+  submittedAt: number;
+};
+
 const OPTION_KEYS = ["a", "b", "c", "d", "e", "f"] as const;
 
 function answerKeys(value: string): string[] {
   return [...new Set(value.split(",").map(key => key.trim().toLowerCase()).filter(Boolean))];
+}
+
+export function normaliseTeamName(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+/** Resolve network retries consistently: the newest row is authoritative. */
+export function latestAnswerForTeam<T extends TimestampedTeamAnswer>(answers: T[], teamName: string): T | undefined {
+  const target = normaliseTeamName(teamName);
+  return answers
+    .filter(answer => normaliseTeamName(answer.team_name) === target)
+    .reduce<T | undefined>((latest, answer) => {
+      if (!latest) return answer;
+      return Date.parse(answer.submitted_at) > Date.parse(latest.submitted_at) ? answer : latest;
+    }, undefined);
+}
+
+export function rankNearestWins<T extends TimestampedTeamAnswer>(
+  answers: T[],
+  question: ScorableQuestion,
+): NearestWinsEntry[] {
+  const latestByTeam = new Map<string, T>();
+  for (const answer of answers) {
+    const key = normaliseTeamName(answer.team_name);
+    const current = latestByTeam.get(key);
+    if (!current || Date.parse(answer.submitted_at) > Date.parse(current.submitted_at)) latestByTeam.set(key, answer);
+  }
+  return [...latestByTeam.values()]
+    .map(answer => {
+      const distance = nearestWinsDistance(answer, question);
+      return distance === null ? null : {
+        teamName: answer.team_name,
+        distance,
+        submittedAt: Date.parse(answer.submitted_at),
+      };
+    })
+    .filter((entry): entry is NearestWinsEntry => entry !== null)
+    .sort((a, b) => a.distance - b.distance || a.submittedAt - b.submittedAt);
 }
 
 /** Multi Tap awards for every correctly judged option, not only exact matches. */

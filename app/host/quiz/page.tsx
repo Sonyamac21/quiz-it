@@ -18,7 +18,7 @@ import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { FEATURE_FLAGS } from "@/lib/platform/featureFlags";
 import { platformLogger } from "@/lib/platform/logger";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
-import { calculateMultiTapScore, isAnswerCorrect as sharedIsAnswerCorrect, getCorrectAnswerText as sharedGetCorrectAnswerText, nearestWinsDistance } from "@/lib/quiz/answerScoring";
+import { calculateMultiTapScore, isAnswerCorrect as sharedIsAnswerCorrect, getCorrectAnswerText as sharedGetCorrectAnswerText, latestAnswerForTeam as sharedLatestAnswerForTeam, rankNearestWins } from "@/lib/quiz/answerScoring";
 import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
@@ -683,9 +683,7 @@ function QuizControllerInner() {
     // "fastest correct" determination) looked at a different row, disagreeing with
     // each other for no visible reason.
     function getLatestAnswer(teamName: string): Answer | undefined {
-      const matches = currentAnswers.filter(a => sameTeam(a.team_name, teamName));
-      if (matches.length === 0) return undefined;
-      return matches.reduce((latest, a) => new Date(a.submitted_at).getTime() > new Date(latest.submitted_at).getTime() ? a : latest);
+      return sharedLatestAnswerForTeam(currentAnswers, teamName);
     }
 
     // Determine rank order of correct answers (by submission time) for rank-based bonus:
@@ -725,17 +723,13 @@ function QuizControllerInner() {
     // Ties on distance go to whoever submitted first, same convention as the
     // speed bonus above.
     const nwPointShares = [1, 0.6, 0.3];
+    const teamNames = new Set(teamList.map(team => team.team_name.trim().toLowerCase()));
     const nwEntries = q.question_type === "nearest_wins"
-      ? teamList
-          .map(team => {
-            const ans = getLatestAnswer(team.team_name);
-            if (!ans) return null;
-            const distance = nearestWinsDistance(ans, q);
-            if (distance === null) return null;
-            return { teamName: team.team_name, distance, submittedAt: new Date(ans.submitted_at).getTime() };
-          })
-          .filter((e): e is { teamName: string; distance: number; submittedAt: number } => e !== null)
-          .sort((a, b) => a.distance - b.distance || a.submittedAt - b.submittedAt)
+      ? rankNearestWins(currentAnswers.filter(answer => teamNames.has(answer.team_name.trim().toLowerCase())), q)
+          .map(entry => ({
+            ...entry,
+            teamName: teamList.find(team => sameTeam(team.team_name, entry.teamName))?.team_name ?? entry.teamName,
+          }))
       : [];
     if (q.question_type === "nearest_wins") {
       // The closest guess is this question's "winner" - reuse the same
@@ -1697,9 +1691,7 @@ function QuizControllerInner() {
   // answered, and submissionOrder's array-position badge (#N) can land on 6
   // or 8 with only 3 teams in the room - the exact wrong-order-number report.
   const latestAnswerForTeam = (teamName: string): Answer | undefined => {
-    const matches = answers.filter(a => sameTeam(a.team_name, teamName));
-    if (matches.length === 0) return undefined;
-    return matches.reduce((latest, a) => new Date(a.submitted_at).getTime() > new Date(latest.submitted_at).getTime() ? a : latest);
+    return sharedLatestAnswerForTeam(answers, teamName);
   };
   const dedupedAnswers = Array.from(new Set(answers.map(a => a.team_name)))
     .map(latestAnswerForTeam)

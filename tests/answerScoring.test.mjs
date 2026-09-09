@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateMultiTapScore, getCorrectAnswerText, isAnswerCorrect } from "../lib/quiz/answerScoring.ts";
+import { calculateMultiTapScore, getCorrectAnswerText, isAnswerCorrect, latestAnswerForTeam, rankNearestWins } from "../lib/quiz/answerScoring.ts";
 
 const baseQuestion = {
   question_type: "multiple_choice",
@@ -72,4 +72,23 @@ test("Multi Tap wipeout zeros base points and time bonus", () => {
     calculateMultiTapScore({ answer_text: "a,c,e" }, question, { timeBonus: 4, boosted: true, wipedOut: true }),
     { basePoints: 0, timeBonusPoints: 0, totalPoints: 0, correctJudgements: 6 },
   );
+});
+
+test("A4: Nearest Wins breaks equal-distance ties by submission time", () => {
+  const question = { ...baseQuestion, question_type: "nearest_wins", correct_answer: "100" };
+  const ranked = rankNearestWins([
+    { team_name: "Later", answer_text: "110", submitted_at: "2026-09-09T10:00:02.000Z" },
+    { team_name: "Earlier", answer_text: "90", submitted_at: "2026-09-09T10:00:01.000Z" },
+  ], question);
+  assert.deepEqual(ranked.map(entry => entry.teamName), ["Earlier", "Later"]);
+});
+
+test("A5/A6: a retried answer resolves to exactly one latest authoritative row", () => {
+  const answers = [
+    { team_name: " Jazz ", answer_text: "1", submitted_at: "2026-09-09T10:00:01.000Z" },
+    { team_name: "jazz", answer_text: "2", submitted_at: "2026-09-09T10:00:02.000Z" },
+    { team_name: "Mac", answer_text: "3", submitted_at: "2026-09-09T10:00:03.000Z" },
+  ];
+  assert.equal(latestAnswerForTeam(answers, "JAZZ")?.answer_text, "2");
+  assert.equal(rankNearestWins(answers, { ...baseQuestion, question_type: "nearest_wins", correct_answer: "2" }).length, 2);
 });

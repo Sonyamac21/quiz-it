@@ -172,6 +172,13 @@ function QuizControllerInner() {
   const [dangerPenalty, setDangerPenalty] = useState(5);
   const [wipeoutMode, setWipeoutMode] = useState(false);
   const [roundSettingsOpen, setRoundSettingsOpen] = useState(false);
+  // Toggle for the team list: normally sorted/shown by TOTAL points (the
+  // running game score), but a host running a live show often wants "who's
+  // winning THIS round" at a glance instead - e.g. to call out a round
+  // winner before moving on. Purely a display re-sort of the existing
+  // `scores` data (round_points is already tracked and reset per round);
+  // doesn't touch scoring logic or any other consumer of `scores`.
+  const [showRoundLeaders, setShowRoundLeaders] = useState(false);
   const [adjustTeam, setAdjustTeam] = useState<string|null>(null);
   const [adjustAmount, setAdjustAmount] = useState("");
   const [showScoreboard, setShowScoreboard] = useState(false);
@@ -2208,7 +2215,17 @@ function QuizControllerInner() {
           </section>
 
           <section className="qi-mc-teams" aria-label="Team standings list" style={{ display: "block", minWidth: 0 }}>
-            <div className="qi-mc-teams__header"><div><span>Live answers</span><strong>Teams & scores</strong></div><StatusPill tone="live">{new Set(answers.map(a => a.team_name)).size}/{teams.length} answered</StatusPill></div>
+            <div className="qi-mc-teams__header">
+              <div><span>Live answers</span><strong>Teams & scores</strong></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={() => setShowRoundLeaders(v => !v)}
+                  title="Sort and highlight by points scored in THIS round instead of the running total"
+                  style={{ padding: "5px 10px", borderRadius: 8, background: showRoundLeaders ? "rgba(190,38,193,0.25)" : "#150A2E", border: "1px solid " + (showRoundLeaders ? "#D94FDC" : "#2E1A52"), color: showRoundLeaders ? "#fff" : "#6B5A8E", font: "700 11px 'Inter'", letterSpacing: ".04em", cursor: "pointer", whiteSpace: "nowrap" }}
+                >{showRoundLeaders ? "SHOWING: THIS ROUND" : "SHOW ROUND LEADERS"}</button>
+                <StatusPill tone="live">{new Set(answers.map(a => a.team_name)).size}/{teams.length} answered</StatusPill>
+              </div>
+            </div>
             {scores.length === 0 && teams.length > 0 && (
               <>
                 <button onClick={() => ensureScores(sessionPin, teams)} style={{ width:"100%", padding:"9px", borderRadius:10, background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:12 }}>Initialise Scores</button>
@@ -2226,7 +2243,7 @@ function QuizControllerInner() {
                 ))}
               </>
             )}
-            {scores.map((s, i) => {
+            {(showRoundLeaders ? [...scores].sort((a, b) => b.round_points - a.round_points) : scores).map((s, i) => {
               const answered = teamHasAnswered(s.team_name);
               const ans = teamAnswer(s.team_name);
               const medal = i===0 ? "gold" : i===1 ? "silver" : i===2 ? "#cd7f32" : null;
@@ -2238,7 +2255,14 @@ function QuizControllerInner() {
                     <TeamBadge name={s.team_name} size={20} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:7, flexShrink:0 }} />
                     <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff" }}>{s.team_name}{isFastest?" ⚡":""}</span>
                     <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#D94FDC":"rgba(185,168,217,0.2)", flexShrink:0 }} />
-                    <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const, fontVariantNumeric:"tabular-nums" }}>{s.total_points}</span>
+                    {showRoundLeaders ? (
+                      <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: 42 }}>
+                        <span style={{ fontSize:19, fontWeight:800, color:"#2EE06E", textAlign:"right" as const, fontVariantNumeric:"tabular-nums", lineHeight: 1 }}>+{s.round_points}</span>
+                        <span style={{ fontSize:9, fontWeight:600, color:"rgba(255,255,255,0.35)", lineHeight: 1.3 }}>{s.total_points} total</span>
+                      </span>
+                    ) : (
+                      <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const, fontVariantNumeric:"tabular-nums" }}>{s.total_points}</span>
+                    )}
                   </div>
                   <div className="qi-mc-team-card__answer">
                     {answered ? (() => {

@@ -6,9 +6,14 @@ for every question type and round format Quiz-It supports, in terms specific eno
 to be checked programmatically — not just described.
 
 Every rule below is written so it can become either (a) a validator that runs before
-a generated question is allowed into a round, or (b) a regression test case. Where a
-rule references a threshold (e.g. "no more than two"), that threshold is the contract
-— Codex should treat it as authoritative unless Sonya changes it here.
+a generated question is allowed into a round, or (b) a regression test case. These
+requirements are a starting specification, not a final one — they are subject to
+validation against the approved gameplay rules already implemented in
+`lib/quiz/answerScoring.ts` and `app/host/quiz/page.tsx`, and against the current
+database model, before Codex encodes any threshold into a hard validator or test. If
+this document and the live scoring code ever disagree, treat that as a discrepancy to
+resolve explicitly (raise it back to this doc), not as license to pick either side
+silently.
 
 ---
 
@@ -33,7 +38,7 @@ rule references a threshold (e.g. "no more than two"), that threshold is the con
 5. **Answer must be unambiguous.** If a reasonable adult, without access to the
    question's stored correct answer, could defensibly give a different but equally
    correct answer, the question is rejected unless that alternative is captured as an
-   accepted variant (see §7).
+   accepted variant (see §14).
 6. **No compound/multi-part questions** disguised as a single question (e.g. "Name the
    capital of France and the year the Eiffel Tower was built") unless the round type
    explicitly supports multi-part scoring (Multi Tap, Sequence).
@@ -73,7 +78,7 @@ rule references a threshold (e.g. "no more than two"), that threshold is the con
 
 **Rejection triggers**
 - An answer that has more than one common spelling/format without those variants being
-  captured (see §7) — e.g. a name with a common alternate spelling, a measurement that
+  captured (see §14) — e.g. a name with a common alternate spelling, a measurement that
   could reasonably be answered in more than one unit.
 - A Number question whose "correct" value is itself disputed or rounds differently
   depending on source (reject unless the question specifies the source/rounding).
@@ -95,7 +100,8 @@ rule references a threshold (e.g. "no more than two"), that threshold is the con
   specify a resolution finer than "year").
 
 **Scoring note (for Codex):** sequence correctness must be evaluated against the
-semantic order of the item content, not the on-screen option letter — see §8.
+semantic order of the item content, not the on-screen option letter — see
+acceptance scenario A1.
 
 ---
 
@@ -139,12 +145,17 @@ semantic order of the item content, not the on-screen option letter — see §8.
 ## 7. Multi Tap
 
 **Generation rules**
-- A 10-question Multi Tap round must include a mix of valid correct-answer counts —
-  **no more than two questions in a round of ten may have exactly one correct answer.**
-  A question is not "Multi Tap" merely because five false distractors were added to an
-  otherwise single-answer fact; the round must contain genuine multi-answer questions
-  (e.g. "which of these are EU member states") where the count of correct options is
-  itself part of the challenge.
+- A question may have between **1 and 6 correct options** out of up to 6 total. A
+  10-question Multi Tap round must include a mix of correct-answer counts across that
+  1–6 range — **no more than two questions in a round of ten may have exactly one
+  correct answer.** A question is not "Multi Tap" merely because five false
+  distractors were added to an otherwise single-answer fact; the round must contain
+  genuine multi-answer questions (e.g. "which of these are EU member states") where
+  the count of correct options is itself part of the challenge.
+- All-6-correct questions are permitted (there is no answer-count ceiling below 6) but
+  should be used sparingly — no more than one per round — since a question with no
+  incorrect options to identify is a weaker test of the tap-all-that-apply mechanic
+  than one with a genuine correct/incorrect split.
 - Every option (correct and incorrect) must be independently, unambiguously
   classifiable as correct/incorrect — no option where correctness depends on
   interpretation.
@@ -152,9 +163,18 @@ semantic order of the item content, not the on-screen option letter — see §8.
   countries that..." not just "Tap the correct answers").
 
 **Rejection triggers**
-- A question with zero correct options, or where every option is correct (both remove
-  the point of tapping).
+- A question with zero correct options (removes the point of tapping entirely).
 - Any option whose correct/incorrect status is genuinely debatable.
+
+**Scoring note (for Codex):** Multi Tap does **not** use exact-match binary scoring.
+Live scoring (`autoScore()`, multi_tap branch, `app/host/quiz/page.tsx`) awards
+**2 points for every option judged correctly** — that includes both a true option the
+team correctly tapped AND a false option the team correctly left untapped — plus up
+to 4 time-bonus points, all doubled under Boost, and zeroed entirely under Wipeout
+Mode if any team tapped a wrong option that question. `isAnswerCorrect()` in
+`lib/quiz/answerScoring.ts` is a separate, stricter binary all-or-nothing check used
+only for the `correct_count` stat and reveal colouring — it is not the scoring
+formula. See acceptance scenario A3.
 
 ---
 
@@ -261,6 +281,34 @@ actual fuzzy-matching at scoring time is Codex's responsibility (`isFuzzyMatch()
 
 ---
 
+## 14a. Open items to verify before implementation
+
+Raised during review — recorded here rather than silently assumed either way:
+
+- **Nearest Wins tie-break.** Checked against the live code
+  (`app/host/quiz/page.tsx`, `autoScore()`): ties on distance are deliberately broken
+  by earliest submission, not equal placing/points — this is an explicit design
+  decision per the existing comment ("Ties on distance go to whoever submitted first,
+  same convention as the speed bonus above"), not an accident. Flagging here so it's
+  a confirmed decision rather than an assumption: if equal placing is actually
+  preferred, that's a deliberate rule change, not a bug fix.
+- **Library question delete vs. rounds already using it.** Checked against the live
+  code: deleting a `question_bank` row only removes that library row
+  (`.from("question_bank").delete().eq("id", bankQ.id)`); a round's questions are
+  stored as their own embedded copy on the round record, not a live foreign-key
+  reference back to the bank. So the confirmation copy in
+  `terminology-and-host-copy.md` §4 ("will not affect rounds where it's already been
+  used tonight") appears accurate from a code read, but hasn't been exercised as a
+  live test — Codex should add this as an explicit acceptance case rather than trust
+  the read alone.
+- **"Handset" vs. "Your phone."** Open — a genuine wording call, not a correctness
+  question. "Handset" is precise and already used consistently in code/host-facing
+  copy; "Your phone" may read as warmer/clearer to players. Recommend keeping
+  "Handset" in host-facing and internal copy (where precision matters and the host
+  may not be looking at a phone at all) and trialling "Your phone" specifically in
+  player-facing copy only, rather than a global rename — happy to mock up both for
+  a call rather than assume.
+
 ## 15. Acceptance scenarios
 
 These are concrete, rehearsable test cases — not abstract requirements — written so
@@ -284,12 +332,17 @@ submits the letter their handset assigned to the correct option in both cases.
 Required outcome: both are marked correct, regardless of which storage format the
 question happens to use.
 
-**A3 — Multi Tap, partial correctness.**
-A Multi Tap question has 3 correct options out of 6. A team taps 2 of the 3 correct
-options and no incorrect ones. Required outcome: per the documented exact-match
-scoring rule, this is marked incorrect overall (not partially awarded) — confirm this
-matches the intended design (full credit only for tapping every correct option and no
-incorrect ones) and is not accidentally changed by a future refactor.
+**A3 — Multi Tap, per-option partial credit.**
+A Multi Tap question has 3 correct options out of 6 (3 correct, 3 incorrect). A team
+taps 2 of the 3 correct options, taps none of the incorrect options, and leaves 1
+correct option untapped. Required outcome: the team is awarded 2 points for each
+option judged correctly — the 2 correct options they tapped, plus the 3 incorrect
+options they correctly left untapped — for a base total of 5 x 2 = 10 points (before
+any time bonus or Boost multiplier), NOT zero and NOT full marks. This is a genuine
+partial-credit, per-option scoring model, distinct from the separate all-or-nothing
+`isAnswerCorrect()` check, which is used only to set the `correct_count` stat and
+reveal colouring, not to determine points. Confirm this scenario continues to hold
+after any future refactor of `autoScore()`'s multi_tap branch.
 
 **A4 — Nearest Wins, tie-break by submission time.**
 Two teams submit numeric guesses equally distant from the target value. Required

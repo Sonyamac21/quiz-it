@@ -1004,6 +1004,16 @@ export default function QuizBuilderPage() {
 
   async function removeRound(round: QuizRound) {
     if (!selected) return;
+    // Previously deleted instantly with no confirmation - a single misclick
+    // permanently lost the round and every question in it, with no undo.
+    // Matches the same confirm-dialog pattern already used for deleting a
+    // library question and deleting a whole quiz, just below.
+    const questionCount = (round.questions || []).length;
+    const confirmed = await confirmDialog(
+      `This deletes "${round.name}"${questionCount ? ` and all ${questionCount} question${questionCount === 1 ? "" : "s"} in it` : ""}. This can't be undone.`,
+      { title: "Remove this round?", confirmLabel: "Remove Round", tone: "destructive" }
+    );
+    if (!confirmed) return;
     await createSupabaseBrowserClient().from("quiz_rounds").delete().eq("id", round.id);
     await normalizePositions(selected.id, selected.quiz_rounds.filter(r => r.id !== round.id));
     await load();

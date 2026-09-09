@@ -10,6 +10,7 @@ import { PhotoApprovalPanel } from "@/components/PhotoApprovalPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc } from "@/lib/quiz/scoreService";
 import { TeamBadge } from "@/components/TeamBadge";
+import { BlockIcon, ShuffleIcon, LightningIcon } from "@/components/icons/HostIcons";
 import { BrandLockup, Button, Field, Input, StatusPill, useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 import { HostDiagnostics } from "@/components/HostDiagnostics";
@@ -2410,7 +2411,12 @@ function QuizControllerInner() {
                   >
                     <span style={{ fontSize:16, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
                     <TeamBadge name={s.team_name} size={20} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:7, flexShrink:0 }} />
-                    <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff" }}>{s.team_name}{isFastest?" ⚡":""}{isBlocked?" 🚫":""}{isScrambled?" 🔀":""}</span>
+                    <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff", display:"inline-flex", alignItems:"center", gap:5 }}>
+                      {s.team_name}
+                      {isFastest && <LightningIcon size={12} style={{ color:"#FFC533" }} />}
+                      {isBlocked && <BlockIcon size={12} style={{ color:"#FF3B4E" }} />}
+                      {isScrambled && <ShuffleIcon size={12} style={{ color:"#D94FDC" }} />}
+                    </span>
                     <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#D94FDC":"rgba(185,168,217,0.2)", flexShrink:0 }} />
                     {showRoundLeaders ? (
                       <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: 42 }}>
@@ -2423,13 +2429,13 @@ function QuizControllerInner() {
                     <button
                       onClick={e => { e.stopPropagation(); toggleTeamBlocked(s.team_name); }}
                       title={isBlocked ? "Unblock - let them answer this question" : "Block this team from answering the current question"}
-                      style={{ width:26, height:26, borderRadius:8, background:isBlocked?"rgba(255,59,78,0.25)":"#150A2E", border:"1px solid "+(isBlocked?"#FF3B4E":"#2E1A52"), color:isBlocked?"#fff":"#6B5A8E", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
-                    >🚫</button>
+                      style={{ width:26, height:26, borderRadius:8, background:isBlocked?"rgba(255,59,78,0.25)":"#150A2E", border:"1px solid "+(isBlocked?"#FF3B4E":"#2E1A52"), color:isBlocked?"#fff":"#6B5A8E", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                    ><BlockIcon size={13} /></button>
                     <button
                       onClick={e => { e.stopPropagation(); toggleTeamScrambled(s.team_name); }}
                       title={isScrambled ? "Unscramble their keyboard" : "Scramble this team's keyboard for the current question"}
-                      style={{ width:26, height:26, borderRadius:8, background:isScrambled?"rgba(217,79,220,0.25)":"#150A2E", border:"1px solid "+(isScrambled?"#D94FDC":"#2E1A52"), color:isScrambled?"#fff":"#6B5A8E", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
-                    >🔀</button>
+                      style={{ width:26, height:26, borderRadius:8, background:isScrambled?"rgba(217,79,220,0.25)":"#150A2E", border:"1px solid "+(isScrambled?"#D94FDC":"#2E1A52"), color:isScrambled?"#fff":"#6B5A8E", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                    ><ShuffleIcon size={13} /></button>
                   </div>
                   <div className="qi-mc-team-card__answer">
                     {answered ? (() => {

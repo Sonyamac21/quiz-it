@@ -63,7 +63,7 @@ export async function getScores(supabase: SupabaseClient, sessionPin: string): P
  * mutation below calls this itself after a successful write, so components
  * should not call it directly as a "manual sync" step.
  */
-async function refreshScoreboardData(supabase: SupabaseClient, sessionPin: string): Promise<{ scores: ScoreRow[]; error?: string }> {
+export async function syncScoreboardData(supabase: SupabaseClient, sessionPin: string): Promise<{ scores: ScoreRow[]; error?: string }> {
   const scores = await getScores(supabase, sessionPin);
   const { error } = await supabase.from("sessions").update({ scoreboard_data: scores }).eq("pin", sessionPin);
   if (error) {
@@ -79,7 +79,7 @@ export async function initTeamScore(supabase: SupabaseClient, sessionPin: string
     { session_pin: sessionPin, team_name: teamName, total_points: 0, round_points: 0 },
     { onConflict: "session_pin,team_name", ignoreDuplicates: true }
   );
-  const { scores, error } = await refreshScoreboardData(supabase, sessionPin);
+  const { scores, error } = await syncScoreboardData(supabase, sessionPin);
   return { applied: true, scores, scoreboardSyncError: error };
 }
 
@@ -97,7 +97,7 @@ export async function applyScoreDelta(
   sessionPin: string,
   teamName: string,
   delta: number,
-  opts: { roundDelta?: number; eventKey?: string; isCorrect?: boolean; isFastest?: boolean } = {}
+  opts: { roundDelta?: number; eventKey?: string; isCorrect?: boolean; isFastest?: boolean; syncScoreboard?: boolean } = {}
 ): Promise<ScoreMutationResult> {
   const roundDelta = opts.roundDelta ?? delta;
   if (delta === 0 && roundDelta === 0) return { applied: false };
@@ -125,7 +125,8 @@ export async function applyScoreDelta(
   }
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.applied) return { applied: false };
-  const { scores, error: syncError } = await refreshScoreboardData(supabase, sessionPin);
+  if (opts.syncScoreboard === false) return { applied: true };
+  const { scores, error: syncError } = await syncScoreboardData(supabase, sessionPin);
   return { applied: true, scores, scoreboardSyncError: syncError };
 }
 
@@ -161,13 +162,13 @@ export async function setScoreAbsolute(
   }
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.applied) return { applied: false };
-  const { scores, error: syncError } = await refreshScoreboardData(supabase, sessionPin);
+  const { scores, error: syncError } = await syncScoreboardData(supabase, sessionPin);
   return { applied: true, scores, scoreboardSyncError: syncError };
 }
 
 /** Zero every team's round_points for the session (used at round start), then refresh scoreboard_data. Not a per-team delta event. */
 export async function resetRoundPoints(supabase: SupabaseClient, sessionPin: string): Promise<ScoreMutationResult> {
   await supabase.from("scores").update({ round_points: 0 }).eq("session_pin", sessionPin);
-  const { scores, error } = await refreshScoreboardData(supabase, sessionPin);
+  const { scores, error } = await syncScoreboardData(supabase, sessionPin);
   return { applied: true, scores, scoreboardSyncError: error };
 }

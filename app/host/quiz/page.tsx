@@ -8,7 +8,7 @@ import { HardDeckPanel } from "@/components/HardDeckPanel";
 import { PursuitPanel } from "@/components/PursuitPanel";
 import { PhotoApprovalPanel } from "@/components/PhotoApprovalPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
-import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc } from "@/lib/quiz/scoreService";
+import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc, syncScoreboardData } from "@/lib/quiz/scoreService";
 import { TeamBadge } from "@/components/TeamBadge";
 import { BrandLockup, Button, Field, Input, StatusPill, useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
@@ -162,6 +162,7 @@ function QuizControllerInner() {
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [unoCards, setUnoCards] = useState<UnoCard[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
+  const [scoringError, setScoringError] = useState<string | null>(null);
   const [pointsPerQ, setPointsPerQ] = useState(DEFAULT_POINTS_PER_QUESTION);
   const [timeBonus, setTimeBonus] = useState(5);
   const [timerDuration, setTimerDuration] = useState<number>(PLATFORM_CONFIG.timers.defaultSeconds);
@@ -417,6 +418,10 @@ function QuizControllerInner() {
     if (pursuitActive) return; // The Pursuit panel owns Space while it's running.
     if (hardDeckActive) return; // The Hard Deck panel owns Space while it's running.
     if (!connected || !selectedRound) return;
+    if (scoringError && (hostPhase === "answer" || hostPhase === "celebration")) {
+      showToast("Scoring is not confirmed. Retry scoring before continuing.", "error", 7000);
+      return;
+    }
     if (advancingRef.current) return;
     advancingRef.current = true;
     setTimeout(() => { advancingRef.current = false; }, 400);
@@ -675,8 +680,11 @@ function QuizControllerInner() {
 
   async function autoScore(teamList: Team[], q: Question, currentAnswers: Answer[]) {
     if (!sessionPin) return;
+    setScoringError(null);
     lastDeltasRef.current = {};
     const supabase = createSupabaseBrowserClient();
+    const failedTeams: string[] = [];
+    let scoreboardSyncFailed = false;
     // The handset records the round number with the Boost play. Use that as
     // the primary scope so a team that taps Boost on the Round 1 waiting
     // screen (just before the host starts the round) still receives it. The
@@ -760,7 +768,9 @@ function QuizControllerInner() {
         const nwDelta = Math.round(pointsPerQ * (nwPointShares[rank] ?? 0)) * (hasBoost(team.team_name) ? 2 : 1);
         lastDeltasRef.current[team.team_name] = nwDelta;
         if (nwDelta === 0) continue;
-        const nwResult = await applyScoreDelta(supabase, sessionPin, team.team_name, nwDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:nearestwins`, isFastest: rank === 0 });
+        const nwResult = await applyScoreDelta(supabase, sessionPin, team.team_name, nwDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:nearestwins`, isFastest: rank === 0, syncScoreboard: false });
+        if (nwResult.error) failedTeams.push(team.team_name);
+        if (nwResult.scoreboardSyncError) scoreboardSyncFailed = true;
         if (nwResult.scoreboardSyncError) console.error(`autoScore (nearest wins, ${team.team_name}): score updated but scoreboard_data sync failed:`, nwResult.scoreboardSyncError);
         continue;
       }
@@ -772,7 +782,9 @@ function QuizControllerInner() {
         }).totalPoints;
         lastDeltasRef.current[team.team_name] = mtDelta;
         if (mtDelta === 0) continue;
-        const mtResult = await applyScoreDelta(supabase, sessionPin, team.team_name, mtDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:multitap`, isCorrect: isAnswerCorrect(ans, q), isFastest: team.team_name === scoredFastestTeamRef.current });
+        const mtResult = await applyScoreDelta(supabase, sessionPin, team.team_name, mtDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:multitap`, isCorrect: isAnswerCorrect(ans, q), isFastest: team.team_name === scoredFastestTeamRef.current, syncScoreboard: false });
+        if (mtResult.error) failedTeams.push(team.team_name);
+        if (mtResult.scoreboardSyncError) scoreboardSyncFailed = true;
         if (mtResult.scoreboardSyncError) console.error(`autoScore (multi tap, ${team.team_name}): score updated but scoreboard_data sync failed:`, mtResult.scoreboardSyncError);
         continue;
       }
@@ -785,10 +797,39 @@ function QuizControllerInner() {
       const delta = (basePts + timeBonusPts) * (hasBoost(team.team_name) ? 2 : 1) + penalty;
       lastDeltasRef.current[team.team_name] = delta;
       if (delta === 0) continue;
-      const scoreResult = await applyScoreDelta(supabase, sessionPin, team.team_name, delta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}`, isCorrect, isFastest: team.team_name === scoredFastestTeamRef.current });
+      const scoreResult = await applyScoreDelta(supabase, sessionPin, team.team_name, delta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}`, isCorrect, isFastest: team.team_name === scoredFastestTeamRef.current, syncScoreboard: false });
+      if (scoreResult.error) failedTeams.push(team.team_name);
+      if (scoreResult.scoreboardSyncError) scoreboardSyncFailed = true;
       if (scoreResult.scoreboardSyncError) console.error(`autoScore (${team.team_name}): score updated but scoreboard_data sync failed:`, scoreResult.scoreboardSyncError);
     }
-    loadScores(sessionPin);
+    // Always finish with one authoritative refresh. On an idempotent retry
+    // every score event may correctly return applied:false, so relying only
+    // on per-write refreshes would leave a previously failed read-cache sync
+    // with no route to recovery.
+    const finalSync = await syncScoreboardData(supabase, sessionPin);
+    scoreboardSyncFailed = Boolean(finalSync.error);
+    await loadScores(sessionPin);
+    if (failedTeams.length > 0) {
+      const message = `Score NOT saved for ${failedTeams.join(", ")}. Retry scoring before continuing.`;
+      setScoringError(message);
+      showToast(message, "error", 10000);
+      return;
+    }
+    if (scoreboardSyncFailed) {
+      const message = "Scores were saved, but the display and handsets may show old totals. Retry scoreboard sync before continuing.";
+      setScoringError(message);
+      showToast(message, "warning", 10000);
+    }
+  }
+
+  async function retryAutomaticScoring() {
+    if (!currentQ || !sessionPin) return;
+    const { data, error } = await scopedAnswersQuery(sessionPin, qIdx);
+    if (error) {
+      showToast("Could not reload answers. Check the connection and retry.", "error", 7000);
+      return;
+    }
+    await autoScore(teams, currentQ, data ?? answers);
   }
 
   async function adjustScore(teamName: string, delta: number) {
@@ -1416,6 +1457,10 @@ function QuizControllerInner() {
 
   async function doCelebrate() {
     if (!sessionId || !sessionPin) return;
+    if (scoringError) {
+      showToast("Scoring is not confirmed. Retry scoring before celebrating.", "error", 7000);
+      return;
+    }
     // "Fastest correct" comes from scoredFastestTeamRef - whoever autoScore
     // actually ranked #1 and paid the speed bonus to - NOT a fresh re-query
     // here. A fresh query run at celebrate-time (whenever the host clicks,
@@ -1837,6 +1882,12 @@ function QuizControllerInner() {
     <div className="fbh qi-mc-shell">
       {confirmDialogEl}
       {toastEl}
+      {scoringError && (
+        <div role="alert" style={{ position:"fixed", zIndex:1000, top:16, left:"50%", transform:"translateX(-50%)", width:"min(760px,calc(100vw - 32px))", padding:"14px 16px", borderRadius:14, border:"2px solid #FF3B4E", background:"#260713", color:"#fff", boxShadow:"0 16px 50px rgba(0,0,0,.55)", display:"flex", alignItems:"center", gap:14 }}>
+          <strong style={{ flex:1 }}>{scoringError}</strong>
+          <Button onClick={retryAutomaticScoring}>Retry scoring</Button>
+        </div>
+      )}
       {statsTeam && (() => {
         const statTeamRow = teams.find(t => t.team_name === statsTeam);
         const statScore = scores.find(s => s.team_name === statsTeam);

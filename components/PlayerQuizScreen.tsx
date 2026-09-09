@@ -241,6 +241,11 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // time-scoped, and auto-clears itself as soon as the host sends a new
   // question (see supabase/migrations/202609090002_blocked_teams.sql).
   const [hostBlockedTeams, setHostBlockedTeams] = useState<string[]>([]);
+  // Host-only "scramble their keyboard" manual tool - same lifecycle as
+  // hostBlockedTeams above (question-scoped, auto-clears on the next
+  // question), just fed into AnswerKeypad's `scrambled` prop instead of
+  // gating submission outright.
+  const [hostScrambledTeams, setHostScrambledTeams] = useState<string[]>([]);
   const [blockSecondsLeft, setBlockSecondsLeft] = useState(0);
   const [answerText, setAnswerText] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -755,6 +760,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     setBlockUntil((data.block_until as string) || null);
     setBlockTeam((data.block_team as string) || null);
     setHostBlockedTeams(Array.isArray(data.blocked_teams) ? (data.blocked_teams as string[]) : []);
+    setHostScrambledTeams(Array.isArray(data.scrambled_teams) ? (data.scrambled_teams as string[]) : []);
     setHardDeckTeam((data.hard_deck_team as string) || null);
     {
       const newHDStatus = (data.hard_deck_status as string) || "idle";
@@ -1832,7 +1838,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
         {timerReady && !isMultiChoice && !isSequence && !isMultiTap && !submitted && (
           <div style={{ marginBottom: 16 }}>
-            <AnswerKeypad key={`${questionIndex}:${question.question_type}`} mode={question.question_type === "number" || question.question_type === "nearest_wins" ? "number" : "text"} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
+            <AnswerKeypad key={`${questionIndex}:${question.question_type}`} mode={question.question_type === "number" || question.question_type === "nearest_wins" ? "number" : "text"} scrambled={hostScrambledTeams.includes(teamName)} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
           </div>
         )}
 

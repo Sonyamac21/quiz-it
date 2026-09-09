@@ -215,6 +215,21 @@ function QuizControllerInner() {
     if (error) console.error("SESSION UPDATE FAILED [toggleTeamBlocked]:", error);
   }
 
+  // Host-only manual tool (item d): tap a team to scramble their on-screen
+  // keyboard for the CURRENT question only. Same shape/lifecycle as
+  // blockedTeams above - written to sessions.scrambled_teams (see
+  // supabase/migrations/202609090003_scrambled_teams.sql), cleared whenever
+  // a new question goes out.
+  const [scrambledTeams, setScrambledTeams] = useState<string[]>([]);
+  async function toggleTeamScrambled(teamName: string) {
+    if (!sessionId) return;
+    const next = scrambledTeams.includes(teamName) ? scrambledTeams.filter(t => t !== teamName) : [...scrambledTeams, teamName];
+    setScrambledTeams(next);
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.from("sessions").update({ scrambled_teams: next }).eq("id", sessionId);
+    if (error) console.error("SESSION UPDATE FAILED [toggleTeamScrambled]:", error);
+  }
+
   const startRailDrag = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     railDraggingRef.current = true;
@@ -486,6 +501,7 @@ function QuizControllerInner() {
     // restart each round) get pulled into current scoring/boost queries.
     if (data.round_started_at) roundStartedRef.current = new Date(data.round_started_at as string).getTime();
     if (Array.isArray(data.blocked_teams)) setBlockedTeams(data.blocked_teams as string[]);
+    if (Array.isArray(data.scrambled_teams)) setScrambledTeams(data.scrambled_teams as string[]);
     if (data.fastest_team) { setFastestTeam(data.fastest_team as string); fastestTeamRef.current = data.fastest_team as string; }
     if (data.fastest_song) setFastestSong(data.fastest_song as string);
     const hotSeat = readHotSeatState(data);
@@ -1230,7 +1246,8 @@ function QuizControllerInner() {
     // celebration screen back to the Quiz-It idle/logo screen during preview.
     const supabase = createSupabaseBrowserClient();
     setBlockedTeams([]);
-    const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", timer_started_at: null, fastest_team: null, fastest_song: null, spin_offered: false, spin_nonce: null, spin_target_idx: null, spin_choice: null, hot_seat_status: "idle", hot_seat_team: null, hot_seat_locked_teams: [], hot_seat_answer_started_at: null, blocked_teams: [] }).eq("id", sessionId);
+    setScrambledTeams([]);
+    const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", timer_started_at: null, fastest_team: null, fastest_song: null, spin_offered: false, spin_nonce: null, spin_target_idx: null, spin_choice: null, hot_seat_status: "idle", hot_seat_team: null, hot_seat_locked_teams: [], hot_seat_answer_started_at: null, blocked_teams: [], scrambled_teams: [] }).eq("id", sessionId);
     if (prevErr) console.error("SESSION UPDATE FAILED [doPreviewQuestion]:", prevErr);
     if (sessionPin) loadAnswers(sessionPin, idx);
   }
@@ -1250,6 +1267,7 @@ function QuizControllerInner() {
     const isPicture = q.question_type === "picture";
     const supabase = createSupabaseBrowserClient();
     setBlockedTeams([]);
+    setScrambledTeams([]);
     const { error: sendErr } = await supabase.from("sessions").update({
       phase: isHotSeat ? "hot_seat" : "question",
       current_question: q,
@@ -1264,6 +1282,7 @@ function QuizControllerInner() {
       hot_seat_answer_started_at: null,
       hot_seat_answer_duration: HOT_SEAT_ANSWER_SECONDS,
       blocked_teams: [],
+      scrambled_teams: [],
     }).eq("id", sessionId);
     if (sendErr) console.error("SESSION UPDATE FAILED [doSendQuestion]:", sendErr);
     // Record actual play-time usage for repeat-prevention - this only fires for
@@ -2380,17 +2399,18 @@ function QuizControllerInner() {
               const medal = i===0 ? "gold" : i===1 ? "silver" : i===2 ? "#cd7f32" : null;
               const isFastest = s.team_name === fastestTeam;
               const isBlocked = blockedTeams.includes(s.team_name);
+              const isScrambled = scrambledTeams.includes(s.team_name);
               return (
                 <div key={s.team_name} className={`qi-mc-team-card${isFastest ? " qi-mc-team-card--fastest" : ""}`} style={{ width: "100%", boxSizing: "border-box", borderColor:isBlocked?"#FF3B4E":isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}>
                   <div
                     className="qi-mc-team-card__summary"
                     onClick={() => setStatsTeam(s.team_name)}
                     title="Tap for this team's stats"
-                    style={{ display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) 8px auto 26px", gap: 8, cursor: "pointer" }}
+                    style={{ display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) 8px auto 26px 26px", gap: 8, cursor: "pointer" }}
                   >
                     <span style={{ fontSize:16, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
                     <TeamBadge name={s.team_name} size={20} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:7, flexShrink:0 }} />
-                    <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff" }}>{s.team_name}{isFastest?" ⚡":""}{isBlocked?" 🚫":""}</span>
+                    <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff" }}>{s.team_name}{isFastest?" ⚡":""}{isBlocked?" 🚫":""}{isScrambled?" 🔀":""}</span>
                     <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#D94FDC":"rgba(185,168,217,0.2)", flexShrink:0 }} />
                     {showRoundLeaders ? (
                       <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: 42 }}>
@@ -2405,6 +2425,11 @@ function QuizControllerInner() {
                       title={isBlocked ? "Unblock - let them answer this question" : "Block this team from answering the current question"}
                       style={{ width:26, height:26, borderRadius:8, background:isBlocked?"rgba(255,59,78,0.25)":"#150A2E", border:"1px solid "+(isBlocked?"#FF3B4E":"#2E1A52"), color:isBlocked?"#fff":"#6B5A8E", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
                     >🚫</button>
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleTeamScrambled(s.team_name); }}
+                      title={isScrambled ? "Unscramble their keyboard" : "Scramble this team's keyboard for the current question"}
+                      style={{ width:26, height:26, borderRadius:8, background:isScrambled?"rgba(217,79,220,0.25)":"#150A2E", border:"1px solid "+(isScrambled?"#D94FDC":"#2E1A52"), color:isScrambled?"#fff":"#6B5A8E", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                    >🔀</button>
                   </div>
                   <div className="qi-mc-team-card__answer">
                     {answered ? (() => {

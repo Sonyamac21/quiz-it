@@ -9,9 +9,27 @@ const ROWS = [
 // Calculator order is quicker to scan under pressure than a telephone layout.
 const NUMBERS = ["7","8","9","4","5","6","1","2","3","0"];
 
-export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: string) => void; mode?: "text" | "number" }) {
+// Fisher-Yates, kept local rather than pulled from a shared util - this is
+// the only place in the app that shuffles a fixed-size row of strings.
+function shuffleRow<T>(row: T[]): T[] {
+  const arr = [...row];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+export function AnswerKeypad({ onSubmit, mode = "text", scrambled = false }: { onSubmit: (val: string) => void; mode?: "text" | "number"; scrambled?: boolean }) {
   const [value, setValue] = useState("");
   const [pressedKey, setPressedKey] = useState<string | null>(null);
+  // Host-only "mix up their keyboard" tool: each row's keys are shuffled
+  // once per mount (the parent already remounts this component with a fresh
+  // `key` on every new question, so a lazy useState initializer here gives a
+  // layout that's scrambled but stable for the whole question - not
+  // re-shuffling itself out from under a team mid-type on every keystroke).
+  const [rows] = useState(() => (scrambled ? ROWS.map(shuffleRow) : ROWS));
+  const [numbers] = useState(() => (scrambled ? shuffleRow(NUMBERS) : NUMBERS));
   const purple = "#BE26C1";
   const font = "'Inter', sans-serif";
 
@@ -43,6 +61,11 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
 
   return (
     <div className="qi-player-keypad" style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+      {scrambled && (
+        <div style={{ padding: "6px 10px", borderRadius: 10, background: "rgba(255,59,78,0.16)", border: "1px solid rgba(255,59,78,0.4)", color: "#FF3B4E", fontSize: 11, fontWeight: 700, fontFamily: font, textAlign: "center" as const, letterSpacing: 0.4 }}>
+          🔀 The host has scrambled your keyboard this question
+        </div>
+      )}
       <div className="qi-player-keypad__value" aria-live="polite" style={{
         padding: isCompact ? "10px 14px" : "14px 16px", borderRadius: 12,
         background: "rgba(255,255,255,0.06)", border: "1.5px solid " + purple,
@@ -55,7 +78,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
 
       {mode === "number" ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8 }}>
-          {NUMBERS.map(n => (
+          {numbers.map(n => (
             <button key={n} type="button" className="qi-player-keypad__key" onClick={() => addChar(n)} aria-label={`Enter ${n}`}
               style={{ ...keyStyle, gridColumn: n === "0" ? "2" : undefined, background: pressedKey === n ? purple : keyStyle.background, transform: pressedKey === n ? "scale(0.92)" : "scale(1)", transition: "all 0.1s" }}>
               {n}
@@ -64,7 +87,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column" as const, gap: 5 }}>
-          {ROWS.map((row, i) => (
+          {rows.map((row, i) => (
             <div key={i} style={{ display: "flex", gap: 5, justifyContent: "center" }}>
               {row.map(letter => (
                 <button key={letter} type="button" className="qi-player-keypad__key" onClick={() => addChar(letter)} aria-label={`Enter ${letter}`}

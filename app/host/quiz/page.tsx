@@ -2231,9 +2231,9 @@ function QuizControllerInner() {
               )}
 
               {currentQ.question_type==="sequence" && (
-                <div style={{ marginBottom:20 }}>
+                <div className="qi-mc-sequence" style={{ marginBottom:20 }}>
                   {[currentQ.option_a,currentQ.option_b,currentQ.option_c,currentQ.option_d].filter(Boolean).map((item,i) => (
-                    <div key={i} style={{ padding:"12px 18px", borderRadius:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", marginBottom:6, display:"flex", gap:10, fontSize:15 }}>
+                    <div key={i} className="qi-mc-sequence__option" style={{ padding:"12px 18px", borderRadius:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", marginBottom:6, display:"flex", gap:10, fontSize:15 }}>
                       <span style={{ color:"#BE26C1", fontWeight:800, minWidth:24 }}>{i+1}.</span>{item}
                     </div>
                   ))}

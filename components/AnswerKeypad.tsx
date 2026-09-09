@@ -6,7 +6,8 @@ const ROWS = [
   ["A","S","D","F","G","H","J","K","L"],
   ["Z","X","C","V","B","N","M"],
 ];
-const NUMBERS = ["1","2","3","4","5","6","7","8","9","0"];
+// Calculator order is quicker to scan under pressure than a telephone layout.
+const NUMBERS = ["7","8","9","4","5","6","1","2","3","0"];
 
 export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: string) => void; mode?: "text" | "number" }) {
   const [value, setValue] = useState("");
@@ -49,7 +50,7 @@ export function AnswerKeypad({ onSubmit, mode = "text" }: { onSubmit: (val: stri
         fontSize: isCompact ? 26 : 32, fontWeight: 800, fontFamily: font, color: "#fff", letterSpacing: 1,
         wordBreak: "break-word" as const,
       }}>
-        {value || <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 17, fontWeight: 600 }}>Tap letters to answer…</span>}
+        {value || <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 17, fontWeight: 600 }}>{mode === "number" ? "Tap numbers to answer…" : "Tap letters to answer…"}</span>}
       </div>
 
       {mode === "number" ? (

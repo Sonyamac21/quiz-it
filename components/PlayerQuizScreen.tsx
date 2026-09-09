@@ -89,13 +89,13 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
   const allPicked = picked.length === options.length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+    <div className="qi-player-sequence" style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
       <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", letterSpacing: 2, marginBottom: 4 }}>TAP IN THE CORRECT ORDER</div>
       {options.map((item, i) => {
         const pickedIndex = picked.indexOf(i);
         const isPicked = pickedIndex !== -1;
         return (
-          <button key={i} type="button" onClick={() => tapItem(i)} disabled={isPicked}
+          <button key={i} type="button" className="qi-player-sequence__option" onClick={() => tapItem(i)} disabled={isPicked}
             style={{
               display: "flex", alignItems: "center", gap: 14, minHeight: 58, padding: "12px 16px", borderRadius: 14,
               background: isPicked ? "rgba(190,38,193,0.22)" : "#1D1140",
@@ -117,7 +117,7 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
           </button>
         );
       })}
-      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+      <div className="qi-player-sequence__actions" style={{ display: "flex", gap: 8, marginTop: 6 }}>
         <button type="button" onClick={resetPicks} disabled={picked.length === 0}
           style={{ flex: 1, minHeight: 56, borderRadius: 14, background: "#150A2E", border: "1px solid #2E1A52", color: picked.length ? "#fff" : "rgba(255,255,255,0.3)", font: "700 15px 'Inter'", cursor: picked.length ? "pointer" : "default" }}>
           RESET
@@ -1025,7 +1025,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // designed against it and letting a team play Reverse/Steal/etc mid-race
   // would corrupt results in ways nobody's accounted for. Treated the same
   // as Hot Seat: unavailable for the duration of the round, not just hidden.
-  const powerCardsUsableNow = allowPowerCards && phase !== "pursuit";
+  const powerCardsUsableNow = allowPowerCards && phase !== "pursuit" && phase !== "hot_seat";
   const PowerCards = () => (
     powerCardsUsableNow ? <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
       <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={powerCardsUsableNow} />
@@ -1756,7 +1756,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     ].filter(o => o.text) as { key: string; text: string }[];
 
     return (
-      <div className="qi-player-state qi-player-question-screen" data-answer-type={question.question_type} style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
+      <div className={`qi-player-state qi-player-question-screen${phase === "hot_seat" ? " qi-player-question-screen--hot-seat" : ""}`} data-answer-type={question.question_type} style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
         <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={powerCardsUsableNow} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         <div className="qi-player-timer-row" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexShrink: 0 }}>
           <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
@@ -1827,12 +1827,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
 
         {timerReady && isSequence && (
-          <SequenceQuestion options={seqItems} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} submitted={submitted} />
+          <SequenceQuestion key={questionIndex} options={seqItems} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} submitted={submitted} />
         )}
 
         {timerReady && !isMultiChoice && !isSequence && !isMultiTap && !submitted && (
           <div style={{ marginBottom: 16 }}>
-            <AnswerKeypad mode={question.question_type === "number" || question.question_type === "nearest_wins" ? "number" : "text"} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
+            <AnswerKeypad key={`${questionIndex}:${question.question_type}`} mode={question.question_type === "number" || question.question_type === "nearest_wins" ? "number" : "text"} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
           </div>
         )}
 

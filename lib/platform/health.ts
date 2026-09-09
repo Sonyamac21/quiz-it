@@ -24,6 +24,7 @@ export function createPlatformStatus(input: {
   timerRunning: boolean;
   timerRemaining: number;
   displayKnown: boolean;
+  displayHealth?: HealthSignal;
   diagnosticsEnabled: boolean;
 }): PlatformStatus {
   const realtimeAge = input.realtimeLastSync ? input.now - input.realtimeLastSync : Infinity;
@@ -36,7 +37,7 @@ export function createPlatformStatus(input: {
     realtime,
     audio: { level: input.audio.overlap ? "problem" : "healthy", summary: input.audio.overlap ? "Unexpected overlap" : `${input.audio.active.length} active channel(s)`, updatedAt: input.now },
     timers: { level: input.timerRunning && input.timerRemaining <= 0 ? "problem" : "healthy", summary: input.timerRunning ? `${input.timerRemaining}s remaining` : "Stopped", updatedAt: input.now },
-    display: { level: input.displayKnown ? "healthy" : "unknown", summary: input.displayKnown ? "Telemetry available" : "Heartbeat unavailable", updatedAt: null },
+    display: input.displayHealth ?? { level: input.displayKnown ? "healthy" : "unknown", summary: input.displayKnown ? "Telemetry available" : "Heartbeat unavailable", updatedAt: null },
     session: { level: input.sessionId ? "healthy" : "problem", summary: input.sessionId ? "Session active" : "No session", updatedAt: input.now },
     diagnostics: { level: input.diagnosticsEnabled ? "healthy" : "unknown", summary: input.diagnosticsEnabled ? "Available" : "Disabled", updatedAt: input.now },
   };

@@ -12,6 +12,8 @@ import { teamInitials } from "@/components/TeamBadge";
 import { RoundStart, RoundEnd, Intermission, IntermissionGallery, WaitingForHost } from "@/components/fable/DisplayStates";
 import { enableShowAudio, playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
+import { displaySnapshot, type DisplaySnapshot } from "@/lib/diagnostics/displayHealth";
+import { useDisplayResponder } from "@/lib/diagnostics/useDisplayHealth";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 
 type Question = {
@@ -297,6 +299,7 @@ function DisplayScreenInner() {
   // data - see applySession below and the sessions.updated_at trigger in
   // supabase/migrations/202608270004_session_updated_at_ordering.sql.
   const lastAppliedUpdatedAtRef = useRef(0);
+  const [acknowledgedSnapshot, setAcknowledgedSnapshot] = useState<DisplaySnapshot | null>(null);
   const lockedQuestionRef = useRef(-1);
   // Lobby Power-Card rules rotation (Time-Out · Boost · Reverse), one at a time.
   const [powerCardIdx, setPowerCardIdx] = useState(0);
@@ -342,6 +345,7 @@ function DisplayScreenInner() {
   const [pinInput, setPinInput] = useState("");
   const [connected, setConnected] = useState(false);
   const [sessionPin, setSessionPin] = useState("");
+  useDisplayResponder(sessionPin, connected, acknowledgedSnapshot);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState("");
   // Whether the realtime channel is currently down (CHANNEL_ERROR/TIMED_OUT/
@@ -1038,6 +1042,8 @@ function DisplayScreenInner() {
       setTimeLeft(null);
       stopShowAudio("timer");
     }
+    // Only acknowledge snapshots which reached the end of the apply path.
+    setAcknowledgedSnapshot(displaySnapshot(data));
   }
 
   function startCountdown(seconds: number) {

@@ -8,12 +8,14 @@ import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { FEATURE_FLAGS } from "@/lib/platform/featureFlags";
 import { createPlatformStatus, type HealthLevel } from "@/lib/platform/health";
 import { platformLogger } from "@/lib/platform/logger";
+import type { useDisplayHealth } from "@/lib/diagnostics/useDisplayHealth";
 
 type Health = HealthLevel;
 type EventItem = { at: number; message: string; level: Health };
 
 export type HostDiagnosticsProps = {
   open: boolean;
+  display: ReturnType<typeof useDisplayHealth>;
   onClose: () => void;
   session: {
     id: string | null;
@@ -151,7 +153,8 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
     audio,
     timerRunning: timer.running,
     timerRemaining: timer.remaining,
-    displayKnown: false,
+    displayKnown: props.display.health.level === "healthy",
+    displayHealth: { ...props.display.health, updatedAt: props.display.observations[0]?.receivedAt ?? null },
     diagnosticsEnabled: FEATURE_FLAGS.diagnostics,
   });
   const realtimeHealth = platformStatus.realtime.level;
@@ -179,6 +182,7 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
       session,
       teams: { registered: teams.length, submitted: submittedTeams.size, missing: missing.map(team => team.team_name) },
       realtime,
+      display: props.display,
       timer,
       audio,
       performance: { fps, memory, longTasks, visibility: document.visibilityState },
@@ -247,10 +251,12 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
             <Metric label="Pending / failed writes" value="Not instrumented" health="warning" />
           </Card>
 
-          <Card title="Display" health="warning">
-            <Metric label="Display connected" value="Heartbeat data unavailable" health="warning" /><Metric label="Last heartbeat / refresh" value="Not recorded" />
-            <Metric label="Expected phase" value={session.phase} /><Metric label="Expected route" value={`/host/display?pin=${session.pin || "----"}`} />
-            <Metric label="Last state update" value={timeLabel(realtime.lastSync)} />
+          <Card title="Display" health={props.display.health.level}>
+            <Metric label="TV browser acknowledgement" value={props.display.health.summary} health={props.display.health.level} />
+            <Metric label="Expected database phase" value={props.display.expected?.phase || "Unknown"} />
+            <Metric label="Expected route" value={`/host/display?pin=${session.pin || "----"}`} />
+            {props.display.observations.map((display, index) => <Metric key={display.displayId} label={`Display ${index + 1}`} value={`${display.phase} · round ${display.round} · question ${display.question + 1} · reply ${timeLabel(display.receivedAt)} · ${display.visible ? "visible" : "hidden"}`} />)}
+            <p>Checks session receipt by the display browser every few seconds. Does not prove the physical TV is on, images loaded, or audio audible. Closed display tabs remain flagged until the host page reloads.</p>
           </Card>
 
           <Card title="Audio" health={audio.overlap ? "problem" : "healthy"}>

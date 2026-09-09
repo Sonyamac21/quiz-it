@@ -13,6 +13,7 @@ import { TeamBadge } from "@/components/TeamBadge";
 import { BrandLockup, Button, Field, Input, StatusPill, useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 import { HostDiagnostics } from "@/components/HostDiagnostics";
+import { useDisplayHealth } from "@/lib/diagnostics/useDisplayHealth";
 import { diagnosticTimestamp } from "@/lib/diagnostics/time";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { FEATURE_FLAGS } from "@/lib/platform/featureFlags";
@@ -313,6 +314,7 @@ function QuizControllerInner() {
   const [rulesOpen, setRulesOpen] = useState(false);
   const [audienceControlsOpen, setAudienceControlsOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const displayHealth = useDisplayHealth(sessionPin, connected && FEATURE_FLAGS.diagnostics);
   const [connectedAt, setConnectedAt] = useState<number | null>(null);
   const [sessionEventName, setSessionEventName] = useState<string | null>(null);
   const [sessionQuizPlan, setSessionQuizPlan] = useState<string | null>(null);
@@ -1956,6 +1958,7 @@ function QuizControllerInner() {
           <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
           <Button variant="quiet" onClick={() => setRulesOpen(true)}>Rules</Button>
           {FEATURE_FLAGS.diagnostics && <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>}
+          {FEATURE_FLAGS.diagnostics && connected && <button className="qi-button qi-button--secondary" onClick={() => setDiagnosticsOpen(true)} title="Advisory TV browser acknowledgement; does not verify physical TV or audio output" aria-live="polite">{displayHealth.health.level === "healthy" ? "TV: up to date" : displayHealth.health.summary}</button>}
         {rulesOpen && (
           <div onClick={() => setRulesOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
             <div onClick={e => e.stopPropagation()} style={{ background:"#1a0535", border:"2px solid #BE26C1", borderRadius:16, padding:28, maxWidth:560, maxHeight:"80vh", overflowY:"auto" as const, color:"#fff" }}>
@@ -2537,6 +2540,7 @@ function QuizControllerInner() {
       </div>
       {FEATURE_FLAGS.diagnostics && <HostDiagnostics
         open={diagnosticsOpen}
+        display={displayHealth}
         onClose={() => setDiagnosticsOpen(false)}
         session={{ id: sessionId, pin: sessionPin, eventName: sessionEventName, quizPlan: sessionQuizPlan, venue: venueName, host: hostIdentity, phase: hostPhase, roundName: selectedRound?.name, roundNumber, questionIndex: qIdx, questionCount: selectedRound?.questions.length || 0, status: connected ? "active" : "disconnected", connectedAt }}
         teams={teams}

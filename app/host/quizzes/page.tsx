@@ -1303,27 +1303,28 @@ export default function QuizBuilderPage() {
                     }}
                     onDragEnd={() => { setDraggedRoundIndex(null); setDragOverRoundId(null); }}
                     style={{
-                      padding: "8px 14px", borderRadius: 10, cursor: "grab", textAlign: "left",
+                      padding: "6px 10px", borderRadius: 10, cursor: "grab", textAlign: "left",
                       border: dragOverRoundId === round.id ? "2px dashed #2EE06E" : round.id === activeRound.id ? "2px solid #BE26C1" : "1px solid #2E1A52",
                       background: dragOverRoundId === round.id ? "rgba(46,224,110,0.12)" : round.id === activeRound.id ? "rgba(190,38,193,0.15)" : "#150A2E",
                       opacity: draggedRoundIndex === index ? 0.4 : 1,
-                      color: "#fff", display: "flex", flexDirection: "column", gap: 2,
+                      color: "#fff", display: "flex", flexDirection: "column", gap: 1,
                       // Grows to fill the row (so 5 rounds span the full width
                       // instead of leaving a dead gap after the last one) but
-                      // never shrinks below 200px, and the status line inside
-                      // stays clipped (overflow/textOverflow below) so a round
-                      // that's hit a long "stalled after 25 questions..."
-                      // message still can't stretch a single tile oversized.
-                      flex: "1 1 200px", minWidth: 200,
+                      // never shrinks below 150px. The name/status lines below
+                      // wrap onto a second line (line-clamp: 2) instead of a
+                      // hard single-line ellipsis, so the sticky bar stays
+                      // compact and out of the way while still letting a host
+                      // actually read what's on a tile without clicking it.
+                      flex: "1 1 150px", minWidth: 150,
                     }}
                   >
                     {isRoundGeneratable && (
-                      <label style={{ display: "flex", alignItems: "center", gap: 6, font: "600 11px 'Inter'", color: "#B9A8D9" }} onClick={e => e.stopPropagation()}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 5, font: "600 10px 'Inter'", color: "#B9A8D9" }} onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={roundCfg?.selected ?? false} onChange={e => updateBulkConfig(round.id, { selected: e.target.checked })} />
                         Include in Generate All
                       </label>
                     )}
-                    <span style={{ font: "700 13px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{index + 1}. {round.name}</span>
+                    <span style={{ font: "700 12px 'Inter'", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{index + 1}. {round.name}</span>
                     {/* A native `title` tooltip only appears on hover-and-wait and
                         never on click/tap, so a host clicking straight at this
                         truncated text (as reported) saw nothing happen - no
@@ -1337,13 +1338,13 @@ export default function QuizBuilderPage() {
                           type="button"
                           aria-label={`${round.name}: ${roundProgress}`}
                           onClick={e => { e.stopPropagation(); showToast(roundProgress, failed ? "error" : "info", 15000); }}
-                          style={{ padding: 0, border: 0, background: "transparent", color: failed ? "#FF667A" : "#2EE06E", font: "700 11px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", textAlign: "left", textDecoration: "underline" }}
+                          style={{ padding: 0, border: 0, background: "transparent", color: failed ? "#FF667A" : "#2EE06E", font: "700 10px 'Inter'", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden", cursor: "pointer", textAlign: "left", textDecoration: "underline" }}
                         >
                           {failed ? "Generation failed — View details" : roundProgress}
                         </button>
                       );
                     })()}
-                    <span style={{ color: "#6B5A8E", font: "400 11px 'Inter'" }}>{round.questions.length} Q - {round.round_type}</span>
+                    <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>{round.questions.length} Q - {round.round_type}</span>
                     {/* A round with audio questions still needs each one's
                         actual clip saved in Music Prep before the quiz can go
                         live - previously the only way to notice this was to

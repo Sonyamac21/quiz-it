@@ -97,29 +97,59 @@ function FitText({ children, className }: { children: ReactNode; className?: str
       baseFontSizeRef.current = parseFloat(getComputedStyle(inner).fontSize) || 16;
     }
     const base = baseFontSizeRef.current;
+    // Confirmed via live devtools inspection (real production measurements,
+    // not guesswork): fit() was correctly computing a shrink factor, but the
+    // number it used to compute that factor (inner.scrollWidth, measured
+    // against the FALLBACK system font because the real "Bruno Ace SC" font
+    // hadn't swapped in yet) was too small - so it under-corrected. The
+    // real font's glyphs render wider, so even the "fitted" size still
+    // overflowed once the real font finally swapped in. document.fonts.ready
+    // alone didn't reliably catch this: that promise can resolve before the
+    // browser has actually started fetching a font that's about to be
+    // painted for the first time, so a later real swap can still slip past
+    // it with nothing here re-measuring. Two changes: (1) also listen for
+    // the browser's actual 'loadingdone' font-swap event for the life of
+    // this component, not just a one-time ready check; (2) after applying a
+    // fit, verify against the real rendered result on the next frame and
+    // correct again if it still doesn't fit - this no longer trusts any
+    // single measurement to be the final word.
+    let correctionAttempts = 0;
     const fit = () => {
       const available = wrap.offsetWidth;
       inner.style.fontSize = base + "px";
       const natural = inner.scrollWidth;
       const factor = natural > available && available > 0 ? available / natural : 1;
-      setFontSize(base * factor);
+      const nextSize = base * factor;
+      inner.style.fontSize = nextSize + "px";
+      setFontSize(nextSize);
+      correctionAttempts = 0;
+      requestAnimationFrame(verifyAndCorrect);
+    };
+    const verifyAndCorrect = () => {
+      const available = wrap.offsetWidth;
+      const actual = inner.scrollWidth;
+      if (actual > available && available > 0 && correctionAttempts < 5) {
+        correctionAttempts += 1;
+        const current = parseFloat(inner.style.fontSize) || base;
+        const corrected = current * (available / actual);
+        inner.style.fontSize = corrected + "px";
+        setFontSize(corrected);
+        requestAnimationFrame(verifyAndCorrect);
+      }
     };
     fit();
-    // This headline renders in the display font (Bruno Ace SC), which
-    // loads asynchronously - useLayoutEffect fires before paint, but not
-    // necessarily after that font has finished loading. If fit() runs
-    // first against the narrower fallback system font, it correctly
-    // measures "this fits" and never shrinks - then the real, wider
-    // display font swaps in afterward with nothing here to notice or
-    // re-measure. document.fonts.ready resolves once web fonts currently
-    // loading have settled, so re-running fit() then catches exactly that
-    // case (a no-op if the font was already loaded in time).
     if (typeof document !== "undefined" && "fonts" in document) {
       document.fonts.ready.then(fit).catch(() => {});
+      document.fonts.addEventListener?.("loadingdone", fit);
     }
     const ro = new ResizeObserver(fit);
     ro.observe(wrap);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      if (typeof document !== "undefined" && "fonts" in document) {
+        document.fonts.removeEventListener?.("loadingdone", fit);
+      }
+    };
   }, [children]);
 
   return (

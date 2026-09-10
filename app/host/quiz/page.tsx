@@ -2043,7 +2043,7 @@ function QuizControllerInner() {
                 const key = (rt === "multi_tap" || rt === "music" || rt === "nearest_wins") ? rt : "regular";
                 return (
                   <div style={{ marginBottom:20 }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>{(ROUND_TYPE_LABEL[key]||"GENERAL KNOWLEDGE").toUpperCase()} \u2014 CURRENT ROUND</div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>{(ROUND_TYPE_LABEL[key]||"GENERAL KNOWLEDGE").toUpperCase()} — CURRENT ROUND</div>
                     <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
                       {rules[key as keyof typeof rules].map((r,i) => <li key={i}>{r}</li>)}
                     </ul>

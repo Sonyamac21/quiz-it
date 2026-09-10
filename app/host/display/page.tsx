@@ -105,6 +105,18 @@ function FitText({ children, className }: { children: ReactNode; className?: str
       setFontSize(base * factor);
     };
     fit();
+    // This headline renders in the display font (Bruno Ace SC), which
+    // loads asynchronously - useLayoutEffect fires before paint, but not
+    // necessarily after that font has finished loading. If fit() runs
+    // first against the narrower fallback system font, it correctly
+    // measures "this fits" and never shrinks - then the real, wider
+    // display font swaps in afterward with nothing here to notice or
+    // re-measure. document.fonts.ready resolves once web fonts currently
+    // loading have settled, so re-running fit() then catches exactly that
+    // case (a no-op if the font was already loaded in time).
+    if (typeof document !== "undefined" && "fonts" in document) {
+      document.fonts.ready.then(fit).catch(() => {});
+    }
     const ro = new ResizeObserver(fit);
     ro.observe(wrap);
     return () => ro.disconnect();

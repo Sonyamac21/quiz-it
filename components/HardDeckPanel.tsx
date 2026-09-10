@@ -325,8 +325,17 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
         <>
           <div style={{ fontSize: 26, fontWeight: 700, color: "#fff", letterSpacing: 0.5 }}>Team: <strong style={{ fontWeight: 800 }}>{team}</strong></div>
 
-          <div className="qi-host-harddeck-cards" style={{ padding: "20px 24px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)" }}>
-            <div style={{ display: "flex", gap: 12 }}>
+          {/* This row shows every card revealed so far this hand (not just
+              the latest one - see task history), so its width keeps
+              growing through a long hand. The panel around it is
+              overflow:hidden (needed to keep the whole overlay pinned to
+              the viewport), so without its own wrap/scroll handling, cards
+              past a certain count would simply run off the edge with no
+              way to see them. maxWidth+overflowX is a safety net; flexWrap
+              is the primary fix so it reads as a normal multi-row hand
+              instead of needing to scroll at all in the common case. */}
+          <div className="qi-host-harddeck-cards" style={{ padding: "20px 24px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)", maxWidth: "92vw", maxHeight: "min(50vh, 400px)", overflow: "auto" }}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", maxWidth: "min(88vw, 900px)" }}>
               {cards.map((c, i) => (
                 <div key={i} style={{ width: "clamp(82px,8vw,120px)", height: "clamp(118px,11.5vw,172px)", borderRadius: 14, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: "clamp(28px,3vw,44px)", fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
                   <div>{rankLabel(c.rank)}</div>

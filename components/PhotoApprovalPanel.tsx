@@ -21,6 +21,13 @@ type Props = {
 function PhotoPreview({ src }: { src: string }) {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   return (
+    // objectFit was "cover" - forcing every submitted photo into a square
+    // crop before the host has even seen it. Fine for a small decorative
+    // crest elsewhere in the app, but wrong here: this IS the moderation
+    // review step, so cropping content out (a cover-cropped group photo can
+    // cut off faces at the edges) is exactly backwards - the host needs to
+    // see the whole photo to judge it. Switched to "contain" (letterboxed,
+    // nothing cropped) so what's approved/rejected is the whole real image.
     <div style={{ position: "relative", width: "100%", aspectRatio: "1", background: "#100622", display: "grid", placeItems: "center", overflow: "hidden" }}>
       {state !== "ready" && (
         <div style={{ color: state === "error" ? "#ff8290" : "#8F7AAF", font: "600 12px 'Inter'" }}>
@@ -34,7 +41,7 @@ function PhotoPreview({ src }: { src: string }) {
         decoding="async"
         onLoad={() => setState("ready")}
         onError={() => setState("error")}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: state === "ready" ? 1 : 0, transition: "opacity 160ms ease" }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", display: "block", opacity: state === "ready" ? 1 : 0, transition: "opacity 160ms ease" }}
       />
     </div>
   );

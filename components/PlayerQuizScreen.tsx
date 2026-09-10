@@ -1905,29 +1905,40 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   return (
     <div className="fbl fbl-phone qi-player-state qi-player-waiting" style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
-      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 14, textAlign: "center", position: "relative", zIndex: 2 }}>
-        <Crest initials={teamInitials(teamName)} size={teamPhotoUrl ? 148 : 88} photoUrl={getMediaUrl(teamPhotoUrl)} />
-        <div style={{ font: "800 clamp(22px,6.6vw,30px) 'Inter'", color: "#fff" }}>{teamName}</div>
-        <div style={{ font: "600 clamp(15px,4.6vw,18px) 'Inter'", color: "#B9A8D9", lineHeight: 1.45 }}>
-          Waiting for your host…
-          {allTeamNames.length > 0 && (
-            <>
-              <br />
-              {allTeamNames.length} team{allTeamNames.length === 1 ? "" : "s"} in the room tonight
-            </>
-          )}
+      {/* Unlike every other screen in this file, this one used to have no
+          inner scroll region at all - just a fixed-height, overflow:hidden
+          outer shell around three stacked sections (waiting message, photo
+          upload, power cards). On a shorter phone, or with power cards
+          showing, the combined content can be taller than the viewport,
+          and with nothing scrollable, the bottom section (power cards, or
+          even the upload button) got silently clipped with no way to
+          reach it. Wrapped everything below the status bar in the same
+          flex:1/minHeight:0/overflowY:auto pattern used elsewhere here. */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+        <div style={{ flex: "1 0 auto", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 14, textAlign: "center", position: "relative", zIndex: 2 }}>
+          <Crest initials={teamInitials(teamName)} size={teamPhotoUrl ? 148 : 88} photoUrl={getMediaUrl(teamPhotoUrl)} />
+          <div style={{ font: "800 clamp(22px,6.6vw,30px) 'Inter'", color: "#fff" }}>{teamName}</div>
+          <div style={{ font: "600 clamp(15px,4.6vw,18px) 'Inter'", color: "#B9A8D9", lineHeight: 1.45 }}>
+            Waiting for your host…
+            {allTeamNames.length > 0 && (
+              <>
+                <br />
+                {allTeamNames.length} team{allTeamNames.length === 1 ? "" : "s"} in the room tonight
+              </>
+            )}
+          </div>
         </div>
-      </div>
-      <div style={{ display: "flex", justifyContent: "center", padding: "0 14px 10px" }}>
-        <TeamPhotoUpload sessionPin={sessionPin} teamName={teamName} />
-      </div>
-      {/* Bottom padding reserves room for the fixed "Quiz-It · Powered by..."
-          brand pill (join-form.tsx, position:fixed bottom:10) that sits on
-          top of every phase screen - without it, the power cards' own
-          "X OF Y CARDS REMAINING" caption sat flush against the viewport
-          bottom and visually collided with that pill. */}
-      <div style={{ paddingBottom: 46 }}>
-        {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+        <div style={{ display: "flex", justifyContent: "center", padding: "0 14px 10px" }}>
+          <TeamPhotoUpload sessionPin={sessionPin} teamName={teamName} />
+        </div>
+        {/* Bottom padding reserves room for the fixed "Quiz-It · Powered by..."
+            brand pill (join-form.tsx, position:fixed bottom:10) that sits on
+            top of every phase screen - without it, the power cards' own
+            "X OF Y CARDS REMAINING" caption sat flush against the viewport
+            bottom and visually collided with that pill. */}
+        <div style={{ paddingBottom: 46 }}>
+          {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+        </div>
       </div>
     </div>
   );

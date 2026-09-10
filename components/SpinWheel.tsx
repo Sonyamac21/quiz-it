@@ -232,17 +232,28 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 22, padding: "4px 4px 0" }}>
-        <div style={{
-          position: "relative", borderRadius: 24, overflow: "hidden",
-          boxShadow: "inset 0 2px 0 rgba(255,255,255,0.03), inset 0 12px 24px rgba(0,0,0,0.6), inset 0 -12px 24px rgba(0,0,0,0.6)",
-        }}>
+        {/* The two pointer arrows sit at left:-18/right:-18 - deliberately
+            outside the drum window itself, so they read as pointing INTO
+            it from outside. They used to be children of the drum window
+            div below, which needs overflow:hidden to clip the canvas's own
+            rounded corners - that same overflow:hidden was clipping the
+            arrows too, since anything positioned outside a container's
+            bounds gets cut off by that container's own overflow rule.
+            Moved them to this outer wrapper instead, which has no
+            overflow rule, so they render in full. */}
+        <div style={{ position: "relative" }}>
           <div style={{ position:"absolute", left:-18, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"20px solid transparent", borderBottom:"20px solid transparent", borderLeft:"34px solid #D94FDC", filter:"drop-shadow(0 0 10px rgba(217,79,220,0.6))", zIndex:10 }} />
           <div style={{ position:"absolute", right:-18, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"20px solid transparent", borderBottom:"20px solid transparent", borderRight:"34px solid #D94FDC", filter:"drop-shadow(0 0 10px rgba(217,79,220,0.6))", zIndex:10 }} />
-          <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", maxWidth:"85vw", background: "#0D0618" }} />
-          {/* Glass highlight sweep - a static diagonal gloss over the drum
-              window, the detail that reads as "premium material" rather than
-              a flat coloured rectangle. */}
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(115deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 22%, rgba(255,255,255,0) 40%)" }} />
+          <div style={{
+            position: "relative", borderRadius: 24, overflow: "hidden",
+            boxShadow: "inset 0 2px 0 rgba(255,255,255,0.03), inset 0 12px 24px rgba(0,0,0,0.6), inset 0 -12px 24px rgba(0,0,0,0.6)",
+          }}>
+            <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", maxWidth:"85vw", height:"auto", background: "#0D0618" }} />
+            {/* Glass highlight sweep - a static diagonal gloss over the drum
+                window, the detail that reads as "premium material" rather than
+                a flat coloured rectangle. */}
+            <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(115deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 22%, rgba(255,255,255,0) 40%)" }} />
+          </div>
         </div>
         {/* The manual spin button is HOST-ONLY. Passive surfaces (player handsets
             and the venue display) pass allowManualSpin={false} and drive the wheel

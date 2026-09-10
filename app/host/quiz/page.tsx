@@ -631,7 +631,21 @@ function QuizControllerInner() {
   // any of those tables next got read back keyed on the old name.
   async function renameTeam(oldName: string) {
     if (!sessionPin) return;
-    const entered = await promptDialog(`Rename "${oldName}" to:`, oldName, { title: "Rename team", confirmLabel: "Rename" });
+    // The team's own handset (components/PlayerQuizScreen.tsx) is handed
+    // teamName once, as a prop set at join time, and reuses that same
+    // value for every answer submission and retry for the rest of the
+    // session - it has no live subscription that would pick up a
+    // server-side rename. So renaming here updates every past record
+    // (teams/scores/answers/uno_cards) but can't reach that team's phone;
+    // it will keep submitting under the OLD name until it's refreshed,
+    // which would then not match this new name when scoring reads answers
+    // back by team_name. Warned here rather than silently risking a team's
+    // answers going unscored mid-round.
+    const entered = await promptDialog(
+      `Rename "${oldName}" to: (their handset won't see the new name until they refresh the join page - safest between rounds, or tell them to refresh right after)`,
+      oldName,
+      { title: "Rename team", confirmLabel: "Rename" }
+    );
     if (entered === null) return;
     const newName = entered.trim();
     if (!newName) { showToast("Team name can't be empty.", "error", 4000); return; }

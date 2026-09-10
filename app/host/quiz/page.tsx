@@ -2020,11 +2020,9 @@ function QuizControllerInner() {
               the logo it's actually describing, matching how the display
               screen's own corner mark pairs the logo with its wordmark/
               attribution directly beneath it. */}
-          <div style={{ marginTop: 4, width: "100%", textAlign: "center" as const }}>
-            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 0.3 }}>
-              <span style={{ fontFamily: "'Bruno Ace SC',sans-serif" }}>Quiz-It</span>
-              <span style={{ fontFamily: "'Inter',sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>
-            </span>
+          <div style={{ marginTop: 4, width: "100%", textAlign: "center" as const, fontFamily: "'Inter',sans-serif", fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 0.3, lineHeight: 1.4 }}>
+            <div>Powered by Mac Entertainment</div>
+            <div>by Sonya Mac</div>
           </div>
         </div>
         <div className="qi-mc-session" aria-label="Live session information">

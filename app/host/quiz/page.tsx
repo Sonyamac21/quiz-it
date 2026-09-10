@@ -2007,10 +2007,24 @@ function QuizControllerInner() {
       })()}
       {/* HEADER */}
       <header className="qi-mc-header">
-        <div className="qi-mc-brand">
-          <Image src="/me-logo.jpg" alt="Mac Entertainment" width={44} height={44} className="qi-mc-brand__mark" />
-          <BrandLockup compact align="left" />
-          <span className="qi-mc-brand__section">Mission Control</span>
+        <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <div className="qi-mc-brand">
+            <Image src="/me-logo.jpg" alt="Mac Entertainment" width={44} height={44} className="qi-mc-brand__mark" />
+            <BrandLockup compact align="left" />
+            <span className="qi-mc-brand__section">Mission Control</span>
+          </div>
+          {/* Was a separate fixed pill pinned to the bottom-right corner of
+              the whole screen, floating unattached from any layout and
+              overlapping live host controls down there. Moved to sit under
+              the logo it's actually describing, matching how the display
+              screen's own corner mark pairs the logo with its wordmark/
+              attribution directly beneath it. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 4, paddingLeft: 2 }}>
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 0.3 }}>
+              <span style={{ fontFamily: "'Bruno Ace SC',sans-serif" }}>Quiz-It</span>
+              <span style={{ fontFamily: "'Inter',sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>
+            </span>
+          </div>
         </div>
         <div className="qi-mc-session" aria-label="Live session information">
           <div><span>Session PIN</span><strong>{sessionPin}</strong></div>
@@ -2624,18 +2638,6 @@ export default function QuizController() {
   return (
     <Suspense fallback={<div style={{ minHeight:"100vh", background:"#0d0225", display:"flex", alignItems:"center", justifyContent:"center", color:"#BE26C1", fontSize:24 }}>Loading...</div>}>
       <QuizControllerInner />
-      <div style={{
-        position: "fixed", bottom: 10, right: 12, zIndex: 9999,
-        display: "flex", alignItems: "center", gap: 6,
-        padding: "5px 10px", borderRadius: 999,
-        background: "rgba(13,2,37,0.6)", border: "1px solid rgba(190,38,193,0.3)",
-        pointerEvents: "none" as const,
-      }}>
-        <Image src="/me-logo.jpg" alt="Mac Entertainment" width={16} height={16} style={{ borderRadius: "50%" }} />
-        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: 0.3 }}>
-          <span style={{ fontFamily: "'Bruno Ace SC',sans-serif" }}>Quiz-It</span><span style={{ fontFamily: "'Inter',sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>
-        </span>
-      </div>
     </Suspense>
   );
 }

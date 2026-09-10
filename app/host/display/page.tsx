@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState, useRef, Suspense, type CSSProperties } from "react";
+import { displayLeaderboardVisible } from "@/lib/quiz/leaderboardVisibility";
+import { useEffect, useLayoutEffect, useState, useRef, Suspense, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
@@ -62,6 +63,48 @@ function InstagramGlyph() {
       <circle cx="12" cy="12" r="4.6" stroke="currentColor" strokeWidth="2" />
       <circle cx="17.4" cy="6.6" r="1.3" fill="currentColor" />
     </svg>
+  );
+}
+
+// Guaranteed-fit text: two rounds of trying to precompute a font-size that
+// would fit (first with vw units, then with container-query cqw units)
+// both still overflowed in real testing - vw ignores ancestor padding, and
+// the cqw estimate for this particular font's actual glyph width was still
+// wrong. Rather than guess a third formula, this measures its own real
+// rendered width against its container's real available width and scales
+// itself down by whatever factor actually makes it fit - correct by
+// construction, regardless of font metrics, screen size, or how much
+// padding sits between it and the viewport. Never scales UP past 1 (so it
+// doesn't blow past its intended max size on a container with room to
+// spare), and re-measures on resize.
+function FitText({ children, className }: { children: ReactNode; className?: string }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current, inner = innerRef.current;
+    if (!wrap || !inner) return;
+    const fit = () => {
+      const available = wrap.offsetWidth;
+      // Measure at natural (unscaled) size by momentarily clearing any
+      // prior transform, otherwise a previous shrink would be measured too.
+      inner.style.transform = "none";
+      const natural = inner.scrollWidth;
+      setScale(natural > available && available > 0 ? available / natural : 1);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [children]);
+
+  return (
+    <div ref={wrapRef} style={{ width: "100%", overflow: "hidden", display: "flex", justifyContent: "center" }}>
+      <div ref={innerRef} className={className} style={{ display: "inline-flex", alignItems: "center", gap: ".3em", whiteSpace: "nowrap", transform: `scale(${scale})`, transformOrigin: "center" }}>
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -471,6 +514,7 @@ function DisplayScreenInner() {
   const [roundNumber, setRoundNumber] = useState(1);
   const [scoreboardData, setScoreboardData] = useState<Score[]>([]);
   const [hideLeaderboard, setHideLeaderboard] = useState(false);
+  const [displayLeaderboard, setDisplayLeaderboard] = useState(false);
   const [allowPowerCards, setAllowPowerCards] = useState(true);
   // Leaderboard climber chips — movement since the previous board (climbers only).
   const prevRanksRef = useRef<Map<string, number>>(new Map());
@@ -744,6 +788,7 @@ function DisplayScreenInner() {
     const scheduleTime = (snapshot?.start_time || snapshotVenue?.default_start_time || "").slice(0, 5) || null;
     setVenueScheduleText(scheduleDay && scheduleTime ? `${scheduleDay}s at ${scheduleTime}` : scheduleDay || scheduleTime);
     setHideLeaderboard(!!data.hide_leaderboard);
+    setDisplayLeaderboard(displayLeaderboardVisible(data));
     setAllowPowerCards(data.allow_power_cards !== false);
     const hotSeat = readHotSeatState(data);
     setHotSeatStatus(hotSeat.status);
@@ -938,7 +983,7 @@ function DisplayScreenInner() {
     setSpinTargetIdx((data.spin_target_idx as number) ?? null);
     setSpinNonce((data.spin_nonce as number) ?? null);
 
-    if (newPhase === "scoreboard") {
+    if (displayLeaderboardVisible(data)) {
       setScoreboardData((data.scoreboard_data as Score[]) || []);
     }
 
@@ -1276,7 +1321,7 @@ function DisplayScreenInner() {
 
   // WAITING / HOLDING SCREEN
   // THE HARD DECK
-  if (phase === "hard_deck") {
+  if (!displayLeaderboard && phase === "hard_deck") {
     const rankLabels: Record<number,string> = { 1:"A", 11:"J", 12:"Q", 13:"K" };
     const rankLabel = (r: number) => rankLabels[r] || String(r);
     // Matches HardDeckPanel's actual CARD_POINTS (flat 10 per correct card,
@@ -1364,7 +1409,7 @@ function DisplayScreenInner() {
 
   // THE PURSUIT — the race board is the hero (prototype v1.0). All race/scoring
   // logic stays in the state machine; the board is pure presentation.
-  if (phase === "pursuit") {
+  if (!displayLeaderboard && phase === "pursuit") {
     return (
       <PursuitBoard
         status={pursuitStatus}
@@ -1379,7 +1424,7 @@ function DisplayScreenInner() {
     );
   }
 
-  if (phase === "waiting" || phase === "round_start" || phase === "round_end") {
+  if (!displayLeaderboard && (phase === "waiting" || phase === "round_start" || phase === "round_end")) {
     if (phase !== "waiting") {
       // Fable Display "show structure" states, wired to the real phase +
       // roundNumber/roundName the state machine already provides.
@@ -1497,7 +1542,7 @@ function DisplayScreenInner() {
                 <div className="lb-reel-brand-panel">
                   {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
                   <div className="lb-cardkicker">FOLLOW THE VENUE</div>
-                  <div className="lb-reel-brand-headline"><InstagramGlyph />{venueInstagramTag}</div>
+                  <FitText className="lb-reel-brand-headline"><InstagramGlyph />{venueInstagramTag}</FitText>
                 </div>
               </div>
             )}
@@ -1506,7 +1551,7 @@ function DisplayScreenInner() {
               <div className="lb-reel-scene lb-reel-brand lb-reel-brand-social">
                 <div className="lb-reel-brand-panel">
                   <div className="lb-cardkicker">SHARE THE NIGHT</div>
-                  <div className="lb-reel-brand-headline"><InstagramGlyph />@macentertainmentuae</div>
+                  <FitText className="lb-reel-brand-headline"><InstagramGlyph />@macentertainmentuae</FitText>
                   <div className="lb-reel-brand-body">Tag us in your posts and stories!</div>
                 </div>
               </div>
@@ -1567,7 +1612,7 @@ function DisplayScreenInner() {
   }
 
   // INTERMISSION
-  if (phase === "intermission") {
+  if (!displayLeaderboard && phase === "intermission") {
     // venueOfferPhotos (the "Generic offers"/venue-offer rotation) is meant
     // for player handsets specifically, per the host - the Display's own
     // gallery uses intermissionVenuePhotos (the venue's own Display
@@ -1621,7 +1666,7 @@ function DisplayScreenInner() {
   // SPIN TO WIN — approved Fable "summons frame": Bruno title + purple flood,
   // the earning honoured. The machine itself (SlotReels) is unchanged — same
   // props, nonce, scoring, audio and sync. Presentation-only wrapper.
-  if (phase === "spin_to_win") {
+  if (!displayLeaderboard && phase === "spin_to_win") {
     return (
       <div className="fbl fbl-stage qi-display-stage qi-display-spin">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
@@ -1645,7 +1690,7 @@ function DisplayScreenInner() {
     );
   }
   // SCOREBOARD
-  if (phase === "scoreboard") {
+  if (displayLeaderboard || phase === "scoreboard") {
     if (hideLeaderboard) {
       return <WaitingForHost message="STANDINGS HIDDEN FOR THIS ROUND" />;
     }

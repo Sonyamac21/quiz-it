@@ -2157,15 +2157,16 @@ function DisplayScreenInner() {
 // the old duplicate-badge overlap that was previously removed from here.
 function DisplayCornerMark() {
   return (
+    // Stacked - logo on top, wordmark/producer/attribution centered
+    // underneath - matching the host console header's layout exactly. This
+    // was previously a side-by-side row (logo left, text block right,
+    // left-aligned), a different arrangement from the host console's
+    // stacked-and-centered one, so the "same" brand mark still looked like
+    // two different layouts depending which screen you were on.
     <div className="qi-display-corner-mark">
       <Image src="/me-logo.jpg" alt="Mac Entertainment" width={58} height={58} className="qi-display-corner-mark__logo" />
-      <div>
-        <BrandLockup compact align="left" />
-        {/* Matches the host console header's brand lockup, which also
-            carries this as its own small line under "Powered by Mac
-            Entertainment" rather than folded into it. */}
-        <div className="qi-display-corner-mark__by">by Sonya Mac</div>
-      </div>
+      <BrandLockup compact />
+      <div className="qi-display-corner-mark__by">by Sonya Mac</div>
     </div>
   );
 }

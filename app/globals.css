@@ -1317,7 +1317,7 @@ button, input, select, textarea { font: inherit; }
    header (components/quiz-it-header.tsx) - fixed above every phase so the
    display screen always carries the same corner branding as the rest of
    the site, independent of the bottom-right QuizItBadge. */
-.qi-display-corner-mark { position: fixed; top: clamp(14px,1.8vh,26px); left: clamp(14px,1.8vw,32px); z-index: 50; display: flex; align-items: center; gap: 12px; pointer-events: none; }
+.qi-display-corner-mark { position: fixed; top: clamp(14px,1.8vh,26px); left: clamp(14px,1.8vw,32px); z-index: 50; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; pointer-events: none; }
 .qi-display-corner-mark__logo { border-radius: 10px; flex-shrink: 0; }
 /* Standardised to the same brand-lockup scale as the host console header
    (.qi-mc-brand__mark / .qi-brand--compact) - these were their own smaller,

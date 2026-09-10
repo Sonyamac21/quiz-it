@@ -2020,7 +2020,7 @@ function QuizControllerInner() {
               the logo it's actually describing, matching how the display
               screen's own corner mark pairs the logo with its wordmark/
               attribution directly beneath it. */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 4, width: "100%" }}>
+          <div style={{ marginTop: 4, width: "100%", textAlign: "center" as const }}>
             <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 0.3 }}>
               <span style={{ fontFamily: "'Bruno Ace SC',sans-serif" }}>Quiz-It</span>
               <span style={{ fontFamily: "'Inter',sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>

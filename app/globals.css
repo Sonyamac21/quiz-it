@@ -350,9 +350,16 @@ button, input, select, textarea { font: inherit; }
   background: rgb(16 5 34 / 0.92);
   backdrop-filter: blur(16px);
 }
-.qi-mc-brand { display: flex; align-items: center; gap: var(--qi-space-3); min-width: 0; }
+/* Identical structure to .qi-display-corner-mark on the display screen:
+   logo on top, wordmark/producer/attribution centered underneath, same
+   font-size clamps. These two are meant to be the one shared brand mark
+   used everywhere, not two independently-tuned lookalikes. */
+.qi-mc-brand { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; min-width: 0; }
 .qi-mc-brand__mark { width: 58px; height: 58px; flex: none; border: 1px solid var(--qi-border-strong); border-radius: 50%; object-fit: cover; }
-.qi-mc-brand__section { min-height: 34px; display: flex; align-items: center; margin-left: var(--qi-space-2); padding-left: var(--qi-space-4); border-left: 1px solid var(--qi-border); color: var(--qi-text-secondary); font-size: var(--qi-type-sm); font-weight: 750; white-space: nowrap; }
+.qi-mc-brand .qi-brand__name { font-size: clamp(1.4rem, 1.2rem + 0.7vw, 2rem); }
+.qi-mc-brand .qi-brand__producer { font-size: clamp(0.72rem, 0.65rem + 0.2vw, 0.9rem); }
+.qi-mc-brand__by { margin-top: 0.15rem; color: rgba(255,255,255,0.4); font: 700 clamp(0.62rem, 0.56rem + 0.15vw, 0.75rem) 'Inter',sans-serif; letter-spacing: 0.02em; }
+.qi-mc-brand__section { margin-top: 4px; min-height: 28px; display: flex; align-items: center; color: var(--qi-text-secondary); font-size: var(--qi-type-sm); font-weight: 750; white-space: nowrap; }
 .qi-mc-session { display: flex; align-items: center; justify-content: center; gap: var(--qi-space-3); min-width: 0; }
 .qi-mc-session > div { min-width: 82px; display: grid; gap: 0.05rem; padding: var(--qi-space-2) var(--qi-space-3); border: 1px solid var(--qi-border); border-radius: var(--qi-radius-md); background: var(--qi-bg-surface); }
 .qi-mc-session > div span { color: var(--qi-text-muted); font-size: 0.66rem; font-weight: 750; letter-spacing: 0.09em; text-transform: uppercase; }

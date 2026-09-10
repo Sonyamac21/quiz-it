@@ -19,6 +19,10 @@ begin
   select total_points into points from public.scores where session_pin='6069' and team_name='TestReverse6069';
   select count(*) into cards from public.uno_cards where session_pin='6069' and team_name='TestReverse6069' and card_type='reverse';
   if points <> 91 or cards <> 1 then raise exception 'Final score/card count failed'; end if;
+  if not exists (
+    select 1 from public.sessions s, jsonb_array_elements(s.scoreboard_data::jsonb) b
+    where s.pin='6069' and b->>'team_name'='TestReverse6069' and (b->>'total_points')::integer=91
+  ) then raise exception 'Reverse scoreboard propagation failed'; end if;
 end;
 $test$;
 select 'PASS: 19 to 91, event retry, duplicate card, token check, exactly one card' as result;

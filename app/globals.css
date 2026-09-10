@@ -273,8 +273,16 @@ button, input, select, textarea { font: inherit; }
    depending which screen you were on. These clamp ranges and
    .qi-mc-brand__mark's size are now the one shared "compact brand lockup"
    scale used everywhere it appears at header size. */
-.qi-brand--compact .qi-brand__name { font-size: clamp(1.4rem, 1.2rem + 0.7vw, 2rem); }
-.qi-brand--compact .qi-brand__producer { margin-top: 0.25rem; font-size: clamp(0.72rem, 0.65rem + 0.2vw, 0.9rem); }
+/* This "compact" scale is shared by the host header, which has a lot less
+   room than the display screen's corner mark (a whole empty screen to
+   itself vs. a slim bar fighting for space against session PIN/status/nav).
+   Bumping it to display-screen scale made the wordmark wrap mid-word
+   ("QUIZ-" / "IT" on separate lines) - kept modestly sized here instead,
+   with .qi-mc-brand's own layout below doing the actual "look the same"
+   work (same stacked, centered order: logo, wordmark, producer, attribution)
+   rather than trying to force identical pixel sizes into a much smaller box. */
+.qi-brand--compact .qi-brand__name { font-size: clamp(1.15rem, 1rem + 0.4vw, 1.5rem); }
+.qi-brand--compact .qi-brand__producer { margin-top: 0.2rem; font-size: clamp(0.6rem, 0.56rem + 0.1vw, 0.7rem); }
 
 .qi-site-header { position: sticky; top: 0; z-index: var(--qi-z-sticky); border-bottom: 1px solid var(--qi-border); background: rgb(10 1 24 / 0.92); backdrop-filter: blur(14px); }
 .qi-site-header__inner { width: min(100% - 2rem, 80rem); min-height: 76px; margin-inline: auto; display: flex; align-items: center; justify-content: center; position: relative; }
@@ -447,8 +455,8 @@ button, input, select, textarea { font: inherit; }
     gap: var(--qi-space-3);
     padding-block: var(--qi-space-2);
   }
-  .qi-mc-brand { gap: var(--qi-space-2); }
-  .qi-mc-brand__mark { width: 38px; height: 38px; }
+  .qi-mc-brand { gap: 0.3rem; }
+  .qi-mc-brand__mark { width: 48px; height: 48px; }
   .qi-mc-brand__section { display: none; }
   .qi-mc-session { gap: var(--qi-space-2); }
   .qi-mc-session > div { min-width: 76px; padding: 0.35rem var(--qi-space-2); }
@@ -1317,7 +1325,7 @@ button, input, select, textarea { font: inherit; }
    header (components/quiz-it-header.tsx) - fixed above every phase so the
    display screen always carries the same corner branding as the rest of
    the site, independent of the bottom-right QuizItBadge. */
-.qi-display-corner-mark { position: fixed; top: clamp(14px,1.8vh,26px); left: clamp(14px,1.8vw,32px); z-index: 50; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; pointer-events: none; }
+.qi-display-corner-mark { position: fixed; top: clamp(12px,1.4vh,20px); left: clamp(14px,1.8vw,32px); z-index: 50; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; pointer-events: none; }
 .qi-display-corner-mark__logo { border-radius: 10px; flex-shrink: 0; }
 /* Standardised to the same brand-lockup scale as the host console header
    (.qi-mc-brand__mark / .qi-brand--compact) - these were their own smaller,
@@ -1437,7 +1445,14 @@ button, input, select, textarea { font: inherit; }
    sizes stay proportional to the box it has to fit in instead of the whole
    screen. */
 .qi-display-lobby .lb-split { grid-template-columns: minmax(340px, .25fr) minmax(0, .75fr); }
-.qi-display-lobby .lb-join { padding: 5% 8% 8%; }
+/* Top padding bumped from 5% - the corner mark grew from a single small
+   logo+wordmark line to a taller stacked block (logo, wordmark, "Powered
+   by...", "by Sonya Mac") when it was standardised to match the host
+   console, and 5% was no longer enough clearance: the join PIN/steps
+   content started underneath it and the two visually collided. This
+   reserves real space for the mark regardless of its exact height rather
+   than relying on the two happening not to overlap. */
+.qi-display-lobby .lb-join { padding: clamp(120px, 15vh, 190px) 8% 8%; }
 .qi-display-lobby .lb-kicker { font-size: clamp(16px, 1.6vw, 28px); color: #d94fdc; letter-spacing: .26em; }
 .qi-display-lobby .lb-pin { font-size: clamp(56px, 3vw, 108px); line-height: .86; letter-spacing: .06em; text-shadow: 0 0 48px rgba(217,79,220,.28); }
 .qi-display-lobby .lb-pin small { font-size: clamp(13px, 1.2vw, 20px); letter-spacing: .34em; margin-bottom: 1vh; }

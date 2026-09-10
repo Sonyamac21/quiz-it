@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState, useRef, Suspense, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
+import { BrandLockup } from "@/components/ui/quiz-it-ui";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
@@ -2049,20 +2051,29 @@ function DisplayScreenInner() {
   );
 }
 
+// Persistent top-left corner mark, fixed on top of every phase regardless
+// of which internal return branch renders - matches the same logo +
+// wordmark used in the header on the host website (components/
+// quiz-it-header.tsx). This is a DIFFERENT corner from QuizItBadge (which
+// every phase renders individually, bottom-right), so it can't reintroduce
+// the old duplicate-badge overlap that was previously removed from here.
+function DisplayCornerMark() {
+  return (
+    <div className="qi-display-corner-mark">
+      <Image src="/me-logo.jpg" alt="Mac Entertainment" width={40} height={40} className="qi-display-corner-mark__logo" />
+      <BrandLockup compact align="left" />
+    </div>
+  );
+}
+
 export default function DisplayScreen() {
   return (
     <Suspense fallback={<div style={{ minHeight:"100vh", background:"#0d0225" }} />}>
       <div className="qi-display-shell">
         <DisplayScreenInner />
+        <DisplayCornerMark />
         <DisplayFullscreenControl />
         <DisplayWakeControl />
-      {/* The old "persistent branding overlay" that used to sit here,
-          fixed on top of every phase regardless of which internal return
-          branch rendered, has been removed - it was a leftover second
-          corner badge (with its own separate ME-logo icon and "Quiz-It"
-          styling) duplicating the real QuizItBadge() that every phase
-          already renders individually. That's what was causing two
-          overlapping badges to show at once on the waiting screen. */}
       </div>
     </Suspense>
   );

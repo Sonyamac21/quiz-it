@@ -1,6 +1,7 @@
 "use client";
 import { leaderboardVisibilityUpdate } from "@/lib/quiz/leaderboardVisibility";
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { SlotReels, SLOT_SEGS } from "@/components/SlotReels";
 import { useSearchParams } from "next/navigation";
@@ -2019,7 +2020,7 @@ function QuizControllerInner() {
               the logo it's actually describing, matching how the display
               screen's own corner mark pairs the logo with its wordmark/
               attribution directly beneath it. */}
-          <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 4, paddingLeft: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 4, width: "100%" }}>
             <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 0.3 }}>
               <span style={{ fontFamily: "'Bruno Ace SC',sans-serif" }}>Quiz-It</span>
               <span style={{ fontFamily: "'Inter',sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>
@@ -2037,7 +2038,17 @@ function QuizControllerInner() {
           <Button variant="quiet" onClick={() => setRulesOpen(true)}>Rules</Button>
           {FEATURE_FLAGS.diagnostics && <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>}
           {FEATURE_FLAGS.diagnostics && connected && <button className="qi-button qi-button--secondary" onClick={() => setDiagnosticsOpen(true)} title="Advisory TV browser acknowledgement; does not verify physical TV or audio output" aria-live="polite">{displayHealth.health.level === "healthy" ? "TV: up to date" : displayHealth.health.summary}</button>}
-        {rulesOpen && (
+        {rulesOpen && typeof document !== "undefined" && createPortal(
+          // Rendered as a portal to document.body rather than inline here.
+          // The header this button lives in has backdrop-filter:blur() for
+          // its glass effect - that CSS property (like filter/perspective)
+          // creates a new containing block for any position:fixed descendant,
+          // so this modal's "cover the whole viewport" inset:0 was instead
+          // only covering the header's own small box. That's what made the
+          // rules panel appear squashed into the top-left corner, and why
+          // clicking anywhere on the actual screen (all of it outside that
+          // tiny box) never reached the backdrop's onClick to close it.
+          // Portaling to document.body sidesteps the ancestor entirely.
           <div onClick={() => setRulesOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
             <div onClick={e => e.stopPropagation()} style={{ background:"#1a0535", border:"2px solid #BE26C1", borderRadius:16, padding:28, maxWidth:560, maxHeight:"80vh", overflowY:"auto" as const, color:"#fff" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
@@ -2092,7 +2103,8 @@ function QuizControllerInner() {
                 </div>
               )}
             </div>
-          </div>
+          </div>,
+          document.body
         )}
           {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setHardDeckActive(active); if (!active) setHardDeckAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={hardDeckAutoStartId} />}
           {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pursuitAutoStartId} />}

@@ -11,7 +11,14 @@ const CARDS = [
 export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber, compact = false, enabled = true }: { teamName: string; sessionPin?: string; playerToken?: string; roundNumber?: number; compact?: boolean; enabled?: boolean }) {
   const [used, setUsed] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
-  const visibleCards = CARDS.filter(card => !used.includes(card.type) && (card.type !== "reverse" || roundNumber === 1 || roundNumber === 2));
+  // A card disappears from the rail entirely - on every screen size, since
+  // this one component renders on phone/iPad/tablet alike - the moment it's
+  // used, or the moment it genuinely can't be played right now (Reverse
+  // outside Rounds 1-2, or Power Cards paused for the round via `enabled`).
+  // Previously `enabled` was NOT part of this filter, so a paused round
+  // still showed every card, just greyed out and disabled - a visible but
+  // untappable card reads as "broken", not "unavailable".
+  const visibleCards = CARDS.filter(card => enabled && !used.includes(card.type) && (card.type !== "reverse" || roundNumber === 1 || roundNumber === 2));
 
   useEffect(() => {
     if (!sessionPin) return;
@@ -223,25 +230,26 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
         Your Power Cards
       </div>
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+        {/* Every card still in visibleCards is, by construction, unused,
+            round-eligible, and not paused - so there's no "locked" state
+            left to render here; a card that can't be played is simply not
+            in this list at all. */}
         {visibleCards.map(card => {
-          const isUsed = used.includes(card.type);
-          const isReverseOutOfRound = card.type === "reverse" && (!roundNumber || roundNumber > 2);
-          const isLocked = isUsed || !enabled || isReverseOutOfRound;
           const isPlaying = playing === card.type;
           return (
             <button
               key={card.type}
               onClick={() => playCard(card.type)}
-              disabled={isLocked || !!playing}
+              disabled={!!playing}
               style={{
                 width: "100%", padding: "14px 16px", borderRadius: 12,
-                border: "2px solid " + (isLocked ? "rgba(255,255,255,0.1)" : card.color),
-                background: isLocked ? "rgba(255,255,255,0.05)" : card.bg,
-                color: isLocked ? "rgba(255,255,255,0.3)" : "#fff",
-                cursor: isLocked ? "not-allowed" : "pointer",
+                border: "2px solid " + card.color,
+                background: card.bg,
+                color: "#fff",
+                cursor: playing ? "not-allowed" : "pointer",
                 display: "flex", flexDirection: "row" as const, alignItems: "center", gap: 14,
-                opacity: isLocked ? 0.5 : 1, transition: "all 0.2s",
-                boxShadow: isLocked ? "none" : "0 4px 16px " + card.color + "44",
+                opacity: 1, transition: "all 0.2s",
+                boxShadow: "0 4px 16px " + card.color + "44",
                 transform: isPlaying ? "scale(0.97)" : "scale(1)",
                 textAlign: "left" as const,
               }}
@@ -255,6 +263,11 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
             </button>
           );
         })}
+        {visibleCards.length === 0 && (
+          <div style={{ fontSize: 12, color: "#8F7AAF", textAlign: "center" as const, padding: "6px 0" }}>
+            {enabled ? "No power cards left to play." : "Power Cards are not available this round."}
+          </div>
+        )}
       </div>
     </div>
   );

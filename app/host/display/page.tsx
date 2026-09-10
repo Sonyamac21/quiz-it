@@ -80,18 +80,29 @@ function InstagramGlyph() {
 function FitText({ children, className }: { children: ReactNode; className?: string }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const baseFontSizeRef = useRef<number | null>(null);
+  const [fontSize, setFontSize] = useState<number | null>(null);
 
   useLayoutEffect(() => {
     const wrap = wrapRef.current, inner = innerRef.current;
     if (!wrap || !inner) return;
+    // The className this renders with (.lb-reel-brand-headline) carries a
+    // slide-in animation that itself animates `transform` - an earlier
+    // version of this component ALSO scaled via `transform`, and the two
+    // fought over the same CSS property. During the animation the
+    // keyframe's `transform: none` won, silently cancelling the shrink and
+    // showing the text at full, overflowing size. Scaling via font-size
+    // instead avoids this entirely - nothing else here touches font-size.
+    if (baseFontSizeRef.current == null) {
+      baseFontSizeRef.current = parseFloat(getComputedStyle(inner).fontSize) || 16;
+    }
+    const base = baseFontSizeRef.current;
     const fit = () => {
       const available = wrap.offsetWidth;
-      // Measure at natural (unscaled) size by momentarily clearing any
-      // prior transform, otherwise a previous shrink would be measured too.
-      inner.style.transform = "none";
+      inner.style.fontSize = base + "px";
       const natural = inner.scrollWidth;
-      setScale(natural > available && available > 0 ? available / natural : 1);
+      const factor = natural > available && available > 0 ? available / natural : 1;
+      setFontSize(base * factor);
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -101,7 +112,7 @@ function FitText({ children, className }: { children: ReactNode; className?: str
 
   return (
     <div ref={wrapRef} style={{ width: "100%", overflow: "hidden", display: "flex", justifyContent: "center" }}>
-      <div ref={innerRef} className={className} style={{ display: "inline-flex", alignItems: "center", gap: ".3em", whiteSpace: "nowrap", transform: `scale(${scale})`, transformOrigin: "center" }}>
+      <div ref={innerRef} className={className} style={{ display: "inline-flex", alignItems: "center", gap: ".3em", whiteSpace: "nowrap", ...(fontSize != null ? { fontSize } : {}) }}>
         {children}
       </div>
     </div>

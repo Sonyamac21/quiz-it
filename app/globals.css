@@ -761,6 +761,16 @@ button, input, select, textarea { font: inherit; }
    this rule just widens the panel it renders in and gives it a sane
    starting size for FitText to scale down from if needed. */
 .fbl .lb-reel-brand-social .lb-reel-brand-panel{width:min(94%,1200px);padding-left:clamp(14px,2vw,28px);padding-right:clamp(14px,2vw,28px);}
+/* The panel above is widened to 94%/1200px so FitText has room to work
+   with, but the purple "card" everyone actually sees is a SEPARATE
+   decorative box (.lb-reel-brand::before, inset 10% 7% 7%) drawn behind
+   it. That box was never widened to match, so a headline correctly fit
+   to the (wider) panel still visibly ran past the edges of the (narrower)
+   card graphic - this was the real bug behind every previous "still
+   overflowing" report; the text itself was never actually overflowing
+   its real container. Widen the card graphic itself for this scene so
+   it matches the panel it's sitting behind. */
+.fbl .lb-reel-brand-social::before{inset:10% 3% 7%;}
 .fbl .lb-reel-brand-social .lb-reel-brand-headline{font-size:clamp(28px,3.6vw,54px);}
 .fbl .lb-reel-brand-social .lb-reel-brand-headline svg{width:1em;height:1em;flex-shrink:0;}
 .fbl .lb-reel-host-panel{width:min(92%,900px);height:min(76%,580px);display:grid;grid-template-columns:minmax(0,1.15fr) minmax(220px,.85fr);gap:clamp(24px,3vw,54px);padding:clamp(18px,2.4vw,38px);}

@@ -2490,9 +2490,15 @@ function QuizControllerInner() {
           </section>
 
           <section className="qi-mc-teams" aria-label="Team standings list" style={showTwoColumns ? { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0 12px", minWidth: 0 } : { display: "block", minWidth: 0 }}>
-            <div className="qi-mc-teams__header">
+            <div className="qi-mc-teams__header" style={{ flexWrap: "wrap", rowGap: 8 }}>
               <div><span>Live answers</span><strong>Teams & scores</strong></div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {/* This row (2-COL toggle, SHOW ROUND LEADERS toggle, X/Y
+                  answered pill) had no wrap and no width limit, so at
+                  narrower rail widths it forced the sticky header - and with
+                  it the whole rail - wider than the viewport instead of
+                  clipping or wrapping, pushing "Teams & scores" and the
+                  answered count off the right edge of the screen entirely. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", minWidth: 0, maxWidth: "100%" }}>
                 <button
                   onClick={() => setShowTwoColumns(v => !v)}
                   title="Switch the team list between one and two columns, widening the panel to fit more teams on screen"

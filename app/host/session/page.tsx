@@ -377,7 +377,7 @@ export default function SessionPage() {
       <div style={{ minHeight: "100vh", background: STAGE_BG, color: "#fff", padding: "24px 32px" }}>
         {/* TOP BAR — wordmark · breadcrumb · fixed nav */}
         <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 24 }}>
-          <img src="/me-logo.jpg" alt="ME" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} />
+          <img src="/me-logo.jpg" alt="ME" style={{ width: 48, height: 48, borderRadius: "50%", objectFit: "cover" }} />
           <span className="fbh-wm"><span className="q">QUIZ-</span>IT</span>
           <span className="fbh-bc">Live Preparation</span>
           <TopSpacer />

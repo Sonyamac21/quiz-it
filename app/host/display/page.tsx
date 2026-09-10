@@ -2158,7 +2158,7 @@ function DisplayScreenInner() {
 function DisplayCornerMark() {
   return (
     <div className="qi-display-corner-mark">
-      <Image src="/me-logo.jpg" alt="Mac Entertainment" width={40} height={40} className="qi-display-corner-mark__logo" />
+      <Image src="/me-logo.jpg" alt="Mac Entertainment" width={58} height={58} className="qi-display-corner-mark__logo" />
       <BrandLockup compact align="left" />
     </div>
   );

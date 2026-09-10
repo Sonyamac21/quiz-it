@@ -2010,19 +2010,18 @@ function QuizControllerInner() {
       <header className="qi-mc-header">
         <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div className="qi-mc-brand">
-            <Image src="/me-logo.jpg" alt="Mac Entertainment" width={44} height={44} className="qi-mc-brand__mark" />
+            <Image src="/me-logo.jpg" alt="Mac Entertainment" width={58} height={58} className="qi-mc-brand__mark" />
             <BrandLockup compact align="left" />
             <span className="qi-mc-brand__section">Mission Control</span>
           </div>
-          {/* Was a separate fixed pill pinned to the bottom-right corner of
-              the whole screen, floating unattached from any layout and
-              overlapping live host controls down there. Moved to sit under
-              the logo it's actually describing, matching how the display
-              screen's own corner mark pairs the logo with its wordmark/
-              attribution directly beneath it. */}
-          <div style={{ marginTop: 4, width: "100%", textAlign: "center" as const, fontFamily: "'Inter',sans-serif", fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 0.3, lineHeight: 1.4 }}>
-            <div>Powered by Mac Entertainment</div>
-            <div>by Sonya Mac</div>
+          {/* BrandLockup above already renders "Powered by Mac
+              Entertainment" (standardised to match the display screen's
+              corner mark - same clamp scale, same component). This is just
+              the one bit BrandLockup doesn't carry: Sonya's personal
+              attribution, kept as its own small line rather than duplicating
+              "Powered by Mac Entertainment" a second time underneath. */}
+          <div style={{ marginTop: 2, width: "100%", textAlign: "center" as const, fontFamily: "'Inter',sans-serif", fontSize: 10, color: "rgba(255,255,255,0.35)", letterSpacing: 0.3 }}>
+            by Sonya Mac
           </div>
         </div>
         <div className="qi-mc-session" aria-label="Live session information">

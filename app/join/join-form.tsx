@@ -271,16 +271,22 @@ export function JoinForm() {
           {/* Persistent branding overlay - sits on top of every phase screen
               PlayerQuizScreen renders internally, instead of needing to be
               threaded through each of its many separate return branches. */}
+          {/* Standardised against the same brand-lockup scale used on the
+              host console header and display screen corner mark - this was
+              its own much smaller (16px logo, 9px text), cramped one-line
+              badge, so the same brand read as a different, harder-to-read
+              product on a player's phone than everywhere else. */}
           <div style={{
             position: "fixed", bottom: 10, right: 12, zIndex: 9999,
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "5px 10px", borderRadius: 999,
-            background: "rgba(13,2,37,0.6)", border: "1px solid rgba(190,38,193,0.3)",
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "7px 12px", borderRadius: 999,
+            background: "rgba(13,2,37,0.7)", border: "1px solid rgba(190,38,193,0.3)",
             pointerEvents: "none" as const,
           }}>
-            <img src="/me-logo.jpg" alt="ME" style={{ width: 16, height: 16, borderRadius: "50%" }} />
-            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: 0.3 }}>
-              <span style={{ fontFamily: "'Bruno Ace SC',sans-serif" }}>Quiz-It</span><span style={{ fontFamily: "'Inter',sans-serif" }}> · Powered by Mac Entertainment · by Sonya Mac</span>
+            <img src="/me-logo.jpg" alt="ME" style={{ width: 26, height: 26, borderRadius: "50%" }} />
+            <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
+              <span style={{ fontFamily: "'Bruno Ace SC',sans-serif", fontSize: 13, color: "#fff", letterSpacing: 0.3 }}>Quiz-It</span>
+              <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: 0.3 }}>Powered by Mac Entertainment · by Sonya Mac</span>
             </span>
           </div>
         </div>

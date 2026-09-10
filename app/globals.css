@@ -266,8 +266,15 @@ button, input, select, textarea { font: inherit; }
 .qi-brand__name span { color: var(--qi-accent-bright); }
 .qi-brand__producer { margin-top: var(--qi-space-2); color: var(--qi-text-secondary); font-size: clamp(0.68rem, 0.62rem + 0.2vw, 0.8rem); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
 .qi-brand__context { margin-top: var(--qi-space-1); color: var(--qi-text-muted); font-size: var(--qi-type-sm); }
-.qi-brand--compact .qi-brand__name { font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.65rem); }
-.qi-brand--compact .qi-brand__producer { margin-top: 0.2rem; font-size: 0.625rem; }
+/* Standardised against the display screen's corner mark (.qi-display-
+   corner-mark below) - both were drifting into their own bespoke sizes
+   over time (one tiny host-header caption, one different display-screen
+   caption), so the same brand mark looked like two different products
+   depending which screen you were on. These clamp ranges and
+   .qi-mc-brand__mark's size are now the one shared "compact brand lockup"
+   scale used everywhere it appears at header size. */
+.qi-brand--compact .qi-brand__name { font-size: clamp(1.4rem, 1.2rem + 0.7vw, 2rem); }
+.qi-brand--compact .qi-brand__producer { margin-top: 0.25rem; font-size: clamp(0.72rem, 0.65rem + 0.2vw, 0.9rem); }
 
 .qi-site-header { position: sticky; top: 0; z-index: var(--qi-z-sticky); border-bottom: 1px solid var(--qi-border); background: rgb(10 1 24 / 0.92); backdrop-filter: blur(14px); }
 .qi-site-header__inner { width: min(100% - 2rem, 80rem); min-height: 76px; margin-inline: auto; display: flex; align-items: center; justify-content: center; position: relative; }
@@ -336,7 +343,7 @@ button, input, select, textarea { font: inherit; }
   backdrop-filter: blur(16px);
 }
 .qi-mc-brand { display: flex; align-items: center; gap: var(--qi-space-3); min-width: 0; }
-.qi-mc-brand__mark { width: 44px; height: 44px; flex: none; border: 1px solid var(--qi-border-strong); border-radius: 50%; object-fit: cover; }
+.qi-mc-brand__mark { width: 58px; height: 58px; flex: none; border: 1px solid var(--qi-border-strong); border-radius: 50%; object-fit: cover; }
 .qi-mc-brand__section { min-height: 34px; display: flex; align-items: center; margin-left: var(--qi-space-2); padding-left: var(--qi-space-4); border-left: 1px solid var(--qi-border); color: var(--qi-text-secondary); font-size: var(--qi-type-sm); font-weight: 750; white-space: nowrap; }
 .qi-mc-session { display: flex; align-items: center; justify-content: center; gap: var(--qi-space-3); min-width: 0; }
 .qi-mc-session > div { min-width: 82px; display: grid; gap: 0.05rem; padding: var(--qi-space-2) var(--qi-space-3); border: 1px solid var(--qi-border); border-radius: var(--qi-radius-md); background: var(--qi-bg-surface); }
@@ -1168,7 +1175,7 @@ button, input, select, textarea { font: inherit; }
   --pu:#BE26C1;--pub:#D94FDC;--pud:#8A1B8D;--gr:#2EE06E;--rd:#FF3B4E;--go:#E8C36A;--bo:#FFC533;--to:#38A8FF;
   color:var(--tx);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;
 }
-.fbh-wm{font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:30px;letter-spacing:.02em;}
+.fbh-wm{font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:36px;letter-spacing:.02em;}
 .fbh-wm .q,.fbh .q{color:var(--pu);}
 .fbh-bc{font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:14px;letter-spacing:.1em;color:var(--tx2);}
 /* console frame */
@@ -1313,8 +1320,12 @@ button, input, select, textarea { font: inherit; }
    the site, independent of the bottom-right QuizItBadge. */
 .qi-display-corner-mark { position: fixed; top: clamp(14px,1.8vh,26px); left: clamp(14px,1.8vw,32px); z-index: 50; display: flex; align-items: center; gap: 12px; pointer-events: none; }
 .qi-display-corner-mark__logo { border-radius: 10px; flex-shrink: 0; }
-.qi-display-corner-mark .qi-brand__name { font-size: clamp(16px,1.6vw,22px); }
-.qi-display-corner-mark .qi-brand__producer { font-size: clamp(9px,0.85vw,12px); }
+/* Standardised to the same brand-lockup scale as the host console header
+   (.qi-mc-brand__mark / .qi-brand--compact) - these were their own smaller,
+   independently-tuned sizes, so the exact same logo+wordmark looked like a
+   different, more modest brand mark here than it did on the host side. */
+.qi-display-corner-mark .qi-brand__name { font-size: clamp(1.4rem, 1.2rem + 0.7vw, 2rem); }
+.qi-display-corner-mark .qi-brand__producer { font-size: clamp(0.72rem, 0.65rem + 0.2vw, 0.9rem); }
 /* The shared .fbl .badge rule (clamp(9px,0.8vw,12px)) is sized for close-up
    viewing elsewhere (host console, join screen) and was unreadable on this
    route's TV/projector screen, viewed from across a room. Scoped override -

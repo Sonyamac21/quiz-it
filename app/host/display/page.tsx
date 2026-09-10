@@ -33,23 +33,33 @@ type Question = {
 type Score = { team_name: string; total_points: number; };
 type Phase = "waiting" | "round_start" | "question" | "hot_seat" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission" | "spin_to_win" | "pursuit";
 
-// Set this once a real cutout photo is available (upload it via the Media
-// tab pattern, or drop a hosted URL here directly) - every screen's badge
-// picks it up automatically, no further changes needed anywhere else.
-const HOST_AVATAR_URL: string | null = "/sonya-avatar.png";
-
 // Corner branding badge shown on every display screen. Centralised so the
-// design (and the eventual real photo) only has to be changed in one place
-// instead of the 7 identical copies that used to be scattered through this
-// file.
+// design only has to be changed in one place instead of the 7 identical
+// copies that used to be scattered through this file.
+//
+// Previously included a small circular headshot (badge-avatar) - at the
+// size this badge renders on a real venue TV it read as an illegible,
+// pointless blob rather than a recognisable photo, so it's been dropped in
+// favour of just the (now larger/clearer) wordmark text.
 function QuizItBadge() {
   return (
     <div className="badge">
-      <span className="badge-avatar" aria-hidden="true">
-        {HOST_AVATAR_URL ? <img src={HOST_AVATAR_URL} alt="" /> : "SM"}
-      </span>
-      <span className="badge-text">QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</span>
+      <span className="badge-text">QUIZ-IT · Powered by Mac Entertainment</span>
     </div>
+  );
+}
+
+// Simple inline Instagram glyph so the venue's handle reads instantly as
+// "this is our Instagram" rather than just a plain @-string - no icon font
+// or external asset needed, sized via em so it always matches the
+// headline text it sits next to.
+function InstagramGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="2.5" y="2.5" width="19" height="19" rx="5.5" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="12" r="4.6" stroke="currentColor" strokeWidth="2" />
+      <circle cx="17.4" cy="6.6" r="1.3" fill="currentColor" />
+    </svg>
   );
 }
 
@@ -1439,10 +1449,24 @@ function DisplayScreenInner() {
                         was inverted. */}
                     <div className="lb-venue-intro-tagline">Quiz-It · Powered by Mac Entertainment · by Sonya Mac</div>
                   </div>
-                  {(venueHostPhotoUrl || venueHostName) && <div className="lb-venue-intro-host">
-                    {venueHostPhotoUrl && <img src={getMediaUrl(venueHostPhotoUrl) || undefined} alt={venueHostName || "Quiz host"} />}
-                    <div><small>YOUR HOST</small><strong>{venueHostName || "Quiz-It Host"}</strong></div>
-                  </div>}
+                  {/* venueHostName comes straight from the venue's admin
+                      profile field (default_host_name) - nothing stops
+                      someone typing their own login email in there, and it
+                      would then get read out loud on a public venue TV
+                      screen. No individual host's personal contact detail
+                      should ever be displayed; everything is attributed to
+                      Mac Entertainment instead. Anything containing "@" is
+                      treated as unset rather than rendered. */}
+                  {(() => {
+                    const safeHostName = venueHostName && !venueHostName.includes("@") ? venueHostName : null;
+                    if (!venueHostPhotoUrl && !safeHostName) return null;
+                    return (
+                      <div className="lb-venue-intro-host">
+                        {venueHostPhotoUrl && <img src={getMediaUrl(venueHostPhotoUrl) || undefined} alt={safeHostName || "Quiz host"} />}
+                        <div><small>YOUR HOST</small><strong>{safeHostName || "Mac Entertainment"}</strong></div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
@@ -1471,7 +1495,7 @@ function DisplayScreenInner() {
                 <div className="lb-reel-brand-panel">
                   {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
                   <div className="lb-cardkicker">FOLLOW THE VENUE</div>
-                  <div className="lb-reel-brand-headline">{venueInstagramTag}</div>
+                  <div className="lb-reel-brand-headline"><InstagramGlyph />{venueInstagramTag}</div>
                 </div>
               </div>
             )}
@@ -1480,7 +1504,7 @@ function DisplayScreenInner() {
               <div className="lb-reel-scene lb-reel-brand lb-reel-brand-social">
                 <div className="lb-reel-brand-panel">
                   <div className="lb-cardkicker">SHARE THE NIGHT</div>
-                  <div className="lb-reel-brand-headline">@macentertainmentuae</div>
+                  <div className="lb-reel-brand-headline"><InstagramGlyph />@macentertainmentuae</div>
                   <div className="lb-reel-brand-body">Tag us in your posts and stories!</div>
                 </div>
               </div>
@@ -1533,7 +1557,6 @@ function DisplayScreenInner() {
           </div>
           <div className="lb-foot">
             <div className="lb-start">SHOW STARTS SOON</div>
-            <div className="lb-tease">TONIGHT: SPIN TO WIN · THE HARD DECK · THE PURSUIT</div>
           </div>
         </div>
         <QuizItBadge />

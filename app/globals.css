@@ -748,6 +748,15 @@ button, input, select, textarea { font: inherit; }
 .fbl .lb-reel-brand-logo{width:clamp(120px,18%,220px);height:clamp(90px,20vh,180px);max-width:42%;object-fit:contain;border-radius:14px;margin:0;filter:drop-shadow(0 14px 28px rgba(0,0,0,.35));}
 .fbl .lb-reel-brand-headline{max-width:100%;font-size:clamp(28px,3.2vw,54px);line-height:1.16;overflow-wrap:anywhere;text-wrap:balance;}
 .fbl .lb-reel-brand-body{max-width:680px;font-size:clamp(18px,1.7vw,29px);line-height:1.42;text-wrap:balance;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:6;overflow:hidden;}
+/* The Instagram-handle scenes (@handle, single unbroken word/no spaces)
+   used to hit the shared 760px panel cap and .lb-reel-brand-headline's
+   overflow-wrap:anywhere, which hard-broke the handle mid-word (e.g.
+   "...UA" / "E") instead of just giving it more room - on a real venue TV
+   there's plenty of width to spare. Widen the panel and keep the handle on
+   one line instead. */
+.fbl .lb-reel-brand-social .lb-reel-brand-panel{width:min(94%,1200px);}
+.fbl .lb-reel-brand-social .lb-reel-brand-headline{white-space:nowrap;overflow-wrap:normal;font-size:clamp(22px,4.6vw,58px);display:flex;align-items:center;justify-content:center;gap:.35em;}
+.fbl .lb-reel-brand-social .lb-reel-brand-headline svg{width:1em;height:1em;flex-shrink:0;}
 .fbl .lb-reel-host-panel{width:min(92%,900px);height:min(76%,580px);display:grid;grid-template-columns:minmax(0,1.15fr) minmax(220px,.85fr);gap:clamp(24px,3vw,54px);padding:clamp(18px,2.4vw,38px);}
 .fbl .lb-reel-host-frame{width:100%;height:100%;min-height:0;display:grid;place-items:center;overflow:hidden;border-radius:clamp(16px,2vw,26px);background:rgba(10,1,24,.65);border:1px solid rgba(217,79,220,.35);box-shadow:0 18px 55px rgba(0,0,0,.38);}
 .fbl .lb-reel-host-photo{display:block;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;border-radius:0;box-shadow:none;}
@@ -2041,11 +2050,16 @@ button, input, select, textarea { font: inherit; }
    use the available frame proportionally and enter as one composed title card. */
 .fbl .lb-venue-intro-copy { min-width:0; max-width:min(68%,760px); display:flex; flex-direction:column; align-items:center; gap:clamp(6px,1.1vh,13px); }
 .fbl .lb-venue-intro-time { color:#fff; font:900 clamp(15px,1.55vw,25px)/1.15 'Inter'; letter-spacing:.13em; text-transform:uppercase; text-shadow:0 5px 24px rgba(0,0,0,.75); animation:qiVenueTimeIn .8s var(--settle) .48s both; }
-.fbl .lb-venue-intro-host { position:absolute; right:3%; bottom:9%; width:clamp(155px,20%,260px); display:grid; grid-template-columns:clamp(56px,6.5vw,94px) minmax(0,1fr); align-items:center; gap:clamp(9px,1.2vw,16px); padding:clamp(8px,1vw,14px); border:1px solid rgba(217,79,220,.52); border-radius:clamp(15px,1.5vw,22px); background:rgba(10,1,24,.82); box-shadow:0 18px 55px rgba(0,0,0,.48),0 0 35px rgba(190,38,193,.22); backdrop-filter:blur(10px); animation:qiVenueHostIn .9s var(--settle) .7s both; }
-.fbl .lb-venue-intro-host img { width:clamp(56px,6.5vw,94px); aspect-ratio:1; object-fit:contain; border-radius:12px; background:#090116; }
-.fbl .lb-venue-intro-host div { min-width:0; text-align:left; }
-.fbl .lb-venue-intro-host small { display:block; color:var(--purple-b); font:800 clamp(8px,.8vw,12px) 'Inter'; letter-spacing:.18em; }
-.fbl .lb-venue-intro-host strong { display:block; margin-top:4px; color:#fff; font:850 clamp(13px,1.2vw,20px)/1.15 'Inter'; overflow-wrap:anywhere; }
+/* Was a small horizontal grid-badge (photo column capped at 56-94px, tiny
+   headshot next to a name) - the actual uploaded host photo is a full
+   body/portrait shot, so squashing it into that tiny square lost almost
+   all of the image. Rebuilt as a vertical card instead, with the photo
+   shown at real size above the name. */
+.fbl .lb-venue-intro-host { position:absolute; right:3%; bottom:6%; width:clamp(220px,25vw,340px); display:flex; flex-direction:column; align-items:center; gap:clamp(10px,1.3vh,16px); padding:clamp(14px,1.6vw,22px); border:1px solid rgba(217,79,220,.52); border-radius:clamp(15px,1.5vw,22px); background:rgba(10,1,24,.82); box-shadow:0 18px 55px rgba(0,0,0,.48),0 0 35px rgba(190,38,193,.22); backdrop-filter:blur(10px); animation:qiVenueHostIn .9s var(--settle) .7s both; }
+.fbl .lb-venue-intro-host img { width:100%; height:clamp(160px,26vh,300px); object-fit:contain; border-radius:12px; background:#090116; }
+.fbl .lb-venue-intro-host div { min-width:0; text-align:center; }
+.fbl .lb-venue-intro-host small { display:block; color:var(--purple-b); font:800 clamp(9px,.9vw,13px) 'Inter'; letter-spacing:.18em; }
+.fbl .lb-venue-intro-host strong { display:block; margin-top:4px; color:#fff; font:850 clamp(15px,1.4vw,22px)/1.15 'Inter'; overflow-wrap:anywhere; }
 .fbl .lb-venue-intro.has-media .lb-venue-intro-copy { max-width:62%; }
 .fbl .lb-venue-intro.has-media .lb-venue-intro-name { max-width:100%; }
 .fbl .lb-venue-intro.has-media .lb-venue-intro-logo { left:3%; bottom:11%; width:clamp(125px,16vw,220px); height:clamp(92px,12vw,165px); max-width:31%; }

@@ -2159,7 +2159,13 @@ function DisplayCornerMark() {
   return (
     <div className="qi-display-corner-mark">
       <Image src="/me-logo.jpg" alt="Mac Entertainment" width={58} height={58} className="qi-display-corner-mark__logo" />
-      <BrandLockup compact align="left" />
+      <div>
+        <BrandLockup compact align="left" />
+        {/* Matches the host console header's brand lockup, which also
+            carries this as its own small line under "Powered by Mac
+            Entertainment" rather than folded into it. */}
+        <div className="qi-display-corner-mark__by">by Sonya Mac</div>
+      </div>
     </div>
   );
 }

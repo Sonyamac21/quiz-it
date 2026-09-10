@@ -449,8 +449,7 @@ button, input, select, textarea { font: inherit; }
   }
   .qi-mc-brand { gap: var(--qi-space-2); }
   .qi-mc-brand__mark { width: 38px; height: 38px; }
-  .qi-mc-brand__section,
-  .qi-mc-brand .qi-brand__producer { display: none; }
+  .qi-mc-brand__section { display: none; }
   .qi-mc-session { gap: var(--qi-space-2); }
   .qi-mc-session > div { min-width: 76px; padding: 0.35rem var(--qi-space-2); }
   .qi-mc-nav .qi-button { min-height: 40px; padding-inline: var(--qi-space-3); }
@@ -1326,6 +1325,7 @@ button, input, select, textarea { font: inherit; }
    different, more modest brand mark here than it did on the host side. */
 .qi-display-corner-mark .qi-brand__name { font-size: clamp(1.4rem, 1.2rem + 0.7vw, 2rem); }
 .qi-display-corner-mark .qi-brand__producer { font-size: clamp(0.72rem, 0.65rem + 0.2vw, 0.9rem); }
+.qi-display-corner-mark__by { margin-top: 0.15rem; color: rgba(255,255,255,0.4); font: 700 clamp(0.62rem, 0.56rem + 0.15vw, 0.75rem) 'Inter',sans-serif; letter-spacing: 0.02em; }
 /* The shared .fbl .badge rule (clamp(9px,0.8vw,12px)) is sized for close-up
    viewing elsewhere (host console, join screen) and was unreadable on this
    route's TV/projector screen, viewed from across a room. Scoped override -

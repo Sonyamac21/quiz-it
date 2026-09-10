@@ -1432,7 +1432,12 @@ function DisplayScreenInner() {
                   <div className="lb-venue-intro-copy">
                     <div className="lb-venue-intro-name">{venueName || "TONIGHT'S QUIZ"}</div>
                     {venueScheduleText && <div className="lb-venue-intro-time">QUIZ NIGHT · {venueScheduleText}</div>}
-                    <div className="lb-venue-intro-tagline">Powered by Quiz-It</div>
+                    {/* Matches the brand tagline used everywhere else in the
+                        app ("Quiz-It · Powered by Mac Entertainment · by
+                        Sonya Mac") - this card had drifted to a bare
+                        "Powered by Quiz-It", the one place the brand line
+                        was inverted. */}
+                    <div className="lb-venue-intro-tagline">Quiz-It · Powered by Mac Entertainment · by Sonya Mac</div>
                   </div>
                   {(venueHostPhotoUrl || venueHostName) && <div className="lb-venue-intro-host">
                     {venueHostPhotoUrl && <img src={getMediaUrl(venueHostPhotoUrl) || undefined} alt={venueHostName || "Quiz host"} />}

@@ -1,4 +1,5 @@
 "use client";
+import { leaderboardVisibilityUpdate } from "@/lib/quiz/leaderboardVisibility";
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import Image from "next/image";
 import { SlotReels, SLOT_SEGS } from "@/components/SlotReels";
@@ -571,6 +572,8 @@ function QuizControllerInner() {
     const { data } = await supabase.from("sessions").select("*").eq("pin", p.trim()).single();
     if (!data) return;
     setSessionPin(p.trim());
+    setShowScoreboard(!!data.show_scoreboard_on_display);
+    setShowScoreboardOnHandsets(!!data.show_scoreboard);
     setSessionId(data.id); sessionIdRef.current = data.id;
     setConnectedAt(data.created_at ? new Date(data.created_at as string).getTime() : diagnosticTimestamp());
     setSessionEventName((data.event_name as string) || null);
@@ -593,6 +596,8 @@ function QuizControllerInner() {
     const { data } = await supabase.from("sessions").select("*").eq("pin", pinInput.trim()).single();
     if (!data) { showToast("Session not found!", "error"); return; }
     setSessionPin(pinInput.trim());
+    setShowScoreboard(!!data.show_scoreboard_on_display);
+    setShowScoreboardOnHandsets(!!data.show_scoreboard);
     setSessionId(data.id); sessionIdRef.current = data.id;
     setConnectedAt(data.created_at ? new Date(data.created_at as string).getTime() : diagnosticTimestamp());
     setSessionEventName((data.event_name as string) || null);
@@ -899,21 +904,30 @@ function QuizControllerInner() {
     loadScores(sessionPin);
   }
 
+  async function setAudienceLeaderboard(target: 'display' | 'handsets', visible: boolean) {
+    if (!sessionId || (visible && selectedRound?.hide_leaderboard)) return;
+    const supabase = createSupabaseBrowserClient();
+    const { data, error } = await supabase.from("sessions")
+      .update(leaderboardVisibilityUpdate(target, visible)).eq("id", sessionId).select("id");
+    if (error || !data?.length) {
+      showToast("Could not change leaderboard visibility: " + (error?.message || "No session update confirmed"), "error");
+      return;
+    }
+    if (target === 'display') setShowScoreboard(visible);
+    else setShowScoreboardOnHandsets(visible);
+  }
+
   async function pushScoreboardToScreen() {
     if (!sessionId) return;
     if (selectedRound?.hide_leaderboard) return;
     // scoreboard_data is kept fresh by the score service after every score
     // mutation - no need to recompute or embed it here, just toggle visibility.
-    const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "scoreboard", show_scoreboard: true }).eq("id", sessionId);
-    setShowScoreboard(true);
+    await setAudienceLeaderboard('display', true);
   }
 
   async function hideScoreboard() {
     if (!sessionId) return;
-    const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "waiting", show_scoreboard: false }).eq("id", sessionId);
-    setShowScoreboard(false);
+    await setAudienceLeaderboard('display', false);
   }
 
   async function pushScoreboardToHandsets() {
@@ -921,16 +935,12 @@ function QuizControllerInner() {
     if (selectedRound?.hide_leaderboard) return;
     // scoreboard_data is kept fresh by the score service after every score
     // mutation - no need to recompute or embed it here, just toggle visibility.
-    const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ show_scoreboard: true }).eq("id", sessionId);
-    setShowScoreboardOnHandsets(true);
+    await setAudienceLeaderboard('handsets', true);
   }
 
   async function hideScoreboardFromHandsets() {
     if (!sessionId) return;
-    const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ show_scoreboard: false }).eq("id", sessionId);
-    setShowScoreboardOnHandsets(false);
+    await setAudienceLeaderboard('handsets', false);
   }
 
   async function doEndOfQuiz() {
@@ -1150,6 +1160,8 @@ function QuizControllerInner() {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions" }, (payload) => {
         const s = payload.new as Record<string, unknown>;
         if (s.pin !== pin) return;
+        setShowScoreboard(!!s.show_scoreboard_on_display);
+        setShowScoreboardOnHandsets(!!s.show_scoreboard);
         setRealtimeLastSync(diagnosticTimestamp());
         const hotSeat = readHotSeatState(s);
         setHotSeatStatus(hotSeat.status);

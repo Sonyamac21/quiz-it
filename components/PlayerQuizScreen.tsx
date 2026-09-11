@@ -335,8 +335,13 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // one, showing "No answer submitted" for an answer that was in fact
   // correct and fastest. Backfill from the authoritative answers row the
   // moment the reveal/celebration screens need it, if local state is empty.
+  // Also runs during "question" itself - a reload mid-question (before
+  // reveal) hit the exact same empty-local-state gap: the numeric/text
+  // input showed blank even though the answers row already had a real
+  // submission, since this effect previously only ran once the phase had
+  // already moved on to answer/celebration.
   useEffect(() => {
-    if (phase !== "celebration" && phase !== "answer") return;
+    if (phase !== "celebration" && phase !== "answer" && phase !== "question") return;
     if (mySubmittedDisplay || submitted) return;
     if (!sessionPin || !teamName || !question) return;
     let cancelled = false;

@@ -1103,7 +1103,11 @@ function QuizControllerInner() {
       // and every other host function. .eq("pin") in a closure was silently
       // updating 0 rows, so only the host (using local state) saw the spin.
       const sid = sessionIdRef.current || sessionId;
-      if (!sid) { console.error("triggerSpinIfChosen: no session ID available"); return; }
+      if (!sid) {
+        console.error("triggerSpinIfChosen: no session ID available");
+        setSpinFeedback({ ok: false, message: "Spin could not start: the session is not connected. Reconnect the host before continuing." });
+        return;
+      }
       createSupabaseBrowserClient().from("sessions")
         .update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: nonce })
         .eq("id", sid)
@@ -1121,7 +1125,10 @@ function QuizControllerInner() {
       // together with the animation instead of ahead of it.
       const SPIN_REVEAL_MS = 10200;
       if (payoutTeam) setTimeout(() => applySpinResult(winIdx, payoutTeam, nonce, pin), SPIN_REVEAL_MS);
-      else console.error("triggerSpinIfChosen: no fastest-team name available (ref cleared and no override passed) - spin payout skipped.");
+      else {
+        console.error("triggerSpinIfChosen: no fastest-team name available (ref cleared and no override passed) - spin payout skipped.");
+        setSpinFeedback({ ok: false, message: "Spin points were not awarded: no winning team was identified. Check the team's score before continuing." });
+      }
       setTimeout(() => {
         const finalSid = sessionIdRef.current || sessionId;
         // Only return to "celebration" if the session is STILL on the spin
@@ -1132,7 +1139,12 @@ function QuizControllerInner() {
         // and every handset re-show wrong-answer feedback. The .eq("phase",
         // "spin_to_win") guard makes this a no-op in that case. The spin_* columns
         // are cleared in the same guarded write.
-        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration", spin_offered: false, spin_choice: null, spin_nonce: null, spin_target_idx: null }).eq("id", finalSid).eq("phase", "spin_to_win").then(({ error }) => { if (error) console.error("SESSION UPDATE FAILED [spinTimeout]:", error); });
+        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration", spin_offered: false, spin_choice: null, spin_nonce: null, spin_target_idx: null }).eq("id", finalSid).eq("phase", "spin_to_win").then(({ error }) => {
+          if (error) {
+            console.error("SESSION UPDATE FAILED [spinTimeout]:", error);
+            showToast("The display could not leave the spin screen. Check the connection and display before continuing; this does not confirm whether points were awarded.", "error", 10000);
+          }
+        });
       }, 20000);
     }
   }

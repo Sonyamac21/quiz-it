@@ -1333,7 +1333,7 @@ export default function QuizBuilderPage() {
                         Include in Generate All
                       </label>
                     )}
-                    <span style={{ font: "700 13px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{index + 1}. {round.name}</span>
+                    <span style={{ font: "700 13px 'Inter'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, maxWidth: "100%", display: "block" }}>{index + 1}. {round.name}</span>
                     {/* A native `title` tooltip only appears on hover-and-wait and
                         never on click/tap, so a host clicking straight at this
                         truncated text (as reported) saw nothing happen - no

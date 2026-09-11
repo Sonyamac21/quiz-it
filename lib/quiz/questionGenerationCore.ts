@@ -309,6 +309,25 @@ export async function loadUsedQuestions(): Promise<ExclusionState> {
   const remember = (q: Question) => {
     if (q.question_text) state.used.push(q.question_text);
     state.usedFingerprints.add(questionFingerprint(q));
+    // Picture/audio questions draw from a deliberately tiny topic pool
+    // (PICTURE_TOPICS has only ~15 broad categories - "classic desserts and
+    // sweets" realistically only has a handful of visually-distinctive stock
+    // photo subjects like tiramisu, baklava, pavlova...), so the model keeps
+    // landing on the same iconic answer with slightly different phrasing
+    // each time. The exact-text fingerprint above only catches an identical
+    // repeat; it missed a second "tiramisu" picture question worded
+    // differently. usedAnswers previously only ever got populated from the
+    // CURRENT round/session (registerAccepted/broadcastAccept below), never
+    // from this all-time history load - so a picture/audio answer already
+    // used in a totally different quiz could resurface indefinitely. Only
+    // doing this for picture/audio (not every question type) because their
+    // small answer-space makes exact-answer reuse a real defect, whereas a
+    // text/number/multiple_choice question sharing an answer with another
+    // question elsewhere is completely normal and not something to exclude.
+    if ((q.question_type === "picture" || q.question_type === "audio")) {
+      const answer = resolveAnswerText(q).toLowerCase().trim();
+      if (answer) state.usedAnswers.push(answer);
+    }
   };
   if (rounds) rounds.forEach((r: { questions: Question[] }) => r.questions?.forEach(remember));
   if (bank) bank.forEach((q) => remember(q as Question));

@@ -214,11 +214,16 @@ function QuizControllerInner() {
   const [blockedTeams, setBlockedTeams] = useState<string[]>([]);
   async function toggleTeamBlocked(teamName: string) {
     if (!sessionId) return;
-    const next = blockedTeams.includes(teamName) ? blockedTeams.filter(t => t !== teamName) : [...blockedTeams, teamName];
+    const prev = blockedTeams;
+    const next = prev.includes(teamName) ? prev.filter(t => t !== teamName) : [...prev, teamName];
     setBlockedTeams(next);
     const supabase = createSupabaseBrowserClient();
     const { error } = await supabase.from("sessions").update({ blocked_teams: next }).eq("id", sessionId);
-    if (error) console.error("SESSION UPDATE FAILED [toggleTeamBlocked]:", error);
+    if (error) {
+      console.error("SESSION UPDATE FAILED [toggleTeamBlocked]:", error);
+      setBlockedTeams(prev);
+      showToast(`Could not update block status for ${teamName}. The change didn't save - try again.`, "error", 6000);
+    }
   }
 
   // Host-only manual tool (item d): tap a team to scramble their on-screen
@@ -229,11 +234,16 @@ function QuizControllerInner() {
   const [scrambledTeams, setScrambledTeams] = useState<string[]>([]);
   async function toggleTeamScrambled(teamName: string) {
     if (!sessionId) return;
-    const next = scrambledTeams.includes(teamName) ? scrambledTeams.filter(t => t !== teamName) : [...scrambledTeams, teamName];
+    const prev = scrambledTeams;
+    const next = prev.includes(teamName) ? prev.filter(t => t !== teamName) : [...prev, teamName];
     setScrambledTeams(next);
     const supabase = createSupabaseBrowserClient();
     const { error } = await supabase.from("sessions").update({ scrambled_teams: next }).eq("id", sessionId);
-    if (error) console.error("SESSION UPDATE FAILED [toggleTeamScrambled]:", error);
+    if (error) {
+      console.error("SESSION UPDATE FAILED [toggleTeamScrambled]:", error);
+      setScrambledTeams(prev);
+      showToast(`Could not update scramble status for ${teamName}. The change didn't save - try again.`, "error", 6000);
+    }
   }
 
   const startRailDrag = useCallback((e: React.MouseEvent) => {

@@ -44,6 +44,9 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
   const [spinning, setSpinning] = useState(false);
   const offsetRef = useRef(0);
   const lightRaf = useRef<number>(0);
+  const spinRaf = useRef<number>(0);
+  const resultTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spinningRef = useRef(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const lastTickOffset = useRef(0);
 
@@ -158,7 +161,12 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
   useEffect(() => {
     drawDrum(offsetRef.current);
     lightRaf.current = requestAnimationFrame(loopLights);
-    return () => cancelAnimationFrame(lightRaf.current);
+    return () => {
+      cancelAnimationFrame(lightRaf.current);
+      cancelAnimationFrame(spinRaf.current);
+      if (resultTimeout.current !== null) clearTimeout(resultTimeout.current);
+      spinningRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -167,9 +175,9 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
   }, [autoSpin, forceResultIndex]);
 
   function spin() {
-    if (spinning) return;
+    if (spinningRef.current) return;
+    spinningRef.current = true;
     setSpinning(true);
-    onSpinStart?.();
     onSpinStart?.();
     cancelAnimationFrame(lightRaf.current);
     lastTickOffset.current = offsetRef.current;
@@ -199,15 +207,19 @@ export function SpinWheel({ onResult, size = 400, segments, forceResultIndex, au
       }
       drawDrum(offsetRef.current);
       if (t < 1) {
-        requestAnimationFrame(tick);
+        spinRaf.current = requestAnimationFrame(tick);
       } else {
         setSpinning(false);
         lightRaf.current = requestAnimationFrame(loopLights);
         const seg = getResult();
-        setTimeout(() => { onResult(seg); }, 50);
+        resultTimeout.current = setTimeout(() => {
+          resultTimeout.current = null;
+          spinningRef.current = false;
+          onResult(seg);
+        }, 50);
       }
     }
-    requestAnimationFrame(tick);
+    spinRaf.current = requestAnimationFrame(tick);
   }
 
   // Cabinet chrome: clean, modern, Quiz-It purple/magenta only - no gold trim,

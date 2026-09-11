@@ -1279,7 +1279,11 @@ export default function QuizBuilderPage() {
               {/* One tab per round - the whole quiz at a glance, click a tab to work on just that round's questions.
                   Sticks below the site header so it stays reachable as a drag-and-drop target while scrolling
                   through a long list of questions, instead of scrolling out of view. */}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, position: "sticky", top: 96, zIndex: 20, padding: "8px 8px", margin: "-8px -8px 6px", background: "rgba(10,1,24,0.92)", backdropFilter: "blur(10px)", borderRadius: 12 }}>
+              {/* Capped height + its own scrollbar - with enough rounds this
+                  strip was wrapping to 3+ rows and, being sticky, permanently
+                  occupying most of the viewport while scrolling, leaving no
+                  room to see (or scroll to) the Questions panel below it. */}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, position: "sticky", top: 96, zIndex: 20, padding: "8px 8px", margin: "-8px -8px 6px", background: "rgba(10,1,24,0.92)", backdropFilter: "blur(10px)", borderRadius: 12, maxHeight: 158, overflowY: "auto" }}>
                 {selected.quiz_rounds.map((round, index) => {
                   const isRoundGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
                   const roundCfg = bulkConfig[round.id];

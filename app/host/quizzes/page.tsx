@@ -1221,7 +1221,11 @@ export default function QuizBuilderPage() {
           <div style={{ flex: "0 1 320px", minWidth: 220 }}><HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /></div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{guidedIntent === "duplicate" && !guidedAttached ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning}>{assigning ? "ATTACHING…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>SAVE QUIZ PLAN</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton onClick={() => deleteQuiz(selected)}>DELETE</HostButton></>}</div>
         </div>
-        <div style={{ marginBottom: 12 }}><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input" style={{ width: "100%", resize: "vertical" }} /></div>
+        {/* .fbh-input applies a min-height meant for a multi-line textarea
+            elsewhere in the app, far taller than rows=2 needs here - override
+            it directly so this doesn't leave a tall blank strip below an
+            almost-always-empty field. */}
+        <div style={{ marginBottom: 12 }}><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input" style={{ width: "100%", resize: "vertical", minHeight: 0, height: 52, padding: "8px 10px" }} /></div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
             <div className="fbh-lbl" style={{ margin: 0 }}>Rounds</div>

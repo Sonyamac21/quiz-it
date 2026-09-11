@@ -408,7 +408,11 @@ function QuizControllerInner() {
     const pinFromUrl = searchParams.get("pin");
     if (pinFromUrl && pinFromUrl.length === 4 && !connected) {
       setPinInput(pinFromUrl);
-      setTimeout(() => connectWithPin(pinFromUrl), 500);
+      // Was `setTimeout(..., 500)` - an unexplained artificial delay sitting
+      // directly on the "start quiz" critical path. connectToSession (the
+      // manual pin-entry path just below) calls this exact same sequence
+      // with no delay at all, confirming nothing here actually needs one.
+      connectWithPin(pinFromUrl);
     }
   }, [searchParams]);
 

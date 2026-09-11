@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HostShell, HostButton, HostInput, HostLabel, HostFrame, HostBody, HostPad, HostCrest, HostLoading, TopSpacer, Pill } from "@/components/fable/HostConsole";
 import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
@@ -25,6 +26,7 @@ function generatePin(): string {
 const HOST_STORAGE_KEY = "quizit_host_session";
 
 export default function SessionPage() {
+  const router = useRouter();
   const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirmDialog();
   const [pin, setPin] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -182,29 +184,35 @@ export default function SessionPage() {
     setCreateError("");
     const newPin = generatePin();
     const supabase = createSupabaseBrowserClient();
-    const { data: venueData } = preparedEvent
-      ? { data: preparedEvent.venue }
-      : selectedVenueId
-        ? await supabase.from("venues").select("*").eq("id", selectedVenueId).maybeSingle()
-        : { data: null };
+    // venueData and upcomingEvents don't depend on each other - previously
+    // awaited one after another, adding a full extra round-trip to every
+    // session start. Fired together instead; each Promise still resolves
+    // to the same shape as before.
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const [{ data: venueData }, { data: upcomingEvents }] = await Promise.all([
+      preparedEvent
+        ? Promise.resolve({ data: preparedEvent.venue })
+        : selectedVenueId
+          ? supabase.from("venues").select("*").eq("id", selectedVenueId).maybeSingle()
+          : Promise.resolve({ data: null }),
+      // Auto-built from the host's own Calendar - the next few scheduled
+      // events (soonest first), excluding tonight's own event. RLS already
+      // scopes "events" to this host, so no extra owner filter is needed here.
+      // Snapshotted once now rather than looked up live from the handset,
+      // matching every other intermission_* field's pattern.
+      supabase
+        .from("events")
+        .select("event_date, start_time, venue:venues!events_venue_record_id_fkey(venue_name)")
+        .gte("event_date", todayKey)
+        .neq("status", "cancelled")
+        .neq("id", preparedEvent?.id || "")
+        .order("event_date", { ascending: true })
+        .order("start_time", { ascending: true })
+        .limit(5),
+    ]);
     const quizName = quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "";
     const offersVenue = preparedEvent?.venue || (venueData as { food_offers?: string | null; drink_offers?: string | null; happy_hour?: string | null } | null);
     const inheritedOffers = preparedEvent?.special_offers || [offersVenue?.food_offers, offersVenue?.drink_offers, offersVenue?.happy_hour].filter(Boolean).join("\n");
-    // Auto-built from the host's own Calendar - the next few scheduled
-    // events (soonest first), excluding tonight's own event. RLS already
-    // scopes "events" to this host, so no extra owner filter is needed here.
-    // Snapshotted once now rather than looked up live from the handset,
-    // matching every other intermission_* field's pattern.
-    const todayKey = new Date().toISOString().slice(0, 10);
-    const { data: upcomingEvents } = await supabase
-      .from("events")
-      .select("event_date, start_time, venue:venues!events_venue_record_id_fkey(venue_name)")
-      .gte("event_date", todayKey)
-      .neq("status", "cancelled")
-      .neq("id", preparedEvent?.id || "")
-      .order("event_date", { ascending: true })
-      .order("start_time", { ascending: true })
-      .limit(5);
     const upcomingQuizzes = (upcomingEvents || [])
       .map(row => ({ venue_name: (Array.isArray(row.venue) ? row.venue[0] : row.venue)?.venue_name as string | undefined, event_date: row.event_date, start_time: row.start_time }))
       .filter((row): row is { venue_name: string; event_date: string; start_time: string } => !!row.venue_name);
@@ -263,8 +271,13 @@ export default function SessionPage() {
         setCreating(false);
         return;
       }
-      await supabase.from("sessions").update({ current_session_round_id: snapshots[0].id }).eq("id", data.id);
-      if (preparedEvent) await supabase.from("events").update({ status: "live", updated_at: new Date().toISOString() }).eq("id", preparedEvent.id);
+      // These two writes touch different rows and don't depend on each
+      // other's result - firing together instead of one-after-the-other
+      // shaves a full round-trip off the critical path to "session live".
+      await Promise.all([
+        supabase.from("sessions").update({ current_session_round_id: snapshots[0].id }).eq("id", data.id),
+        preparedEvent ? supabase.from("events").update({ status: "live", updated_at: new Date().toISOString() }).eq("id", preparedEvent.id) : Promise.resolve(),
+      ]);
       setPin(newPin);
       setSessionId(data.id);
       localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify({ pin: newPin, sessionId: data.id, savedAt: Date.now() }));
@@ -283,7 +296,13 @@ export default function SessionPage() {
     const supabase = createSupabaseBrowserClient();
     await supabase.from("sessions").update({ status: "active" }).eq("id", sessionId);
     setStatus("active");
-    window.location.href = "/host/quiz?pin=" + pin;
+    // Was window.location.href - a full page reload that re-downloads the
+    // entire JS bundle and forces the new /host/quiz page to re-fetch
+    // everything (rounds, teams, session row) from scratch even though most
+    // of that was already just fetched above. router.push keeps the SPA
+    // alive and only costs the one connectWithPin fetch quiz/page.tsx
+    // already does on mount.
+    router.push("/host/quiz?pin=" + pin);
   }
 
   async function loadRecentSessions() {

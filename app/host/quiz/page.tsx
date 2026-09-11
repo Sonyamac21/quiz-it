@@ -278,6 +278,8 @@ function QuizControllerInner() {
   const [statsTeam, setStatsTeam] = useState<string | null>(null);
   const [adjustTeam, setAdjustTeam] = useState<string|null>(null);
   const [adjustAmount, setAdjustAmount] = useState("");
+  const pendingAdjustmentRef = useRef<{ pin: string; team: string; delta: number; eventKey: string } | null>(null);
+  const adjustmentBusyRef = useRef(false);
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showScoreboardOnHandsets, setShowScoreboardOnHandsets] = useState(false);
   const [pinInput, setPinInput] = useState("");
@@ -912,18 +914,36 @@ function QuizControllerInner() {
 
   async function adjustScore(teamName: string, delta: number) {
     if (!sessionPin || isNaN(delta) || delta === 0) return;
-    const supabase = createSupabaseBrowserClient();
-    const result = await applyScoreDelta(supabase, sessionPin, teamName, delta);
-    if (result.error) {
-      showToast(`Score change for ${teamName} did not go through (${result.error}). Nothing was applied - try again.`, "error", 7000);
+    if (adjustmentBusyRef.current) return;
+    const pending = pendingAdjustmentRef.current;
+    if (pending && (pending.pin !== sessionPin || pending.team !== teamName || pending.delta !== delta)) {
+      showToast(`Resolve the pending ${pending.delta}-point adjustment for ${pending.team} before making another adjustment.`, "error", 10000);
       return;
     }
-    if (result.scoreboardSyncError) {
-      showToast(`Score for ${teamName} was updated, but the scoreboard failed to refresh (${result.scoreboardSyncError}). Display/handsets may show a stale total until the next score change.`, "warning", 7000);
+    const operation = pending || { pin: sessionPin, team: teamName, delta, eventKey: `manual:${sessionPin}:${crypto.randomUUID()}` };
+    pendingAdjustmentRef.current = operation;
+    adjustmentBusyRef.current = true;
+    const supabase = createSupabaseBrowserClient();
+    try {
+    const result = await applyScoreDelta(supabase, sessionPin, teamName, delta, { eventKey: operation.eventKey });
+    if (result.error) {
+      showToast(`Score change for ${teamName} is unconfirmed. Retry the same adjustment in this tab; do not reload or enter a replacement adjustment.`, "error", 10000);
+      return;
     }
+    const syncError = result.applied ? result.scoreboardSyncError : (await syncScoreboardData(supabase, sessionPin)).error;
+    if (syncError) {
+      showToast(`Score for ${teamName} was processed, but the scoreboard failed to refresh. Retry this same adjustment to refresh it without adding points again.`, "warning", 10000);
+      return;
+    }
+    pendingAdjustmentRef.current = null;
     loadScores(sessionPin);
     setAdjustTeam(null);
     setAdjustAmount("");
+    } catch {
+      showToast("Score change is unconfirmed. Retry the same adjustment in this tab; do not reload or enter a replacement adjustment.", "error", 10000);
+    } finally {
+      adjustmentBusyRef.current = false;
+    }
   }
 
   async function resetRoundPoints() {

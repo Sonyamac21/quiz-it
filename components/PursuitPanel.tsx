@@ -80,6 +80,10 @@ type Props = {
 export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDuration, onScoreChange, onActiveChange, onRoundComplete, autoStartRoundId }: Props) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const reportWarning = useCallback((message: string) => {
+    setWarnings(previous => [...new Set([...previous, message])]);
+  }, []);
   const [status, setStatus] = useState<PursuitPhase>("idle");
   const [race, setRace] = useState<PursuitRace>({});
   const [qIndex, setQIndex] = useState(-1);
@@ -294,8 +298,11 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     // Surface a failed write (e.g. the pursuit_status / pursuit_data columns not
     // yet migrated) instead of silently no-opping, so a launch that doesn't move
     // the Display is diagnosable during live testing.
-    if (error) console.error("PURSUIT SESSION UPDATE FAILED:", error.message);
-  }, [sessionId, supabase]);
+    if (error) {
+      console.error("PURSUIT SESSION UPDATE FAILED:", error.message);
+      reportWarning("Pursuit could not save its game state. Host and player screens may disagree; check before continuing.");
+    }
+  }, [sessionId, supabase, reportWarning]);
 
   function startPursuit() {
     const initial = initRace(teamNames);
@@ -398,7 +405,8 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
           roundDelta: PURSUIT_CORRECT_POINTS,
           eventKey: `pursuit-correct:${sessionId}:${chosenRound?.id || "round"}:${name}:${qIndex}`,
         });
-        if (result.scoreboardSyncError) console.error("Pursuit correct-answer points landed but scoreboard sync failed:", result.scoreboardSyncError);
+        if (result.error) reportWarning(`${name}: correct-answer points were not confirmed. Check the saved score before continuing.`);
+        if (result.scoreboardSyncError) reportWarning(`${name}: correct-answer points saved, but the scoreboard failed to refresh.`);
       }
     }
 
@@ -416,7 +424,8 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
         roundDelta: PURSUIT_WINNER_BONUS,
         eventKey: `pursuit-winner:${sessionId}:${chosenRound?.id || "round"}:${name}`,
       });
-      if (result.scoreboardSyncError) console.error("Pursuit winner bonus landed but scoreboard sync failed:", result.scoreboardSyncError);
+      if (result.error) reportWarning(`${name}: winner bonus was not confirmed. Check the saved score before continuing.`);
+      if (result.scoreboardSyncError) reportWarning(`${name}: winner bonus saved, but the scoreboard failed to refresh.`);
     }
     setStatus("complete");
     await pushState({ pursuit_status: "complete" });
@@ -618,7 +627,14 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
   // the main running-order list, which drives autoStartRoundId -> startPursuit().
   // The standalone always-on-screen button was removed as a redundant second
   // way to start it that lived outside the normal round-selection flow.
-  return open && typeof document !== "undefined" ? createPortal(overlay, document.body) : null;
+  return typeof document !== "undefined" ? createPortal(<>
+    {open ? overlay : null}
+    {warnings.length > 0 && <div role="alert" style={{ position: "fixed", bottom: 16, left: 16, right: 16, zIndex: 10000, padding: 16, background: "#3b1018", color: "white", border: "2px solid #ff8290", borderRadius: 12 }}>
+      <strong>Pursuit needs attention</strong>
+      {warnings.map(message => <div key={message}>{message}</div>)}
+      <button onClick={() => setWarnings([])}>Dismiss warning</button>
+    </div>}
+  </>, document.body) : null;
 }
 
 function SecondaryButton({ onClick, label }: { onClick: () => void; label: string }) {

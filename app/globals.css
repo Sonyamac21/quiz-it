@@ -196,6 +196,10 @@ button, input, select, textarea { font: inherit; }
 .qi-input--error { border-color: var(--qi-danger); }
 .qi-select { padding-right: var(--qi-space-10); }
 .qi-textarea { min-height: 8rem; padding-block: var(--qi-space-3); resize: vertical; }
+/* Quiz Plan builder's Description field - inline style alone wasn't
+   overriding something else winning the cascade, so this forces it with
+   !important as a dedicated class rather than guessing further blind. */
+.qi-quiz-desc { min-height: 0 !important; height: 52px !important; padding: 8px 10px !important; }
 .qi-help, .qi-field-error { margin: 0; font-size: var(--qi-type-sm); }
 .qi-help { color: var(--qi-text-secondary); }
 .qi-field-error { color: #ff9ca5; }

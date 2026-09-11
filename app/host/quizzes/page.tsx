@@ -1225,7 +1225,7 @@ export default function QuizBuilderPage() {
             elsewhere in the app, far taller than rows=2 needs here - override
             it directly so this doesn't leave a tall blank strip below an
             almost-always-empty field. */}
-        <div style={{ marginBottom: 12 }}><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input" style={{ width: "100%", resize: "vertical", minHeight: 0, height: 52, padding: "8px 10px" }} /></div>
+        <div style={{ marginBottom: 12 }}><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input qi-quiz-desc" style={{ width: "100%", resize: "vertical" }} /></div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
             <div className="fbh-lbl" style={{ margin: 0 }}>Rounds</div>

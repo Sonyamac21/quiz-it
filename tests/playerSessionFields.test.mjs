@@ -2,6 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+test('reconnected handset restores answers only from the current round', () => {
+  const source = readFileSync(new URL('../components/PlayerQuizScreen.tsx', import.meta.url), 'utf8');
+  const start = source.indexOf('.select("answer_text")');
+  const lookup = source.slice(start, source.indexOf('.maybeSingle()', start));
+  assert.match(lookup, /\.eq\("round_number", roundNumber\)/);
+  assert.match(lookup, /\.eq\("question_index", questionIndex\)/);
+  assert.match(source, /\[phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex, roundNumber\]/);
+});
+
 test('handset session polling includes round identity used by answer writes', () => {
   const source = readFileSync(new URL('../components/PlayerQuizScreen.tsx', import.meta.url), 'utf8');
   const fetchSession = source.slice(source.indexOf('async function fetchSession()'), source.indexOf('async function fetchTeamOrder()'));

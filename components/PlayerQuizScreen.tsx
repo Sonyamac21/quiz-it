@@ -345,6 +345,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       const { data } = await supabase.from("answers")
         .select("answer_text")
         .eq("session_pin", sessionPin)
+        .eq("round_number", roundNumber)
         .eq("question_index", questionIndex)
         .ilike("team_name", teamName.trim())
         .order("submitted_at", { ascending: false })
@@ -359,7 +360,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       else setAnswerText(text);
     })();
     return () => { cancelled = true; };
-  }, [phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex]);
+  }, [phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex, roundNumber]);
   const [hardDeckGuess, setHardDeckGuess] = useState<string | null>(null);
   const [hardDeckStealGuesses, setHardDeckStealGuesses] = useState<Record<string, string>>({});
   const [hardDeckStealWinners, setHardDeckStealWinners] = useState<string[]>([]);
@@ -733,6 +734,8 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       setPhase(newPhase);
     }
     setQuestion(newQ);
+    // Reconnect can land directly on timer/reveal, not only question phase.
+    setQuestionIndex(newIdx);
     setFastestTeamName(ft);
     setFastestSongName((data.fastest_song as string) || null);
     setFastestPoints((data.fastest_points as number) || 0);

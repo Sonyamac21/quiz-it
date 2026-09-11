@@ -58,6 +58,13 @@ type QuestionState = {
   clipEnd: number;
   savedUrl: string | null;
   error: string;
+  // The auto-search query (built from option_a/correct_answer) sometimes
+  // finds nothing even when Deezer clearly has the track (e.g. "The Verve"
+  // alone with no song title is too vague) - "Search again" used to just
+  // re-run that exact same query, guaranteed to fail the same way every
+  // time. This holds whatever the host has typed into the manual search
+  // box, defaulting to the auto-query but freely editable.
+  manualQuery: string;
 };
 
 type BankQuestion = {
@@ -283,6 +290,7 @@ export default function MusicPrepPage() {
         audioBuffer: null, peaks: [], clipStart: 0, clipEnd: 0,
         savedUrl: hasSavedClip ? q.option_b : null,
         error: "",
+        manualQuery: q.option_a || q.correct_answer || "",
       };
     });
     setQuestionStates(initial);
@@ -313,6 +321,7 @@ export default function MusicPrepPage() {
         audioBuffer: null, peaks: [], clipStart: 0, clipEnd: 0,
         savedUrl: hasSavedClip ? q.option_b : null,
         error: "",
+        manualQuery: q.option_a || q.correct_answer || "",
       };
     });
     setQuestionStates(initial);
@@ -588,7 +597,7 @@ export default function MusicPrepPage() {
 
         {/* QUESTION PREP */}
         {openRound && audioQuestions.map(({ q, i }, n) => {
-          const qs = questionStates[i] || { phase: "idle", candidates: [], error: "" };
+          const qs = questionStates[i] || { phase: "idle", candidates: [], error: "", manualQuery: q.option_a || q.correct_answer || "" };
           return (
             <div key={i} className="fbh-panel" style={{ border: `1px solid ${qs.phase === "done" ? "rgba(46,224,110,0.4)" : "#2E1A52"}` }}>
               {/* Question header */}
@@ -673,10 +682,29 @@ export default function MusicPrepPage() {
                       <div style={{ flexShrink: 0, font: "700 12px 'Inter'", color: purple }}>Select →</div>
                     </button>
                   ))}
-                  <button type="button" onClick={() => searchForQuestion(openRound, i, q.option_a || q.correct_answer)}
-                    style={{ background: "none", border: "none", color: "#6B5A8E", font: "400 11px 'Inter'", textDecoration: "underline", cursor: "pointer", alignSelf: "flex-start", padding: 0 }}>
-                    Search again
-                  </button>
+                  {/* The auto-query is just option_a/correct_answer - for an
+                      "artist" question like "Who is the artist behind this
+                      90s hit?" that's often only the artist name with no
+                      song title, which Deezer can genuinely fail to match
+                      even when it has the track. A plain "search again"
+                      link re-ran that identical query and was guaranteed to
+                      fail the same way every time - this box lets the host
+                      type an actual track title/artist combo instead. */}
+                  <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                    <input
+                      value={qs.manualQuery}
+                      onChange={e => setState(i, { manualQuery: e.target.value })}
+                      onKeyDown={e => { if (e.key === "Enter" && qs.manualQuery.trim()) searchForQuestion(openRound, i, qs.manualQuery); }}
+                      placeholder="Search Deezer manually, e.g. Bitter Sweet Symphony The Verve"
+                      className="fbh-input"
+                      style={{ flex: 1, minHeight: 32, height: 32, padding: "0 10px", fontSize: 12 }}
+                    />
+                    <HostButton
+                      onClick={() => qs.manualQuery.trim() && searchForQuestion(openRound, i, qs.manualQuery)}
+                      disabled={!qs.manualQuery.trim()}
+                      style={{ padding: "0 12px", height: 32, fontSize: 12 }}
+                    >SEARCH</HostButton>
+                  </div>
                 </div>
               )}
 

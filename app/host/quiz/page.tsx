@@ -1854,7 +1854,28 @@ function QuizControllerInner() {
     setTimeBonus(round?.max_time_bonus ?? 5);
   }
 
-  function chooseRound(r: (typeof rounds)[number] | null) {
+  async function chooseRound(r: (typeof rounds)[number] | null) {
+    if (!sessionId) return;
+    // Supabase builders are lazy: await the write before changing local rounds.
+    const isFinalRound = !!r && rounds.length > 0 && r.position === rounds[rounds.length - 1].position;
+    try {
+      const { data, error } = await createSupabaseBrowserClient().from("sessions").update({
+        round_id: r?.source_round_id || null,
+        current_session_round_id: r?.id || null,
+        hide_leaderboard: r?.hide_leaderboard ?? false,
+        allow_power_cards: r?.allow_power_cards ?? true,
+        round_number: (r?.position ?? 0) + 1,
+        is_final_round: isFinalRound,
+        phase: "waiting",
+        current_question_index: 0,
+        current_question: null,
+        ...(r?.hide_leaderboard ? { show_scoreboard: false } : {}),
+      }).eq("id", sessionId).select("id").single();
+      if (error || !data) throw error || new Error("Round update was not confirmed");
+    } catch {
+      showToast("Could not change round. Check the connection and try again.", "error", 7000);
+      return;
+    }
     setSelectedRound(r || null); setQIdx(0); setAnswers([]); setHostPhase("waiting");
     setRoundNumber((r?.position ?? 0) + 1);
     // Use the immutable session-round snapshot for both a normal selection and
@@ -1871,16 +1892,6 @@ function QuizControllerInner() {
     setHardDeckAutoStartId(null);
     if (r?.hide_leaderboard) { setShowScoreboard(false); setShowScoreboardOnHandsets(false); }
     roundQuestionsRef.current = r ? [...r.questions] : [];
-    const isFinalRound = !!r && rounds.length > 0 && r.position === rounds[rounds.length - 1].position;
-    if (sessionId) createSupabaseBrowserClient().from("sessions").update({
-      round_id: r?.source_round_id || null,
-      current_session_round_id: r?.id || null,
-      hide_leaderboard: r?.hide_leaderboard ?? false,
-      allow_power_cards: r?.allow_power_cards ?? true,
-      round_number: (r?.position ?? 0) + 1,
-      is_final_round: isFinalRound,
-      ...(r?.hide_leaderboard ? { show_scoreboard: false } : {}),
-    }).eq("id", sessionId);
   }
 
   const spacebarHint =

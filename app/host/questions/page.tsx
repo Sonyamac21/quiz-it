@@ -806,14 +806,20 @@ export default function QuestionsPage() {
 
           {manualOpen && (
             <div className="fbh-panel" style={{ display:"flex", flexDirection:"column" as const, gap:10 }}>
-              <select value={manualType} onChange={e => setManualType(e.target.value)} style={fableSelect}>
-                <option value="multiple_choice">Multiple Choice</option>
-                <option value="text_answer">Text Answer</option>
-                <option value="number">Number</option>
-                <option value="sequence">Sequence</option>
-                <option value="multi_tap">Multi Tap</option>
-              </select>
-              <textarea value={manualText} onChange={e => setManualText(e.target.value)} placeholder="Question text…" rows={2} style={fableTextarea} />
+              {/* Type select and question text used to stack as two separate
+                  full-width rows - side by side instead, since the select is
+                  never more than a few words wide and was leaving a wide
+                  empty strip beside it. */}
+              <div style={{ display: "flex", gap: 10 }}>
+                <select value={manualType} onChange={e => setManualType(e.target.value)} style={{ ...fableSelect, flex: "0 0 170px" }}>
+                  <option value="multiple_choice">Multiple Choice</option>
+                  <option value="text_answer">Text Answer</option>
+                  <option value="number">Number</option>
+                  <option value="sequence">Sequence</option>
+                  <option value="multi_tap">Multi Tap</option>
+                </select>
+                <textarea value={manualText} onChange={e => setManualText(e.target.value)} placeholder="Question text…" rows={2} style={{ ...fableTextarea, flex: 1 }} />
+              </div>
               {(manualType === "multiple_choice" || manualType === "sequence" || manualType === "multi_tap") && (
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                   <HostInput value={manualA} onChange={e => setManualA(e.target.value)} placeholder="Option A" />
@@ -828,9 +834,11 @@ export default function QuestionsPage() {
                   )}
                 </div>
               )}
-              <HostInput value={manualCorrect} onChange={e => setManualCorrect(e.target.value)}
-                placeholder={manualType === "multiple_choice" ? "Correct answer letter, e.g. b" : manualType === "sequence" ? "Correct order, e.g. a,b,c,d" : manualType === "multi_tap" ? "Correct letters, e.g. b,d,f" : "Correct answer"} />
-              <HostInput value={manualExplanation} onChange={e => setManualExplanation(e.target.value)} placeholder="Explanation (optional)" />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <HostInput value={manualCorrect} onChange={e => setManualCorrect(e.target.value)}
+                  placeholder={manualType === "multiple_choice" ? "Correct answer letter, e.g. b" : manualType === "sequence" ? "Correct order, e.g. a,b,c,d" : manualType === "multi_tap" ? "Correct letters, e.g. b,d,f" : "Correct answer"} />
+                <HostInput value={manualExplanation} onChange={e => setManualExplanation(e.target.value)} placeholder="Explanation (optional)" />
+              </div>
               {manualError && <p style={{ color:"#FF3B4E", font:"400 13px 'Inter'" }}>{manualError}</p>}
               <HostButton variant="pri" onClick={addManualQuestion}>Add to List</HostButton>
             </div>
@@ -990,11 +998,17 @@ export default function QuestionsPage() {
                   Top Up to {count} Questions ({count - questions.length} needed)
                 </HostButton>
               )}
+              {/* Name field and Save button used to each take their own
+                  full-width row - side by side instead, name gets the room
+                  and the button doesn't need to stretch the full width to
+                  be usable. */}
               <div className="fbh-lbl">Round Name</div>
-              <HostInput value={roundName} onChange={e => setRoundName(e.target.value)} placeholder="e.g. Round 1 - General Knowledge - 14 June" style={{ marginBottom:12 }} />
-              <HostButton variant="pri" big onClick={saveRound} disabled={saving||!roundName.trim()} style={{ width:"100%" }}>
-                {saving ? "SAVING…" : "SAVE ROUND TO LIBRARY"}
-              </HostButton>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <HostInput value={roundName} onChange={e => setRoundName(e.target.value)} placeholder="e.g. Round 1 - General Knowledge - 14 June" style={{ flex: 1 }} />
+                <HostButton variant="pri" big onClick={saveRound} disabled={saving||!roundName.trim()} style={{ flex: "0 0 220px" }}>
+                  {saving ? "SAVING…" : "SAVE ROUND TO LIBRARY"}
+                </HostButton>
+              </div>
             </div>
           </>
         )}

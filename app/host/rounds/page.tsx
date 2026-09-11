@@ -195,13 +195,16 @@ export default function RoundsPage() {
         {!openRound && rounds.length > 0 && (() => {
           const unfiled = rounds.filter(r => !r.folder);
           const folderNames = Array.from(new Set(rounds.filter(r => r.folder).map(r => r.folder as string))).sort();
+          // Was one full-width horizontal strip per round (name + 4 buttons),
+          // stacked vertically - on a wide screen that left huge blank space
+          // either side of every row. A grid of cards uses the width instead;
+          // name/meta on top, buttons wrap into a row beneath since a
+          // narrower card can't fit all four side by side with the name.
           const roundRow = (r: Round) => (
             <div key={r.id} className="fbh-panel">
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ font: "700 15px 'Inter'", marginBottom: 4 }}>{r.name}</div>
-                  <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>{r.questions?.length || 0} questions · {r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
-                </div>
+              <div style={{ font: "700 15px 'Inter'", marginBottom: 4 }}>{r.name}</div>
+              <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E", marginBottom: 10 }}>{r.questions?.length || 0} questions · {r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <HostButton onClick={() => setOpenRound(r)} style={{ height: 36 }}>View</HostButton>
                 <HostButton onClick={() => moveRoundToFolder(r)} style={{ height: 36 }}>Move</HostButton>
                 <HostButton onClick={() => duplicateRound(r)} style={{ height: 36 }}>Duplicate</HostButton>
@@ -209,17 +212,20 @@ export default function RoundsPage() {
               </div>
             </div>
           );
+          const roundGrid = (list: Round[]) => (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>{list.map(roundRow)}</div>
+          );
           return (
             <div style={{ marginTop: 8 }}>
               <div className="fbh-lbl">All Rounds</div>
               {unfiled.length === 0 && <p style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>Nothing unfiled - everything below is tucked into a folder.</p>}
-              {unfiled.map(roundRow)}
+              {unfiled.length > 0 && roundGrid(unfiled)}
               {folderNames.map(folder => {
                 const inFolder = rounds.filter(r => r.folder === folder);
                 return (
                   <details key={folder} style={{ marginTop: 14 }}>
                     <summary style={{ cursor: "pointer", font: "700 13px 'Inter'", color: "#D94FDC", padding: "8px 2px" }}>{folder} ({inFolder.length})</summary>
-                    <div style={{ marginTop: 6 }}>{inFolder.map(roundRow)}</div>
+                    <div style={{ marginTop: 6 }}>{roundGrid(inFolder)}</div>
                   </details>
                 );
               })}

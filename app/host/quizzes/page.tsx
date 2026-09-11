@@ -1211,16 +1211,17 @@ export default function QuizBuilderPage() {
           {quizzes.length > 0 && <p style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginTop: 16 }}>Or pick an existing plan from the dropdown above.</p>}
         </div>
       ) : <>
-        {/* Was two full-width stacked fields, THEN a separate full-width row
-            of buttons below them - that button row was adding its own
-            blank vertical strip underneath. Buttons now sit as a third
-            column alongside Name/Description instead of their own row, so
-            nothing needs the extra vertical space at all. */}
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(200px, 320px) 1fr minmax(200px, 240px)", gap: 16, marginBottom: 12, alignItems: "start" }}>
-          <div><HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /></div>
-          <div><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input" style={{ width: "100%", resize: "vertical" }} /></div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, alignSelf: "end" }}>{guidedIntent === "duplicate" && !guidedAttached ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating} style={{ gridColumn: "1 / -1" }}>{duplicating ? "DUPLICATING…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning} style={{ gridColumn: "1 / -1" }}>{assigning ? "ATTACHING…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving} style={{ gridColumn: "1 / -1" }}>SAVE QUIZ PLAN</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton onClick={() => deleteQuiz(selected)} style={{ gridColumn: "1 / -1" }}>DELETE</HostButton></>}</div>
+        {/* Quiz Name and the action buttons share one row (buttons as a
+            single horizontal row beside the name field, same as they
+            always were - just moved up next to it instead of sitting on
+            their own full-width row below). Description drops to its own
+            row underneath, full width. Net effect: one shorter row instead
+            of a name/description row THEN a separate button row. */}
+        <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div style={{ flex: "0 1 320px", minWidth: 220 }}><HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /></div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{guidedIntent === "duplicate" && !guidedAttached ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning}>{assigning ? "ATTACHING…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>SAVE QUIZ PLAN</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton onClick={() => deleteQuiz(selected)}>DELETE</HostButton></>}</div>
         </div>
+        <div style={{ marginBottom: 12 }}><HostLabel>Description</HostLabel><textarea value={selected.description || ""} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, description: e.target.value } : q))} rows={2} className="fbh-input" style={{ width: "100%", resize: "vertical" }} /></div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
             <div className="fbh-lbl" style={{ margin: 0 }}>Rounds</div>

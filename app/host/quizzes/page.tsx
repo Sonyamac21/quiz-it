@@ -1017,6 +1017,11 @@ export default function QuizBuilderPage() {
 
   async function removeRound(round: QuizRound) {
     if (!selected) return;
+    // Was instant and irreversible with no confirmation - a single misclick
+    // on a round that may have several AI-generated/edited questions in it
+    // deleted the whole thing with no way back. Same confirmDialog pattern
+    // already used for quiz-plan deletion elsewhere in this file.
+    if (!await confirmDialog(`Remove "${round.name}"? This deletes all ${round.questions.length} question${round.questions.length === 1 ? "" : "s"} in it.`, { tone: "destructive", confirmLabel: "Remove" })) return;
     await createSupabaseBrowserClient().from("quiz_rounds").delete().eq("id", round.id);
     await normalizePositions(selected.id, selected.quiz_rounds.filter(r => r.id !== round.id));
     await load();

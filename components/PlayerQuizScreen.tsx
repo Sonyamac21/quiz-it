@@ -14,6 +14,7 @@ import { PlayerShell, PlayerStatusBar, PlayerResultBanner } from "@/components/p
 import { TeamPhotoUpload } from "@/components/player/TeamPhotoUpload";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { platformLogger } from "@/lib/platform/logger";
+import { IconBlock } from "@/components/icons";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 import { isAnswerCorrect } from "@/lib/quiz/answerScoring";
 
@@ -1720,7 +1721,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     if (isHostBlocked && !submitted) {
       return (
         <div className="qi-player-state qi-player-timeout" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 12, textAlign: "center" as const, fontFamily: font }}>
-          <div style={{ fontSize: 40 }}>🚫</div>
+          <div style={{ fontSize: 40, color: "#FF3B4E" }}><IconBlock /></div>
           <div style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Blocked this question</div>
           <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>The host has blocked your team from answering this question. Sit tight - you're back in for the next one.</div>
         </div>

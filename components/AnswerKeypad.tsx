@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { IconShuffle } from "@/components/icons";
 
 const ROWS = [
   ["Q","W","E","R","T","Y","U","I","O","P"],
@@ -62,8 +63,8 @@ export function AnswerKeypad({ onSubmit, mode = "text", scrambled = false }: { o
   return (
     <div className="qi-player-keypad" style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
       {scrambled && (
-        <div style={{ padding: "6px 10px", borderRadius: 10, background: "rgba(255,59,78,0.16)", border: "1px solid rgba(255,59,78,0.4)", color: "#FF3B4E", fontSize: 11, fontWeight: 700, fontFamily: font, textAlign: "center" as const, letterSpacing: 0.4 }}>
-          🔀 The host has scrambled your keyboard this question
+        <div style={{ padding: "6px 10px", borderRadius: 10, background: "rgba(255,59,78,0.16)", border: "1px solid rgba(255,59,78,0.4)", color: "#FF3B4E", fontSize: 11, fontWeight: 700, fontFamily: font, textAlign: "center" as const, letterSpacing: 0.4, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <IconShuffle /> The host has scrambled your keyboard this question
         </div>
       )}
       <div className="qi-player-keypad__value" aria-live="polite" style={{

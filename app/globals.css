@@ -1466,6 +1466,9 @@ button, input, select, textarea { font: inherit; }
 .qi-display-lobby .lb-how { margin-top: 2.5vh; }
 .qi-display-lobby .lb-steps { font-size: clamp(15px, 1vw, 20px); line-height: 1.65; color: #ede7f7; }
 .qi-display-lobby .lb-count { font-size: clamp(14px, 1.2vw, 20px); }
+.lb-count-pulse b { animation: lbCountPulse .7s var(--settle); }
+@keyframes lbCountPulse { 0% { color: #D94FDC; transform: scale(1.18); } 100% { color: inherit; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .lb-count-pulse b { animation: none; } }
 .qi-display-lobby .lb-cardstage { background: linear-gradient(180deg, rgba(21,10,46,.28), rgba(21,10,46,.72)); }
 .qi-display-lobby .lb-pcard { width: min(84%, 520px); min-height: min(48vh, 520px); padding: 7% 8%; }
 .qi-display-lobby .lb-pcard-rule { font-size: clamp(18px, 2vw, 31px); }

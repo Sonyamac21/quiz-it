@@ -533,6 +533,7 @@ function DisplayScreenInner() {
   const [teams, setTeams] = useState<{ team_name: string; victory_song?: string; photo_url?: string; photo_approved?: boolean }[]>([]);
   // Lobby crest wall — flare newly-arrived teams once, then let them settle.
   const [flaringTeams, setFlaringTeams] = useState<Set<string>>(new Set());
+  const [countPulsing, setCountPulsing] = useState(false);
   const seenTeamsRef = useRef<Set<string>>(new Set());
   const lobbySeededRef = useRef(false);
   useEffect(() => {
@@ -545,8 +546,15 @@ function DisplayScreenInner() {
     if (fresh.length === 0) return;
     fresh.forEach(n => seenTeamsRef.current.add(n));
     setFlaringTeams(prev => new Set([...prev, ...fresh]));
+    // The crest grid below already pops in newly-joined teams; the aggregate
+    // "N TEAMS IN THE ROOM" count itself just silently changed number with no
+    // visual acknowledgement, so a team joining while nobody happened to be
+    // looking at the crest wall was easy to miss entirely. Brief pulse on the
+    // number itself, same 1.6s window as the crest flare it's paired with.
+    setCountPulsing(true);
     const id = setTimeout(() => setFlaringTeams(prev => { const s = new Set(prev); fresh.forEach(n => s.delete(n)); return s; }), 1600);
-    return () => clearTimeout(id);
+    const pulseId = setTimeout(() => setCountPulsing(false), 700);
+    return () => { clearTimeout(id); clearTimeout(pulseId); };
   }, [teams]);
   // teams is read inside realtime subscription callbacks set up once at
   // connect-time, whose closures freeze component state at that moment
@@ -1507,7 +1515,7 @@ function DisplayScreenInner() {
                 <b>3.</b> Name your team
               </div>
             </div>
-            <div className="lb-count"><b>{teams.length} TEAM{teams.length === 1 ? "" : "S"}</b> IN THE ROOM</div>
+            <div className={"lb-count" + (countPulsing ? " lb-count-pulse" : "")}><b>{teams.length} TEAM{teams.length === 1 ? "" : "S"}</b> IN THE ROOM</div>
             <div className="lb-crests">
               {teams.map((t) => (
                 <div key={t.team_name} className={"lb-team" + (flaringTeams.has(t.team_name) ? " new" : "")}>

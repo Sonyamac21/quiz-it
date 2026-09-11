@@ -1421,7 +1421,11 @@ export default function QuizBuilderPage() {
                 </div>
                 <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 12 }}>{activeRound.questions.length} questions - {activeRound.round_type}</div>
 
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                {/* Grid instead of a plain flex row - these buttons used to
+                    hug the left edge and leave a huge dead strip to the
+                    right on a wide screen. auto-fit lets them space out
+                    across the full panel width instead. */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8, marginBottom: 12 }}>
                   <HostButton onClick={() => setSettingsOpenRoundId(id => id === activeRound.id ? null : activeRound.id)}>{settingsOpen ? "HIDE SETTINGS" : "SETTINGS"}</HostButton>
                   <HostButton onClick={() => moveRound(activeIndex, -1)} disabled={activeIndex === 0}>UP</HostButton>
                   <HostButton onClick={() => moveRound(activeIndex, 1)} disabled={activeIndex === selected.quiz_rounds.length - 1}>DOWN</HostButton>
@@ -1434,7 +1438,7 @@ export default function QuizBuilderPage() {
 
                 {settingsOpen && (
                   <>
-                    <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginBottom: 12, padding: 12, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", alignItems: "center", gap: 18, marginBottom: 12, padding: 12, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
                       <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                         Points per Q
                         <input
@@ -1484,7 +1488,7 @@ export default function QuizBuilderPage() {
                           <input type="checkbox" checked={cfg.selected} onChange={e => updateBulkConfig(activeRound.id, { selected: e.target.checked })} />
                           Include in Generate All
                         </label>
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, alignItems: "center" }}>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Questions
                             {activeRound.round_type === "pursuit" || activeRound.round_type === "hot_seat"

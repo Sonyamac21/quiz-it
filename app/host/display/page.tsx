@@ -18,6 +18,8 @@ import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { displaySnapshot, type DisplaySnapshot } from "@/lib/diagnostics/displayHealth";
 import { useDisplayResponder } from "@/lib/diagnostics/useDisplayHealth";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
+import { useFlip } from "@/components/useFlip";
+import { CountUp } from "@/components/CountUp";
 
 type Question = {
   question_text: string;
@@ -595,6 +597,11 @@ function DisplayScreenInner() {
     setRankMoves(moves);
     prevRanksRef.current = next;
   }, [scoreboardData]);
+  // Leaderboard rows should slide to their new slot when standings change
+  // rather than silently teleport - called unconditionally (hooks rule) even
+  // though the ref it returns is only attached on the scoreboard screen.
+  const scoreboardOrderKey = [...scoreboardData].sort((a, b) => b.total_points - a.total_points).map((s) => s.team_name).join("|");
+  const flipRef = useFlip<HTMLDivElement>([scoreboardOrderKey]);
   const [revealedCount, setRevealedCount] = useState(0);
   const [quizEndScores, setQuizEndScores] = useState<Score[]>([]);
   const [trophyVisible, setTrophyVisible] = useState(false);
@@ -1763,19 +1770,19 @@ function DisplayScreenInner() {
     return (
       <div className="fbl fbl-stage qi-display-stage qi-display-scoreboard">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-        <div className="ld">
+        <div className="ld" ref={flipRef}>
           <div className="qi-display-eyebrow">AFTER ROUND {roundNumber}</div>
           <div className="ld-title">LIVE STANDINGS</div>
           {sorted.map((s, i) => {
             const move = rankMoves.get(s.team_name);
             return (
-              <div key={s.team_name} className={"ld-row" + (i < 3 ? " top" : "") + (i === 0 ? " p1" : i === 1 ? " p2" : i === 2 ? " p3" : "")}>
+              <div key={s.team_name} data-flip-key={s.team_name} className={"ld-row" + (i < 3 ? " top" : "") + (i === 0 ? " p1" : i === 1 ? " p2" : i === 2 ? " p3" : "")}>
                 <div className="rank">{i + 1}</div>
                 <div className="crest">{teamInitials(s.team_name)}</div>
                 <div className="name">{s.team_name}</div>
                 {move ? <div className="move">&#9650;{move}</div> : null}
                 <div className="gapbar"><i style={{ width: Math.max(4, Math.round((s.total_points / leader) * 100)) + "%" }} /></div>
-                <div className="pts tnum">{s.total_points.toLocaleString()}</div>
+                <div className="pts tnum"><CountUp value={s.total_points} /></div>
               </div>
             );
           })}

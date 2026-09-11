@@ -15,6 +15,7 @@ import { TeamPhotoUpload } from "@/components/player/TeamPhotoUpload";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { platformLogger } from "@/lib/platform/logger";
 import { IconBlock } from "@/components/icons";
+import { CountUp } from "@/components/CountUp";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 import { isAnswerCorrect } from "@/lib/quiz/answerScoring";
 
@@ -1504,7 +1505,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               )}
               {myQuestionPoints !== null && (
                 <div style={{ padding: "8px 20px", borderRadius: 14, background: myQuestionPoints > 0 ? "rgba(46,224,110,0.15)" : "rgba(255,255,255,0.06)", border: "1px solid " + (myQuestionPoints > 0 ? "rgba(46,224,110,0.5)" : "rgba(255,255,255,0.12)"), marginBottom: 16, textAlign: "center" as const }}>
-                  <div style={{ font: "800 26px 'Inter'", color: myQuestionPoints > 0 ? "#2EE06E" : "rgba(255,255,255,0.5)" }}>{myQuestionPoints > 0 ? "+" + myQuestionPoints : "0"} {myQuestionPoints === 1 ? "point" : "points"}</div>
+                  <div style={{ font: "800 26px 'Inter'", color: myQuestionPoints > 0 ? "#2EE06E" : "rgba(255,255,255,0.5)" }}>{myQuestionPoints > 0 ? "+" : ""}<CountUp value={myQuestionPoints} /> {myQuestionPoints === 1 ? "point" : "points"}</div>
                 </div>
               )}
               {myAnswerCorrect ? (

@@ -1780,7 +1780,7 @@ function DisplayScreenInner() {
                 <div className="rank">{i + 1}</div>
                 <div className="crest">{teamInitials(s.team_name)}</div>
                 <div className="name">{s.team_name}</div>
-                {move ? <div className="move">&#9650;{move}</div> : null}
+                {move ? <div className="move" role="status" aria-live="polite" aria-label={`${s.team_name} climbed ${move} place${move === 1 ? "" : "s"}`}>&#9650;{move}</div> : null}
                 <div className="gapbar"><i style={{ width: Math.max(4, Math.round((s.total_points / leader) * 100)) + "%" }} /></div>
                 <div className="pts tnum"><CountUp value={s.total_points} /></div>
               </div>

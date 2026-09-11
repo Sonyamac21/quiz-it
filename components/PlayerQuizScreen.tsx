@@ -1104,7 +1104,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         <div className="qi-player-state qi-player-spin-choice" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24, textAlign: "center" as const }}>
           <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 24, letterSpacing: ".12em", textShadow: "0 0 24px rgba(190,38,193,.6)" }}><span style={{ color: "#BE26C1" }}>SPIN</span> TO WIN</div>
           {error && (
-            <div style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,59,78,0.12)", border: "1px solid rgba(255,59,78,0.5)", color: "#FF3B4E", font: "600 13px 'Inter'", textAlign: "center" as const }}>{error}</div>
+            <div role="alert" style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,59,78,0.12)", border: "1px solid rgba(255,59,78,0.5)", color: "#FF3B4E", font: "600 13px 'Inter'", textAlign: "center" as const }}>{error}</div>
           )}
           <button onClick={chooseSpin} style={{ width: "min(64vw,260px)", aspectRatio: "1", borderRadius: "50%", background: "radial-gradient(circle at 50% 40%, rgba(217,79,220,0.35), #150A2E 72%)", border: "2px solid #D94FDC", color: "#fff", font: "800 34px 'Inter'", letterSpacing: ".2em", cursor: "pointer", boxShadow: "0 0 46px rgba(190,38,193,0.5)" }}>SPIN</button>
           <button onClick={choosePass} style={{ width: "100%", maxWidth: 320, minHeight: 64, borderRadius: 16, background: "#150A2E", border: "1px solid #2E1A52", color: "#B9A8D9", font: "700 18px 'Inter'", letterSpacing: ".2em", cursor: "pointer" }}>PASS</button>
@@ -1408,7 +1408,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         <div className="qi-player-state qi-player-spin-choice" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24, textAlign: "center" as const }}>
           <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 24, letterSpacing: ".12em", textShadow: "0 0 24px rgba(190,38,193,.6)" }}><span style={{ color: "#BE26C1" }}>SPIN</span> TO WIN</div>
           {error && (
-            <div style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,59,78,0.12)", border: "1px solid rgba(255,59,78,0.5)", color: "#FF3B4E", font: "600 13px 'Inter'", textAlign: "center" as const }}>{error}</div>
+            <div role="alert" style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,59,78,0.12)", border: "1px solid rgba(255,59,78,0.5)", color: "#FF3B4E", font: "600 13px 'Inter'", textAlign: "center" as const }}>{error}</div>
           )}
           <button onClick={chooseSpin} style={{ width: "min(64vw,260px)", aspectRatio: "1", borderRadius: "50%", background: "radial-gradient(circle at 50% 40%, rgba(217,79,220,0.35), #150A2E 72%)", border: "2px solid #D94FDC", color: "#fff", font: "800 34px 'Inter'", letterSpacing: ".2em", cursor: "pointer", boxShadow: "0 0 46px rgba(190,38,193,0.5)" }}>SPIN</button>
           <button onClick={choosePass} style={{ width: "100%", maxWidth: 320, minHeight: 64, borderRadius: 16, background: "#150A2E", border: "1px solid #2E1A52", color: "#B9A8D9", font: "700 18px 'Inter'", letterSpacing: ".2em", cursor: "pointer" }}>PASS</button>
@@ -1498,7 +1498,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           const myQuestionPoints = myRunningPoints !== undefined ? myRunningPoints - pointsBeforeQuestionRef.current : null;
           return (
             <>
-              <div className="qi-player-outcome-heading">{myAnswerCorrect ? "Correct answer" : mySubmittedDisplay ? "Not quite this time" : "No answer submitted"}</div>
+              <div className="qi-player-outcome-heading" role="status" aria-live="polite">{myAnswerCorrect ? "Correct answer" : mySubmittedDisplay ? "Not quite this time" : "No answer submitted"}</div>
               {question && <div className="qi-player-outcome-question">{question.question_text}</div>}
               {fastestTeamName && (
                 <div style={{ fontSize: 32, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 24px rgba(190,38,193,0.6)", marginBottom: 16 }}>{fastestTeamName}</div>
@@ -1628,12 +1628,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch" as const, display: "flex", flexDirection: "column" }}>
         {verdict === true ? (
           /* The player's whole moment: did I get it? — one dominant answer. */
-          <div style={{ position: "relative", zIndex: 2, margin: "auto 0", textAlign: "center" }}>
+          <div role="status" aria-live="polite" style={{ position: "relative", zIndex: 2, margin: "auto 0", textAlign: "center" }}>
             <PlayerResultBanner tone="correct" title="CORRECT">{correctText}</PlayerResultBanner>
           </div>
         ) : (
           <>
-            <div style={{ position: "relative", zIndex: 2, fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 14, letterSpacing: ".14em", color: "#B9A8D9", marginBottom: 12 }}>
+            <div role="status" aria-live="polite" style={{ position: "relative", zIndex: 2, fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 14, letterSpacing: ".14em", color: "#B9A8D9", marginBottom: 12 }}>
               {/* Multi Tap almost never lands on a flat "wrong" - a team
                   usually gets several taps right even without a perfect
                   exact-match verdict, so this reads "NOT A PERFECT MATCH"
@@ -1782,7 +1782,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         <div className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
         <div className="qi-player-question-text">{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
         {error && (
-          <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, marginBottom: 10, textAlign: "center" as const }}>{error}</div>
+          <div role="alert" style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, marginBottom: 10, textAlign: "center" as const }}>{error}</div>
         )}
 
         {!timerReady && <div className="qi-player-waiting-timer">{timeLeft === 0 ? "TIME’S UP · ANSWERS LOCKED" : "WAITING FOR HOST TO START TIMER"}</div>}

@@ -162,8 +162,9 @@ export default function QuestionBankPage() {
   async function approveQuestion(id: string) {
     const target = questions.find(q => q.id === id);
     if (target && hasMissingPicture(target)) {
-      const proceed = window.confirm(
-        "This question's original had a picture that was never imported - approving it now will show players the question text (which may reference \"this photo\") with no image at all. Attach a picture first (edit the question and set it up as a Picture question) unless you're sure it still makes sense without one.\n\nApprove anyway?"
+      const proceed = await confirmDialog(
+        "This question's original had a picture that was never imported - approving it now will show players the question text (which may reference \"this photo\") with no image at all. Attach a picture first (edit the question and set it up as a Picture question) unless you're sure it still makes sense without one.\n\nApprove anyway?",
+        { tone: "destructive", confirmLabel: "Approve anyway" }
       );
       if (!proceed) return;
     }
@@ -177,7 +178,7 @@ export default function QuestionBankPage() {
   async function approveAllInView() {
     if (bulkBusy) return;
     const label = topicFilter ? `${topicFilter}${filter !== "all" ? ` / ${typeLabel[filter]}` : ""}` : (filter !== "all" ? typeLabel[filter] : "all");
-    const confirmed = window.confirm(`Approve all ${matchingCount.toLocaleString()} needs-review question(s) matching ${label}? They'll immediately become pickable in Quiz Plans and Random From Library.\n\nQuestions still flagged as missing an original picture will be skipped - approve those individually once a picture's attached.`);
+    const confirmed = await confirmDialog(`Approve all ${matchingCount.toLocaleString()} needs-review question(s) matching ${label}? They'll immediately become pickable in Quiz Plans and Random From Library.\n\nQuestions still flagged as missing an original picture will be skipped - approve those individually once a picture's attached.`, { confirmLabel: "Approve all" });
     if (!confirmed) return;
     setBulkBusy(true);
     const supabase = createSupabaseBrowserClient();

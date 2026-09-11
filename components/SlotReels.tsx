@@ -51,6 +51,35 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
   const [overlay, setOverlay] = useState<Seg | null>(null);
   const fwCanvasRef = useRef<HTMLCanvasElement>(null);
   const lastHandledTarget = useRef<number | string | null>(null);
+  const pendingTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const pendingFrames = useRef(new Set<number>());
+  const fireworkCanvases = useRef(new Set<HTMLCanvasElement>());
+  function scheduleTimeout(callback: () => void, delay: number) {
+    const id = setTimeout(() => {
+      pendingTimers.current.delete(id);
+      callback();
+    }, delay);
+    pendingTimers.current.add(id);
+    return id;
+  }
+  function scheduleFrame(callback: FrameRequestCallback) {
+    const id = requestAnimationFrame(time => {
+      pendingFrames.current.delete(id);
+      callback(time);
+    });
+    pendingFrames.current.add(id);
+    return id;
+  }
+  function cancelPendingWork() {
+    pendingTimers.current.forEach(clearTimeout);
+    pendingTimers.current.clear();
+    pendingFrames.current.forEach(cancelAnimationFrame);
+    pendingFrames.current.clear();
+    fireworkCanvases.current.forEach(canvas => canvas.remove());
+    fireworkCanvases.current.clear();
+    lastHandledTarget.current = null;
+    if (audioEnabled) stopShowAudio("spin");
+  }
 
   const INITIAL_CENTRE = Math.floor(STRIP_LEN / 2);
   const INITIAL_TOP = -(INITIAL_CENTRE - 1) * SEG_H;
@@ -99,7 +128,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
 
   const animReel = (reelIdx: number, fromTop: number, toTop: number, dur: number, delay: number, easePow: number, cb?: () => void) => {
     let t0: number | null = null;
-    setTimeout(() => {
+    scheduleTimeout(() => {
       const step = (ts: number) => {
         if (!t0) t0 = ts;
         const p = Math.min((ts - t0) / dur, 1);
@@ -108,14 +137,14 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
         reelTops.current[reelIdx] = cur;
         const el = reelRefs[reelIdx].current;
         if (el) el.style.top = cur + "px";
-        if (p < 1) requestAnimationFrame(step);
+        if (p < 1) scheduleFrame(step);
         else {
           reelTops.current[reelIdx] = toTop;
           if (el) el.style.top = toTop + "px";
           if (cb) cb();
         }
       };
-      requestAnimationFrame(step);
+      scheduleFrame(step);
     }, delay);
   };
 
@@ -125,8 +154,9 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
     cv.height = window.innerHeight;
     cv.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:60";
     document.body.appendChild(cv);
+    fireworkCanvases.current.add(cv);
     const ctx = cv.getContext("2d");
-    if (!ctx) { document.body.removeChild(cv); return; }
+    if (!ctx) { cv.remove(); fireworkCanvases.current.delete(cv); return; }
     const pts: { x: number; y: number; vx: number; vy: number; c: string; l: number; d: number; r: number }[] = [];
     const cols = ["#BE26C1", "#F5C842", "#ffffff", "#22c55e", "#c8c8d8", "#ff6b6b", "#ffd700", "#00cfff", "#ff69b4", "#ff4500"];
     const burst = (cx: number, cy: number) => {
@@ -137,7 +167,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
       }
     };
     for (let b = 0; b < 20; b++) {
-      setTimeout(() => {
+      scheduleTimeout(() => {
         const cx = 100 + Math.random() * (cv.width - 200);
         const cy = 50 + Math.random() * (cv.height * 0.6);
         burst(cx, cy);
@@ -160,10 +190,10 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
       }
       ctx.globalAlpha = 1;
       ctx.shadowBlur = 0;
-      rafId = requestAnimationFrame(draw);
+      rafId = scheduleFrame(draw);
     };
-    rafId = requestAnimationFrame(draw);
-    setTimeout(() => { cancelAnimationFrame(rafId); if (cv.parentNode) document.body.removeChild(cv); }, 8000);
+    rafId = scheduleFrame(draw);
+    scheduleTimeout(() => { cancelAnimationFrame(rafId); pendingFrames.current.delete(rafId); cv.remove(); fireworkCanvases.current.delete(cv); }, 8000);
   };
 
   const playPositiveSounds = (songFile?: string) => {
@@ -247,15 +277,15 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
       animReel(i, startTop, targetTop, durations[i], delays[i], easePowers[i],
         i === 2 ? () => {
           stopSpinSound();
-          setTimeout(() => {
+          scheduleTimeout(() => {
             const rebelStart = reelTops.current[rebelReel];
             const rebelTarget = landReelOn(winSegIdx, rng, REEL_H);
             animReel(rebelReel, rebelStart, rebelTarget, 2000, 0, 2, () => {
               const actualResult = SLOT_SEGS[winSegIdx];
-              setTimeout(() => {
+              scheduleTimeout(() => {
                 setOverlay(actualResult);
                 if (actualResult.positive) {
-                  setTimeout(() => { launchFW(); }, 150);
+                  scheduleTimeout(() => { launchFW(); }, 150);
                   playPositiveSounds(victorySong);
                 } else {
                   playNegativeSounds();
@@ -267,6 +297,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
         } : undefined
       );
     });
+    return cancelPendingWork;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetIdx, spinNonce]);
 

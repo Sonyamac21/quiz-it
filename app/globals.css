@@ -836,7 +836,14 @@ button, input, select, textarea { font: inherit; }
 .fbl .ld-row{display:flex;align-items:center;gap:2.5%;padding:1.4% 2.5%;border-radius:14px;margin-bottom:1.2%;}
 .fbl .ld-row .rank{width:5%;font:800 clamp(14px,2.1vw,30px) 'Inter';color:var(--text2);text-align:right;font-variant-numeric:tabular-nums;}
 .fbl .ld-row .crest{width:clamp(24px,3.4vw,44px);aspect-ratio:1;font-size:clamp(8px,1.1vw,15px);flex:none;}
-.fbl .ld-row .name{font:700 clamp(13px,2vw,30px) 'Inter';white-space:nowrap;}
+/* min-width:0/overflow/ellipsis added - team names are free-text a team
+   picks for itself, and this row had no guard against a long one. Unlike
+   .lb-team span two rules up (which already has this exact guard), this
+   would let a long name overflow straight past the row and bleed into the
+   points column/off the edge of the screen, the same class of bug as the
+   Instagram-handle overflow. flex:1/min-width:0 also lets it actually
+   shrink to make room instead of pushing .gapbar and .pts out of place. */
+.fbl .ld-row .name{font:700 clamp(13px,2vw,30px) 'Inter';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;}
 .fbl .ld-row .move{font:700 clamp(8px,1.1vw,14px) 'Inter';color:var(--purple-b);background:rgba(190,38,193,.14);border:1px solid var(--purple-d);border-radius:99px;padding:.3% 1.2%;letter-spacing:.06em;}
 .fbl .ld-row .gapbar{flex:1;height:clamp(4px,.6vw,8px);border-radius:99px;background:var(--stage-raised);border:1px solid var(--line);position:relative;overflow:hidden;margin:0 1%;}
 .fbl .ld-row .gapbar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:linear-gradient(90deg,var(--purple-d),var(--purple-b));}
@@ -1599,7 +1606,13 @@ button, input, select, textarea { font: inherit; }
 .qi-display-final-row { --qi-medal: #d94fdc; display: grid; grid-template-columns: clamp(52px,5vw,82px) 1fr auto; align-items: center; gap: clamp(16px,2vw,32px); min-height: clamp(72px,9vh,112px); padding: 1.5vh 2vw; border-radius: 20px; background: rgba(28,13,58,.82); border: 1px solid rgba(255,255,255,.12); margin-bottom: 1.2vh; animation: qiDisplayResultIn .5s var(--ease-settle, ease-out) both; }
 .qi-display-final-row.is-podium { border-color: var(--qi-medal); background: linear-gradient(90deg,color-mix(in srgb,var(--qi-medal) 13%,transparent),rgba(28,13,58,.88)); }
 .qi-display-final-rank { color: var(--qi-medal); font-size: clamp(28px,3vw,50px); font-weight: 900; }
-.qi-display-final-team { font-size: clamp(25px,2.7vw,46px); font-weight: 800; }
+/* Grid items default to min-width:auto (sized to their content's longest
+   unbreakable word), not 0 - so a team name with no spaces long enough
+   (one word) could still force this 1fr column wider than its share and
+   push the score column off the row's edge, even though normal wrapping
+   handles anything with spaces fine. min-width:0 + overflow-wrap covers
+   the one-long-word case too. */
+.qi-display-final-team { font-size: clamp(25px,2.7vw,46px); font-weight: 800; min-width: 0; overflow-wrap: anywhere; }
 .qi-display-final-score { color: var(--qi-medal); font-size: clamp(31px,3.5vw,58px); font-weight: 900; font-variant-numeric: tabular-nums; }
 .qi-display-final-wait { padding: 10vh 0; text-align: center; color: #9c89c2; font-size: clamp(20px,2vw,34px); }
 .qi-display-final-reveal .qi-display-powered { margin-top: 3vh; }

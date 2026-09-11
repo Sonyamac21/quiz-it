@@ -370,8 +370,10 @@ function PowerCardOverlays({ currentAnnounce, announceVisible, roundCardPlays, r
           {thisRoundCards.map((c, i) => {
             const card = POWER_CARDS.find(p => p.type === c.card_type);
             return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.6vw", padding: "0.6vh 1vw", borderRadius: 10, background: "rgba(20,5,40,0.9)", border: "1px solid " + (card?.color || "#888"), color: "#fff", fontSize: "clamp(11px,0.9vw,15px)", fontWeight: 600 }}>
-                <span>{card?.emoji}</span><span>{c.team_name}</span><span style={{ color: "rgba(255,255,255,0.5)" }}>{card?.title}</span>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.6vw", padding: "0.6vh 1vw", borderRadius: 10, background: "rgba(20,5,40,0.9)", border: "1px solid " + (card?.color || "#888"), color: "#fff", fontSize: "clamp(11px,0.9vw,15px)", fontWeight: 600, maxWidth: "min(90vw, 480px)" }}>
+                <span style={{ flexShrink: 0 }}>{card?.emoji}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{c.team_name}</span>
+                <span style={{ color: "rgba(255,255,255,0.5)", flexShrink: 0 }}>{card?.title}</span>
               </div>
             );
           })}

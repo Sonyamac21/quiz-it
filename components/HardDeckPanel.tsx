@@ -48,6 +48,15 @@ type Props = {
 export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onActiveChange, onRoundComplete, autoStartRoundId }: Props) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
+  const [scoreWarnings, setScoreWarnings] = useState<string[]>([]);
+  function reportScoreResult(name: string, result: { error?: string; scoreboardSyncError?: string }) {
+    const message = result.error
+      ? `${name}: score award was not confirmed. Check the saved score before continuing.`
+      : result.scoreboardSyncError
+        ? `${name}: points were saved, but Display/handset scores may be stale. Check the scoreboard before continuing.`
+        : null;
+    if (message) setScoreWarnings(previous => [...new Set([...previous, message])]);
+  }
   const [team, setTeam] = useState<string | null>(null);
   const [cards, setCards] = useState<PlayingCard[]>([]);
   const [status, setStatus] = useState<HardDeckStatus>("idle");
@@ -231,9 +240,16 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
       // busting team was genuinely gambling for CARD_POINTS on that guess.
       const stolenPoints = CARD_POINTS;
       setPotential(0);
-      await Promise.all(winners.map(name => applyScoreDelta(supabase, sessionPin, name, stolenPoints, {
-        eventKey: `harddeck-steal:${sessionId}:${playId}:${cards.length}:${name}`,
-      })));
+      await Promise.all(winners.map(async name => {
+        try {
+          const result = await applyScoreDelta(supabase, sessionPin, name, stolenPoints, {
+            eventKey: `harddeck-steal:${sessionId}:${playId}:${cards.length}:${name}`,
+          });
+          reportScoreResult(name, result);
+        } catch {
+          reportScoreResult(name, { error: "Score request failed" });
+        }
+      }));
       setStatus("lost");
       setStealWinners(winners);
       setStealPoints(stolenPoints);
@@ -268,11 +284,15 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
     // which only ever adjusted total_points for a team (a scores row already
     // exists for every team by the time Hard Deck can run, created at team
     // join / "Initialise Scores") and left round_points untouched.
-    const result = await applyScoreDelta(supabase, sessionPin, team, amount, {
-      roundDelta: 0,
-      eventKey: `harddeck:${sessionId}:${playId}:${team}:${cards.length}`,
-    });
-    if (result.scoreboardSyncError) console.error("Hard Deck: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
+    try {
+      const result = await applyScoreDelta(supabase, sessionPin, team, amount, {
+        roundDelta: 0,
+        eventKey: `harddeck:${sessionId}:${playId}:${team}:${cards.length}`,
+      });
+      reportScoreResult(team, result);
+    } catch {
+      reportScoreResult(team, { error: "Score request failed" });
+    }
     onScoreChange?.();
   }
 
@@ -302,7 +322,14 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
   // No floating launch button anymore - Hard Deck now starts only from its
   // own round_start screen in the running order (see autoStartRoundId
   // above), exactly like Pursuit has zero manual launch button of its own.
-  if (!open) return null;
+  const warningPanel = scoreWarnings.length > 0 ? (
+    <div role="alert" style={{ position: "fixed", bottom: 16, left: 16, right: 16, zIndex: 10000, padding: 16, background: "#3b1018", color: "white", border: "2px solid #ff8290", borderRadius: 12 }}>
+      <strong>Hard Deck scoring needs attention</strong>
+      {scoreWarnings.map(message => <div key={message}>{message}</div>)}
+      <button onClick={() => setScoreWarnings([])}>Dismiss warning</button>
+    </div>
+  ) : null;
+  if (!open) return typeof document !== "undefined" && warningPanel ? createPortal(warningPanel, document.body) : null;
 
   const showRevealBaseButton = !showWheel && team && cards.length === 0;
 
@@ -413,5 +440,5 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
     </div>
   );
 
-  return typeof document !== "undefined" ? createPortal(overlay, document.body) : null;
+  return typeof document !== "undefined" ? createPortal(<>{overlay}{warningPanel}</>, document.body) : null;
 }

@@ -6,7 +6,12 @@ export const PLATFORM_CONFIG = Object.freeze({
     tickMilliseconds: 1000,
   },
   polling: {
-    playerSessionMilliseconds: 500,
+    // Realtime is the handset's fast path. This poll only repairs a missed
+    // websocket event, so running it twice a second created ~100 REST reads/s
+    // in a 50-team room without improving the normal experience. At 1.5s the
+    // recovery remains quick while leaving substantially more capacity for
+    // answer and scoring traffic on venue Wi-Fi.
+    playerSessionMilliseconds: 1500,
     playerTeamOrderMilliseconds: 3000,
     playerHeartbeatMilliseconds: 5000,
     hostAnswerSafetyMilliseconds: 2500,

@@ -1311,7 +1311,7 @@ function QuizControllerInner() {
     if (hostChannelRef.current) hostChannelRef.current.unsubscribe();
     setRealtimeStatus("CONNECTING");
     const channel = supabase.channel("quiz-host-" + pin)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "answers" }, (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "answers", filter: "session_pin=eq." + pin }, (payload) => {
         const a = payload.new as Answer;
         // Scope strictly to this session AND the current question index. A stale
         // or retried insert for a previous question must never leak into the
@@ -1328,7 +1328,7 @@ function QuizControllerInner() {
             .then(({ error }) => { if (error) console.error("SESSION UPDATE FAILED [hotSeatSubmitted]:", error); });
         }
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams" }, (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "teams", filter: "session_pin=eq." + pin }, (payload) => {
         const t = payload.new as Team;
         if (t.session_pin === pin) {
           setRealtimeLastSync(diagnosticTimestamp());
@@ -1348,7 +1348,7 @@ function QuizControllerInner() {
           });
         }
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards" }, (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + pin }, (payload) => {
         const c = payload.new as UnoCard & { session_pin?: string };
         // Scope to this session - the INSERT event is table-wide, so without
         // this check a power card played in a different concurrent session would
@@ -1360,7 +1360,7 @@ function QuizControllerInner() {
         setRealtimeLastSync(diagnosticTimestamp());
         loadScores(pin);
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions" }, (payload) => {
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: "pin=eq." + pin }, (payload) => {
         const s = payload.new as Record<string, unknown>;
         if (s.pin !== pin) return;
         setShowScoreboard(!!s.show_scoreboard_on_display);

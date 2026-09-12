@@ -189,7 +189,11 @@ export default function SessionPage() {
     // session start. Fired together instead; each Promise still resolves
     // to the same shape as before.
     const todayKey = new Date().toISOString().slice(0, 10);
-    const [{ data: venueData }, { data: upcomingEvents }] = await Promise.all([
+    // quizRounds only ever depends on selectedQuizId, which is already known
+    // here - it used to be fetched AFTER the session insert below (which it
+    // doesn't depend on at all), adding a fully serialized extra round-trip
+    // to every session start. Folded into this same parallel batch instead.
+    const [{ data: venueData }, { data: upcomingEvents }, { data: quizRounds, error: roundsError }] = await Promise.all([
       preparedEvent
         ? Promise.resolve({ data: preparedEvent.venue })
         : selectedVenueId
@@ -209,7 +213,13 @@ export default function SessionPage() {
         .order("event_date", { ascending: true })
         .order("start_time", { ascending: true })
         .limit(5),
+      supabase.from("quiz_rounds").select("*").eq("quiz_id", selectedQuizId).order("position"),
     ]);
+    if (roundsError || !quizRounds?.length) {
+      setCreateError(roundsError?.message || "This quiz has no rounds. Add rounds in Quiz Builder first.");
+      setCreating(false);
+      return;
+    }
     const quizName = quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "";
     const offersVenue = preparedEvent?.venue || (venueData as { food_offers?: string | null; drink_offers?: string | null; happy_hour?: string | null } | null);
     const inheritedOffers = preparedEvent?.special_offers || [offersVenue?.food_offers, offersVenue?.drink_offers, offersVenue?.happy_hour].filter(Boolean).join("\n");
@@ -257,13 +267,6 @@ export default function SessionPage() {
       .select()
       .single();
     if (!error && data) {
-      const { data: quizRounds, error: roundsError } = await supabase.from("quiz_rounds").select("*").eq("quiz_id", selectedQuizId).order("position");
-      if (roundsError || !quizRounds?.length) {
-        await supabase.from("sessions").delete().eq("id", data.id);
-        setCreateError(roundsError?.message || "This quiz has no rounds. Add rounds in Quiz Builder first.");
-        setCreating(false);
-        return;
-      }
       const { data: snapshots, error: snapshotError } = await supabase.from("session_rounds").insert(quizRounds.map(round => ({ session_id: data.id, source_quiz_round_id: round.id, source_round_id: round.source_round_id, position: round.position, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard, allow_power_cards: round.allow_power_cards, points_per_question: round.points_per_question ?? null, notes: round.notes, sponsor: round.sponsor, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5, max_time_bonus: round.max_time_bonus ?? 5 }))).select("id,position").order("position");
       if (snapshotError || !snapshots?.length) {
         await supabase.from("sessions").delete().eq("id", data.id);

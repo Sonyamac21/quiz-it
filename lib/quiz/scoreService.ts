@@ -32,6 +32,8 @@ export type ScoreRow = { team_name: string; total_points: number; round_points: 
  */
 export type ScoreMutationResult = {
   applied: boolean;
+  /** Authoritative total returned by the atomic database function. */
+  totalPoints?: number;
   scores?: ScoreRow[];
   scoreboardSyncError?: string;
   // Set when the score change itself failed (the RPC call errored) - distinct
@@ -81,10 +83,21 @@ export async function syncScoreboardData(supabase: SupabaseClient, sessionPin: s
 
 /** Create a team's score row at 0/0 if it doesn't already exist, then refresh scoreboard_data. Safe to call repeatedly. */
 export async function initTeamScore(supabase: SupabaseClient, sessionPin: string, teamName: string): Promise<ScoreMutationResult> {
-  await supabase.from("scores").upsert(
-    { session_pin: sessionPin, team_name: teamName, total_points: 0, round_points: 0 },
+  return initTeamScores(supabase, sessionPin, [teamName]);
+}
+
+/** Create missing score rows in one request and publish the leaderboard once. */
+export async function initTeamScores(supabase: SupabaseClient, sessionPin: string, teamNames: string[]): Promise<ScoreMutationResult> {
+  const uniqueNames = [...new Set(teamNames.map(name => name.trim()).filter(Boolean))];
+  if (uniqueNames.length === 0) return { applied: false };
+  const { error: upsertError } = await supabase.from("scores").upsert(
+    uniqueNames.map(team_name => ({ session_pin: sessionPin, team_name, total_points: 0, round_points: 0 })),
     { onConflict: "session_pin,team_name", ignoreDuplicates: true }
   );
+  if (upsertError) {
+    console.error("scoreService: score-row initialization failed:", upsertError.message);
+    return { applied: false, error: upsertError.message };
+  }
   const { scores, error } = await syncScoreboardData(supabase, sessionPin);
   return { applied: true, scores, scoreboardSyncError: error };
 }
@@ -167,9 +180,9 @@ export async function setScoreAbsolute(
     return { applied: false, error: error.message };
   }
   const row = Array.isArray(data) ? data[0] : data;
-  if (!row?.applied) return { applied: false };
+  if (!row?.applied) return { applied: false, totalPoints: typeof row?.total_points === "number" ? row.total_points : undefined };
   const { scores, error: syncError } = await syncScoreboardData(supabase, sessionPin);
-  return { applied: true, scores, scoreboardSyncError: syncError };
+  return { applied: true, totalPoints: typeof row.total_points === "number" ? row.total_points : undefined, scores, scoreboardSyncError: syncError };
 }
 
 /** Zero every team's round_points for the session (used at round start), then refresh scoreboard_data. Not a per-team delta event. */

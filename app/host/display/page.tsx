@@ -184,6 +184,12 @@ function LiveAudioPlayer({ question }: { question: Question }) {
       : audioRef.current;
     if (!el) { setNeedsManualPlay(true); return; }
     audioRef.current = el;
+    // playShowAudio must return synchronously so every cue shares the same
+    // channel coordinator. A browser can still reject its play() promise;
+    // surface the fallback instead of leaving a silent, apparently-playing TV.
+    const blockedCheck = window.setTimeout(() => {
+      if (el.paused && el.currentTime === 0) setNeedsManualPlay(true);
+    }, 350);
     el.loop = question.replay_mode === "unlimited";
     const fadeMs = 1200;
     if (question.fade_in) el.volume = 0; else el.volume = 1;
@@ -209,8 +215,12 @@ function LiveAudioPlayer({ question }: { question: Question }) {
         }
       };
       el.addEventListener("timeupdate", onTimeUpdate);
-      return () => el.removeEventListener("timeupdate", onTimeUpdate);
+      return () => {
+        window.clearTimeout(blockedCheck);
+        el.removeEventListener("timeupdate", onTimeUpdate);
+      };
     }
+    return () => window.clearTimeout(blockedCheck);
   }, [url, question.fade_in, question.fade_out, question.replay_mode, question.playback_mode, isLegacyYouTube]);
 
   if (!url || isLegacyYouTube) return null;
@@ -268,7 +278,12 @@ function DisplayFullscreenControl() {
     return () => document.removeEventListener("fullscreenchange", sync);
   }, []);
   if (fullscreen) return null;
-  return <button type="button" className="qi-display-fullscreen" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}>FULLSCREEN</button>;
+  return <button type="button" className="qi-display-fullscreen" onClick={() => {
+    // FULLSCREEN is the natural one-time operator gesture on a TV/iPad.
+    // Use it to silently unlock all coordinated audio channels as well.
+    void enableShowAudio().catch(() => {});
+    void document.documentElement.requestFullscreen?.().catch(() => {});
+  }}>FULLSCREEN</button>;
 }
 
 function DisplayWakeControl() {
@@ -747,8 +762,8 @@ function DisplayScreenInner() {
       playShowAudio(victorySongAudioFile(winnerTeam.victory_song), { channel: "music", volume: 0.9 });
     }
   }
-  function handleRevealNext(nextCount: number) {
-    const sorted = [...quizEndScores].sort((a,b) => a.total_points - b.total_points);
+  function handleRevealNext(nextCount: number, currentScores: Score[] = quizEndScores) {
+    const sorted = [...currentScores].sort((a,b) => a.total_points - b.total_points);
     setRevealedCount(nextCount);
     const isFirst = nextCount === sorted.length && sorted.length > 0;
     if (isFirst) {
@@ -1079,9 +1094,12 @@ function DisplayScreenInner() {
       const syncedCount = (data.quiz_end_revealed_count as number) || 0;
       const syncedTrophy = !!data.quiz_end_trophy_visible;
       if (prevPhaseForQuizEndRef.current !== "quiz_end") {
-        prevQuizEndRevealedRef.current = 0;
-        setRevealedCount(0);
-        setTrophyVisible(false);
+        // A display refresh can reconnect halfway through the finale. Resume
+        // the persisted reveal instead of visibly rewinding every result to
+        // zero; the host and display share this durable counter.
+        prevQuizEndRevealedRef.current = syncedCount;
+        setRevealedCount(syncedCount);
+        setTrophyVisible(syncedTrophy);
         trophyCelebrationFiredRef.current = false;
         winnerCelebrationFiredRef.current = false;
         stopClapping();
@@ -1089,7 +1107,10 @@ function DisplayScreenInner() {
         playShowAudio("clapping-scores.mp3", { channel: "ambient", volume: 0.45, loop: true });
       } else if (syncedCount > prevQuizEndRevealedRef.current) {
         prevQuizEndRevealedRef.current = syncedCount;
-        handleRevealNext(syncedCount);
+        // Use the scores from this same session payload. React state updates
+        // are asynchronous, so reading quizEndScores here could still see the
+        // previous render's empty array and miss the winner reveal entirely.
+        handleRevealNext(syncedCount, scores);
       }
       if (syncedTrophy) {
         setTrophyVisible(true);

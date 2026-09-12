@@ -10,7 +10,7 @@ import { HardDeckPanel } from "@/components/HardDeckPanel";
 import { PursuitPanel } from "@/components/PursuitPanel";
 import { PhotoApprovalPanel } from "@/components/PhotoApprovalPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
-import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc, syncScoreboardData } from "@/lib/quiz/scoreService";
+import { initTeamScore, initTeamScores, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc, syncScoreboardData } from "@/lib/quiz/scoreService";
 import { TeamBadge } from "@/components/TeamBadge";
 import { IconBlock, IconShuffle, IconBolt } from "@/components/icons";
 import { BrandLockup, Button, Field, Input, StatusPill, useConfirmDialog, usePromptDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
@@ -24,6 +24,9 @@ import { platformLogger } from "@/lib/platform/logger";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 import { calculateMultiTapScore, isAnswerCorrect as sharedIsAnswerCorrect, getCorrectAnswerText as sharedGetCorrectAnswerText, latestAnswerForTeam as sharedLatestAnswerForTeam, rankNearestWins } from "@/lib/quiz/answerScoring";
 import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
+import { clearPendingManualAdjustment, loadPendingManualAdjustment, savePendingManualAdjustment, type PendingManualAdjustment } from "@/lib/quiz/manualAdjustment";
+import { calculateSpinPayout, type SpinPayoutLabel } from "@/lib/quiz/spinPayout";
+import { clearHostPreviewRecovery, loadHostPreviewRecovery, saveHostPreviewRecovery } from "@/lib/quiz/hostPreviewRecovery";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
 
@@ -99,7 +102,8 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
     multi_tap: [
       "Each question has several correct answers hidden among decoys.",
       "Tap every option you think is correct \u2014 leaving a wrong option untapped scores exactly the same as tapping a correct one.",
-      `Earn up to ${pointsPerQ} points total per question, based on how many of the six choices you judge correctly.`,
+      "Earn 2 points for every option you judge correctly — both a correct tap and correctly leaving a decoy untapped score.",
+      "With six choices, that means up to 12 base points per question.",
       `Fastest team to find ALL correct answers gets up to +${timeBonus} extra for speed.`,
       ...(wipeoutMode ? ["Watch out \u2014 in the last 5 questions of this round, a single wrong tap zeroes that question's score (Wipeout Mode)."] : []),
     ],
@@ -278,8 +282,16 @@ function QuizControllerInner() {
   const [statsTeam, setStatsTeam] = useState<string | null>(null);
   const [adjustTeam, setAdjustTeam] = useState<string|null>(null);
   const [adjustAmount, setAdjustAmount] = useState("");
-  const pendingAdjustmentRef = useRef<{ pin: string; team: string; delta: number; eventKey: string } | null>(null);
+  const pendingAdjustmentRef = useRef<PendingManualAdjustment | null>(null);
+  const [pendingAdjustment, setPendingAdjustment] = useState<PendingManualAdjustment | null>(null);
   const adjustmentBusyRef = useRef(false);
+
+  useEffect(() => {
+    const pending = loadPendingManualAdjustment(window.sessionStorage);
+    pendingAdjustmentRef.current = pending;
+    setPendingAdjustment(pending);
+  }, []);
+
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showScoreboardOnHandsets, setShowScoreboardOnHandsets] = useState(false);
   const [pinInput, setPinInput] = useState("");
@@ -313,6 +325,7 @@ function QuizControllerInner() {
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
   const [spinFeedback, setSpinFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+  const [spinPayoutRetrying, setSpinPayoutRetrying] = useState(false);
   const [decisionMade, setDecisionMade] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
@@ -394,10 +407,16 @@ function QuizControllerInner() {
     if (!spinOffered || !sessionPin) return;
     const interval = setInterval(async () => {
       const supabase = createSupabaseBrowserClient();
-      const { data } = await supabase.from("sessions").select("spin_choice, fastest_team").eq("pin", sessionPin).single();
+      const { data } = await supabase.from("sessions").select("spin_choice, fastest_team, spin_target_idx, spin_nonce").eq("pin", sessionPin).single();
       if (data) {
         setSpinChoice((data.spin_choice as string) || null);
-        triggerSpinIfChosen((data.spin_choice as string) || null, sessionPin, (data.fastest_team as string) || null);
+        triggerSpinIfChosen(
+          (data.spin_choice as string) || null,
+          sessionPin,
+          (data.fastest_team as string) || null,
+          typeof data.spin_target_idx === "number" ? data.spin_target_idx : null,
+          typeof data.spin_nonce === "number" ? data.spin_nonce : null,
+        );
       }
     }, PLATFORM_CONFIG.polling.hostSpinSafetyMilliseconds);
     return () => clearInterval(interval);
@@ -527,6 +546,9 @@ function QuizControllerInner() {
       setRoundNumber(data.round_number);
       roundNumberRef.current = data.round_number;
     }
+    if (typeof data.quiz_end_revealed_count === "number") {
+      quizEndRevealedRef.current = data.quiz_end_revealed_count;
+    }
     // Restore the round-boundary timestamp so a refresh mid-round doesn't
     // reset roundStartedRef back to 0, which would otherwise let an old
     // answer from a previous round (same question index, since indexes
@@ -547,14 +569,39 @@ function QuizControllerInner() {
       setTimeLeft(Math.max(0, Math.ceil(hotSeat.answerDuration - elapsed)));
     }
     let restoredPhase = (data.phase as string) || "waiting";
+    // The public display/handsets call the between-round state
+    // "intermission", while the host console calls the same step
+    // "round_end" and uses it to expose the next-round action. Never restore
+    // the public name directly into HostPhase: it is intentionally not a host
+    // phase and would leave the spacebar/action rail with no valid transition.
+    if (restoredPhase === "intermission") restoredPhase = "round_end";
     // "spin_to_win" only exists as a Display/handset screen - the host's own
     // console still shows its celebration panel (with the spin controls) the
     // whole time the spin is offered/running, so a refresh mid-spin must land
     // back on "celebration", not an unhandled host phase.
     if (restoredPhase === "spin_to_win") restoredPhase = "celebration";
-    setHostPhase(restoredPhase as HostPhase);
+    const preview = loadHostPreviewRecovery(window.sessionStorage);
+    const hasMatchingPreview = restoredPhase === "waiting"
+      && !!preview
+      && preview.sessionId === data.id
+      && preview.roundId === data.current_session_round_id
+      && preview.questionIndex === data.current_question_index;
+    setHostPhase(hasMatchingPreview ? "preview" : restoredPhase as HostPhase);
     if (data.spin_offered) { setSpinOffered(true); setDecisionMade(true); }
     if (data.spin_choice) setSpinChoice(data.spin_choice as string);
+    const restoredSpinTarget = typeof data.spin_target_idx === "number" ? data.spin_target_idx : null;
+    const restoredSpinNonce = typeof data.spin_nonce === "number" ? data.spin_nonce : null;
+    setSpinTargetIdx(restoredSpinTarget);
+    setSpinNonce(restoredSpinNonce);
+    if (data.spin_choice === "spin") {
+      triggerSpinIfChosen(
+        "spin",
+        (data.pin as string) || sessionPin,
+        (data.fastest_team as string) || null,
+        restoredSpinTarget,
+        restoredSpinNonce,
+      );
+    }
 
     // If a timer was actively running when the refresh happened, resume the
     // countdown from elapsed wall-clock time instead of either losing it
@@ -739,10 +786,16 @@ function QuizControllerInner() {
 
   async function ensureScores(pin: string, teamList: Team[]) {
     const supabase = createSupabaseBrowserClient();
-    for (const team of teamList) {
-      await initTeamScore(supabase, pin, team.team_name);
+    const result = await initTeamScores(supabase, pin, teamList.map(team => team.team_name));
+    if (result.error) {
+      showToast("Could not initialise team scores. Check the connection and retry.", "error", 7000);
+      return;
     }
-    loadScores(pin);
+    if (result.scoreboardSyncError) {
+      showToast("Teams were initialised, but the leaderboard did not refresh. Retry before scoring.", "warning", 7000);
+      return;
+    }
+    if (result.scores) setScores(result.scores);
   }
 
   // Codex #12/#10: the actual matching logic now lives in
@@ -922,6 +975,8 @@ function QuizControllerInner() {
     }
     const operation = pending || { pin: sessionPin, team: teamName, delta, eventKey: `manual:${sessionPin}:${crypto.randomUUID()}` };
     pendingAdjustmentRef.current = operation;
+    setPendingAdjustment(operation);
+    savePendingManualAdjustment(window.sessionStorage, operation);
     adjustmentBusyRef.current = true;
     const supabase = createSupabaseBrowserClient();
     try {
@@ -936,6 +991,8 @@ function QuizControllerInner() {
       return;
     }
     pendingAdjustmentRef.current = null;
+    setPendingAdjustment(null);
+    clearPendingManualAdjustment(window.sessionStorage);
     loadScores(sessionPin);
     setAdjustTeam(null);
     setAdjustAmount("");
@@ -1026,9 +1083,24 @@ function QuizControllerInner() {
       setTimeout(() => { window.location.href = "/host/session"; }, 1200);
       return;
     }
-    // scoreboard_data is kept fresh by the score service after every score
-    // mutation - no need to recompute or embed it here.
-    const { data, error } = await supabase.from("sessions").update({ phase: "quiz_end", quiz_end_revealed_count: 0, quiz_end_trophy_visible: false }).eq("id", sessionId).select();
+    // Publish one fresh authoritative snapshot before changing phase. The
+    // display builds the finale from sessions.scoreboard_data; relying on the
+    // last mutation's cache left the reveal empty when a preceding sync had
+    // failed or a late team had only just joined.
+    const scoreboard = await syncScoreboardData(supabase, sessionPin);
+    if (scoreboard.error) {
+      showToast("Final scores could not be confirmed. Retry End Quiz before starting the reveal.", "error", 10000);
+      return;
+    }
+    setScores(scoreboard.scores);
+    const { data, error } = await supabase.from("sessions").update({
+      phase: "quiz_end",
+      quiz_end_revealed_count: 0,
+      quiz_end_trophy_visible: false,
+      allow_power_cards: false,
+      show_scoreboard: false,
+      show_scoreboard_on_display: false,
+    }).eq("id", sessionId).select();
     if (error) {
       console.error("doEndOfQuiz failed:", error);
       showToast("Failed to end quiz: " + error.message, "error", 7000);
@@ -1039,6 +1111,8 @@ function QuizControllerInner() {
       showToast("End Quiz didn't update - the session link may be stale. Try refreshing the host page.", "error", 7000);
       return;
     }
+    setShowScoreboard(false);
+    setShowScoreboardOnHandsets(false);
     setHostPhase("quiz_end");
   }
   async function doBuildReel() {
@@ -1070,25 +1144,63 @@ function QuizControllerInner() {
   }
 
   async function doRevealNextTeam() {
-    if (!sessionId) return;
-    const total = scores.length;
-    const nextCount = Math.min(quizEndRevealedRef.current + 1, total);
-    quizEndRevealedRef.current = nextCount;
+    if (!sessionId || !sessionPin) return;
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ quiz_end_revealed_count: nextCount }).eq("id", sessionId);
+    let finalScores: Score[];
+    try {
+      finalScores = await getScoresSvc(supabase, sessionPin);
+    } catch {
+      showToast("Could not verify the final scores. Check the connection and retry the reveal.", "error", 8000);
+      return;
+    }
+    setScores(finalScores);
+    const total = finalScores.length;
+    if (total === 0) {
+      showToast("There are no confirmed team scores to reveal.", "warning", 6000);
+      return;
+    }
+    const nextCount = Math.min(quizEndRevealedRef.current + 1, total);
+    const { data, error } = await supabase.from("sessions").update({ quiz_end_revealed_count: nextCount }).eq("id", sessionId).select("id");
+    if (error || !data?.length) {
+      showToast("That result was not sent to the display. Check the connection and retry.", "error", 8000);
+      return;
+    }
+    quizEndRevealedRef.current = nextCount;
     if (nextCount >= total) {
       setTimeout(async () => {
-        await supabase.from("sessions").update({ quiz_end_trophy_visible: true }).eq("id", sessionId);
+        const { data: trophyData, error: trophyError } = await supabase.from("sessions").update({ quiz_end_trophy_visible: true }).eq("id", sessionId).select("id");
+        if (trophyError || !trophyData?.length) {
+          showToast("The winner screen was not confirmed. Press Reveal Next Team to retry it.", "error", 9000);
+        }
       }, 3000);
     }
   }
 
   async function revealAllFinalResults() {
-    if (!sessionId) return;
-    const total = scores.length;
-    quizEndRevealedRef.current = total;
+    if (!sessionId || !sessionPin) return;
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "quiz_end", quiz_end_revealed_count: total, quiz_end_trophy_visible: true }).eq("id", sessionId);
+    const scoreboard = await syncScoreboardData(supabase, sessionPin);
+    if (scoreboard.error || scoreboard.scores.length === 0) {
+      showToast("Final scores could not be confirmed. Check the connection and retry.", "error", 9000);
+      return;
+    }
+    const total = scoreboard.scores.length;
+    const { data, error } = await supabase.from("sessions").update({
+      phase: "quiz_end",
+      quiz_end_revealed_count: total,
+      quiz_end_trophy_visible: true,
+      allow_power_cards: false,
+      show_scoreboard: false,
+      show_scoreboard_on_display: false,
+    }).eq("id", sessionId).select("id");
+    if (error || !data?.length) {
+      showToast("Final results were not sent to the display. Check the connection and retry.", "error", 9000);
+      return;
+    }
+    quizEndRevealedRef.current = total;
+    setScores(scoreboard.scores);
+    setShowScoreboard(false);
+    setShowScoreboardOnHandsets(false);
     setHostPhase("quiz_end");
   }
 
@@ -1103,12 +1215,22 @@ function QuizControllerInner() {
   // straight from the same sessions-row payload that carries spin_choice (which
   // is NOT cleared by advancing to the next question) means the payout no
   // longer depends on that fragile, easily-stale local ref.
-  function triggerSpinIfChosen(choice: string | null, pin: string, teamNameOverride?: string | null) {
+  function triggerSpinIfChosen(
+    choice: string | null,
+    pin: string,
+    teamNameOverride?: string | null,
+    existingTargetIdx?: number | null,
+    existingNonce?: number | null,
+  ) {
     if (choice === "spin" && !spinTriggeredRef.current) {
       const payoutTeam = teamNameOverride ?? fastestTeamRef.current;
       spinTriggeredRef.current = true;
-      const winIdx = Math.floor(Math.random() * 8);
-      const nonce = Date.now() % 1000000; // Keep within integer column range
+      // A reconnect during a spin must resume the exact outcome already stored
+      // on the session. Generating a fresh target here would let the Display
+      // show one result while scoring another.
+      const hasStoredIdentity = Number.isInteger(existingTargetIdx) && existingTargetIdx! >= 0 && existingTargetIdx! < SLOT_SEGS.length && Number.isInteger(existingNonce);
+      const winIdx = hasStoredIdentity ? existingTargetIdx! : Math.floor(Math.random() * SLOT_SEGS.length);
+      const nonce = hasStoredIdentity ? existingNonce! : Date.now() % 1000000; // Keep within integer column range
       // Set host-local state directly here rather than waiting on the realtime
       // subscription's echo of this same write - the 1500ms safety poll only
       // ever re-fetches the spin_choice column, so if the realtime UPDATE event
@@ -1132,15 +1254,17 @@ function QuizControllerInner() {
         setSpinFeedback({ ok: false, message: "Spin could not start: the session is not connected. Reconnect the host before continuing." });
         return;
       }
-      createSupabaseBrowserClient().from("sessions")
-        .update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: nonce })
-        .eq("id", sid)
-        .then(({ error }) => {
-          if (error) {
-            console.error("Failed to write spin_to_win phase:", error);
-            setSpinFeedback({ ok: false, message: "Spin could not start on the display. Check the connection and retry." });
-          }
-        });
+      if (!hasStoredIdentity) {
+        createSupabaseBrowserClient().from("sessions")
+          .update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: nonce })
+          .eq("id", sid)
+          .then(({ error }) => {
+            if (error) {
+              console.error("Failed to write spin_to_win phase:", error);
+              setSpinFeedback({ ok: false, message: "Spin could not start on the display. Check the connection and retry." });
+            }
+          });
+      }
       // Previously scored the instant the spin was triggered - the reel
       // animation (SlotReels: 3 reels landing over ~8.2s, then a ~2s "rebel
       // reel" correction) takes about 10s to visually settle, so the
@@ -1148,29 +1272,38 @@ function QuizControllerInner() {
       // room could actually see the result, spoiling it. Delayed to land
       // together with the animation instead of ahead of it.
       const SPIN_REVEAL_MS = 10200;
-      if (payoutTeam) setTimeout(() => applySpinResult(winIdx, payoutTeam, nonce, pin), SPIN_REVEAL_MS);
+      if (payoutTeam) setTimeout(async () => {
+        const confirmed = await applySpinResult(winIdx, payoutTeam, nonce, pin);
+        // Keep the stored target, nonce and team intact when scoring is
+        // unconfirmed. A reconnect or the host retry control can then safely
+        // repeat the same idempotent payout instead of losing the result.
+        if (confirmed) setTimeout(() => finalizeSpinSession(pin), 9800);
+      }, SPIN_REVEAL_MS);
       else {
         console.error("triggerSpinIfChosen: no fastest-team name available (ref cleared and no override passed) - spin payout skipped.");
         setSpinFeedback({ ok: false, message: "Spin points were not awarded: no winning team was identified. Check the team's score before continuing." });
       }
-      setTimeout(() => {
-        const finalSid = sessionIdRef.current || sessionId;
-        // Only return to "celebration" if the session is STILL on the spin
-        // (phase === "spin_to_win"). If the host already advanced (Continue / Next
-        // Question / End Round), that move set fastest_team = null and changed the
-        // phase; an unconditional write here would re-enter "celebration" with no
-        // winner and make the Display fire the sad-trombone + "No correct answers"
-        // and every handset re-show wrong-answer feedback. The .eq("phase",
-        // "spin_to_win") guard makes this a no-op in that case. The spin_* columns
-        // are cleared in the same guarded write.
-        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration", spin_offered: false, spin_choice: null, spin_nonce: null, spin_target_idx: null }).eq("id", finalSid).eq("phase", "spin_to_win").then(({ error }) => {
-          if (error) {
-            console.error("SESSION UPDATE FAILED [spinTimeout]:", error);
-            showToast("The display could not leave the spin screen. Check the connection and display before continuing; this does not confirm whether points were awarded.", "error", 10000);
-          }
-        });
-      }, 20000);
     }
+  }
+
+  async function finalizeSpinSession(pin: string): Promise<boolean> {
+    const finalSid = sessionIdRef.current || sessionId;
+    if (!finalSid) return false;
+    const { error } = await createSupabaseBrowserClient().from("sessions")
+      .update({ phase: "celebration", spin_offered: false, spin_choice: null, spin_nonce: null, spin_target_idx: null })
+      .eq("id", finalSid)
+      .eq("pin", pin)
+      .eq("phase", "spin_to_win");
+    if (error) {
+      console.error("SESSION UPDATE FAILED [finalizeSpinSession]:", error);
+      setSpinFeedback({ ok: false, message: "Points are confirmed, but the display could not leave the spin screen. Retry to reconnect it safely." });
+      return false;
+    }
+    setSpinOffered(false);
+    setSpinChoice(null);
+    setSpinTargetIdx(null);
+    setSpinNonce(null);
+    return true;
   }
 
   function subscribeToUpdates(pin: string) {
@@ -1204,7 +1337,15 @@ function QuizControllerInner() {
           // otherwise a team that joined after "Initialise Scores" was clicked, or
           // simply hasn't answered correctly yet, was invisible on the leaderboard
           // entirely (it only ever showed teams that already had a scores row).
-          initTeamScore(createSupabaseBrowserClient(), pin, t.team_name).then(() => loadScores(pin));
+          initTeamScore(createSupabaseBrowserClient(), pin, t.team_name).then(result => {
+            if (result.error) {
+              showToast(`${t.team_name} joined, but their score row was not created. Use Initialise Scores before continuing.`, "error", 10000);
+            } else if (result.scoreboardSyncError) {
+              showToast(`${t.team_name} joined, but the leaderboard did not refresh. Use Initialise Scores before continuing.`, "warning", 10000);
+            } else if (result.scores) {
+              setScores(result.scores);
+            }
+          });
         }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards" }, (payload) => {
@@ -1240,7 +1381,13 @@ function QuizControllerInner() {
         setSpinTargetIdx((s.spin_target_idx as number) ?? null);
         setSpinNonce((s.spin_nonce as number) ?? null);
         setSpinOffered(!!s.spin_offered);
-        triggerSpinIfChosen(choice, pin, (s.fastest_team as string) || null);
+        triggerSpinIfChosen(
+          choice,
+          pin,
+          (s.fastest_team as string) || null,
+          typeof s.spin_target_idx === "number" ? s.spin_target_idx : null,
+          typeof s.spin_nonce === "number" ? s.spin_nonce : null,
+        );
       })
       .subscribe(status => {
         setRealtimeStatus(status);
@@ -1329,6 +1476,7 @@ function QuizControllerInner() {
   // PHASE ACTIONS
   async function doStartRound() {
     if (!selectedRound || !sessionId) return;
+    clearHostPreviewRecovery(window.sessionStorage);
     stopVictorySong();
     stopTickAudio();
     setQIdx(0);
@@ -1395,11 +1543,13 @@ function QuizControllerInner() {
     setScrambledTeams([]);
     const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", timer_started_at: null, fastest_team: null, fastest_song: null, spin_offered: false, spin_nonce: null, spin_target_idx: null, spin_choice: null, hot_seat_status: "idle", hot_seat_team: null, hot_seat_locked_teams: [], hot_seat_answer_started_at: null, blocked_teams: [], scrambled_teams: [] }).eq("id", sessionId);
     if (prevErr) console.error("SESSION UPDATE FAILED [doPreviewQuestion]:", prevErr);
+    else saveHostPreviewRecovery(window.sessionStorage, { sessionId, roundId: selectedRound.id, questionIndex: idx });
     if (sessionPin) loadAnswers(sessionPin, idx);
   }
 
   async function doSendQuestion() {
     if (!selectedRound || !sessionId) return;
+    clearHostPreviewRecovery(window.sessionStorage);
     const q = selectedRound.questions[qIdx];
     const isHotSeat = selectedRound.round_type === "hot_seat";
     setHostPhase(isHotSeat ? "hot_seat" : "question");
@@ -1649,7 +1799,7 @@ function QuizControllerInner() {
     // Victory song now plays only on the display screen to avoid duplicate/echoing audio
   }
 
-  async function applySpinResult(winIdx: number, teamName: string, spinNonce: number | undefined, pin: string) {
+  async function applySpinResult(winIdx: number, teamName: string, spinNonce: number | undefined, pin: string): Promise<boolean> {
     // `pin` is passed explicitly rather than read from the `sessionPin` state:
     // this function is reached from the realtime sessions-UPDATE handler, whose
     // callback closes over the render at channel-subscribe time (when sessionPin
@@ -1657,7 +1807,7 @@ function QuizControllerInner() {
     // returned no rows and the whole spin payout silently no-opped, while
     // spinTriggeredRef was already set - blocking the correctly-scoped 1.5s poll
     // path from ever retrying. The verified pin threads through cleanly here.
-    if (!pin) { console.error("applySpinResult: no session pin available"); return; }
+    if (!pin) { console.error("applySpinResult: no session pin available"); return false; }
     const supabase = createSupabaseBrowserClient();
     let allScores: Score[];
     try {
@@ -1665,65 +1815,18 @@ function QuizControllerInner() {
     } catch (error) {
       console.error("Could not load Spin scores:", error);
       setSpinFeedback({ ok: false, message: "Spin score could not be loaded. No points were changed." });
-      return;
+      return false;
     }
     if (!allScores.length) {
       setSpinFeedback({ ok: false, message: "Spin score could not be loaded. No points were changed." });
-      return;
+      return false;
     }
-    // Other teams' TOTALS, highest first. Rank outcomes are computed purely from
-    // these so a team lands on the score needed to occupy that leaderboard
-    // position - never the ordinal number (1/2/3) and never an arbitrary 0.
-    const othersDesc = allScores.filter(s => s.team_name !== teamName).map(s => s.total_points).sort((a, b) => b - a);
-    const mine = allScores.find(s => s.team_name === teamName);
-    const myTotal = mine?.total_points ?? 0;
     const label = SLOT_SEGS[winIdx]?.label;
-    // To occupy overall rank R, exactly R-1 other teams must be above you, so sit
-    // one point above the R-th highest other team (othersDesc[R-1]). Deterministic
-    // for ties (fixed sort). If there aren't that many other teams, the rank can't
-    // exist below the team's current standing - keep the team's own score rather
-    // than reducing it to a meaningless value.
-    const scoreForRank = (rank: number): number => {
-      const idx = rank - 1;
-      if (idx < othersDesc.length) return othersDesc[idx] + 1;
-      return myTotal;
-    };
-    let newTotal = myTotal;
-    // Numeric outcomes are a straightforward add/subtract, floored at 0.
-    if (label === "+50 Points") newTotal = myTotal + 50;
-    else if (label === "-10 Points") newTotal = Math.max(0, myTotal - 10);
-    else if (label === "-20 Points") newTotal = Math.max(0, myTotal - 20);
-    else if (label === "-30 Points") newTotal = Math.max(0, myTotal - 30);
-    // Placement outcomes ALWAYS move the team to exactly one point ahead of
-    // whoever currently holds that position among the other teams - including
-    // demoting the spinning team if they were already sitting higher than
-    // that. Previously this only ever acted as a floor (Math.max(myTotal,
-    // target)), so landing "3rd Place" while already in 1st correctly left a
-    // leader's score untouched by the OLD rule, but that read as "the spin
-    // did nothing" to a host expecting the round result to always move the
-    // team to that exact spot. Explicit host instruction: 1st/2nd/3rd always
-    // land one point ahead of that position, even if it's a demotion.
-    else if (label === "1st Place") newTotal = scoreForRank(1);
-    // 2nd place: land exactly 1 point above the team that will sit 3rd
-    // (others' 2nd-highest). If there is no 3rd-place team, sit 1 point
-    // behind current 1st instead (nothing to be "one ahead of" at 3rd).
-    else if (label === "2nd Place") {
-      newTotal = othersDesc.length >= 2 ? othersDesc[1] + 1
-               : othersDesc.length === 1 ? Math.max(0, othersDesc[0] - 1)
-               : myTotal;
+    const newTotal = label ? calculateSpinPayout(allScores, teamName, label as SpinPayoutLabel) : null;
+    if (newTotal == null) {
+      setSpinFeedback({ ok: false, message: "Spin score could not be calculated. No points were changed." });
+      return false;
     }
-    // 3rd place: land exactly 1 point above the team that will sit 4th
-    // (others' 3rd-highest). If there is no 4th-place team, sit 1 point
-    // behind current 2nd instead.
-    else if (label === "3rd Place") {
-      newTotal = othersDesc.length >= 3 ? othersDesc[2] + 1
-               : othersDesc.length >= 2 ? Math.max(0, othersDesc[1] - 1)
-               : myTotal;
-    }
-    // Last place: sit one below the current lowest other team, floored at 0. Only
-    // becomes 0 when 0 is genuinely last (lowest other is 0 or 1). With no other
-    // teams there is no "last" to move to, so keep the team's score.
-    else if (label === "Last Place") newTotal = othersDesc.length ? Math.max(0, othersDesc[othersDesc.length - 1] - 1) : myTotal;
     // eventKey keyed on the spin_nonce written to the session row for this
     // spin - guards against applySpinResult ever being invoked twice for the
     // same spin (e.g. a future direct call plus a realtime-triggered call).
@@ -1735,18 +1838,37 @@ function QuizControllerInner() {
     const result = await setScoreAbsolute(supabase, pin, teamName, newTotal, {
       eventKey: spinNonce != null ? `spin:${pin}:${spinNonce}` : undefined,
     });
-    if (result.scoreboardSyncError) {
-      console.error("applySpinResult: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
-      setSpinFeedback({ ok: false, message: "Score changed, but the live leaderboard did not refresh. Reopen the scoreboard." });
-    } else {
-      const { data: verified } = await supabase.from("scores").select("total_points").eq("session_pin", pin).eq("team_name", teamName).maybeSingle();
-      if (!verified || verified.total_points !== newTotal) {
-        setSpinFeedback({ ok: false, message: "Spin score update failed. No result has been confirmed." });
-      } else {
-        setSpinFeedback({ ok: true, message: `${teamName}: ${label} applied — ${newTotal} points.` });
-      }
+    if (result.error) {
+      setSpinFeedback({ ok: false, message: "Spin score is unconfirmed. Check the connection and retry this payout safely." });
+      return false;
     }
+    const syncError = result.applied ? result.scoreboardSyncError : (await syncScoreboardData(supabase, pin)).error;
+    if (syncError) {
+      console.error("applySpinResult: scoreboard_data sync failed:", syncError);
+      setSpinFeedback({ ok: false, message: "Spin points may be saved, but the leaderboard is unconfirmed. Retry this payout safely." });
+      return false;
+    }
+    const { data: verified, error: verifyError } = await supabase.from("scores").select("total_points").eq("session_pin", pin).eq("team_name", teamName).maybeSingle();
+    // On a duplicate retry, the event ledger proves the original payout was
+    // already applied. The team's total may since have changed for another
+    // legitimate reason, so only require exact equality on the first apply.
+    if (verifyError || !verified || (result.applied && verified.total_points !== newTotal)) {
+      setSpinFeedback({ ok: false, message: "Spin score update failed. No result has been confirmed." });
+      return false;
+    }
+    setSpinFeedback({ ok: true, message: `${teamName}: ${label} confirmed — ${verified.total_points} points.` });
     loadScores(pin);
+    return true;
+  }
+
+  async function retrySpinPayout() {
+    if (spinPayoutRetrying || spinTargetIdx == null || spinNonce == null || !fastestTeam || !sessionPin) return;
+    setSpinPayoutRetrying(true);
+    try {
+      if (await applySpinResult(spinTargetIdx, fastestTeam, spinNonce, sessionPin)) await finalizeSpinSession(sessionPin);
+    } finally {
+      setSpinPayoutRetrying(false);
+    }
   }
 
   async function doOfferSpinToWin() {
@@ -1903,6 +2025,7 @@ function QuizControllerInner() {
 
   async function chooseRound(r: (typeof rounds)[number] | null) {
     if (!sessionId) return;
+    clearHostPreviewRecovery(window.sessionStorage);
     // Supabase builders are lazy: await the write before changing local rounds.
     const isFinalRound = !!r && rounds.length > 0 && r.position === rounds[rounds.length - 1].position;
     try {
@@ -1961,7 +2084,7 @@ function QuizControllerInner() {
   // the host never hunts and can drive the whole show from peripheral vision.
   const nextActionLabel =
     hostPhase === "waiting" ? (roundNumber === 1 ? "Start Quiz" : "Start Round") :
-    hostPhase === "round_start" ? "Preview First Question" :
+    hostPhase === "round_start" ? (selectedRound?.round_type === "pursuit" ? "Start The Pursuit" : selectedRound?.round_type === "hard_deck" ? "Start The Hard Deck" : "Preview First Question") :
     hostPhase === "preview" ? "Send Question Live" :
     hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "Reveal Question Text" :
     hostPhase === "question" ? "Start Timer" :
@@ -2022,6 +2145,15 @@ function QuizControllerInner() {
         <div role="alert" style={{ position:"fixed", zIndex:1000, top:16, left:"50%", transform:"translateX(-50%)", width:"min(760px,calc(100vw - 32px))", padding:"14px 16px", borderRadius:14, border:"2px solid #FF3B4E", background:"#260713", color:"#fff", boxShadow:"0 16px 50px rgba(0,0,0,.55)", display:"flex", alignItems:"center", gap:14 }}>
           <strong style={{ flex:1 }}>{scoringError}</strong>
           <Button onClick={retryAutomaticScoring}>Retry scoring</Button>
+        </div>
+      )}
+      {pendingAdjustment && (
+        <div role="alert" style={{ position:"fixed", zIndex:999, top:scoringError?92:16, left:"50%", transform:"translateX(-50%)", width:"min(760px,calc(100vw - 32px))", padding:"14px 16px", borderRadius:14, border:"2px solid #FFC533", background:"#211702", color:"#fff", boxShadow:"0 16px 50px rgba(0,0,0,.55)", display:"flex", alignItems:"center", gap:14 }}>
+          <strong style={{ flex:1 }}>
+            {pendingAdjustment.delta > 0 ? "+" : ""}{pendingAdjustment.delta} points for {pendingAdjustment.team} is unconfirmed.
+            {pendingAdjustment.pin !== sessionPin ? ` Reconnect to quiz ${pendingAdjustment.pin} to resolve it.` : ""}
+          </strong>
+          {pendingAdjustment.pin === sessionPin && <Button onClick={() => adjustScore(pendingAdjustment.team, pendingAdjustment.delta)}>Retry safely</Button>}
         </div>
       )}
       {statsTeam && (() => {
@@ -2327,7 +2459,10 @@ function QuizControllerInner() {
                     </div>
                   )}
                   {spinFeedback && (
-                    <div role="status" style={{ maxWidth:520, margin:"0 auto 16px", padding:"12px 16px", borderRadius:12, background: spinFeedback.ok ? "rgba(46,224,110,.12)" : "rgba(255,59,78,.14)", border:`1px solid ${spinFeedback.ok ? "rgba(46,224,110,.45)" : "rgba(255,59,78,.5)"}`, color:spinFeedback.ok ? "#2EE06E" : "#ff8290", fontWeight:800 }}>{spinFeedback.message}</div>
+                    <div role="status" style={{ maxWidth:520, margin:"0 auto 16px", padding:"12px 16px", borderRadius:12, background: spinFeedback.ok ? "rgba(46,224,110,.12)" : "rgba(255,59,78,.14)", border:`1px solid ${spinFeedback.ok ? "rgba(46,224,110,.45)" : "rgba(255,59,78,.5)"}`, color:spinFeedback.ok ? "#2EE06E" : "#ff8290", fontWeight:800 }}>
+                      <div>{spinFeedback.message}</div>
+                      {!spinFeedback.ok && spinChoice === "spin" && spinTargetIdx != null && spinNonce != null && <Button onClick={retrySpinPayout} disabled={spinPayoutRetrying} style={{ marginTop:10 }}>{spinPayoutRetrying ? "Retrying…" : "Retry Spin Payout"}</Button>}
+                    </div>
                   )}
                   {/* Was a small grey afterthought BELOW the Continue button -
                       easy to miss entirely, and easy to mistake for "nothing
@@ -2548,7 +2683,7 @@ function QuizControllerInner() {
               </div>
             )}
             {!roundSettingsOpen && (
-              <div style={{ font:"400 12px 'Inter'", color:"#6B5A8E" }}>{pointsPerQ}pts/q · {getTimerForQuestion(currentQ, timerDuration)}s · +{timeBonus} bonus · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal"}</div>
+              <div style={{ font:"400 12px 'Inter'", color:"#6B5A8E" }}>{currentQ?.question_type === "multi_tap" ? "2pts/correct choice" : `${pointsPerQ}pts/q`} · {getTimerForQuestion(currentQ, timerDuration)}s · +{timeBonus} bonus · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal"}</div>
             )}
           </section>
 

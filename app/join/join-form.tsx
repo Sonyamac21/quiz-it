@@ -15,10 +15,10 @@ const STORAGE_KEY = "quizit_player_session";
 // played/stored on the team row; `title` is what the player sees.
 type VictorySong = { id: string; title: string; file_ref: string };
 
-async function hashPlayerToken(token: string): Promise<string> {
-  const bytes = new TextEncoder().encode(token);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+async function createPlayerToken(): Promise<{ token: string; tokenHash: string }> {
+  const response = await fetch("/api/player-token", { method: "POST", cache: "no-store" });
+  if (!response.ok) throw new Error("Could not secure this handset. Please try again.");
+  return response.json() as Promise<{ token: string; tokenHash: string }>;
 }
 
 export function JoinForm() {
@@ -219,8 +219,10 @@ export function JoinForm() {
           photoUrl = urlData?.publicUrl || null;
         }
       }
-      const handsetToken = crypto.randomUUID();
-      const handsetTokenHash = await hashPlayerToken(handsetToken);
+      // Generate and hash on the server. Web Crypto is unavailable on phones
+      // opening the LAN test address over plain HTTP, which previously made
+      // the otherwise optional photo step an unexpected join blocker.
+      const { token: handsetToken, tokenHash: handsetTokenHash } = await createPlayerToken();
       const { error: dbError } = await supabase.from("teams").insert({
         team_name: teamName.trim(),
         name: teamName.trim(),

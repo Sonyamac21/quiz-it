@@ -338,6 +338,23 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
 
   const showRevealBaseButton = !showWheel && team && cards.length === 0;
 
+  // Single "next action" the host takes to advance the hand - surfaced in
+  // the same fixed Next-Action bar every other round type (and Pursuit's own
+  // host console) uses, instead of a button buried in the middle of a
+  // centered column. Two-choice moments (Keep/Swap, the player's own
+  // Stick/Gamble) stay as in-desk buttons since there's no single "next"
+  // step to name; everything else that's genuinely one action gets promoted
+  // here so the host's eye goes to the same place it always does.
+  const nextLabel = showRevealBaseButton ? "Reveal Base Card"
+    : status === "awaiting_guess" ? "Reveal Next Card"
+    : (status === "won" || status === "lost") ? "Spin Again"
+    : null;
+  const nextHandler = showRevealBaseButton ? revealBaseCard
+    : status === "awaiting_guess" ? revealNextCard
+    : (status === "won" || status === "lost") ? startHardDeck
+    : undefined;
+  const nextDisabled = status === "awaiting_guess" && !guess;
+
   // Rendered through a portal to <body> rather than inline. This component is
   // mounted inside the host header, which uses `backdrop-filter: blur()`; that
   // property makes the header a containing block for `position: fixed`
@@ -345,114 +362,111 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
   // thin header bar instead of the viewport (title pushed off the top of the
   // page, controls unreachable). Portaling to <body> escapes that context so
   // the fixed overlay fills the real viewport and is fully usable.
+  //
+  // Structure below deliberately mirrors PursuitPanel's host console (fixed
+  // Next-Action bar, then a header row, then a .qi-mc-workspace/.qi-mc-desk
+  // body) rather than the old bespoke centered-column layout. The old layout
+  // was its own one-off design - different chrome, different spacing rules,
+  // no Next-Action bar - so it read as a different app bolted on rather than
+  // another screen of the same host console, even after matching its colors.
+  // Reusing the actual layout classes every other round (and Pursuit) uses
+  // is what actually fixes that, not another palette pass.
   const overlay = (
-    <div
-      className="qi-host-harddeck"
-      style={{
-        position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100dvh", boxSizing: "border-box" as const,
-        background: "radial-gradient(ellipse 60% 45% at 50% 48%, rgb(190 38 193 / 0.12), transparent 72%), linear-gradient(180deg, var(--qi-bg-stage-soft), var(--qi-bg-stage))",
-        zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, overflow: "hidden",
-      }}
-    >
-      <div
-        className="qi-panel qi-panel--elevated qi-host-harddeck-panel"
-        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, width: "min(94vw, 780px)", maxHeight: "min(92dvh, 900px)", overflow: "auto" }}
-      >
-      <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: (!showWheel && team) ? 16 : 28, color: (!showWheel && team) ? "rgba(190,38,193,0.5)" : "#BE26C1", letterSpacing: (!showWheel && team) ? 3 : 4, fontWeight: (!showWheel && team) ? 600 : 400 }}>THE HARD DECK</div>
-
-      {showWheel && (
-        <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={300} forceResultIndex={wheelTarget ?? undefined} onSpinStart={() => pushState({ hard_deck_wheel_spinning: true })} />
+    <div className="qi-host-harddeck" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box" as const, background: "var(--qi-bg-stage)", zIndex: 200, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {nextLabel && (
+        <button onClick={nextHandler} disabled={nextDisabled} className="qi-mc-next" style={{ flexShrink: 0 }}>
+          <span className="qi-mc-next__eyebrow">Next action</span>
+          <span className="qi-mc-next__label">{nextLabel}</span>
+          <span className="qi-mc-next__key">Space ↵</span>
+        </button>
       )}
 
-      {!showWheel && team && (
-        <>
-          <div style={{ fontSize: 26, fontWeight: 700, color: "#fff", letterSpacing: 0.5 }}>Team: <strong style={{ fontWeight: 800 }}>{team}</strong></div>
+      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
+        <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 20, color: "#BE26C1", letterSpacing: 3 }}>THE HARD DECK</div>
+        {!showWheel && team && <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>Team: <strong style={{ fontWeight: 800 }}>{team}</strong></div>}
+        <button onClick={closePanel} style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
+      </div>
 
-          {/* This row shows every card revealed so far this hand (not just
-              the latest one - see task history), so its width keeps
-              growing through a long hand. The panel around it is
-              overflow:hidden (needed to keep the whole overlay pinned to
-              the viewport), so without its own wrap/scroll handling, cards
-              past a certain count would simply run off the edge with no
-              way to see them. maxWidth+overflowX is a safety net; flexWrap
-              is the primary fix so it reads as a normal multi-row hand
-              instead of needing to scroll at all in the common case. */}
-          <div className="qi-host-harddeck-cards" style={{ padding: "20px 24px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)", maxWidth: "92vw", maxHeight: "min(50vh, 400px)", overflow: "auto" }}>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", maxWidth: "min(88vw, 900px)" }}>
-              {cards.map((c, i) => (
-                <div key={i} style={{ width: "clamp(82px,8vw,120px)", height: "clamp(118px,11.5vw,172px)", borderRadius: 14, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: "clamp(28px,3vw,44px)", fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
-                  <div>{rankLabel(c.rank)}</div>
-                  <div style={{ fontSize: 28 }}>{c.suit}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {potential > 0 && (status === "decision" || status === "won") && (
-            <div style={{ fontSize: 20, fontWeight: 700, color: "#facc15", letterSpacing: 0.5 }}>Potential: {potential} pts</div>
+      <div className="qi-mc-workspace" style={{ gridTemplateColumns: "minmax(0, 1fr)" }}>
+        <main className="qi-mc-desk" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, textAlign: "center" as const }}>
+          {showWheel && (
+            <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={300} forceResultIndex={wheelTarget ?? undefined} onSpinStart={() => pushState({ hard_deck_wheel_spinning: true })} />
           )}
 
-          {showRevealBaseButton && (
-            <button onClick={revealBaseCard} style={{ padding: "11px 26px", borderRadius: 12, background: "rgba(190,38,193,0.3)", border: "1px solid #BE26C1", color: "#fff", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>Reveal Base Card</button>
-          )}
-
-          {status === "base_revealed" && (
-            <div style={{ display: "flex", gap: 12 }}>
-              <button onClick={keepBase} style={{ padding: "11px 26px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "1px solid #22c55e", color: "#fff", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>Keep</button>
-              <button onClick={swapBase} disabled={hasSwapped} style={{ padding: "11px 26px", borderRadius: 12, background: "rgba(239,68,68,0.25)", border: "1px solid #ef4444", color: "#fff", fontWeight: 700, cursor: hasSwapped ? "not-allowed" : "pointer", opacity: hasSwapped ? 0.4 : 1, boxShadow: hasSwapped ? "none" : "0 2px 10px rgba(0,0,0,0.3)" }}>Swap</button>
-            </div>
-          )}
-
-          {status === "awaiting_guess" && (
+          {!showWheel && team && (
             <>
-              {!guess ? (
-                <div style={{ fontSize: 22, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: 1 }}>
-                  Waiting for {team}&rsquo;s guess on their phone&hellip;
+              {/* This row shows every card revealed so far this hand (not just
+                  the latest one - see task history), so its width keeps
+                  growing through a long hand. flexWrap is the primary fix so
+                  it reads as a normal multi-row hand instead of needing to
+                  scroll at all in the common case; maxWidth+overflow is a
+                  safety net for an unusually long one. */}
+              <div className="qi-host-harddeck-cards" style={{ padding: "20px 24px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)", maxWidth: "92vw", maxHeight: "min(50vh, 400px)", overflow: "auto" }}>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", maxWidth: "min(88vw, 900px)" }}>
+                  {cards.map((c, i) => (
+                    <div key={i} style={{ width: "clamp(82px,8vw,120px)", height: "clamp(118px,11.5vw,172px)", borderRadius: 14, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: "clamp(28px,3vw,44px)", fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
+                      <div>{rankLabel(c.rank)}</div>
+                      <div style={{ fontSize: 28 }}>{c.suit}</div>
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <div style={{
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
-                  padding: "20px 48px", borderRadius: 16,
-                  background: guess === "higher" ? "rgba(34,197,94,0.22)" : "rgba(239,68,68,0.22)",
-                  border: "3px solid " + (guess === "higher" ? "#22c55e" : "#ef4444"),
-                  boxShadow: "0 0 32px " + (guess === "higher" ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"),
-                  animation: "qiGuessPulse var(--qi-motion-moment) var(--qi-ease-settle)"
-                }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>GUESS LOCKED IN</div>
-                  <div style={{
-                    fontSize: 44, fontWeight: 800, letterSpacing: 2, lineHeight: 1,
-                    color: guess === "higher" ? "#22c55e" : "#ef4444",
-                    display: "flex", alignItems: "center", gap: 14
-                  }}>
-                    <span style={{ fontSize: 48 }}>{guess === "higher" ? "▲" : "▼"}</span>
-                    {guess.toUpperCase()}
-                  </div>
+              </div>
+
+              {potential > 0 && (status === "decision" || status === "won") && (
+                <div style={{ fontSize: 20, fontWeight: 700, color: "#facc15", letterSpacing: 0.5 }}>Potential: {potential} pts</div>
+              )}
+
+              {status === "base_revealed" && (
+                <div style={{ display: "flex", gap: 12 }}>
+                  <button onClick={keepBase} style={{ padding: "11px 26px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "1px solid #22c55e", color: "#fff", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>Keep</button>
+                  <button onClick={swapBase} disabled={hasSwapped} style={{ padding: "11px 26px", borderRadius: 12, background: "rgba(239,68,68,0.25)", border: "1px solid #ef4444", color: "#fff", fontWeight: 700, cursor: hasSwapped ? "not-allowed" : "pointer", opacity: hasSwapped ? 0.4 : 1, boxShadow: hasSwapped ? "none" : "0 2px 10px rgba(0,0,0,0.3)" }}>Swap</button>
                 </div>
               )}
-              <button onClick={revealNextCard} disabled={!guess} style={{ padding: "14px 32px", borderRadius: 12, fontSize: 16, fontWeight: 700, background: guess ? "rgba(190,38,193,0.3)" : "rgba(255,255,255,0.08)", border: "1px solid " + (guess ? "#BE26C1" : "rgba(255,255,255,0.2)"), color: "#fff", cursor: guess ? "pointer" : "not-allowed", boxShadow: guess ? "0 2px 10px rgba(0,0,0,0.3)" : "none" }}>Reveal Next Card</button>
-              <div style={{ color: "#B9A8D9", fontSize: 14 }}>{Object.keys(stealGuesses).length} of {Math.max(0, teams.length - 1)} other teams locked in for a steal</div>
+
+              {status === "awaiting_guess" && (
+                <>
+                  {!guess ? (
+                    <div style={{ fontSize: 22, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: 1 }}>
+                      Waiting for {team}&rsquo;s guess on their phone&hellip;
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                      padding: "20px 48px", borderRadius: 16,
+                      background: guess === "higher" ? "rgba(34,197,94,0.22)" : "rgba(239,68,68,0.22)",
+                      border: "3px solid " + (guess === "higher" ? "#22c55e" : "#ef4444"),
+                      boxShadow: "0 0 32px " + (guess === "higher" ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"),
+                      animation: "qiGuessPulse var(--qi-motion-moment) var(--qi-ease-settle)"
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>GUESS LOCKED IN</div>
+                      <div style={{
+                        fontSize: 44, fontWeight: 800, letterSpacing: 2, lineHeight: 1,
+                        color: guess === "higher" ? "#22c55e" : "#ef4444",
+                        display: "flex", alignItems: "center", gap: 14
+                      }}>
+                        <span style={{ fontSize: 48 }}>{guess === "higher" ? "▲" : "▼"}</span>
+                        {guess.toUpperCase()}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ color: "#B9A8D9", fontSize: 14 }}>{Object.keys(stealGuesses).length} of {Math.max(0, teams.length - 1)} other teams locked in for a steal</div>
+                </>
+              )}
+
+              {status === "decision" && (
+                <div style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.65)" }}>Waiting for team to choose Stick or Gamble on their phone...</div>
+              )}
+
+              {status === "won" && (
+                <div style={{ fontSize: 26, fontWeight: 800, color: "#22c55e", letterSpacing: 0.5 }}>WON {potential} points! 🎉</div>
+              )}
+
+              {status === "lost" && (
+                <div style={{ textAlign: "center" }}><div style={{ fontSize: 26, fontWeight: 800, color: "#ef4444", letterSpacing: 0.5 }}>Bust — 0 points</div>{stealWinners.length > 0 && <div style={{ marginTop: 8, color: "#22c55e", fontWeight: 800 }}>+{stealPoints} steal: {stealWinners.join(", ")}</div>}</div>
+              )}
             </>
           )}
-
-          {status === "decision" && (
-            <div style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.65)" }}>Waiting for team to choose Stick or Gamble on their phone...</div>
-          )}
-
-          {status === "won" && (
-            <div style={{ fontSize: 26, fontWeight: 800, color: "#22c55e", letterSpacing: 0.5 }}>WON {potential} points! 🎉</div>
-          )}
-
-          {status === "lost" && (
-            <div style={{ textAlign: "center" }}><div style={{ fontSize: 26, fontWeight: 800, color: "#ef4444", letterSpacing: 0.5 }}>Bust — 0 points</div>{stealWinners.length > 0 && <div style={{ marginTop: 8, color: "#22c55e", fontWeight: 800 }}>+{stealPoints} steal: {stealWinners.join(", ")}</div>}</div>
-          )}
-
-          {(status === "won" || status === "lost") && (
-            <button onClick={startHardDeck} style={{ padding: "9px 20px", borderRadius: 10, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}>Spin Again</button>
-          )}
-        </>
-      )}
-
-      <button onClick={closePanel} style={{ marginTop: 4, padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
+        </main>
       </div>
     </div>
   );

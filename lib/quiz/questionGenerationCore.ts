@@ -82,6 +82,29 @@ export function multiTapSuitabilityError(q: Pick<Question, "question_text" | "qu
   return null;
 }
 
+// Audio questions store an internal "Song Title - Artist Name" style lookup
+// string in option_a, but correct_answer must hold only whichever single
+// fact question_text actually asks for (just the title, just the artist, or
+// just the year) - never both combined. A combined "Artist - Title" answer
+// silently fails scoring later: a player who correctly types just the title
+// gets marked wrong because the fuzzy-match length-ratio check rejects an
+// answer that's too short relative to the (wrongly) longer stored string.
+// This caught a real live example: correct_answer "Faithless - Music
+// Matters" for "Name this song", rejecting the correct player answer
+// "Music Matters".
+export function audioAnswerSuitabilityError(q: Pick<Question, "question_type" | "option_a" | "correct_answer">): string | null {
+  if (q.question_type !== "audio") return null;
+  const answer = (q.correct_answer || "").trim();
+  const lookup = (q.option_a || "").trim();
+  if (!answer || !lookup || !lookup.includes(" - ")) return null;
+  const [lookupPartA, lookupPartB] = lookup.split(" - ").map(s => s.trim().toLowerCase());
+  const normalisedAnswer = answer.toLowerCase();
+  if (answer.includes(" - ") || (lookupPartA && lookupPartB && normalisedAnswer.includes(lookupPartA) && normalisedAnswer.includes(lookupPartB))) {
+    return "Audio correct_answer combines song title and artist together instead of just the single fact asked for";
+  }
+  return null;
+}
+
 export function sequenceSuitabilityError(q: Pick<Question, "question_text" | "question_type" | "option_a" | "option_b" | "option_c" | "option_d" | "correct_answer">): string | null {
   if (q.question_type !== "sequence") return "Question type is not sequence";
   const options = [q.option_a, q.option_b, q.option_c, q.option_d];
@@ -581,8 +604,8 @@ export async function generateOne(
       ? `picture: create a THEMED picture question for "${theme.trim()}". option_a is a short internal Pixabay search query for a stock-safe REAL subject (landmark/building, animal, flag, food/dish, or stadium); never use logos, people, film stills, characters, album covers or copyrighted artwork. question_text is shown with that image and MUST require specific knowledge of "${theme.trim()}" to answer—the stock image is a meaningful clue, not the answer itself. Example pattern: an image of Neuschwanstein Castle with "This castle inspired the royal home in which Disney film?" Do NOT ask generic identification such as "What animal is this?"; that tests general knowledge rather than the theme. Never write "Show teams this image" or reveal the answer. option_b/c/d null; correct_answer must answer the themed question.`
       : "picture: option_a is a short internal Pixabay query for a stock-safe subject: landmark/building, animal, flag, food/dish, or stadium. Never use logos, famous people, film stills, characters, album covers or copyrighted artwork. question_text must name what KIND of identification is being asked using the specific subject category - e.g. \"Name this landmark\", \"Which country's flag is this?\", \"Which dish is pictured here?\", \"Which stadium is shown?\" - so a landmark question never reads the same as an animal question or a flag question. NEVER use the bare generic forms \"What is this?\" or \"What animal is this?\" with no other detail - every picture question in a round covers a different subject, so its phrasing must be specific enough to that subject's category to not read identically to every other picture question in the same round. Do not name the subject itself or say 'Show teams this image'. option_b/c/d null; correct_answer identifies what is shown.",
     audio: theme.trim()
-      ? `audio: create a THEMED music-clip question for "${theme.trim()}". option_a is an internal YouTube search query identifying the exact track. question_text is shown after the clip and MUST require specific knowledge of "${theme.trim()}"—for example "Which animated film features this song?"—rather than merely naming a song that happens to be associated with the theme. Do not reveal the song, artist or answer. option_b/c/d null; correct_answer must answer the themed question.`
-      : "audio: option_a is an internal YouTube search query identifying the exact track. question_text is a short question answerable from the clip, such as 'Name this song', 'Which artist performs this song?' or 'What year was it released?'. Do not reveal the title or artist. option_b/c/d null; correct_answer must match what question_text asks.",
+      ? `audio: create a THEMED music-clip question for "${theme.trim()}". option_a is an internal YouTube search query identifying the exact track, in the form "Song Title - Artist Name" (title and artist both present, for internal lookup only). question_text is shown after the clip and MUST require specific knowledge of "${theme.trim()}"—for example "Which animated film features this song?"—rather than merely naming a song that happens to be associated with the theme. Do not reveal the song, artist or answer. option_b/c/d null; correct_answer must answer the themed question and must contain ONLY the single piece of information the question actually asks for (e.g. just the song title, OR just the artist name, OR just the year) - NEVER combine artist and title together like "Artist - Title" in correct_answer, even though option_a uses that combined form for lookup purposes.`
+      : "audio: option_a is an internal YouTube search query identifying the exact track, in the form \"Song Title - Artist Name\" (title and artist both present, for internal lookup only). question_text is a short question answerable from the clip, such as 'Name this song', 'Which artist performs this song?' or 'What year was it released?'. Do not reveal the title or artist. option_b/c/d null; correct_answer must match what question_text asks and must contain ONLY that single piece of information - e.g. if asked to name the song, correct_answer is just the song title with no artist name attached; if asked for the artist, correct_answer is just the artist name with no song title attached. NEVER write correct_answer as \"Artist - Title\" or \"Title - Artist\" - that combined form belongs only in option_a, never in correct_answer.",
   };
   const rejectedList = Array.from(exclusions.rejectedTexts);
   let exclusionsText = [...rejectedList, ...exclusions.used.slice(-25)].map((q, i) => (i + 1) + ". " + q).join("; ");
@@ -757,6 +780,13 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       });
       letters.forEach(l => { q["option_" + l] = newOptions[l]; });
       q.correct_answer = newCorrect;
+    }
+    if (q && q.question_type === "audio") {
+      const suitabilityError = audioAnswerSuitabilityError(q);
+      if (suitabilityError) {
+        context.error = suitabilityError + " - retrying";
+        return null;
+      }
     }
     if (q && q.question_type === "sequence") {
       const suitabilityError = sequenceSuitabilityError(q);

@@ -11,6 +11,26 @@ const purple = "#BE26C1";
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const WAVEFORM_BUCKETS = 300;
 
+// Some audio questions - mostly older SpeedQuizzing imports - stored a raw
+// YouTube search link in option_a instead of just the track title, from a
+// data model that predates this app's own Deezer integration. Sending that
+// whole URL to Deezer as a search string always returns zero results ("No
+// Deezer results found") even when the track is genuinely searchable - the
+// actual search terms are sitting right there in the URL's query string.
+// This pulls them back out so both the automatic search and the manual
+// search box start from real text, not a dead link.
+function cleanSearchSeed(text: string | null | undefined): string {
+  if (!text) return "";
+  if (!/^https?:\/\//i.test(text)) return text;
+  try {
+    const url = new URL(text);
+    const raw = url.searchParams.get("search_query") || url.searchParams.get("q") || "";
+    return raw.replace(/\+/g, " ").trim();
+  } catch {
+    return "";
+  }
+}
+
 type Question = {
   question_text: string;
   question_type: string;
@@ -290,14 +310,14 @@ export default function MusicPrepPage() {
         audioBuffer: null, peaks: [], clipStart: 0, clipEnd: 0,
         savedUrl: hasSavedClip ? q.option_b : null,
         error: "",
-        manualQuery: q.option_a || q.correct_answer || "",
+        manualQuery: cleanSearchSeed(q.option_a) || q.correct_answer || "",
       };
     });
     setQuestionStates(initial);
     // Auto-start search for all unprepared questions
     round.questions.forEach((q, i) => {
       if (q.question_type === "audio" && !(q.option_b && q.option_b.includes("blob.vercel-storage.com"))) {
-        setTimeout(() => searchForQuestion(round, i, q.option_a || q.correct_answer), i * 300);
+        setTimeout(() => searchForQuestion(round, i, cleanSearchSeed(q.option_a) || q.correct_answer), i * 300);
       }
     });
   }
@@ -321,14 +341,14 @@ export default function MusicPrepPage() {
         audioBuffer: null, peaks: [], clipStart: 0, clipEnd: 0,
         savedUrl: hasSavedClip ? q.option_b : null,
         error: "",
-        manualQuery: q.option_a || q.correct_answer || "",
+        manualQuery: cleanSearchSeed(q.option_a) || q.correct_answer || "",
       };
     });
     setQuestionStates(initial);
     if (autoSearch) {
       round.questions.forEach((q, i) => {
         if (q.question_type === "audio" && !(q.option_b && q.option_b.includes("blob.vercel-storage.com"))) {
-          setTimeout(() => searchForQuestion(round, i, q.option_a || q.correct_answer), i * 300);
+          setTimeout(() => searchForQuestion(round, i, cleanSearchSeed(q.option_a) || q.correct_answer), i * 300);
         }
       });
     }
@@ -597,7 +617,7 @@ export default function MusicPrepPage() {
 
         {/* QUESTION PREP */}
         {openRound && audioQuestions.map(({ q, i }, n) => {
-          const qs = questionStates[i] || { phase: "idle", candidates: [], error: "", manualQuery: q.option_a || q.correct_answer || "" };
+          const qs = questionStates[i] || { phase: "idle", candidates: [], error: "", manualQuery: cleanSearchSeed(q.option_a) || q.correct_answer || "" };
           return (
             <div key={i} className="fbh-panel" style={{ border: `1px solid ${qs.phase === "done" ? "rgba(46,224,110,0.4)" : "#2E1A52"}` }}>
               {/* Question header */}
@@ -652,7 +672,7 @@ export default function MusicPrepPage() {
               {(qs.phase === "idle" || qs.phase === "searching") && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#B9A8D9", font: "400 13px 'Inter'" }}>
                   <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid rgba(190,38,193,0.4)", borderTopColor: purple, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                  Searching Deezer for &ldquo;{q.option_a || q.correct_answer}&rdquo;…
+                  Searching Deezer for &ldquo;{cleanSearchSeed(q.option_a) || q.correct_answer}&rdquo;…
                 </div>
               )}
 

@@ -11,6 +11,7 @@ import { useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
+import { eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings } from "@/lib/quiz/prepRules";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const HOT_SEAT_TOTAL_QUESTIONS = 5;
@@ -27,8 +28,7 @@ function validQuestionsForRound<T extends Record<string, unknown> | Question>(ro
 }
 
 function questionKey(question: { question_text?: unknown; correct_answer?: unknown }): string {
-  const normalise = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  return `${normalise(question.question_text)}|${normalise(question.correct_answer)}`;
+  return questionIdentityKey(question);
 }
 
 // Which question_type values a random library pull is allowed to draw from
@@ -415,13 +415,12 @@ export default function QuizBuilderPage() {
       const { data: liveRow, error: readError } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
       if (readError) throw readError;
       const liveQuestions = (liveRow?.questions || []) as Record<string, unknown>[];
-      const existingKeys = new Set(liveQuestions.map(q => questionKey(q)));
       // Rows the host already rejected (removed after a previous random
       // pull) for this specific round - excluded by id, not just content,
       // since a rejected question is no longer in liveQuestions at all and
       // would otherwise be free to come straight back.
       const rejectedIds = rejectedLibraryIds[round.id] || new Set<string>();
-      const eligible = pool.filter(bq => !existingKeys.has(questionKey(bq)) && !rejectedIds.has(bq.id));
+      const eligible = eligibleLibraryQuestions(pool, liveQuestions, rejectedIds);
       if (eligible.length === 0) {
         showToast("Every matching question is already in this round or was already rejected - try removing some, or add a wider topic.", "info", 4500);
         return;
@@ -602,8 +601,7 @@ export default function QuizBuilderPage() {
     setSwappingKey(key);
     try {
       const cfg = bulkConfig[round.id];
-      const theme = round.theme || cfg?.theme || "";
-      const difficulty = round.difficulty || cfg?.difficulty || "mixed";
+      const { theme, difficulty } = resolveRoundGenerationSettings(round, cfg);
       // Regenerating ONE question uses the fast, local-only exclusion seed
       // (just this round's own questions) instead of the full all-time
       // history fetch - that fetch is what was making REGENERATE feel slow.

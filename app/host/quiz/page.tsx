@@ -24,6 +24,7 @@ import { platformLogger } from "@/lib/platform/logger";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 import { calculateMultiTapScore, isAnswerCorrect as sharedIsAnswerCorrect, getCorrectAnswerText as sharedGetCorrectAnswerText, latestAnswerForTeam as sharedLatestAnswerForTeam, rankNearestWins } from "@/lib/quiz/answerScoring";
 import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
+import { clearPendingManualAdjustment, loadPendingManualAdjustment, savePendingManualAdjustment, type PendingManualAdjustment } from "@/lib/quiz/manualAdjustment";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
 
@@ -278,8 +279,16 @@ function QuizControllerInner() {
   const [statsTeam, setStatsTeam] = useState<string | null>(null);
   const [adjustTeam, setAdjustTeam] = useState<string|null>(null);
   const [adjustAmount, setAdjustAmount] = useState("");
-  const pendingAdjustmentRef = useRef<{ pin: string; team: string; delta: number; eventKey: string } | null>(null);
+  const pendingAdjustmentRef = useRef<PendingManualAdjustment | null>(null);
+  const [pendingAdjustment, setPendingAdjustment] = useState<PendingManualAdjustment | null>(null);
   const adjustmentBusyRef = useRef(false);
+
+  useEffect(() => {
+    const pending = loadPendingManualAdjustment(window.sessionStorage);
+    pendingAdjustmentRef.current = pending;
+    setPendingAdjustment(pending);
+  }, []);
+
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showScoreboardOnHandsets, setShowScoreboardOnHandsets] = useState(false);
   const [pinInput, setPinInput] = useState("");
@@ -922,6 +931,8 @@ function QuizControllerInner() {
     }
     const operation = pending || { pin: sessionPin, team: teamName, delta, eventKey: `manual:${sessionPin}:${crypto.randomUUID()}` };
     pendingAdjustmentRef.current = operation;
+    setPendingAdjustment(operation);
+    savePendingManualAdjustment(window.sessionStorage, operation);
     adjustmentBusyRef.current = true;
     const supabase = createSupabaseBrowserClient();
     try {
@@ -936,6 +947,8 @@ function QuizControllerInner() {
       return;
     }
     pendingAdjustmentRef.current = null;
+    setPendingAdjustment(null);
+    clearPendingManualAdjustment(window.sessionStorage);
     loadScores(sessionPin);
     setAdjustTeam(null);
     setAdjustAmount("");
@@ -2022,6 +2035,15 @@ function QuizControllerInner() {
         <div role="alert" style={{ position:"fixed", zIndex:1000, top:16, left:"50%", transform:"translateX(-50%)", width:"min(760px,calc(100vw - 32px))", padding:"14px 16px", borderRadius:14, border:"2px solid #FF3B4E", background:"#260713", color:"#fff", boxShadow:"0 16px 50px rgba(0,0,0,.55)", display:"flex", alignItems:"center", gap:14 }}>
           <strong style={{ flex:1 }}>{scoringError}</strong>
           <Button onClick={retryAutomaticScoring}>Retry scoring</Button>
+        </div>
+      )}
+      {pendingAdjustment && (
+        <div role="alert" style={{ position:"fixed", zIndex:999, top:scoringError?92:16, left:"50%", transform:"translateX(-50%)", width:"min(760px,calc(100vw - 32px))", padding:"14px 16px", borderRadius:14, border:"2px solid #FFC533", background:"#211702", color:"#fff", boxShadow:"0 16px 50px rgba(0,0,0,.55)", display:"flex", alignItems:"center", gap:14 }}>
+          <strong style={{ flex:1 }}>
+            {pendingAdjustment.delta > 0 ? "+" : ""}{pendingAdjustment.delta} points for {pendingAdjustment.team} is unconfirmed.
+            {pendingAdjustment.pin !== sessionPin ? ` Reconnect to quiz ${pendingAdjustment.pin} to resolve it.` : ""}
+          </strong>
+          {pendingAdjustment.pin === sessionPin && <Button onClick={() => adjustScore(pendingAdjustment.team, pendingAdjustment.delta)}>Retry safely</Button>}
         </div>
       )}
       {statsTeam && (() => {

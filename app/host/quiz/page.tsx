@@ -26,6 +26,7 @@ import { calculateMultiTapScore, isAnswerCorrect as sharedIsAnswerCorrect, getCo
 import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
 import { clearPendingManualAdjustment, loadPendingManualAdjustment, savePendingManualAdjustment, type PendingManualAdjustment } from "@/lib/quiz/manualAdjustment";
 import { calculateSpinPayout, type SpinPayoutLabel } from "@/lib/quiz/spinPayout";
+import { clearHostPreviewRecovery, loadHostPreviewRecovery, saveHostPreviewRecovery } from "@/lib/quiz/hostPreviewRecovery";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
 
@@ -565,12 +566,24 @@ function QuizControllerInner() {
       setTimeLeft(Math.max(0, Math.ceil(hotSeat.answerDuration - elapsed)));
     }
     let restoredPhase = (data.phase as string) || "waiting";
+    // The public display/handsets call the between-round state
+    // "intermission", while the host console calls the same step
+    // "round_end" and uses it to expose the next-round action. Never restore
+    // the public name directly into HostPhase: it is intentionally not a host
+    // phase and would leave the spacebar/action rail with no valid transition.
+    if (restoredPhase === "intermission") restoredPhase = "round_end";
     // "spin_to_win" only exists as a Display/handset screen - the host's own
     // console still shows its celebration panel (with the spin controls) the
     // whole time the spin is offered/running, so a refresh mid-spin must land
     // back on "celebration", not an unhandled host phase.
     if (restoredPhase === "spin_to_win") restoredPhase = "celebration";
-    setHostPhase(restoredPhase as HostPhase);
+    const preview = loadHostPreviewRecovery(window.sessionStorage);
+    const hasMatchingPreview = restoredPhase === "waiting"
+      && !!preview
+      && preview.sessionId === data.id
+      && preview.roundId === data.current_session_round_id
+      && preview.questionIndex === data.current_question_index;
+    setHostPhase(hasMatchingPreview ? "preview" : restoredPhase as HostPhase);
     if (data.spin_offered) { setSpinOffered(true); setDecisionMade(true); }
     if (data.spin_choice) setSpinChoice(data.spin_choice as string);
     const restoredSpinTarget = typeof data.spin_target_idx === "number" ? data.spin_target_idx : null;
@@ -1391,6 +1404,7 @@ function QuizControllerInner() {
   // PHASE ACTIONS
   async function doStartRound() {
     if (!selectedRound || !sessionId) return;
+    clearHostPreviewRecovery(window.sessionStorage);
     stopVictorySong();
     stopTickAudio();
     setQIdx(0);
@@ -1457,11 +1471,13 @@ function QuizControllerInner() {
     setScrambledTeams([]);
     const { error: prevErr } = await supabase.from("sessions").update({ phase: "waiting", timer_started_at: null, fastest_team: null, fastest_song: null, spin_offered: false, spin_nonce: null, spin_target_idx: null, spin_choice: null, hot_seat_status: "idle", hot_seat_team: null, hot_seat_locked_teams: [], hot_seat_answer_started_at: null, blocked_teams: [], scrambled_teams: [] }).eq("id", sessionId);
     if (prevErr) console.error("SESSION UPDATE FAILED [doPreviewQuestion]:", prevErr);
+    else saveHostPreviewRecovery(window.sessionStorage, { sessionId, roundId: selectedRound.id, questionIndex: idx });
     if (sessionPin) loadAnswers(sessionPin, idx);
   }
 
   async function doSendQuestion() {
     if (!selectedRound || !sessionId) return;
+    clearHostPreviewRecovery(window.sessionStorage);
     const q = selectedRound.questions[qIdx];
     const isHotSeat = selectedRound.round_type === "hot_seat";
     setHostPhase(isHotSeat ? "hot_seat" : "question");
@@ -1937,6 +1953,7 @@ function QuizControllerInner() {
 
   async function chooseRound(r: (typeof rounds)[number] | null) {
     if (!sessionId) return;
+    clearHostPreviewRecovery(window.sessionStorage);
     // Supabase builders are lazy: await the write before changing local rounds.
     const isFinalRound = !!r && rounds.length > 0 && r.position === rounds[rounds.length - 1].position;
     try {

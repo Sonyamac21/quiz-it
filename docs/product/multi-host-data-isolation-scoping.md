@@ -29,8 +29,20 @@ accidental-deletion risk the moment a second host account exists.
   (Round Library), or `sponsors` at all - consistent with the pattern already
   called out in `202608260001_rls_disabled_public_tables.sql`, where some tables
   were created directly in the Supabase dashboard rather than through a tracked
-  migration. Their live RLS state (if any) cannot be verified from this repo and
-  needs checking directly in Supabase Studio.
+  migration. Their live RLS state couldn't be verified from this repo, so Sonya
+  checked Supabase Studio directly (2026-09-12) for `venues`: RLS is enabled, but
+  five policies grant fully open access with no host scoping at all -
+  `authenticated_full_access` (ALL, to `authenticated`) plus one policy per
+  command (`venues_select_anon` / `_insert_anon` / `_update_anon` /
+  `_delete_anon`), each `to public` - meaning no login is required at all.
+  Anyone holding the site's public anon key can currently read, create, edit, or
+  delete any venue. Fixed in `202609120001_venues_owner_scoping.sql`, which drops
+  all five by name before adding the owner-scoped replacement. `question_bank`,
+  `rounds`, and `sponsors` are very likely running the same open pattern (same
+  untracked-table history, same naming convention already seen on `venues` and
+  on `teams` during an earlier live-rehearsal bug) - each will need the same
+  "check Studio for the real policy names, drop them by name" treatment before
+  its own owner-scoping migration, not just a bare add-the-new-policy migration.
 - Checked `victory_songs`' migration directly (`202609010001_victory_songs.sql`):
   it explicitly grants `insert`/`update`/`delete` `to authenticated using (true)` -
   by design, not by oversight, any logged-in host can edit any row. Fine for one

@@ -11,13 +11,22 @@
 -- only account that exists (Sonya's), so nothing changes about what she can
 -- see or do. It only starts mattering once a second host account exists.
 --
--- IMPORTANT - run this in the Supabase SQL editor, but first check
--- Database > Policies > venues in the dashboard for any existing policy.
--- If one already grants `authenticated` broad access (e.g. "using (true)"
--- on select/update/delete), drop it explicitly by its real name before or
--- after running this - RLS policies for the same command are OR'd together,
--- so leaving an old "using (true)" policy in place would silently let the
--- new owner-scoped policy do nothing.
+-- CONFIRMED live in Supabase Studio (2026-09-12): venues has RLS enabled,
+-- but five existing policies grant fully open access with no scoping at
+-- all - "authenticated_full_access" (ALL, to authenticated) plus
+-- "venues_select_anon" / "venues_insert_anon" / "venues_update_anon" /
+-- "venues_delete_anon" (one per command, all `to public`, i.e. no login
+-- required at all). Anyone with the site's public anon key can currently
+-- read, create, edit, or delete any venue. This migration drops all five
+-- by name before adding the owner-scoped replacement - RLS policies for the
+-- same command are OR'd together, so leaving even one of these in place
+-- would silently let it keep granting open access alongside the new policy.
+
+drop policy if exists "authenticated_full_access" on public.venues;
+drop policy if exists "venues_select_anon" on public.venues;
+drop policy if exists "venues_insert_anon" on public.venues;
+drop policy if exists "venues_update_anon" on public.venues;
+drop policy if exists "venues_delete_anon" on public.venues;
 
 alter table public.venues
   add column if not exists owner_id uuid references auth.users(id) on delete cascade;

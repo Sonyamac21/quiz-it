@@ -2130,6 +2130,16 @@ function DisplayScreenInner() {
     // count, and it never exceeds the number of teams in the room.
     const totalTeams = teams.length;
     const lockedCount = lockedTeams.filter(t => teams.some(tm => tm.team_name === t)).length;
+    // A question with no options on screen (text_answer, number) had exactly
+    // the same amount of top-anchored content as a multiple_choice/multi_tap
+    // question - just the top bar and the question line - so the whole
+    // middle of the screen sat empty, with only qd-meter's own auto-margin
+    // pulling it down to the bottom. That read as "everything stuck at the
+    // top with a dead gap below", not an intentionally composed screen.
+    // qd--compact centers that shorter content block vertically instead,
+    // while multiple_choice/multi_tap (which already fill the middle with
+    // their options grid) keep the original top-anchored flow.
+    const isCompact = allOpts.length === 0 && question.question_type !== "audio";
     return (
       <div className="fbl fbl-stage qi-display-stage qi-display-question">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
@@ -2139,11 +2149,21 @@ function DisplayScreenInner() {
         <div className="qd-urgent" style={{ boxShadow: tLeft > 0 && tLeft <= 5
           ? `inset 0 0 ${110 + (6 - tLeft) * 34}px ${18 + (6 - tLeft) * 14}px rgba(255,59,78,${(0.12 + (6 - tLeft) * 0.11).toFixed(3)})`
           : "none" }} />
-        {tLeft > 0 && <div className={"qd-bigtimer" + (tLeft <= 5 ? " urgent" : "")}>{tLeft}</div>}
-        <div className="qd">
+        <div className={"qd" + (isCompact ? " qd--compact" : "")}>
           <div className="qd-top">
             <span><span className="qd-kick">QUESTION {questionIndex + 1}</span> · {(roundName || "GENERAL KNOWLEDGE").toUpperCase()}</span>
-            <span>{tLeft > 0 ? "SPEED BONUS" : "ANSWERS LOCKED"}</span>
+            {/* Was a giant (up to 150px) absolutely-positioned number that could
+                overlap the question text or the fixed corner logo depending on
+                question length - now the same small circular chip the picture
+                question already used, sitting in the top bar's own flow like
+                every other element in this row, so both question types show a
+                consistent timer treatment instead of two different designs.
+                Grouped with the status text in one flex child so qd-top's
+                existing two-child space-between still just works. */}
+            <span style={{ display: "flex", alignItems: "center", gap: "1.2vw" }}>
+              {tLeft > 0 && <div className={"qi-display-picture-timer" + (tLeft <= 5 ? " is-urgent" : "")} style={{ width: "clamp(40px,3.2vw,58px)", fontSize: "clamp(18px,1.8vw,28px)" }}>{tLeft}</div>}
+              <span>{tLeft > 0 ? "SPEED BONUS" : "ANSWERS LOCKED"}</span>
+            </span>
           </div>
           <div className="qd-q">{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
           {allOpts.length > 0 && (

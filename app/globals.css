@@ -828,8 +828,6 @@ button, input, select, textarea { font: inherit; }
 .badge-text{white-space:nowrap;}
 /* Large, room-readable countdown + final-5s urgent glow (steady intensity ramp,
    no rapid flashing; reduced-motion disables the smoothing transition). */
-.fbl .qd-bigtimer{position:absolute;top:2.6%;right:4%;font:800 clamp(56px,7.5vw,150px)/1 'Inter';font-variant-numeric:tabular-nums;color:var(--text);text-shadow:0 0 34px rgba(190,38,193,.5);z-index:5;letter-spacing:.02em;}
-.fbl .qd-bigtimer.urgent{color:var(--red);text-shadow:0 0 46px rgba(255,59,78,.75);}
 .fbl .qd-urgent{position:absolute;inset:0;pointer-events:none;z-index:6;transition:box-shadow .85s ease;}
 @media (prefers-reduced-motion: reduce){.fbl .qd-urgent{transition:none;}}
 
@@ -1548,7 +1546,15 @@ button, input, select, textarea { font: inherit; }
 .qi-display-question .qd-meter { margin: auto 6% 3.5vh; }
 .qi-display-question .qd-mlabel { font-size: clamp(13px,1.2vw,20px); }
 .qi-display-question .qd-tick { height: clamp(9px,1vh,15px); }
-.qi-display-question .qd-bigtimer { top: 3vh; right: 5vw; font-size: clamp(64px,8vw,148px); }
+/* A no-options question (text_answer, number) previously had the same
+   top-anchored qd-top + qd-q as multiple_choice/multi_tap, but nothing to
+   fill the space an options grid normally would - so it read as everything
+   glued to the top with a dead gap before qd-meter's own bottom anchor.
+   Centering the (shorter) content block vertically between the top bar and
+   the meter uses that space intentionally instead. multiple_choice/
+   multi_tap never get this class, so their options grid keeps using the
+   screen the same way it always has. */
+.qi-display-question .qd.qd--compact .qd-q { margin-top: auto; margin-bottom: auto; }
 
 /* Picture questions */
 .qi-display-picture-hero { position: relative; display: grid; place-items: center; padding: clamp(70px,8vh,110px) var(--qi-display-safe-x); }

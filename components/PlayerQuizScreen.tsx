@@ -383,6 +383,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [pursuitQIndex, setPursuitQIndex] = useState(-1);
   const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
   const [connectionLost, setConnectionLost] = useState(false);
+  const [failedAnswer, setFailedAnswer] = useState<string | null>(null);
   const [sessionStatus, setSessionStatus] = useState<string>("waiting");
   const [allTeamNames, setAllTeamNames] = useState<string[]>([]);
   const [intermissionOffers, setIntermissionOffers] = useState("");
@@ -813,6 +814,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       setSelectedAnswer("");
       setAnswerText("");
       setSubmitted(false);
+      setFailedAnswer(null);
       submittingAnswerRef.current = false;
       setTappedItems([]);
       setMySubmittedDisplay("");
@@ -925,6 +927,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         setTimeout(() => { setSubmitted(false); submittingAnswerRef.current = false; submitAnswer(answer, retryCount + 1); }, 800);
       } else {
         setSubmitted(false);
+        setFailedAnswer(answer);
         submittingAnswerRef.current = false;
         // DIAGNOSTIC ONLY (temporary): identify this trip as coming from
         // answer submission, not session polling (the other setConnectionLost(true) site).
@@ -940,8 +943,10 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           online: typeof navigator !== "undefined" ? navigator.onLine : "unknown",
         });
         setConnectionLost(true);
-        setError("Connection lost. Close and reopen the keypad to reconnect.");
+        setError("Your answer was not confirmed. Check your connection and retry it.");
       }
+    } else {
+      setFailedAnswer(null);
     }
   }
 
@@ -1056,8 +1061,17 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     return (
       <PlayerShell className="qi-player-recovery">
         <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={allowPowerCards} photoUrl={teamPhotoUrl} points={myRunningPoints} />
-        <PlayerResultBanner tone="neutral" title="CONNECTION LOST">Close and reopen the keypad to reconnect.</PlayerResultBanner>
-        <button className="qi-player-reconnect" onClick={() => window.location.reload()}>RECONNECT</button>
+        <PlayerResultBanner tone="neutral" title="CONNECTION LOST">{failedAnswer ? "Your answer was not confirmed." : "Reconnect to keep playing."}</PlayerResultBanner>
+        {failedAnswer ? (
+          <button className="qi-player-reconnect" onClick={() => {
+            const answer = failedAnswer;
+            setConnectionLost(false);
+            setError("");
+            void submitAnswer(answer);
+          }}>RETRY ANSWER</button>
+        ) : (
+          <button className="qi-player-reconnect" onClick={() => window.location.reload()}>RECONNECT</button>
+        )}
       </PlayerShell>
     );
   }

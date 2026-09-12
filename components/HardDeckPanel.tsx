@@ -341,7 +341,18 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
   // page, controls unreachable). Portaling to <body> escapes that context so
   // the fixed overlay fills the real viewport and is fully usable.
   const overlay = (
-    <div className="qi-host-harddeck" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100dvh", boxSizing: "border-box" as const, background: "rgba(5,2,10,0.97)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 24, padding: 24, overflow: "hidden" }}>
+    <div
+      className="qi-host-harddeck"
+      style={{
+        position: "fixed", top: 0, left: 0, right: 0, bottom: 0, maxHeight: "100dvh", boxSizing: "border-box" as const,
+        background: "radial-gradient(ellipse 60% 45% at 50% 48%, rgb(190 38 193 / 0.12), transparent 72%), linear-gradient(180deg, var(--qi-bg-stage-soft), var(--qi-bg-stage))",
+        zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, overflow: "hidden",
+      }}
+    >
+      <div
+        className="qi-panel qi-panel--elevated qi-host-harddeck-panel"
+        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, width: "min(94vw, 780px)", maxHeight: "min(92dvh, 900px)", overflow: "auto" }}
+      >
       <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: (!showWheel && team) ? 16 : 28, color: (!showWheel && team) ? "rgba(190,38,193,0.5)" : "#BE26C1", letterSpacing: (!showWheel && team) ? 3 : 4, fontWeight: (!showWheel && team) ? 600 : 400 }}>THE HARD DECK</div>
 
       {showWheel && (
@@ -436,7 +447,8 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
         </>
       )}
 
-      <button onClick={closePanel} style={{ marginTop: 16, padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
+      <button onClick={closePanel} style={{ marginTop: 4, padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
+      </div>
     </div>
   );
 

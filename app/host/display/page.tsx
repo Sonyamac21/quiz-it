@@ -762,8 +762,8 @@ function DisplayScreenInner() {
       playShowAudio(victorySongAudioFile(winnerTeam.victory_song), { channel: "music", volume: 0.9 });
     }
   }
-  function handleRevealNext(nextCount: number) {
-    const sorted = [...quizEndScores].sort((a,b) => a.total_points - b.total_points);
+  function handleRevealNext(nextCount: number, currentScores: Score[] = quizEndScores) {
+    const sorted = [...currentScores].sort((a,b) => a.total_points - b.total_points);
     setRevealedCount(nextCount);
     const isFirst = nextCount === sorted.length && sorted.length > 0;
     if (isFirst) {
@@ -1094,9 +1094,12 @@ function DisplayScreenInner() {
       const syncedCount = (data.quiz_end_revealed_count as number) || 0;
       const syncedTrophy = !!data.quiz_end_trophy_visible;
       if (prevPhaseForQuizEndRef.current !== "quiz_end") {
-        prevQuizEndRevealedRef.current = 0;
-        setRevealedCount(0);
-        setTrophyVisible(false);
+        // A display refresh can reconnect halfway through the finale. Resume
+        // the persisted reveal instead of visibly rewinding every result to
+        // zero; the host and display share this durable counter.
+        prevQuizEndRevealedRef.current = syncedCount;
+        setRevealedCount(syncedCount);
+        setTrophyVisible(syncedTrophy);
         trophyCelebrationFiredRef.current = false;
         winnerCelebrationFiredRef.current = false;
         stopClapping();
@@ -1104,7 +1107,10 @@ function DisplayScreenInner() {
         playShowAudio("clapping-scores.mp3", { channel: "ambient", volume: 0.45, loop: true });
       } else if (syncedCount > prevQuizEndRevealedRef.current) {
         prevQuizEndRevealedRef.current = syncedCount;
-        handleRevealNext(syncedCount);
+        // Use the scores from this same session payload. React state updates
+        // are asynchronous, so reading quizEndScores here could still see the
+        // previous render's empty array and miss the winner reveal entirely.
+        handleRevealNext(syncedCount, scores);
       }
       if (syncedTrophy) {
         setTrophyVisible(true);

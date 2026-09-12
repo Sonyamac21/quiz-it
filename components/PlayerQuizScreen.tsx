@@ -1050,7 +1050,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // designed against it and letting a team play Reverse/Steal/etc mid-race
   // would corrupt results in ways nobody's accounted for. Treated the same
   // as Hot Seat: unavailable for the duration of the round, not just hidden.
-  const powerCardsUsableNow = allowPowerCards && phase !== "pursuit" && phase !== "hot_seat";
+  const powerCardsUsableNow = allowPowerCards && phase !== "pursuit" && phase !== "hot_seat" && phase !== "quiz_end";
   const PowerCards = () => (
     powerCardsUsableNow ? <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
       <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={powerCardsUsableNow} />

@@ -546,6 +546,9 @@ function QuizControllerInner() {
       setRoundNumber(data.round_number);
       roundNumberRef.current = data.round_number;
     }
+    if (typeof data.quiz_end_revealed_count === "number") {
+      quizEndRevealedRef.current = data.quiz_end_revealed_count;
+    }
     // Restore the round-boundary timestamp so a refresh mid-round doesn't
     // reset roundStartedRef back to 0, which would otherwise let an old
     // answer from a previous round (same question index, since indexes
@@ -1080,9 +1083,24 @@ function QuizControllerInner() {
       setTimeout(() => { window.location.href = "/host/session"; }, 1200);
       return;
     }
-    // scoreboard_data is kept fresh by the score service after every score
-    // mutation - no need to recompute or embed it here.
-    const { data, error } = await supabase.from("sessions").update({ phase: "quiz_end", quiz_end_revealed_count: 0, quiz_end_trophy_visible: false }).eq("id", sessionId).select();
+    // Publish one fresh authoritative snapshot before changing phase. The
+    // display builds the finale from sessions.scoreboard_data; relying on the
+    // last mutation's cache left the reveal empty when a preceding sync had
+    // failed or a late team had only just joined.
+    const scoreboard = await syncScoreboardData(supabase, sessionPin);
+    if (scoreboard.error) {
+      showToast("Final scores could not be confirmed. Retry End Quiz before starting the reveal.", "error", 10000);
+      return;
+    }
+    setScores(scoreboard.scores);
+    const { data, error } = await supabase.from("sessions").update({
+      phase: "quiz_end",
+      quiz_end_revealed_count: 0,
+      quiz_end_trophy_visible: false,
+      allow_power_cards: false,
+      show_scoreboard: false,
+      show_scoreboard_on_display: false,
+    }).eq("id", sessionId).select();
     if (error) {
       console.error("doEndOfQuiz failed:", error);
       showToast("Failed to end quiz: " + error.message, "error", 7000);
@@ -1093,6 +1111,8 @@ function QuizControllerInner() {
       showToast("End Quiz didn't update - the session link may be stale. Try refreshing the host page.", "error", 7000);
       return;
     }
+    setShowScoreboard(false);
+    setShowScoreboardOnHandsets(false);
     setHostPhase("quiz_end");
   }
   async function doBuildReel() {
@@ -1124,25 +1144,63 @@ function QuizControllerInner() {
   }
 
   async function doRevealNextTeam() {
-    if (!sessionId) return;
-    const total = scores.length;
-    const nextCount = Math.min(quizEndRevealedRef.current + 1, total);
-    quizEndRevealedRef.current = nextCount;
+    if (!sessionId || !sessionPin) return;
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ quiz_end_revealed_count: nextCount }).eq("id", sessionId);
+    let finalScores: Score[];
+    try {
+      finalScores = await getScoresSvc(supabase, sessionPin);
+    } catch {
+      showToast("Could not verify the final scores. Check the connection and retry the reveal.", "error", 8000);
+      return;
+    }
+    setScores(finalScores);
+    const total = finalScores.length;
+    if (total === 0) {
+      showToast("There are no confirmed team scores to reveal.", "warning", 6000);
+      return;
+    }
+    const nextCount = Math.min(quizEndRevealedRef.current + 1, total);
+    const { data, error } = await supabase.from("sessions").update({ quiz_end_revealed_count: nextCount }).eq("id", sessionId).select("id");
+    if (error || !data?.length) {
+      showToast("That result was not sent to the display. Check the connection and retry.", "error", 8000);
+      return;
+    }
+    quizEndRevealedRef.current = nextCount;
     if (nextCount >= total) {
       setTimeout(async () => {
-        await supabase.from("sessions").update({ quiz_end_trophy_visible: true }).eq("id", sessionId);
+        const { data: trophyData, error: trophyError } = await supabase.from("sessions").update({ quiz_end_trophy_visible: true }).eq("id", sessionId).select("id");
+        if (trophyError || !trophyData?.length) {
+          showToast("The winner screen was not confirmed. Press Reveal Next Team to retry it.", "error", 9000);
+        }
       }, 3000);
     }
   }
 
   async function revealAllFinalResults() {
-    if (!sessionId) return;
-    const total = scores.length;
-    quizEndRevealedRef.current = total;
+    if (!sessionId || !sessionPin) return;
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "quiz_end", quiz_end_revealed_count: total, quiz_end_trophy_visible: true }).eq("id", sessionId);
+    const scoreboard = await syncScoreboardData(supabase, sessionPin);
+    if (scoreboard.error || scoreboard.scores.length === 0) {
+      showToast("Final scores could not be confirmed. Check the connection and retry.", "error", 9000);
+      return;
+    }
+    const total = scoreboard.scores.length;
+    const { data, error } = await supabase.from("sessions").update({
+      phase: "quiz_end",
+      quiz_end_revealed_count: total,
+      quiz_end_trophy_visible: true,
+      allow_power_cards: false,
+      show_scoreboard: false,
+      show_scoreboard_on_display: false,
+    }).eq("id", sessionId).select("id");
+    if (error || !data?.length) {
+      showToast("Final results were not sent to the display. Check the connection and retry.", "error", 9000);
+      return;
+    }
+    quizEndRevealedRef.current = total;
+    setScores(scoreboard.scores);
+    setShowScoreboard(false);
+    setShowScoreboardOnHandsets(false);
     setHostPhase("quiz_end");
   }
 

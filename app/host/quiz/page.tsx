@@ -25,6 +25,7 @@ import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@
 import { calculateMultiTapScore, isAnswerCorrect as sharedIsAnswerCorrect, getCorrectAnswerText as sharedGetCorrectAnswerText, latestAnswerForTeam as sharedLatestAnswerForTeam, rankNearestWins } from "@/lib/quiz/answerScoring";
 import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
 import { clearPendingManualAdjustment, loadPendingManualAdjustment, savePendingManualAdjustment, type PendingManualAdjustment } from "@/lib/quiz/manualAdjustment";
+import { calculateSpinPayout, type SpinPayoutLabel } from "@/lib/quiz/spinPayout";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
 
@@ -1684,59 +1685,12 @@ function QuizControllerInner() {
       setSpinFeedback({ ok: false, message: "Spin score could not be loaded. No points were changed." });
       return;
     }
-    // Other teams' TOTALS, highest first. Rank outcomes are computed purely from
-    // these so a team lands on the score needed to occupy that leaderboard
-    // position - never the ordinal number (1/2/3) and never an arbitrary 0.
-    const othersDesc = allScores.filter(s => s.team_name !== teamName).map(s => s.total_points).sort((a, b) => b - a);
-    const mine = allScores.find(s => s.team_name === teamName);
-    const myTotal = mine?.total_points ?? 0;
     const label = SLOT_SEGS[winIdx]?.label;
-    // To occupy overall rank R, exactly R-1 other teams must be above you, so sit
-    // one point above the R-th highest other team (othersDesc[R-1]). Deterministic
-    // for ties (fixed sort). If there aren't that many other teams, the rank can't
-    // exist below the team's current standing - keep the team's own score rather
-    // than reducing it to a meaningless value.
-    const scoreForRank = (rank: number): number => {
-      const idx = rank - 1;
-      if (idx < othersDesc.length) return othersDesc[idx] + 1;
-      return myTotal;
-    };
-    let newTotal = myTotal;
-    // Numeric outcomes are a straightforward add/subtract, floored at 0.
-    if (label === "+50 Points") newTotal = myTotal + 50;
-    else if (label === "-10 Points") newTotal = Math.max(0, myTotal - 10);
-    else if (label === "-20 Points") newTotal = Math.max(0, myTotal - 20);
-    else if (label === "-30 Points") newTotal = Math.max(0, myTotal - 30);
-    // Placement outcomes ALWAYS move the team to exactly one point ahead of
-    // whoever currently holds that position among the other teams - including
-    // demoting the spinning team if they were already sitting higher than
-    // that. Previously this only ever acted as a floor (Math.max(myTotal,
-    // target)), so landing "3rd Place" while already in 1st correctly left a
-    // leader's score untouched by the OLD rule, but that read as "the spin
-    // did nothing" to a host expecting the round result to always move the
-    // team to that exact spot. Explicit host instruction: 1st/2nd/3rd always
-    // land one point ahead of that position, even if it's a demotion.
-    else if (label === "1st Place") newTotal = scoreForRank(1);
-    // 2nd place: land exactly 1 point above the team that will sit 3rd
-    // (others' 2nd-highest). If there is no 3rd-place team, sit 1 point
-    // behind current 1st instead (nothing to be "one ahead of" at 3rd).
-    else if (label === "2nd Place") {
-      newTotal = othersDesc.length >= 2 ? othersDesc[1] + 1
-               : othersDesc.length === 1 ? Math.max(0, othersDesc[0] - 1)
-               : myTotal;
+    const newTotal = label ? calculateSpinPayout(allScores, teamName, label as SpinPayoutLabel) : null;
+    if (newTotal == null) {
+      setSpinFeedback({ ok: false, message: "Spin score could not be calculated. No points were changed." });
+      return;
     }
-    // 3rd place: land exactly 1 point above the team that will sit 4th
-    // (others' 3rd-highest). If there is no 4th-place team, sit 1 point
-    // behind current 2nd instead.
-    else if (label === "3rd Place") {
-      newTotal = othersDesc.length >= 3 ? othersDesc[2] + 1
-               : othersDesc.length >= 2 ? Math.max(0, othersDesc[1] - 1)
-               : myTotal;
-    }
-    // Last place: sit one below the current lowest other team, floored at 0. Only
-    // becomes 0 when 0 is genuinely last (lowest other is 0 or 1). With no other
-    // teams there is no "last" to move to, so keep the team's score.
-    else if (label === "Last Place") newTotal = othersDesc.length ? Math.max(0, othersDesc[othersDesc.length - 1] - 1) : myTotal;
     // eventKey keyed on the spin_nonce written to the session row for this
     // spin - guards against applySpinResult ever being invoked twice for the
     // same spin (e.g. a future direct call plus a realtime-triggered call).

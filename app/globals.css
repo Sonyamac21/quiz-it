@@ -763,7 +763,7 @@ button, input, select, textarea { font: inherit; }
    of the panel instead, so it scales to fill whatever screen it's on;
    object-fit:contain still protects the video's own aspect ratio. */
 .fbl .lb-reel-media{display:block;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
-.fbl .lb-venue-intro.has-media{inset:auto 5% 4%;min-height:34%;padding:5% 6% 4%;border-radius:0 0 clamp(18px,2vw,30px) clamp(18px,2vw,30px);background:linear-gradient(180deg,transparent,rgba(10,1,24,.94) 58%);gap:clamp(7px,1vh,14px);}
+.fbl .lb-venue-intro.has-media{inset:auto 5% 4%;min-height:34%;padding:5% 6% 4%;border-radius:0 0 clamp(18px,2vw,30px) clamp(18px,2vw,30px);background:linear-gradient(180deg,transparent,rgba(10,1,24,.94) 58%);gap:clamp(7px,1vh,14px);overflow:hidden;}
 .fbl .lb-venue-intro.has-media .lb-venue-intro-logo{position:absolute;left:3%;bottom:14%;width:clamp(80px,12vw,150px);height:clamp(64px,9vw,115px);padding:8px;border-radius:14px;}
 .fbl .lb-venue-intro.has-media .lb-venue-intro-name{max-width:72%;font-size:clamp(28px,3.8vw,58px);line-height:1.08;text-wrap:balance;}
 .fbl .lb-venue-intro.has-media .lb-venue-intro-tagline{font-size:clamp(12px,1.2vw,18px);}
@@ -2131,8 +2131,17 @@ button, input, select, textarea { font: inherit; }
    body/portrait shot, so squashing it into that tiny square lost almost
    all of the image. Rebuilt as a vertical card instead, with the photo
    shown at real size above the name. */
-.fbl .lb-venue-intro-host { position:absolute; right:3%; bottom:6%; width:clamp(220px,25vw,340px); display:flex; flex-direction:column; align-items:center; gap:clamp(10px,1.3vh,16px); padding:clamp(14px,1.6vw,22px); border:1px solid rgba(217,79,220,.52); border-radius:clamp(15px,1.5vw,22px); background:rgba(10,1,24,.82); box-shadow:0 18px 55px rgba(0,0,0,.48),0 0 35px rgba(190,38,193,.22); backdrop-filter:blur(10px); animation:qiVenueHostIn .9s var(--settle) .7s both; }
-.fbl .lb-venue-intro-host img { width:100%; height:clamp(160px,26vh,300px); object-fit:contain; border-radius:12px; background:#090116; }
+/* Previously sized with 25vw/26vh - those units are relative to the whole
+   browser viewport, not this card's actual container, so on a split-screen
+   layout (the reel gets a narrower slice of the frame than a full-width
+   display) the card rendered far larger than the "has-media" scrim band
+   it's meant to sit inside, bleeding upward over the hero photo and
+   whatever else was above it. Capped smaller and constrained to a max
+   share of the band's own height (clamp ceiling lowered, %-based height
+   added) so it reliably fits inside its own window instead of escaping it;
+   overflow:hidden on .has-media above is the backstop either way. */
+.fbl .lb-venue-intro-host { position:absolute; right:3%; bottom:6%; top:auto; max-height:88%; width:clamp(160px,18vw,240px); display:flex; flex-direction:column; align-items:center; gap:clamp(8px,1vh,14px); padding:clamp(10px,1.2vw,18px); border:1px solid rgba(217,79,220,.52); border-radius:clamp(15px,1.5vw,22px); background:rgba(10,1,24,.82); box-shadow:0 18px 55px rgba(0,0,0,.48),0 0 35px rgba(190,38,193,.22); backdrop-filter:blur(10px); animation:qiVenueHostIn .9s var(--settle) .7s both; overflow:hidden; }
+.fbl .lb-venue-intro-host img { width:100%; height:min(45%,clamp(90px,12vh,160px)); object-fit:contain; border-radius:12px; background:#090116; }
 .fbl .lb-venue-intro-host div { min-width:0; text-align:center; }
 .fbl .lb-venue-intro-host small { display:block; color:var(--purple-b); font:800 clamp(9px,.9vw,13px) 'Inter'; letter-spacing:.18em; }
 .fbl .lb-venue-intro-host strong { display:block; margin-top:4px; color:#fff; font:850 clamp(15px,1.4vw,22px)/1.15 'Inter'; overflow-wrap:anywhere; }

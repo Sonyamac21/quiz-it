@@ -1995,7 +1995,7 @@ function QuizControllerInner() {
   // the host never hunts and can drive the whole show from peripheral vision.
   const nextActionLabel =
     hostPhase === "waiting" ? (roundNumber === 1 ? "Start Quiz" : "Start Round") :
-    hostPhase === "round_start" ? "Preview First Question" :
+    hostPhase === "round_start" ? (selectedRound?.round_type === "pursuit" ? "Start The Pursuit" : selectedRound?.round_type === "hard_deck" ? "Start The Hard Deck" : "Preview First Question") :
     hostPhase === "preview" ? "Send Question Live" :
     hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "Reveal Question Text" :
     hostPhase === "question" ? "Start Timer" :

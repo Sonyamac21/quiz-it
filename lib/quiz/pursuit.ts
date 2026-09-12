@@ -71,18 +71,30 @@ export function getPursuitPhaseLabel(phase: PursuitPhase): string {
 export const PURSUIT_TOTAL_QUESTIONS = 7;
 export const PURSUIT_WINNER_BONUS = 100;
 
-/** Cumulative total points a team holds after clearing each stage (1-indexed).
- * Stage 7 is 100, not 70 — the final stage carries a completion bonus. */
-export const PURSUIT_POINTS_LADDER = [10, 20, 30, 40, 50, 60, 100];
+// Flat per-correct-answer points, independent of PURSUIT_WINNER_BONUS (100
+// pts), which is awarded once at the end only to whoever finishes with the
+// highest correct count - not to every team, and not baked into a per-stage
+// ladder. This is the single source of truth PursuitPanel (host, awards the
+// real points) and pursuitTotalPoints below (handset display) both read, so
+// the two can never drift out of sync with each other again - a stale local
+// copy of this same number in PursuitPanel.tsx previously caused the
+// handset's displayed "Banked score" to show an old ladder value (jumping
+// straight to 100 at stage 7) that didn't match the real, correct saved
+// score (stage * 10, plus the separate winner bonus only for the leader(s),
+// only once, at the very end).
+export const PURSUIT_CORRECT_POINTS = 10;
 
-/** Total points a team holds having completed `stage` questions (0 = none). */
+/** Total points a team holds having completed `stage` questions (0 = none).
+ * This is ONLY the per-question total - it deliberately excludes
+ * PURSUIT_WINNER_BONUS, which is never known mid-round (it depends on every
+ * other team's final stage too) and is only ever paid once, separately, at
+ * finishRound(). */
 export function pursuitTotalPoints(stage: number): number {
   if (stage < 1) return 0;
-  const capped = Math.min(stage, PURSUIT_TOTAL_QUESTIONS);
-  return PURSUIT_POINTS_LADDER[capped - 1];
+  return Math.min(stage, PURSUIT_TOTAL_QUESTIONS) * PURSUIT_CORRECT_POINTS;
 }
 
-/** Points awarded for reaching `stage` — the delta over the previous stage. */
+/** Points awarded for reaching `stage` - the delta over the previous stage. */
 export function pursuitStagePoints(stage: number): number {
   return pursuitTotalPoints(stage) - pursuitTotalPoints(stage - 1);
 }

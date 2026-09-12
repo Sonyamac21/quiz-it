@@ -22,6 +22,7 @@ import {
   checkPursuitAnswer,
   pursuitCorrectAnswerText,
   PURSUIT_WINNER_BONUS,
+  PURSUIT_CORRECT_POINTS,
 } from "@/lib/quiz/pursuit";
 
 // THE PURSUIT — host controller.
@@ -45,11 +46,6 @@ type RoundQuestion = {
 };
 
 type AnswerRow = { team_name: string; answer_text: string; submitted_at: string };
-
-// Flat per-correct-answer points, independent of the PURSUIT_WINNER_BONUS
-// (100 pts) awarded once at the end to whoever finishes with the highest
-// correct count.
-const PURSUIT_CORRECT_POINTS = 10;
 
 type PursuitRoundOption = { id: string; name: string; questions: RoundQuestion[] };
 

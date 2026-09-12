@@ -323,6 +323,7 @@ function QuizControllerInner() {
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
   const [spinFeedback, setSpinFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+  const [spinPayoutRetrying, setSpinPayoutRetrying] = useState(false);
   const [decisionMade, setDecisionMade] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
@@ -1193,29 +1194,38 @@ function QuizControllerInner() {
       // room could actually see the result, spoiling it. Delayed to land
       // together with the animation instead of ahead of it.
       const SPIN_REVEAL_MS = 10200;
-      if (payoutTeam) setTimeout(() => applySpinResult(winIdx, payoutTeam, nonce, pin), SPIN_REVEAL_MS);
+      if (payoutTeam) setTimeout(async () => {
+        const confirmed = await applySpinResult(winIdx, payoutTeam, nonce, pin);
+        // Keep the stored target, nonce and team intact when scoring is
+        // unconfirmed. A reconnect or the host retry control can then safely
+        // repeat the same idempotent payout instead of losing the result.
+        if (confirmed) setTimeout(() => finalizeSpinSession(pin), 9800);
+      }, SPIN_REVEAL_MS);
       else {
         console.error("triggerSpinIfChosen: no fastest-team name available (ref cleared and no override passed) - spin payout skipped.");
         setSpinFeedback({ ok: false, message: "Spin points were not awarded: no winning team was identified. Check the team's score before continuing." });
       }
-      setTimeout(() => {
-        const finalSid = sessionIdRef.current || sessionId;
-        // Only return to "celebration" if the session is STILL on the spin
-        // (phase === "spin_to_win"). If the host already advanced (Continue / Next
-        // Question / End Round), that move set fastest_team = null and changed the
-        // phase; an unconditional write here would re-enter "celebration" with no
-        // winner and make the Display fire the sad-trombone + "No correct answers"
-        // and every handset re-show wrong-answer feedback. The .eq("phase",
-        // "spin_to_win") guard makes this a no-op in that case. The spin_* columns
-        // are cleared in the same guarded write.
-        if (finalSid) createSupabaseBrowserClient().from("sessions").update({ phase: "celebration", spin_offered: false, spin_choice: null, spin_nonce: null, spin_target_idx: null }).eq("id", finalSid).eq("phase", "spin_to_win").then(({ error }) => {
-          if (error) {
-            console.error("SESSION UPDATE FAILED [spinTimeout]:", error);
-            showToast("The display could not leave the spin screen. Check the connection and display before continuing; this does not confirm whether points were awarded.", "error", 10000);
-          }
-        });
-      }, 20000);
     }
+  }
+
+  async function finalizeSpinSession(pin: string): Promise<boolean> {
+    const finalSid = sessionIdRef.current || sessionId;
+    if (!finalSid) return false;
+    const { error } = await createSupabaseBrowserClient().from("sessions")
+      .update({ phase: "celebration", spin_offered: false, spin_choice: null, spin_nonce: null, spin_target_idx: null })
+      .eq("id", finalSid)
+      .eq("pin", pin)
+      .eq("phase", "spin_to_win");
+    if (error) {
+      console.error("SESSION UPDATE FAILED [finalizeSpinSession]:", error);
+      setSpinFeedback({ ok: false, message: "Points are confirmed, but the display could not leave the spin screen. Retry to reconnect it safely." });
+      return false;
+    }
+    setSpinOffered(false);
+    setSpinChoice(null);
+    setSpinTargetIdx(null);
+    setSpinNonce(null);
+    return true;
   }
 
   function subscribeToUpdates(pin: string) {
@@ -1700,7 +1710,7 @@ function QuizControllerInner() {
     // Victory song now plays only on the display screen to avoid duplicate/echoing audio
   }
 
-  async function applySpinResult(winIdx: number, teamName: string, spinNonce: number | undefined, pin: string) {
+  async function applySpinResult(winIdx: number, teamName: string, spinNonce: number | undefined, pin: string): Promise<boolean> {
     // `pin` is passed explicitly rather than read from the `sessionPin` state:
     // this function is reached from the realtime sessions-UPDATE handler, whose
     // callback closes over the render at channel-subscribe time (when sessionPin
@@ -1708,7 +1718,7 @@ function QuizControllerInner() {
     // returned no rows and the whole spin payout silently no-opped, while
     // spinTriggeredRef was already set - blocking the correctly-scoped 1.5s poll
     // path from ever retrying. The verified pin threads through cleanly here.
-    if (!pin) { console.error("applySpinResult: no session pin available"); return; }
+    if (!pin) { console.error("applySpinResult: no session pin available"); return false; }
     const supabase = createSupabaseBrowserClient();
     let allScores: Score[];
     try {
@@ -1716,17 +1726,17 @@ function QuizControllerInner() {
     } catch (error) {
       console.error("Could not load Spin scores:", error);
       setSpinFeedback({ ok: false, message: "Spin score could not be loaded. No points were changed." });
-      return;
+      return false;
     }
     if (!allScores.length) {
       setSpinFeedback({ ok: false, message: "Spin score could not be loaded. No points were changed." });
-      return;
+      return false;
     }
     const label = SLOT_SEGS[winIdx]?.label;
     const newTotal = label ? calculateSpinPayout(allScores, teamName, label as SpinPayoutLabel) : null;
     if (newTotal == null) {
       setSpinFeedback({ ok: false, message: "Spin score could not be calculated. No points were changed." });
-      return;
+      return false;
     }
     // eventKey keyed on the spin_nonce written to the session row for this
     // spin - guards against applySpinResult ever being invoked twice for the
@@ -1739,18 +1749,37 @@ function QuizControllerInner() {
     const result = await setScoreAbsolute(supabase, pin, teamName, newTotal, {
       eventKey: spinNonce != null ? `spin:${pin}:${spinNonce}` : undefined,
     });
-    if (result.scoreboardSyncError) {
-      console.error("applySpinResult: score updated but scoreboard_data sync failed:", result.scoreboardSyncError);
-      setSpinFeedback({ ok: false, message: "Score changed, but the live leaderboard did not refresh. Reopen the scoreboard." });
-    } else {
-      const { data: verified } = await supabase.from("scores").select("total_points").eq("session_pin", pin).eq("team_name", teamName).maybeSingle();
-      if (!verified || verified.total_points !== newTotal) {
-        setSpinFeedback({ ok: false, message: "Spin score update failed. No result has been confirmed." });
-      } else {
-        setSpinFeedback({ ok: true, message: `${teamName}: ${label} applied — ${newTotal} points.` });
-      }
+    if (result.error) {
+      setSpinFeedback({ ok: false, message: "Spin score is unconfirmed. Check the connection and retry this payout safely." });
+      return false;
     }
+    const syncError = result.applied ? result.scoreboardSyncError : (await syncScoreboardData(supabase, pin)).error;
+    if (syncError) {
+      console.error("applySpinResult: scoreboard_data sync failed:", syncError);
+      setSpinFeedback({ ok: false, message: "Spin points may be saved, but the leaderboard is unconfirmed. Retry this payout safely." });
+      return false;
+    }
+    const { data: verified, error: verifyError } = await supabase.from("scores").select("total_points").eq("session_pin", pin).eq("team_name", teamName).maybeSingle();
+    // On a duplicate retry, the event ledger proves the original payout was
+    // already applied. The team's total may since have changed for another
+    // legitimate reason, so only require exact equality on the first apply.
+    if (verifyError || !verified || (result.applied && verified.total_points !== newTotal)) {
+      setSpinFeedback({ ok: false, message: "Spin score update failed. No result has been confirmed." });
+      return false;
+    }
+    setSpinFeedback({ ok: true, message: `${teamName}: ${label} confirmed — ${verified.total_points} points.` });
     loadScores(pin);
+    return true;
+  }
+
+  async function retrySpinPayout() {
+    if (spinPayoutRetrying || spinTargetIdx == null || spinNonce == null || !fastestTeam || !sessionPin) return;
+    setSpinPayoutRetrying(true);
+    try {
+      if (await applySpinResult(spinTargetIdx, fastestTeam, spinNonce, sessionPin)) await finalizeSpinSession(sessionPin);
+    } finally {
+      setSpinPayoutRetrying(false);
+    }
   }
 
   async function doOfferSpinToWin() {
@@ -2340,7 +2369,10 @@ function QuizControllerInner() {
                     </div>
                   )}
                   {spinFeedback && (
-                    <div role="status" style={{ maxWidth:520, margin:"0 auto 16px", padding:"12px 16px", borderRadius:12, background: spinFeedback.ok ? "rgba(46,224,110,.12)" : "rgba(255,59,78,.14)", border:`1px solid ${spinFeedback.ok ? "rgba(46,224,110,.45)" : "rgba(255,59,78,.5)"}`, color:spinFeedback.ok ? "#2EE06E" : "#ff8290", fontWeight:800 }}>{spinFeedback.message}</div>
+                    <div role="status" style={{ maxWidth:520, margin:"0 auto 16px", padding:"12px 16px", borderRadius:12, background: spinFeedback.ok ? "rgba(46,224,110,.12)" : "rgba(255,59,78,.14)", border:`1px solid ${spinFeedback.ok ? "rgba(46,224,110,.45)" : "rgba(255,59,78,.5)"}`, color:spinFeedback.ok ? "#2EE06E" : "#ff8290", fontWeight:800 }}>
+                      <div>{spinFeedback.message}</div>
+                      {!spinFeedback.ok && spinChoice === "spin" && spinTargetIdx != null && spinNonce != null && <Button onClick={retrySpinPayout} disabled={spinPayoutRetrying} style={{ marginTop:10 }}>{spinPayoutRetrying ? "Retrying…" : "Retry Spin Payout"}</Button>}
+                    </div>
                   )}
                   {/* Was a small grey afterthought BELOW the Continue button -
                       easy to miss entirely, and easy to mistake for "nothing

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { applyScoreDelta } from "../lib/quiz/scoreService.ts";
+import { applyScoreDelta, setScoreAbsolute } from "../lib/quiz/scoreService.ts";
 
 test("automatic scoring can defer scoreboard publication until the batch finishes", async () => {
   let fromCalls = 0;
@@ -34,6 +34,17 @@ test("an idempotent duplicate score event remains a no-op", async () => {
   });
 
   assert.deepEqual(result, { applied: false });
+});
+
+test("absolute score writes surface network failure and return durable duplicate totals", async () => {
+  const failed = await setScoreAbsolute({ rpc: async () => ({ data: null, error: { message: "offline" } }) }, "1234", "Jazz", 50, { eventKey: "spin:1234:1" });
+  assert.deepEqual(failed, { applied: false, error: "offline" });
+
+  const duplicate = await setScoreAbsolute({
+    rpc: async () => ({ data: [{ applied: false, total_points: 50 }], error: null }),
+    from: () => { throw new Error("a duplicate absolute write must not mutate or auto-sync"); },
+  }, "1234", "Jazz", 100, { eventKey: "spin:1234:1" });
+  assert.deepEqual(duplicate, { applied: false, totalPoints: 50 });
 });
 
 const { getScores, syncScoreboardData } = await import('../lib/quiz/scoreService.ts');

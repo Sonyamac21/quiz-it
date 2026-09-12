@@ -28,3 +28,11 @@ test('host reconnect resumes the stored spin identity instead of drawing again',
   assert.match(host, /const winIdx = hasStoredIdentity \? existingTargetIdx!/);
   assert.match(host, /if \(data\.spin_choice === "spin"\)[\s\S]*?restoredSpinTarget,[\s\S]*?restoredSpinNonce/);
 });
+
+test('host retains an unconfirmed spin and exposes an idempotent payout retry', () => {
+  const host = readFileSync(new URL('../app/host/quiz/page.tsx', import.meta.url), 'utf8');
+  assert.match(host, /if \(confirmed\) setTimeout\(\(\) => finalizeSpinSession\(pin\), 9800\)/);
+  assert.doesNotMatch(host, /\}, 20000\)/);
+  assert.match(host, /Retry Spin Payout/);
+  assert.match(host, /result\.applied \? result\.scoreboardSyncError : \(await syncScoreboardData/);
+});

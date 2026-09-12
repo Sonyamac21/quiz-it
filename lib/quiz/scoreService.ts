@@ -32,6 +32,8 @@ export type ScoreRow = { team_name: string; total_points: number; round_points: 
  */
 export type ScoreMutationResult = {
   applied: boolean;
+  /** Authoritative total returned by the atomic database function. */
+  totalPoints?: number;
   scores?: ScoreRow[];
   scoreboardSyncError?: string;
   // Set when the score change itself failed (the RPC call errored) - distinct
@@ -167,9 +169,9 @@ export async function setScoreAbsolute(
     return { applied: false, error: error.message };
   }
   const row = Array.isArray(data) ? data[0] : data;
-  if (!row?.applied) return { applied: false };
+  if (!row?.applied) return { applied: false, totalPoints: typeof row?.total_points === "number" ? row.total_points : undefined };
   const { scores, error: syncError } = await syncScoreboardData(supabase, sessionPin);
-  return { applied: true, scores, scoreboardSyncError: syncError };
+  return { applied: true, totalPoints: typeof row.total_points === "number" ? row.total_points : undefined, scores, scoreboardSyncError: syncError };
 }
 
 /** Zero every team's round_points for the session (used at round start), then refresh scoreboard_data. Not a per-team delta event. */

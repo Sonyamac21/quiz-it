@@ -83,10 +83,21 @@ export async function syncScoreboardData(supabase: SupabaseClient, sessionPin: s
 
 /** Create a team's score row at 0/0 if it doesn't already exist, then refresh scoreboard_data. Safe to call repeatedly. */
 export async function initTeamScore(supabase: SupabaseClient, sessionPin: string, teamName: string): Promise<ScoreMutationResult> {
-  await supabase.from("scores").upsert(
-    { session_pin: sessionPin, team_name: teamName, total_points: 0, round_points: 0 },
+  return initTeamScores(supabase, sessionPin, [teamName]);
+}
+
+/** Create missing score rows in one request and publish the leaderboard once. */
+export async function initTeamScores(supabase: SupabaseClient, sessionPin: string, teamNames: string[]): Promise<ScoreMutationResult> {
+  const uniqueNames = [...new Set(teamNames.map(name => name.trim()).filter(Boolean))];
+  if (uniqueNames.length === 0) return { applied: false };
+  const { error: upsertError } = await supabase.from("scores").upsert(
+    uniqueNames.map(team_name => ({ session_pin: sessionPin, team_name, total_points: 0, round_points: 0 })),
     { onConflict: "session_pin,team_name", ignoreDuplicates: true }
   );
+  if (upsertError) {
+    console.error("scoreService: score-row initialization failed:", upsertError.message);
+    return { applied: false, error: upsertError.message };
+  }
   const { scores, error } = await syncScoreboardData(supabase, sessionPin);
   return { applied: true, scores, scoreboardSyncError: error };
 }

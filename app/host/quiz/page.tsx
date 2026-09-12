@@ -10,7 +10,7 @@ import { HardDeckPanel } from "@/components/HardDeckPanel";
 import { PursuitPanel } from "@/components/PursuitPanel";
 import { PhotoApprovalPanel } from "@/components/PhotoApprovalPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
-import { initTeamScore, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc, syncScoreboardData } from "@/lib/quiz/scoreService";
+import { initTeamScore, initTeamScores, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc, syncScoreboardData } from "@/lib/quiz/scoreService";
 import { TeamBadge } from "@/components/TeamBadge";
 import { IconBlock, IconShuffle, IconBolt } from "@/components/icons";
 import { BrandLockup, Button, Field, Input, StatusPill, useConfirmDialog, usePromptDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
@@ -783,10 +783,16 @@ function QuizControllerInner() {
 
   async function ensureScores(pin: string, teamList: Team[]) {
     const supabase = createSupabaseBrowserClient();
-    for (const team of teamList) {
-      await initTeamScore(supabase, pin, team.team_name);
+    const result = await initTeamScores(supabase, pin, teamList.map(team => team.team_name));
+    if (result.error) {
+      showToast("Could not initialise team scores. Check the connection and retry.", "error", 7000);
+      return;
     }
-    loadScores(pin);
+    if (result.scoreboardSyncError) {
+      showToast("Teams were initialised, but the leaderboard did not refresh. Retry before scoring.", "warning", 7000);
+      return;
+    }
+    if (result.scores) setScores(result.scores);
   }
 
   // Codex #12/#10: the actual matching logic now lives in
@@ -1273,7 +1279,15 @@ function QuizControllerInner() {
           // otherwise a team that joined after "Initialise Scores" was clicked, or
           // simply hasn't answered correctly yet, was invisible on the leaderboard
           // entirely (it only ever showed teams that already had a scores row).
-          initTeamScore(createSupabaseBrowserClient(), pin, t.team_name).then(() => loadScores(pin));
+          initTeamScore(createSupabaseBrowserClient(), pin, t.team_name).then(result => {
+            if (result.error) {
+              showToast(`${t.team_name} joined, but their score row was not created. Use Initialise Scores before continuing.`, "error", 10000);
+            } else if (result.scoreboardSyncError) {
+              showToast(`${t.team_name} joined, but the leaderboard did not refresh. Use Initialise Scores before continuing.`, "warning", 10000);
+            } else if (result.scores) {
+              setScores(result.scores);
+            }
+          });
         }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards" }, (payload) => {

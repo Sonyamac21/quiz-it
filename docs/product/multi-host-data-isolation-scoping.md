@@ -49,7 +49,7 @@ accidental-deletion risk the moment a second host account exists.
 | `question_bank` | None | `app/host/question-bank`, `app/host/questions` (manual entry + AI generation), `app/host/quizzes` (random-from-library pulls) | Same shape as `venues`. Note: this is the largest, most actively-written table in the app (38k+ SpeedQuizzing import rows plus ongoing AI generation) - migration needs to backfill all existing rows to Sonya's account explicitly, not leave them ownerless |
 | `rounds` (Round Library) | None | `app/host/rounds`, `app/host/quizzes` (Add Round picker), `lib/quiz/roundLibrarySync` (auto-sync from Quiz Plan rounds) | Same shape. The auto-sync path (`202608110002_round_library_sync.sql`) also needs to write the correct `owner_id` on every synced row, not just at read time |
 | `sponsors` | None | `app/host/sponsors`, round display (`sponsor` field referenced by round data) | Same shape, lower urgency (smallest table, least actively written) |
-| `victory_songs` | Explicitly shared (`using (true)` on write) | `app/join/join-form.tsx` (player-facing song picker), `app/host/victory-songs` (admin list) | Decide product intent first: is this meant to be one shared catalog across all hosts (a curated master list Quiz-It itself maintains), or per-host customizable? If shared-by-design, document that explicitly and leave the RLS as-is; if per-host, same `owner_id` treatment as the others |
+| `victory_songs` | Explicitly shared (`using (true)` on write) | `app/join/join-form.tsx` (player-facing song picker), `app/host/victory-songs` (admin list) | Product intent confirmed with Sonya (2026-09-12): per-host customizable, same as venues/gigs/songs generally - every host builds their own list. Same `owner_id` treatment as the others, not a shared catalog. `app/join/join-form.tsx`'s song picker needs to resolve which host owns the session (via `sessions.owner_id`/the session's linked quiz) and only show that host's songs, not a global list |
 
 ## What's already safe (no work needed)
 
@@ -63,20 +63,22 @@ accidental-deletion risk the moment a second host account exists.
 
 ## Suggested approach when this is picked up
 
-1. Confirm with Sonya the intended model for `victory_songs` (shared catalog vs
-   per-host) before touching it - it's a product decision, not a technical one.
-2. Add `owner_id uuid not null references auth.users(id) default auth.uid()` to
-   `venues`, `question_bank`, `rounds`, `sponsors` in one migration, backfilling
-   every existing row to Sonya's user id explicitly (not relying on the column
-   default, since existing rows predate the column).
-3. Add RLS policies to each matching the already-proven `quizzes` pattern (`for all
+1. Add `owner_id uuid not null references auth.users(id) default auth.uid()` to
+   `venues`, `question_bank`, `rounds`, `sponsors`, and `victory_songs` in one
+   migration, backfilling every existing row to Sonya's user id explicitly (not
+   relying on the column default, since existing rows predate the column).
+2. Add RLS policies to each matching the already-proven `quizzes` pattern (`for all
    to authenticated using (owner_id = auth.uid()) with check (owner_id =
    auth.uid())`).
-4. Audit every `.from("venues")`, `.from("question_bank")`, `.from("rounds")`,
-   `.from("sponsors")` call site across `app/host/**` - once RLS is in place these
-   should mostly "just work" (RLS filters server-side regardless of the query), but
-   any query using `service_role` (bypasses RLS entirely) needs an explicit
-   `.eq("owner_id", ...)` added by hand.
+3. Audit every `.from("venues")`, `.from("question_bank")`, `.from("rounds")`,
+   `.from("sponsors")`, `.from("victory_songs")` call site across `app/host/**` -
+   once RLS is in place these should mostly "just work" (RLS filters server-side
+   regardless of the query), but any query using `service_role` (bypasses RLS
+   entirely) needs an explicit `.eq("owner_id", ...)` added by hand.
+4. `app/join/join-form.tsx`'s victory-song picker is player-facing, not host-facing
+   - it needs to resolve the hosting host's `owner_id` via the session/quiz chain
+   and filter to that host's songs specifically, since a player joining should only
+   ever see the list the actual host who's running their quiz built.
 5. This is schema + RLS work touching many files - likely needs Codex's
    involvement, not a solo UI-side fix, given the ownership split already
    established for this project.

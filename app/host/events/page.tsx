@@ -190,17 +190,32 @@ export default function EventCalendarPage() {
         </div>
         <div><span>Quiz Plan</span><strong style={!draft.quizId?{color:"#FFC533"}:undefined}>{draft.quizId ? (() => { const q = quizzes.find(q => q.id === draft.quizId); return q ? `${q.name} - ${q.quiz_rounds.length} round${q.quiz_rounds.length === 1 ? "" : "s"}` : "Loading…"; })() : "Not assigned"}</strong></div>
       </div>
-      {draft.quizId ? <div style={{display:"flex",gap:8,minWidth:0}}><select style={{...field,flex:"1 1 auto",minWidth:0}} value={draft.quizId} onChange={e=>setDraft({...draft,quizId:e.target.value})}><option value="">Not assigned</option>{quizzes.filter(q=>!q.archived||q.id===draft.quizId).map(q=><option key={q.id} value={q.id}>{q.name}{q.archived?" (archived)":""}</option>)}</select><Link href="/host/quizzes" className="fbh-btn" style={{whiteSpace:"nowrap",flexShrink:0}}>Manage Quiz Plans</Link></div>
-      : draft.id ? <div>
-        <button type="button" className="fbh-btn pri" style={{width:"100%"}} aria-expanded={showQuizOptions} aria-haspopup="true" onClick={()=>setShowQuizOptions(v=>!v)}>CREATE / ASSIGN QUIZ</button>
+      {/* Previously this dropdown only rendered for an event that already had
+          an id - a brand-new event had NO way to pick an EXISTING Quiz Plan
+          at all before saving, only the "CREATE / ASSIGN QUIZ" guided flow
+          below (which itself needs draft.id, since it navigates away and
+          back via forEvent=). That forced "save the event with no plan,
+          re-open it, then attach the plan, then save again" for the single
+          most common case - assigning a plan that already exists. The
+          picker is now always available; only the "create a brand new plan"
+          flow still needs the event saved first, since that's an actual
+          navigate-away-and-return round trip. */}
+      <div style={{display:"flex",gap:8,minWidth:0}}>
+        <select style={{...field,flex:"1 1 auto",minWidth:0}} value={draft.quizId} onChange={e=>setDraft({...draft,quizId:e.target.value})}>
+          <option value="">Not assigned</option>
+          {quizzes.filter(q=>!q.archived||q.id===draft.quizId).map(q=><option key={q.id} value={q.id}>{q.name}{q.archived?" (archived)":""}</option>)}
+        </select>
+        <Link href="/host/quizzes" className="fbh-btn" style={{whiteSpace:"nowrap",flexShrink:0}}>Manage Quiz Plans</Link>
+      </div>
+      {draft.id ? <div style={{marginTop:8}}>
+        <button type="button" className="fbh-btn" style={{width:"100%"}} aria-expanded={showQuizOptions} aria-haspopup="true" onClick={()=>setShowQuizOptions(v=>!v)}>OR CREATE A NEW QUIZ FOR THIS EVENT</button>
         {showQuizOptions&&<div className="fbh-panel" style={{marginTop:8,display:"grid",gap:8}}>
           <Link href={`/host/quizzes?forEvent=${draft.id}&intent=create`} className="fbh-btn" style={{width:"100%",textAlign:"center"}}>Create New Quiz</Link>
           <Link href={`/host/quizzes?forEvent=${draft.id}&intent=duplicate`} className="fbh-btn" style={{width:"100%",textAlign:"center"}}>Duplicate Existing Quiz</Link>
-          <Link href={`/host/quizzes?forEvent=${draft.id}&intent=assign`} className="fbh-btn" style={{width:"100%",textAlign:"center"}}>Assign Existing Quiz</Link>
         </div>}
         <p style={{fontSize:12,color:"#8E7AAA",margin:"8px 0 0"}}>Pick one - you&apos;ll be brought straight back to this event once the Quiz Plan is ready.</p>
       </div>
-      : <p style={{fontSize:12,color:"#8E7AAA"}}>Choose a venue to inherit its default Quiz Plan, or save this event and attach another plan afterwards.</p>}
+      : !draft.quizId && <p style={{fontSize:12,color:"#8E7AAA",marginTop:6}}>Pick an existing Quiz Plan above and save - or save this event first if you want to create a brand new plan for it.</p>}
       {/* Date/Start/End/Host moved up to the always-visible summary above -
           only Status and the rarer per-night overrides stay collapsed here. */}
       <details className="qi-bo-event-options"><summary>Event overrides</summary><p>Only open this when tonight differs from the venue defaults.</p><label className="fbh-lbl">Status</label><select style={field} value={draft.status} onChange={e=>setDraft({...draft,status:e.target.value as EventStatus})}>{["draft","scheduled","live","completed","cancelled"].map(s=><option key={s}>{s}</option>)}</select><label className="fbh-lbl">Special Offers</label><textarea style={field} rows={3} value={draft.offers} onChange={e=>setDraft({...draft,offers:e.target.value})} placeholder="Leave empty to inherit venue offers"/><label className="fbh-lbl">Sponsors</label><input style={field} value={draft.sponsors} onChange={e=>setDraft({...draft,sponsors:e.target.value})} placeholder="Leave empty to inherit venue sponsors"/><label className="fbh-lbl">Internal Notes</label><textarea style={field} rows={4} value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})}/></details>

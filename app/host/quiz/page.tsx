@@ -2492,7 +2492,19 @@ function QuizControllerInner() {
               )}
               <div style={{ display:"flex", gap:14, justifyContent:"center", flexWrap:"wrap" as const, marginBottom:12 }}>
                 <span style={{ padding:"10px 20px", borderRadius:999, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", fontSize:16, fontWeight:700, color:selectedRound.hide_leaderboard ? "#ff8290" : "#2EE06E" }}>{selectedRound.hide_leaderboard ? "Leaderboard hidden this round" : "Leaderboard visible"}</span>
-                <span style={{ padding:"10px 20px", borderRadius:999, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", fontSize:16, fontWeight:700, color:(selectedRound.allow_power_cards ?? true) ? "#2EE06E" : "#ff8290" }}>{(selectedRound.allow_power_cards ?? true) ? "Power cards allowed" : "Power cards disabled"}</span>
+                {(() => {
+                  // Power cards are hard-disabled in the final round regardless
+                  // of this round's own toggle (per the host's explicit
+                  // request) - the status pill and the setup-tips panel below
+                  // both need to reflect that override, not just the raw
+                  // per-round flag, or they'd mislead the host into thinking
+                  // cards are live when the handset has actually shut them off.
+                  const isLastRound = rounds.length > 0 && selectedRound.position === rounds[rounds.length - 1].position;
+                  const cardsActuallyAllowed = (selectedRound.allow_power_cards ?? true) && !isLastRound;
+                  return (
+                    <span style={{ padding:"10px 20px", borderRadius:999, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", fontSize:16, fontWeight:700, color:cardsActuallyAllowed ? "#2EE06E" : "#ff8290" }}>{cardsActuallyAllowed ? "Power cards allowed" : isLastRound ? "Power cards disabled (final round)" : "Power cards disabled"}</span>
+                  );
+                })()}
                 <span style={{ padding:"10px 20px", borderRadius:999, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", fontSize:16, fontWeight:700, color:dangerZone ? "#D94FDC" : "#6B5A8E" }}>{dangerZone ? `Danger Zone ON — -${dangerPenalty}pts for wrong answers` : "Danger Zone off"}</span>
               </div>
               {roundNumber === 1 && (selectedRound.allow_power_cards ?? true) && (

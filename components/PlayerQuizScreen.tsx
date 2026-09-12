@@ -395,8 +395,15 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // a one-shot fetch per intermission is enough.
   const [venueOfferPhotos, setVenueOfferPhotos] = useState<string[]>([]);
   const [offerPhotoIdx, setOfferPhotoIdx] = useState(0);
+  // A broken/expired storage link (live testing hit one) previously showed
+  // the browser's default broken-image icon on players' phones for the
+  // whole 6s slide. Any URL that fails to load gets remembered here and
+  // skipped from the carousel instead, same idea as the venue reel's own
+  // stale-hotlink handling.
+  const [failedOfferPhotos, setFailedOfferPhotos] = useState<Set<string>>(new Set());
+  const visibleOfferPhotos = venueOfferPhotos.filter(url => !failedOfferPhotos.has(url));
   useEffect(() => {
-    if (phase !== "intermission") { setVenueOfferPhotos([]); return; }
+    if (phase !== "intermission") { setVenueOfferPhotos([]); setFailedOfferPhotos(new Set()); return; }
     let cancelled = false;
     // The handset reel advertises the full Mac Entertainment venue network,
     // not only the room the player is currently standing in. Empty/expired
@@ -406,10 +413,10 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, venueRecordId]);
   useEffect(() => {
-    if (venueOfferPhotos.length < 2) return;
-    const id = window.setInterval(() => setOfferPhotoIdx(i => (i + 1) % venueOfferPhotos.length), 6000);
+    if (visibleOfferPhotos.length < 2) return;
+    const id = window.setInterval(() => setOfferPhotoIdx(i => (i + 1) % visibleOfferPhotos.length), 6000);
     return () => window.clearInterval(id);
-  }, [venueOfferPhotos.length]);
+  }, [visibleOfferPhotos.length]);
   const [upcomingQuizzes, setUpcomingQuizzes] = useState<UpcomingQuiz[]>([]);
   const [quizEndRevealedCount, setQuizEndRevealedCount] = useState(0);
   const [quizEndTrophyVisible, setQuizEndTrophyVisible] = useState(false);
@@ -1281,7 +1288,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
         {!isSelected && hardDeckStatus === "awaiting_guess" && (
           <>
-            <div style={{ font: "800 16px 'Inter'", color: "#E8C36A", letterSpacing: ".08em" }}>PLAY FOR A 2-POINT STEAL</div>
+            {/* Was a stale hardcoded "2-POINT STEAL" left over from an old
+                point ladder - HardDeckPanel's CARD_POINTS is 10 (split
+                evenly across every team that steals correctly), so this
+                copy is now generic rather than naming a number that can
+                drift out of sync with the actual payout again. */}
+            <div style={{ font: "800 16px 'Inter'", color: "#E8C36A", letterSpacing: ".08em" }}>PLAY FOR A STEAL</div>
             <div style={{ display: "flex", gap: 16, width: "100%", maxWidth: 380 }}>
               {(["higher", "lower"] as const).map(choice => (
                 <button key={choice} onClick={() => submitHardDeckGuess(choice)} disabled={!!myHardDeckGuess || !playerToken}
@@ -1364,7 +1376,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   }
 
   if (phase === "intermission") {
-    const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes || venueOfferPhotos.length > 0;
+    const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes || visibleOfferPhotos.length > 0;
     return (
       <div className="qi-player-state qi-player-intermission" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
         <div style={{ fontSize: 22, color: purple, letterSpacing: 4, fontWeight: 700 }}>INTERMISSION</div>
@@ -1373,13 +1385,20 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         {!hasContent && (
           <img src="/me-logo.jpg" alt="ME" style={{ width: 70, height: 70, borderRadius: "50%", border: "2px solid " + purple, marginTop: 12 }} />
         )}
-        {venueOfferPhotos.length > 0 && (
+        {visibleOfferPhotos.length > 0 && (
           <div className="qi-player-venue-ad" style={{ width: "100%", maxWidth: 340, aspectRatio: "1", borderRadius: 14, overflow: "hidden", border: "1.5px solid rgba(190,38,193,0.4)", position: "relative", background: "rgba(0,0,0,0.35)" }}>
-            <img className="qi-player-venue-ad__image" key={venueOfferPhotos[offerPhotoIdx]} src={getMediaUrl(venueOfferPhotos[offerPhotoIdx]) || venueOfferPhotos[offerPhotoIdx]} alt="Venue promotion" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
-            {venueOfferPhotos.length > 1 && (
+            <img
+              className="qi-player-venue-ad__image"
+              key={visibleOfferPhotos[offerPhotoIdx % visibleOfferPhotos.length]}
+              src={getMediaUrl(visibleOfferPhotos[offerPhotoIdx % visibleOfferPhotos.length]) || visibleOfferPhotos[offerPhotoIdx % visibleOfferPhotos.length]}
+              alt="Venue promotion"
+              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+              onError={() => setFailedOfferPhotos(prev => new Set(prev).add(visibleOfferPhotos[offerPhotoIdx % visibleOfferPhotos.length]))}
+            />
+            {visibleOfferPhotos.length > 1 && (
               <div style={{ position: "absolute", bottom: 8, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5 }}>
-                {venueOfferPhotos.map((_, i) => (
-                  <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: i === offerPhotoIdx ? purple : "rgba(255,255,255,0.35)" }} />
+                {visibleOfferPhotos.map((_, i) => (
+                  <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: i === (offerPhotoIdx % visibleOfferPhotos.length) ? purple : "rgba(255,255,255,0.35)" }} />
                 ))}
               </div>
             )}

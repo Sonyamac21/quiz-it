@@ -232,13 +232,18 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
       const winners = actualDirection
         ? Object.entries(lockedSteals).filter(([name, answer]) => name !== team && answer === actualDirection).map(([name]) => name)
         : [];
-      // Steal winners take exactly what the busting team was gambling FOR on
+      // The steal pool is exactly what the busting team was gambling FOR on
       // this card - a flat CARD_POINTS, same as every successful reveal
       // below - not `potential`, which is only what they'd already banked
       // from PREVIOUS successful reveals. On a first-guess bust `potential`
       // is still 0, which was paying stealing teams nothing even though the
       // busting team was genuinely gambling for CARD_POINTS on that guess.
-      const stolenPoints = CARD_POINTS;
+      // That pool is shared evenly across every team that stole correctly
+      // (per the host's explicit request), rather than each stealing team
+      // getting the full CARD_POINTS regardless of how many others also
+      // guessed right - the busting team only lost one card's worth, so the
+      // total paid out to stealers should never exceed that.
+      const stolenPoints = winners.length > 0 ? Math.floor(CARD_POINTS / winners.length) : 0;
       setPotential(0);
       await Promise.all(winners.map(async name => {
         try {

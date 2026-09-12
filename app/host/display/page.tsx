@@ -184,6 +184,12 @@ function LiveAudioPlayer({ question }: { question: Question }) {
       : audioRef.current;
     if (!el) { setNeedsManualPlay(true); return; }
     audioRef.current = el;
+    // playShowAudio must return synchronously so every cue shares the same
+    // channel coordinator. A browser can still reject its play() promise;
+    // surface the fallback instead of leaving a silent, apparently-playing TV.
+    const blockedCheck = window.setTimeout(() => {
+      if (el.paused && el.currentTime === 0) setNeedsManualPlay(true);
+    }, 350);
     el.loop = question.replay_mode === "unlimited";
     const fadeMs = 1200;
     if (question.fade_in) el.volume = 0; else el.volume = 1;
@@ -209,8 +215,12 @@ function LiveAudioPlayer({ question }: { question: Question }) {
         }
       };
       el.addEventListener("timeupdate", onTimeUpdate);
-      return () => el.removeEventListener("timeupdate", onTimeUpdate);
+      return () => {
+        window.clearTimeout(blockedCheck);
+        el.removeEventListener("timeupdate", onTimeUpdate);
+      };
     }
+    return () => window.clearTimeout(blockedCheck);
   }, [url, question.fade_in, question.fade_out, question.replay_mode, question.playback_mode, isLegacyYouTube]);
 
   if (!url || isLegacyYouTube) return null;
@@ -268,7 +278,12 @@ function DisplayFullscreenControl() {
     return () => document.removeEventListener("fullscreenchange", sync);
   }, []);
   if (fullscreen) return null;
-  return <button type="button" className="qi-display-fullscreen" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}>FULLSCREEN</button>;
+  return <button type="button" className="qi-display-fullscreen" onClick={() => {
+    // FULLSCREEN is the natural one-time operator gesture on a TV/iPad.
+    // Use it to silently unlock all coordinated audio channels as well.
+    void enableShowAudio().catch(() => {});
+    void document.documentElement.requestFullscreen?.().catch(() => {});
+  }}>FULLSCREEN</button>;
 }
 
 function DisplayWakeControl() {

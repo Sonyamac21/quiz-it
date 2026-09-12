@@ -101,7 +101,8 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
     multi_tap: [
       "Each question has several correct answers hidden among decoys.",
       "Tap every option you think is correct \u2014 leaving a wrong option untapped scores exactly the same as tapping a correct one.",
-      `Earn up to ${pointsPerQ} points total per question, based on how many of the six choices you judge correctly.`,
+      "Earn 2 points for every option you judge correctly — both a correct tap and correctly leaving a decoy untapped score.",
+      "With six choices, that means up to 12 base points per question.",
       `Fastest team to find ALL correct answers gets up to +${timeBonus} extra for speed.`,
       ...(wipeoutMode ? ["Watch out \u2014 in the last 5 questions of this round, a single wrong tap zeroes that question's score (Wipeout Mode)."] : []),
     ],
@@ -2593,7 +2594,7 @@ function QuizControllerInner() {
               </div>
             )}
             {!roundSettingsOpen && (
-              <div style={{ font:"400 12px 'Inter'", color:"#6B5A8E" }}>{pointsPerQ}pts/q · {getTimerForQuestion(currentQ, timerDuration)}s · +{timeBonus} bonus · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal"}</div>
+              <div style={{ font:"400 12px 'Inter'", color:"#6B5A8E" }}>{currentQ?.question_type === "multi_tap" ? "2pts/correct choice" : `${pointsPerQ}pts/q`} · {getTimerForQuestion(currentQ, timerDuration)}s · +{timeBonus} bonus · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal"}</div>
             )}
           </section>
 

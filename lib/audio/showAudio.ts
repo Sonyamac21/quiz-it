@@ -22,9 +22,13 @@ export async function enableShowAudio() {
     if (active.has(channel)) return Promise.resolve();
     audio.src = "/sounds/correct-chime.mp3";
     audio.loop = false;
+    // Prime playback permission silently. The old cue-channel exception made
+    // the former "Enable sound" action emit an unexpected audible chime.
+    audio.volume = 0;
     const player = audio;
     return player.play().then(() => {
-      if (channel !== "cue") { player.pause(); player.currentTime = 0; }
+      player.pause();
+      player.currentTime = 0;
     });
   });
   await Promise.all(starts);

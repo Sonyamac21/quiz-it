@@ -21,3 +21,10 @@ test('wheel owns and cancels its animation and delayed result on unmount', () =>
   assert.match(source, /clearTimeout\(resultTimeout.current\)/);
   assert.equal(source.match(/spinRaf.current = requestAnimationFrame\(tick\)/g)?.length, 2);
 });
+
+test('host reconnect resumes the stored spin identity instead of drawing again', () => {
+  const host = readFileSync(new URL('../app/host/quiz/page.tsx', import.meta.url), 'utf8');
+  assert.match(host, /const hasStoredIdentity = Number\.isInteger\(existingTargetIdx\)/);
+  assert.match(host, /const winIdx = hasStoredIdentity \? existingTargetIdx!/);
+  assert.match(host, /if \(data\.spin_choice === "spin"\)[\s\S]*?restoredSpinTarget,[\s\S]*?restoredSpinNonce/);
+});

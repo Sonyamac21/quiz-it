@@ -404,10 +404,16 @@ function QuizControllerInner() {
     if (!spinOffered || !sessionPin) return;
     const interval = setInterval(async () => {
       const supabase = createSupabaseBrowserClient();
-      const { data } = await supabase.from("sessions").select("spin_choice, fastest_team").eq("pin", sessionPin).single();
+      const { data } = await supabase.from("sessions").select("spin_choice, fastest_team, spin_target_idx, spin_nonce").eq("pin", sessionPin).single();
       if (data) {
         setSpinChoice((data.spin_choice as string) || null);
-        triggerSpinIfChosen((data.spin_choice as string) || null, sessionPin, (data.fastest_team as string) || null);
+        triggerSpinIfChosen(
+          (data.spin_choice as string) || null,
+          sessionPin,
+          (data.fastest_team as string) || null,
+          typeof data.spin_target_idx === "number" ? data.spin_target_idx : null,
+          typeof data.spin_nonce === "number" ? data.spin_nonce : null,
+        );
       }
     }, PLATFORM_CONFIG.polling.hostSpinSafetyMilliseconds);
     return () => clearInterval(interval);
@@ -565,6 +571,19 @@ function QuizControllerInner() {
     setHostPhase(restoredPhase as HostPhase);
     if (data.spin_offered) { setSpinOffered(true); setDecisionMade(true); }
     if (data.spin_choice) setSpinChoice(data.spin_choice as string);
+    const restoredSpinTarget = typeof data.spin_target_idx === "number" ? data.spin_target_idx : null;
+    const restoredSpinNonce = typeof data.spin_nonce === "number" ? data.spin_nonce : null;
+    setSpinTargetIdx(restoredSpinTarget);
+    setSpinNonce(restoredSpinNonce);
+    if (data.spin_choice === "spin") {
+      triggerSpinIfChosen(
+        "spin",
+        (data.pin as string) || sessionPin,
+        (data.fastest_team as string) || null,
+        restoredSpinTarget,
+        restoredSpinNonce,
+      );
+    }
 
     // If a timer was actively running when the refresh happened, resume the
     // countdown from elapsed wall-clock time instead of either losing it
@@ -1117,12 +1136,22 @@ function QuizControllerInner() {
   // straight from the same sessions-row payload that carries spin_choice (which
   // is NOT cleared by advancing to the next question) means the payout no
   // longer depends on that fragile, easily-stale local ref.
-  function triggerSpinIfChosen(choice: string | null, pin: string, teamNameOverride?: string | null) {
+  function triggerSpinIfChosen(
+    choice: string | null,
+    pin: string,
+    teamNameOverride?: string | null,
+    existingTargetIdx?: number | null,
+    existingNonce?: number | null,
+  ) {
     if (choice === "spin" && !spinTriggeredRef.current) {
       const payoutTeam = teamNameOverride ?? fastestTeamRef.current;
       spinTriggeredRef.current = true;
-      const winIdx = Math.floor(Math.random() * 8);
-      const nonce = Date.now() % 1000000; // Keep within integer column range
+      // A reconnect during a spin must resume the exact outcome already stored
+      // on the session. Generating a fresh target here would let the Display
+      // show one result while scoring another.
+      const hasStoredIdentity = Number.isInteger(existingTargetIdx) && existingTargetIdx! >= 0 && existingTargetIdx! < SLOT_SEGS.length && Number.isInteger(existingNonce);
+      const winIdx = hasStoredIdentity ? existingTargetIdx! : Math.floor(Math.random() * SLOT_SEGS.length);
+      const nonce = hasStoredIdentity ? existingNonce! : Date.now() % 1000000; // Keep within integer column range
       // Set host-local state directly here rather than waiting on the realtime
       // subscription's echo of this same write - the 1500ms safety poll only
       // ever re-fetches the spin_choice column, so if the realtime UPDATE event
@@ -1146,15 +1175,17 @@ function QuizControllerInner() {
         setSpinFeedback({ ok: false, message: "Spin could not start: the session is not connected. Reconnect the host before continuing." });
         return;
       }
-      createSupabaseBrowserClient().from("sessions")
-        .update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: nonce })
-        .eq("id", sid)
-        .then(({ error }) => {
-          if (error) {
-            console.error("Failed to write spin_to_win phase:", error);
-            setSpinFeedback({ ok: false, message: "Spin could not start on the display. Check the connection and retry." });
-          }
-        });
+      if (!hasStoredIdentity) {
+        createSupabaseBrowserClient().from("sessions")
+          .update({ phase: "spin_to_win", spin_target_idx: winIdx, spin_nonce: nonce })
+          .eq("id", sid)
+          .then(({ error }) => {
+            if (error) {
+              console.error("Failed to write spin_to_win phase:", error);
+              setSpinFeedback({ ok: false, message: "Spin could not start on the display. Check the connection and retry." });
+            }
+          });
+      }
       // Previously scored the instant the spin was triggered - the reel
       // animation (SlotReels: 3 reels landing over ~8.2s, then a ~2s "rebel
       // reel" correction) takes about 10s to visually settle, so the
@@ -1254,7 +1285,13 @@ function QuizControllerInner() {
         setSpinTargetIdx((s.spin_target_idx as number) ?? null);
         setSpinNonce((s.spin_nonce as number) ?? null);
         setSpinOffered(!!s.spin_offered);
-        triggerSpinIfChosen(choice, pin, (s.fastest_team as string) || null);
+        triggerSpinIfChosen(
+          choice,
+          pin,
+          (s.fastest_team as string) || null,
+          typeof s.spin_target_idx === "number" ? s.spin_target_idx : null,
+          typeof s.spin_nonce === "number" ? s.spin_nonce : null,
+        );
       })
       .subscribe(status => {
         setRealtimeStatus(status);

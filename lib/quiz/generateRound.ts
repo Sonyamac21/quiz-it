@@ -26,6 +26,7 @@
 // see generateAllRounds() in this file for the batch orchestrator.
 
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   type Question,
   type ExclusionState,
@@ -265,6 +266,15 @@ export async function generateValidatedRound(
   let consecutiveFailures = 0;
   let consecutiveCheckFailures = 0;
   let consecutiveMemoryFailures = 0;
+  // A "not logged in" 401 mid-batch was previously treated as an immediately
+  // persistent failure (no retry at all) - correct if the host's session is
+  // genuinely dead, but during a long Generate All run this was actually a
+  // transient token-refresh race (other rounds in the same batch succeeded
+  // fine either side of it), so bailing after a single attempt killed a
+  // round that would have worked with a fresh token. Refresh the session
+  // once and retry before giving up for real - only once per round, so a
+  // truly dead session still fails fast rather than hanging.
+  let authRefreshAttempted = false;
 
   const triedPictureTopics = new Set<string>();
   const pickPictureTopic = (launchIndex: number): string => {
@@ -371,9 +381,25 @@ export async function generateValidatedRound(
       reportGeneratedFailure(context, type);
       consecutiveFailures++;
       const err = context.error.toLowerCase();
-      const isPersistent = err.includes("api_key") || err.includes("api key") || err.includes("unauthorized")
-        || err.includes("not logged in") || err.includes("authentication") || err.includes("rate limit")
-        || err.includes("too many requests") || err.includes("prompt too long") || consecutiveFailures >= 6;
+      const isAuthError = err.includes("unauthorized") || err.includes("not logged in") || err.includes("authentication");
+      if (isAuthError && !authRefreshAttempted) {
+        authRefreshAttempted = true;
+        onProgress?.("Session hiccup - refreshing and retrying...");
+        try {
+          const supabase = createSupabaseBrowserClient();
+          const { data } = await supabase.auth.refreshSession();
+          if (data?.session) {
+            consecutiveFailures = 0;
+            refillPipeline();
+            continue;
+          }
+        } catch {
+          // fall through to the persistent-failure path below
+        }
+      }
+      const isPersistent = err.includes("api_key") || err.includes("api key") || err.includes("rate limit")
+        || err.includes("too many requests") || err.includes("prompt too long") || consecutiveFailures >= 6
+        || (isAuthError && authRefreshAttempted);
       if (isPersistent) {
         const finalStatus = "Generation failed after " + consecutiveFailures + " attempts: " + (context.error || "unknown error") + degradedSuffix();
         onProgress?.(finalStatus);

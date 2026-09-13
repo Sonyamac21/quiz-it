@@ -163,6 +163,82 @@ function FitText({ children, className }: { children: ReactNode; className?: str
   );
 }
 
+// Guaranteed-fit QUESTION TEXT - a long multi-sentence question (Nearest Wins
+// and text-answer rounds especially can run several lines) rendered at qd-q's
+// fixed clamp(56px,6.4vw,110px) size had no idea how much vertical room it
+// actually had, so a long one ran straight off the bottom of the screen,
+// under the branding badge, with no way to read the second half (host
+// screenshot: "In September 2016, Philippe Marchand..." cut off mid-sentence).
+// FitText above only measures single-line width; this measures the actual
+// rendered block HEIGHT against its container's real available height and
+// shrinks proportionally until it fits, down to a readable floor rather than
+// shrinking to nothing. Never scales up past the CSS-authored size.
+function FitQuestionText({ text, className }: { text: string; className?: string }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const baseFontSizeRef = useRef<number | null>(null);
+  const [fontSize, setFontSize] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current, inner = innerRef.current;
+    if (!wrap || !inner) return;
+    if (baseFontSizeRef.current == null) {
+      baseFontSizeRef.current = parseFloat(getComputedStyle(inner).fontSize) || 56;
+    }
+    const base = baseFontSizeRef.current;
+    const FLOOR_RATIO = 0.34; // never shrink a question below ~1/3 its authored size - still legible from across a room
+    let attempts = 0;
+    const fit = () => {
+      const available = wrap.clientHeight;
+      inner.style.fontSize = base + "px";
+      const natural = inner.scrollHeight;
+      const factor = natural > available && available > 0 ? Math.max(FLOOR_RATIO, available / natural) : 1;
+      const nextSize = base * factor;
+      inner.style.fontSize = nextSize + "px";
+      setFontSize(nextSize);
+      attempts = 0;
+      requestAnimationFrame(verify);
+    };
+    const verify = () => {
+      const available = wrap.clientHeight;
+      const actual = inner.scrollHeight;
+      if (actual > available && available > 0 && attempts < 5) {
+        attempts += 1;
+        const current = parseFloat(inner.style.fontSize) || base;
+        const corrected = Math.max(base * FLOOR_RATIO, current * (available / actual));
+        inner.style.fontSize = corrected + "px";
+        setFontSize(corrected);
+        requestAnimationFrame(verify);
+      }
+    };
+    fit();
+    if (typeof document !== "undefined" && "fonts" in document) {
+      document.fonts.ready.then(fit).catch(() => {});
+      document.fonts.addEventListener?.("loadingdone", fit);
+    }
+    const ro = new ResizeObserver(fit);
+    ro.observe(wrap);
+    return () => {
+      ro.disconnect();
+      if (typeof document !== "undefined" && "fonts" in document) {
+        document.fonts.removeEventListener?.("loadingdone", fit);
+      }
+    };
+  }, [text]);
+
+  // className carries qd-q's own font/margin/text-align rules on the WRAPPER
+  // (font-size is inherited by the text div below, so getComputedStyle(inner)
+  // still reads the right base size) - the wrapper's inline flex/overflow
+  // rules are what actually bound its height for measurement, and they win
+  // over any conflicting declaration in that class since inline styles beat
+  // stylesheet rules of equal specificity.
+  return (
+    <div ref={wrapRef} className={className} style={{ flex: "1 1 auto", minHeight: 0, maxHeight: "100%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div ref={innerRef} style={fontSize != null ? { fontSize } : undefined}>{text}</div>
+    </div>
+  );
+}
+
 // Real, automatic audio playback for "audio" question types - this replaces
 // what used to be the host manually alt-tabbing to YouTube on their own laptop.
 // Preloads immediately on mount (the clip is a short, lightweight file on a
@@ -2156,20 +2232,19 @@ function DisplayScreenInner() {
         <div className={"qd" + (isCompact ? " qd--compact" : "")}>
           <div className="qd-top">
             <span><span className="qd-kick">QUESTION {questionIndex + 1}</span> · {(roundName || "GENERAL KNOWLEDGE").toUpperCase()}</span>
-            {/* Was a giant (up to 150px) absolutely-positioned number that could
-                overlap the question text or the fixed corner logo depending on
-                question length - now the same small circular chip the picture
-                question already used, sitting in the top bar's own flow like
-                every other element in this row, so both question types show a
-                consistent timer treatment instead of two different designs.
-                Grouped with the status text in one flex child so qd-top's
-                existing two-child space-between still just works. */}
+            {/* Same large circular timer as every other question type (the
+                host asked for the bigger countdown back, uniform everywhere)
+                sitting in the top bar's own flow rather than absolutely
+                positioned, so it can't overlap the question text or the
+                fixed corner logo. Grouped with the status text in one flex
+                child so qd-top's existing two-child space-between still just
+                works. */}
             <span style={{ display: "flex", alignItems: "center", gap: "1.2vw" }}>
-              {tLeft > 0 && <div className={"qi-display-picture-timer" + (tLeft <= 5 ? " is-urgent" : "")} style={{ width: "clamp(40px,3.2vw,58px)", fontSize: "clamp(18px,1.8vw,28px)" }}>{tLeft}</div>}
+              {tLeft > 0 && <div className={"qi-display-picture-timer" + (tLeft <= 5 ? " is-urgent" : "")}>{tLeft}</div>}
               <span>{tLeft > 0 ? "SPEED BONUS" : "ANSWERS LOCKED"}</span>
             </span>
           </div>
-          <div className="qd-q">{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+          <FitQuestionText className="qd-q" text={question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")} />
           {allOpts.length > 0 && (
             <div className="qd-opts">
               {allOpts.map((opt) => (

@@ -1549,7 +1549,13 @@ button, input, select, textarea { font: inherit; }
 .qi-display-promo-gallery-img.active { opacity: 1; }
 
 /* Live question */
-.qi-display-question .qd { padding-top: clamp(16px,2vh,30px); }
+/* Bounded to the real viewport (was min-height:100vh via the shared .fbl .qd
+   rule, which lets a tall stack of children push the box taller than the
+   screen with nothing clipping it) so a long question's FitQuestionText
+   wrapper below has a real, measurable height budget to shrink against
+   instead of one that just grows to fit the text - which was letting a long
+   question run straight off the bottom of the screen under the branding. */
+.qi-display-question .qd { padding-top: clamp(16px,2vh,30px); height: 100dvh; overflow: hidden; }
 /* Bumped from clamp(13px,1.25vw,21px) - the "QUESTION N · ROUND NAME" line
    was too small to read from across a room. */
 .qi-display-question .qd-top { margin: 0 6%; font-size: clamp(19px,2vw,32px); color: #cfc2e7; }
@@ -1584,7 +1590,13 @@ button, input, select, textarea { font: inherit; }
    picture-round meta line above. */
 .qi-display-question-number { color: #a999c6; font-size: clamp(18px,1.6vw,28px); font-weight: 750; letter-spacing: .18em; }
 .qi-display-picture-chip { padding: 8px 16px; border-radius: 999px; background: rgba(190,38,193,.16); border: 1px solid rgba(217,79,220,.4); color: #f0a9f2; font-size: clamp(12px,1.1vw,18px); font-weight: 750; letter-spacing: .14em; }
-.qi-display-picture-timer { width: clamp(64px,5vw,86px); aspect-ratio: 1; margin-left: auto; border-radius: 50%; display: grid; place-items: center; background: rgba(190,38,193,.16); border: 3px solid #d94fdc; font-size: clamp(30px,3vw,50px); font-weight: 850; font-variant-numeric: tabular-nums; }
+/* Host explicitly asked for the larger countdown back (not the small chip
+   this was shrunk to), uniform across every question type - picture,
+   standard, everything - rather than two different sizes depending on
+   question type. Sized to match the Hot Seat buzzer timer's own scale
+   (clamp(110px,11vw,180px)) so every countdown on the Display reads the
+   same regardless of which screen it's on. */
+.qi-display-picture-timer { width: clamp(110px,11vw,180px); aspect-ratio: 1; margin-left: auto; border-radius: 50%; display: grid; place-items: center; background: rgba(190,38,193,.16); border: 5px solid #d94fdc; font-size: clamp(52px,6vw,96px); font-weight: 950; font-variant-numeric: tabular-nums; box-shadow: 0 0 55px rgba(190,38,193,.35), inset 0 0 30px rgba(190,38,193,.16); }
 .qi-display-picture-timer.is-urgent { color: #ff6b7a; border-color: #ff5365; background: rgba(255,59,78,.15); }
 .qi-display-picture-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0,1.12fr) minmax(420px,.88fr); }
 .qi-display-picture-media { display: grid; place-items: center; padding: clamp(28px,3vw,56px); border-right: 1px solid var(--qi-display-line); }
@@ -2009,6 +2021,13 @@ button, input, select, textarea { font: inherit; }
 .qi-display-hot-seat__call strong,.qi-display-hot-seat__claim strong { font-family:var(--font-logo),"Bruno Ace SC",sans-serif; font-size:clamp(36px,5.4vw,88px); letter-spacing:.06em; text-shadow:0 0 42px rgba(255,83,101,.42); }
 .qi-display-hot-seat__claim>span { color:#ff8290; font-size:clamp(52px,7.5vw,126px); font-weight:950; line-height:.95; text-transform:uppercase; text-shadow:0 0 55px rgba(255,83,101,.5); }
 .qi-display-hot-seat__timer { width:clamp(110px,11vw,180px); aspect-ratio:1; display:grid; place-items:center; border:5px solid #ff5365; border-radius:50%; color:#fff; font-size:clamp(52px,6vw,96px); font-weight:950; box-shadow:0 0 55px rgba(255,83,101,.35),inset 0 0 30px rgba(255,83,101,.16); }
+
+/* Handset mirror of the Display's qd-urgent final-5s glow (host explicit
+   request: "make the edges of the handsets grow redder too"). A fixed
+   full-bleed overlay so it sits above the question content but never
+   blocks taps; intensity is set inline per remaining second, same ramp the
+   Display uses, so both surfaces feel like one countdown. */
+.qi-player-urgent-edge { position: fixed; inset: 0; z-index: 5; pointer-events: none; transition: box-shadow 0.4s ease; }
 
 .qi-player-hot-seat { height:100dvh; min-height:0; max-height:100dvh; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; color:#fff; text-align:center; overflow:hidden; padding:max(10px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left)); }
 /* Buzzer and question/state text were sized purely off vw, so a short/landscape

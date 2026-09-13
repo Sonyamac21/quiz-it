@@ -150,6 +150,9 @@ function PictureQuestion({ imageUrl, questionText, onSubmit, questionIndex, time
 
   return (
     <div className="qi-player-state qi-player-question-screen" style={{ height:"100dvh", overflow:"hidden", background:bg, display:"flex", flexDirection:"column", boxSizing:"border-box", fontFamily:font, color:"#fff" }}>
+      <div className="qi-player-urgent-edge" style={{ boxShadow: timeLeft !== null && timeLeft > 0 && timeLeft <= 5
+        ? `inset 0 0 ${60 + (6 - timeLeft) * 18}px ${10 + (6 - timeLeft) * 8}px rgba(255,59,78,${(0.15 + (6 - timeLeft) * 0.12).toFixed(3)})`
+        : "none" }} />
       <div style={{ display:"flex", alignItems:"center", gap:10, minHeight:44, marginBottom:8, flexShrink:0 }}>
         <div style={{ fontSize:11, color:"#B9A8D9" }}>Q{questionIndex+1} · PICTURE</div>
         {points !== undefined && <div style={{ color:purple, fontWeight:800 }}>{points} pts</div>}
@@ -1417,17 +1420,35 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       : pursuitStatus === "advance" ? "Runners are moving — watch the big screen!"
       : pursuitStatus === "complete" || pursuitStatus === "results" ? "That's the finish. Final standings on the big screen."
       : "The Pursuit is starting soon…";
+    const gate = pursuitQIndex >= 0 ? pursuitQIndex + 1 : 0;
     return (
-      <div className="qi-player-state qi-player-pursuit" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
+      // Was centered top-to-bottom with only 3-4 short lines of content, which
+      // on a real handset left huge dead space above and below (the status bar
+      // landing mid-screen rather than at the top like every other player
+      // screen). Anchored to the top now, matching the rest of the app, with a
+      // gate-progress tracker (mirrors the Display board's own gate dots) and
+      // a larger, more prominent message to actually use the screen.
+      <div className="qi-player-state qi-player-pursuit" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
         <PlayerStatusBar teamName={teamName} roundName="The Pursuit" powerCardsEnabled={false} photoUrl={teamPhotoUrl} points={myRunningPoints} />
-        {/* Was hardcoded to #38bdf8 (blue) - not the app's purple/magenta
-            brand color at all, and out of step with the same title on the
-            Display board (which uses the brand purple + glow). */}
-        <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 22, color: "#D94FDC", textShadow: "0 0 24px rgba(190,38,193,0.5)", letterSpacing: 3 }}>THE PURSUIT</div>
-        {pursuitQIndex >= 0 && pursuitStatus === "advance" && (
-          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>QUESTION {pursuitQIndex + 1} / {PURSUIT_TOTAL_QUESTIONS}</div>
-        )}
-        <div style={{ fontSize: 15, color: "rgba(255,255,255,0.6)", maxWidth: 300 }}>{message}</div>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, width: "100%" }}>
+          {/* Was hardcoded to #38bdf8 (blue) - not the app's purple/magenta
+              brand color at all, and out of step with the same title on the
+              Display board (which uses the brand purple + glow). */}
+          <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 30, color: "#D94FDC", textShadow: "0 0 24px rgba(190,38,193,0.5)", letterSpacing: 3 }}>THE PURSUIT</div>
+          {gate > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                {Array.from({ length: PURSUIT_TOTAL_QUESTIONS }).map((_, i) => {
+                  const n = i + 1;
+                  const done = n < gate, now = n === gate;
+                  return <span key={i} style={{ width: now ? 14 : 10, height: now ? 14 : 10, borderRadius: "50%", background: done ? "#D94FDC" : now ? "#fff" : "rgba(255,255,255,0.2)", boxShadow: now ? "0 0 12px rgba(217,79,220,0.8)" : "none", transition: "all 0.2s ease" }} />;
+                })}
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>QUESTION {gate} OF {PURSUIT_TOTAL_QUESTIONS}</div>
+            </div>
+          )}
+          <div style={{ fontSize: 18, fontWeight: 600, color: "rgba(255,255,255,0.75)", maxWidth: 320, lineHeight: 1.4 }}>{message}</div>
+        </div>
       </div>
     );
   }
@@ -1855,6 +1876,9 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
     return (
       <div className={`qi-player-state qi-player-question-screen${phase === "hot_seat" ? " qi-player-question-screen--hot-seat" : ""}`} data-answer-type={question.question_type} style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
+        <div className="qi-player-urgent-edge" style={{ boxShadow: timeLeft !== null && timeLeft > 0 && timeLeft <= 5
+          ? `inset 0 0 ${60 + (6 - timeLeft) * 18}px ${10 + (6 - timeLeft) * 8}px rgba(255,59,78,${(0.15 + (6 - timeLeft) * 0.12).toFixed(3)})`
+          : "none" }} />
         <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={powerCardsUsableNow} photoUrl={teamPhotoUrl} points={myRunningPoints} />
         <div className="qi-player-timer-row" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexShrink: 0 }}>
           <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>

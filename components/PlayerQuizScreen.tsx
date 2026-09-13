@@ -756,8 +756,13 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     setRoundName((data.round_name as string) || "");
     const leaderboardHidden = !!data.hide_leaderboard;
     setHideLeaderboard(leaderboardHidden);
-    setIsFinalRound(!!data.is_final_round);
-    setAllowPowerCards(data.allow_power_cards !== false);
+    const isLastRound = !!data.is_final_round;
+    setIsFinalRound(isLastRound);
+    // Power cards are hard-disabled in the final round regardless of that
+    // round's own "Power cards allowed" toggle - a system rule (per the
+    // host's explicit request) so it can't be missed by forgetting to turn
+    // the per-round toggle off for whichever round happens to be last.
+    setAllowPowerCards(data.allow_power_cards !== false && !isLastRound);
     const hotSeat = readHotSeatState(data);
     setHotSeatStatus(hotSeat.status);
     setHotSeatTeam(hotSeat.team);

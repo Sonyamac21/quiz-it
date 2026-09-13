@@ -251,6 +251,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [blockSecondsLeft, setBlockSecondsLeft] = useState(0);
   const [answerText, setAnswerText] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submissionPending, setSubmissionPending] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [hotSeatStatus, setHotSeatStatus] = useState<HotSeatStatus>("idle");
   const [hotSeatTeam, setHotSeatTeam] = useState<string | null>(null);
@@ -826,6 +827,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       setSelectedAnswer("");
       setAnswerText("");
       setSubmitted(false);
+      setSubmissionPending(false);
       setFailedAnswer(null);
       submittingAnswerRef.current = false;
       setTappedItems([]);
@@ -885,6 +887,13 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       submittingAnswerRef.current = false;
       return;
     }
+    // Acknowledge the FIRST tap immediately. The authoritative timer check
+    // below may take a moment on venue Wi-Fi; previously the button appeared
+    // dead during that request and players naturally tapped it two or three
+    // more times, even though those taps were being ignored by the in-flight
+    // guard. Reopen the answer only if the server rejects or the write fails.
+    setSubmitted(true);
+    setSubmissionPending(true);
     const supabase = createSupabaseBrowserClient();
     // AUTHORITATIVE late-answer rejection. The local `timeLeft` is derived from an
     // interval that can lag when the tab is backgrounded or wifi drops, so on the
@@ -913,6 +922,8 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           : started !== null && dur !== null && Date.now() > started + dur * 1000 + 1500;
         const wrongHotSeatTeam = phase === "hot_seat" && live.hot_seat_team !== teamName;
         if (!answering || movedOn || timerNotStarted || expired || wrongHotSeatTeam) {
+          setSubmitted(false);
+          setSubmissionPending(false);
           setError(timerNotStarted ? "Wait for the host to start the timer." : "Time's up! No more answers accepted for this question.");
           setTimeout(() => setError(""), 2500);
           submittingAnswerRef.current = false;
@@ -922,7 +933,6 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     }
     // Optimistically show locked-in, but verify the write actually succeeded -
     // on flaky venue wifi the insert can silently fail while the UI still says "locked in".
-    setSubmitted(true);
     const { error } = await supabase.from("answers").upsert({
       session_pin: sessionPin,
       team_name: teamName,
@@ -939,6 +949,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         setTimeout(() => { setSubmitted(false); submittingAnswerRef.current = false; submitAnswer(answer, retryCount + 1); }, 800);
       } else {
         setSubmitted(false);
+        setSubmissionPending(false);
         setFailedAnswer(answer);
         submittingAnswerRef.current = false;
         // DIAGNOSTIC ONLY (temporary): identify this trip as coming from
@@ -959,6 +970,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       }
     } else {
       setFailedAnswer(null);
+      setSubmissionPending(false);
     }
   }
 
@@ -1847,14 +1859,14 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             })}
             {!submitted && (
               <>
-                <div className={"lockbar" + (selectedAnswer ? "" : " disabled")}
+                <button type="button" className={"lockbar" + (selectedAnswer ? "" : " disabled")} disabled={!selectedAnswer}
                   onClick={() => { if (!selectedAnswer) return; const opt = options.find(o => o.key === selectedAnswer); setMySubmittedDisplay(opt?.text || selectedAnswer); submitAnswer(selectedAnswer); }}>
                   {selectedAnswer ? "LOCK IT IN" : "SELECT AN ANSWER"}
-                </div>
+                </button>
                 {selectedAnswer && <div className="lk-note">Speed bonus draining — lock to bank it</div>}
               </>
             )}
-            {submitted && <div className="lk-note" style={{ color: "var(--green)", letterSpacing: "0.2em", fontSize: 13 }}>ANSWER LOCKED IN ✓</div>}
+            {submitted && <div className="lk-note" role="status" aria-live="polite" style={{ color: "var(--green)", letterSpacing: "0.2em", fontSize: 13 }}>{submissionPending ? "LOCKING…" : "ANSWER LOCKED IN ✓"}</div>}
           </div>
         )}
 
@@ -1875,12 +1887,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               })}
             </div>
             {!submitted && (
-              <div className={"lockbar" + (tappedItems.length > 0 ? "" : " disabled")}
+              <button type="button" className={"lockbar" + (tappedItems.length > 0 ? "" : " disabled")} disabled={tappedItems.length === 0}
                 onClick={() => { if (tappedItems.length === 0) return; const texts = tappedItems.map(k => multiTapOptions.find(o => o.key === k)?.text || k).join(", "); setMySubmittedDisplay(texts); submitAnswer(tappedItems.join(",")); }}>
                 {tappedItems.length > 0 ? `LOCK IN ${tappedItems.length} ANSWER${tappedItems.length === 1 ? "" : "S"}` : "TAP YOUR ANSWERS"}
-              </div>
+              </button>
             )}
-            {submitted && <div className="lk-note" style={{ color: "var(--green)", letterSpacing: "0.2em", fontSize: 13 }}>ANSWERS LOCKED IN ✓</div>}
+            {submitted && <div className="lk-note" role="status" aria-live="polite" style={{ color: "var(--green)", letterSpacing: "0.2em", fontSize: 13 }}>{submissionPending ? "LOCKING…" : "ANSWERS LOCKED IN ✓"}</div>}
           </div>
         )}
 
@@ -1895,7 +1907,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
 
         {submitted && (
-          <PlayerResultBanner tone="locked" title="LOCKED IN ✓">{mySubmittedDisplay || "Waiting for the reveal"}</PlayerResultBanner>
+          <PlayerResultBanner tone="locked" title={submissionPending ? "LOCKING…" : "LOCKED IN ✓"}>{mySubmittedDisplay || "Waiting for the reveal"}</PlayerResultBanner>
         )}
         </div>
         {phase === "hot_seat" ? <div className="qi-player-cards-paused">You are in the Hot Seat</div> : phase === "pursuit" ? <div className="qi-player-cards-paused">Power Cards unavailable during The Pursuit</div> : allowPowerCards ? (

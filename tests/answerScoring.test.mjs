@@ -101,6 +101,21 @@ test("A4: Nearest Wins breaks equal-distance ties by submission time", () => {
   assert.deepEqual(ranked.map(entry => entry.teamName), ["Earlier", "Later"]);
 });
 
+test("Nearest Wins parses a comma-formatted target with explanatory text", () => {
+  const question = {
+    ...baseQuestion,
+    question_type: "nearest_wins",
+    correct_answer: "6,433 days (Diet Pepsi was released first)",
+  };
+  const ranked = rankNearestWins([
+    { team_name: "Halls of Mika", answer_text: "6", submitted_at: "2026-09-13T08:00:01.000Z" },
+    { team_name: "Mama", answer_text: "6200", submitted_at: "2026-09-13T08:00:02.000Z" },
+    { team_name: "Jazmyn", answer_text: "741", submitted_at: "2026-09-13T08:00:03.000Z" },
+  ], question);
+  assert.deepEqual(ranked.map(entry => entry.teamName), ["Mama", "Jazmyn", "Halls of Mika"]);
+  assert.deepEqual(ranked.map(entry => entry.distance), [233, 5692, 6427]);
+});
+
 test("A5/A6: a retried answer resolves to exactly one latest authoritative row", () => {
   const answers = [
     { team_name: " Jazz ", answer_text: "1", submitted_at: "2026-09-09T10:00:01.000Z" },

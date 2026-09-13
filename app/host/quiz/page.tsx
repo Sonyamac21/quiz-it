@@ -330,6 +330,9 @@ function QuizControllerInner() {
   const [decisionMade, setDecisionMade] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
+  const hostPhaseRef = useRef<HostPhase>("waiting");
+  const timerStartPendingRef = useRef(false);
+  const timerRevealAllowedAtRef = useRef(0);
   // Guards doRevealAnswer against firing twice in quick succession (double
   // click, or a realtime echo re-triggering the handler) - overlapping
   // autoScore runs were the likely cause of a team's correct/fastest points
@@ -394,6 +397,7 @@ function QuizControllerInner() {
   const roundNumberRef = useRef(1);
   useEffect(() => { qIdxRef.current = qIdx; }, [qIdx]);
   useEffect(() => { roundNumberRef.current = roundNumber; }, [roundNumber]);
+  useEffect(() => { hostPhaseRef.current = hostPhase; }, [hostPhase]);
   useEffect(() => {
     createSupabaseBrowserClient().auth.getUser().then(({ data }) => setHostIdentity(data.user?.email || data.user?.id || null));
   }, []);
@@ -469,7 +473,8 @@ function QuizControllerInner() {
       showToast("Scoring is still being confirmed. Please wait a moment.", "warning", 3500);
       return;
     }
-    if (scoringError && (hostPhase === "answer" || hostPhase === "celebration")) {
+    const activePhase = hostPhaseRef.current;
+    if (scoringError && (activePhase === "answer" || activePhase === "celebration")) {
       showToast("Scoring is not confirmed. Retry scoring before continuing.", "error", 7000);
       return;
     }
@@ -477,8 +482,8 @@ function QuizControllerInner() {
     advancingRef.current = true;
     setTimeout(() => { advancingRef.current = false; }, 400);
 
-    if (hostPhase === "waiting") { doStartRound(); }
-    else if (hostPhase === "round_start") {
+    if (activePhase === "waiting") { doStartRound(); }
+    else if (activePhase === "round_start") {
       // A round with zero questions (e.g. a Hard Deck / Pursuit placeholder in
       // the running order that's meant to be played through its own overlay
       // button, not the normal question flow) has no question to preview -
@@ -501,8 +506,8 @@ function QuizControllerInner() {
       else if ((selectedRound?.questions.length ?? 0) === 0) doEndRound();
       else doPreviewQuestion(qIdx);
     }
-    else if (hostPhase === "preview") { doSendQuestion(); }
-    else if (hostPhase === "question") {
+    else if (activePhase === "preview") { doSendQuestion(); }
+    else if (activePhase === "question") {
       if (currentQ?.question_type === "picture" && picSubPhase === "image_only") {
         doRevealPictureQuestion();
         setPicSubPhase("question_visible");
@@ -510,19 +515,26 @@ function QuizControllerInner() {
         doStartTimer();
       }
     }
-    else if (hostPhase === "timer") { doRevealAnswer(); }
-    else if (hostPhase === "hot_seat") {
+    else if (activePhase === "timer") {
+      // A second Space arriving while Start Timer is still being persisted (or
+      // from an accidental rapid double tap) must not collapse straight into
+      // Reveal Answer. The timer phase is made authoritative synchronously,
+      // before React rerenders or the key listener can be resubscribed.
+      if (timerStartPendingRef.current || Date.now() < timerRevealAllowedAtRef.current) return;
+      doRevealAnswer();
+    }
+    else if (activePhase === "hot_seat") {
       if (hotSeatCurrentAnswer && currentQ && isAnswerCorrect(hotSeatCurrentAnswer, currentQ)) resolveHotSeatCorrect();
       else if (hotSeatCurrentAnswer || (hotSeatStatus === "claimed" && timeLeft <= 0)) reopenHotSeat(hotSeatCurrentAnswer ? "wrong" : "no-answer");
       else if (hotSeatStatus === "idle" || teams.length - hotSeatLockedTeams.length <= 0) doRevealAnswer();
     }
-    else if (hostPhase === "answer") { doCelebrate(); }
-    else if (hostPhase === "celebration") {
+    else if (activePhase === "answer") { doCelebrate(); }
+    else if (activePhase === "celebration") {
       if (isLastQ) { doEndRound(); }
       else { doPreviewQuestion(qIdx + 1); }
     }
-    else if (hostPhase === "round_end") { chooseRound(rounds.find(r => (r.position ?? 0) === (selectedRound?.position ?? -1) + 1) || null); }
-    else if (hostPhase === "quiz_end") { doRevealNextTeam(); }
+    else if (activePhase === "round_end") { chooseRound(rounds.find(r => (r.position ?? 0) === (selectedRound?.position ?? -1) + 1) || null); }
+    else if (activePhase === "quiz_end") { doRevealNextTeam(); }
   }
 
   async function loadRounds(liveSessionId: string) {
@@ -596,7 +608,9 @@ function QuizControllerInner() {
       && preview.sessionId === data.id
       && preview.roundId === data.current_session_round_id
       && preview.questionIndex === data.current_question_index;
-    setHostPhase(hasMatchingPreview ? "preview" : restoredPhase as HostPhase);
+    const recoveredHostPhase = hasMatchingPreview ? "preview" : restoredPhase as HostPhase;
+    hostPhaseRef.current = recoveredHostPhase;
+    setHostPhase(recoveredHostPhase);
     if (data.spin_offered) { setSpinOffered(true); setDecisionMade(true); }
     if (data.spin_choice) setSpinChoice(data.spin_choice as string);
     const restoredSpinTarget = typeof data.spin_target_idx === "number" ? data.spin_target_idx : null;
@@ -1133,6 +1147,7 @@ function QuizControllerInner() {
     }
     setShowScoreboard(false);
     setShowScoreboardOnHandsets(false);
+    hostPhaseRef.current = "quiz_end";
     setHostPhase("quiz_end");
   }
   async function doBuildReel() {
@@ -1221,6 +1236,7 @@ function QuizControllerInner() {
     setScores(scoreboard.scores);
     setShowScoreboard(false);
     setShowScoreboardOnHandsets(false);
+    hostPhaseRef.current = "quiz_end";
     setHostPhase("quiz_end");
   }
 
@@ -1508,6 +1524,7 @@ function QuizControllerInner() {
     setHotSeatLockedTeams([]);
     setHotSeatAnswerStartedAt(null);
     setTimeLeft(getTimerForQuestion(selectedRound.questions[0], timerDuration));
+    hostPhaseRef.current = "round_start";
     setHostPhase("round_start");
     const roundStartedAt = Date.now();
     roundStartedRef.current = roundStartedAt;
@@ -1553,6 +1570,7 @@ function QuizControllerInner() {
     setFastestTeam(null); fastestTeamRef.current = null; scoredFastestTeamRef.current = null;
     setFastestSong(null);
     setTimeLeft(getTimerForQuestion(selectedRound.questions[idx], timerDuration));
+    hostPhaseRef.current = "preview";
     setHostPhase("preview");
     setPicSubPhase("image_only");
     // Display screen stays on holding/waiting visually on the host side, but we
@@ -1572,7 +1590,8 @@ function QuizControllerInner() {
     clearHostPreviewRecovery(window.sessionStorage);
     const q = selectedRound.questions[qIdx];
     const isHotSeat = selectedRound.round_type === "hot_seat";
-    setHostPhase(isHotSeat ? "hot_seat" : "question");
+    hostPhaseRef.current = isHotSeat ? "hot_seat" : "question";
+    setHostPhase(hostPhaseRef.current);
     if (isHotSeat) {
       setHotSeatStatus("open");
       setHotSeatTeam(null);
@@ -1639,32 +1658,58 @@ function QuizControllerInner() {
   }
 
   async function doStartTimer() {
-    if (!sessionId) return;
+    if (!sessionId || timerStartPendingRef.current) return;
+    timerStartPendingRef.current = true;
     stopTickAudio();
+    hostPhaseRef.current = "timer";
     setHostPhase("timer");
     const dur = getTimerForQuestion(currentQ, timerDuration);
-    setTimeLeft(dur);
+    const startedAtMs = Date.now();
+    const deadlineMs = startedAtMs + dur * 1000;
+    timerRevealAllowedAtRef.current = startedAtMs + 800;
+    setTimeLeft(Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000)));
+    startTickAudio(dur);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining === 0) {
+        if (timerRef.current) clearInterval(timerRef.current);
+        stopTickAudio();
+      }
+    }, PLATFORM_CONFIG.timers.tickMilliseconds);
     const supabase = createSupabaseBrowserClient();
-    const now = new Date().toISOString();
+    const now = new Date(startedAtMs).toISOString();
+    // Publish the timer first. Previously a Supabase read happened before this
+    // write, so phones counted from `now` while the host did not start ticking
+    // until two network operations later. Every screen now derives from this
+    // one fixed start/deadline.
+    const { error: timerError } = await supabase.from("sessions").update({
+      timer_started_at: now,
+      timer_duration: dur,
+    }).eq("id", sessionId);
+    if (timerError) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      stopTickAudio();
+      hostPhaseRef.current = "question";
+      setHostPhase("question");
+      setTimeLeft(dur);
+      showToast("Timer did not reach the player screens. Check the connection and press Space again.", "error", 7000);
+      timerStartPendingRef.current = false;
+      return;
+    }
     // Check if a TIME-OUT card is pending — if so, activate the 10-second
     // lockout now (from timer start). On a 15-second question, other teams
     // are locked out for the first 10 seconds and only have 5 seconds left.
     const { data: sessionData } = await supabase
       .from("sessions").select("block_pending, block_team").eq("id", sessionId).single();
-    const blockUpdate: Record<string, unknown> = { timer_started_at: now, timer_duration: dur };
     if (sessionData?.block_pending) {
-      blockUpdate.block_until = new Date(Date.now() + 10000).toISOString();
-      blockUpdate.block_pending = false;
+      await supabase.from("sessions").update({
+        block_until: new Date(startedAtMs + 10000).toISOString(),
+        block_pending: false,
+      }).eq("id", sessionId);
     }
-    await supabase.from("sessions").update(blockUpdate).eq("id", sessionId);
-    startTickAudio(dur);
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) { if (timerRef.current) clearInterval(timerRef.current); stopTickAudio(); return 0; }
-        return prev - 1;
-      });
-    }, PLATFORM_CONFIG.timers.tickMilliseconds);
+    timerStartPendingRef.current = false;
   }
 
   // wasWrongAnswer distinguishes an actual incorrect submission from simply
@@ -1721,6 +1766,7 @@ function QuizControllerInner() {
     setTimeout(() => { revealingRef.current = false; }, 2000);
     if (timerRef.current) clearInterval(timerRef.current);
     stopTickAudio();
+    hostPhaseRef.current = "answer";
     setHostPhase("answer");
     const supabase = createSupabaseBrowserClient();
     await supabase.from("sessions").update({ phase: "answer" }).eq("id", sessionId);
@@ -1827,6 +1873,7 @@ function QuizControllerInner() {
     // Celebrate/Offer Spin to Win buttons, making a spin's points look like they
     // landed a question late instead of immediately when the spin resolved.
     setSpinFeedback(null);
+    hostPhaseRef.current = "celebration";
     setHostPhase("celebration");
     const supabase = createSupabaseBrowserClient();
     const { error: celebErr } = await supabase.from("sessions").update({ phase: "celebration", fastest_team: fastestTeamName, fastest_song: song, fastest_points: fastestPoints, spin_offered: false, spin_choice: null }).eq("id", sessionId);
@@ -1958,6 +2005,7 @@ function QuizControllerInner() {
     setSpinOffered(false);
     setSpinChoice(null);
     setQIdx(targetIdx);
+    hostPhaseRef.current = "celebration";
     setHostPhase("celebration");
     await supabase.from("sessions").update({
       phase: "celebration",
@@ -1973,6 +2021,7 @@ function QuizControllerInner() {
     if (!sessionId) return;
     stopVictorySong();
     stopTickAudio();
+    hostPhaseRef.current = "round_end";
     setHostPhase("round_end");
     // Unlike round-start, the display screen has NO round-end cue of its own
     // (checked app/host/display/page.tsx - only "round_start" triggers a
@@ -2088,7 +2137,7 @@ function QuizControllerInner() {
       showToast("Could not change round. Check the connection and try again.", "error", 7000);
       return;
     }
-    setSelectedRound(r || null); setQIdx(0); setAnswers([]); setHostPhase("waiting");
+    setSelectedRound(r || null); setQIdx(0); setAnswers([]); hostPhaseRef.current = "waiting"; setHostPhase("waiting");
     setRoundNumber((r?.position ?? 0) + 1);
     // Use the immutable session-round snapshot for both a normal selection and
     // host recovery, so a refresh cannot silently revert planned scoring to
@@ -2479,7 +2528,7 @@ function QuizControllerInner() {
                   {currentQ.explanation && <div style={{ fontSize:14, color:"rgba(255,255,255,0.6)", marginTop:8 }}>{currentQ.explanation}</div>}
                 </div>
               )}
-              {fastestTeam && <div style={{ fontSize:14, letterSpacing:3, color:"rgba(255,255,255,0.4)", marginBottom:12 }}>FASTEST CORRECT ANSWER</div>}
+              {fastestTeam && <div style={{ fontSize:14, letterSpacing:3, color:"rgba(255,255,255,0.4)", marginBottom:12 }}>{currentQ?.question_type === "nearest_wins" ? "CLOSEST GUESS" : "FASTEST CORRECT ANSWER"}</div>}
               {fastestTeam ? (
                 <>
                   <div style={{ fontSize:42, fontWeight:800, color:"#BE26C1", letterSpacing:2, textShadow:"0 0 40px rgba(190,38,193,0.7)", marginBottom:8 }}>{fastestTeam}</div>

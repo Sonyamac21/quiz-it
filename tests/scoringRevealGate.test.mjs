@@ -13,3 +13,18 @@ test("celebration cannot publish before automatic scoring finishes", () => {
 test("spacebar progression is blocked while scores are being confirmed", () => {
   assert.match(host, /function handleSpacebar\(\)[\s\S]*if \(scoringInProgressRef\.current\)/);
 });
+
+test("timer startup cannot collapse into reveal on a rapid second Space press", () => {
+  assert.match(host, /const activePhase = hostPhaseRef\.current/);
+  assert.match(host, /activePhase === "timer"[\s\S]*timerStartPendingRef\.current[\s\S]*timerRevealAllowedAtRef\.current/);
+  assert.match(host, /hostPhaseRef\.current = "timer";[\s\S]*setHostPhase\("timer"\)/);
+});
+
+test("host timer and handsets share one persisted wall-clock deadline", () => {
+  assert.match(host, /const startedAtMs = Date\.now\(\);[\s\S]*const deadlineMs = startedAtMs \+ dur \* 1000/);
+  assert.match(host, /timer_started_at: now,[\s\S]*timer_duration: dur/);
+  assert.match(host, /Math\.ceil\(\(deadlineMs - Date\.now\(\)\) \/ 1000\)/);
+  const timerWrite = host.indexOf('timer_started_at: now');
+  const timeoutRead = host.indexOf('.select("block_pending, block_team")', timerWrite);
+  assert.ok(timerWrite >= 0 && timeoutRead > timerWrite, "timer must publish before the Time-Out lookup");
+});

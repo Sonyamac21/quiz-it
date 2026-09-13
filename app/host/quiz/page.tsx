@@ -2013,6 +2013,13 @@ function QuizControllerInner() {
       </div>
     );
   };
+  // A normal card rail is intentionally spacious, but a live room of 25-50
+  // teams needs a control-room overview rather than an independently scrolling
+  // feed. Switch automatically to three/four compact columns so every team,
+  // score, answer and card state remains visible at once on a laptop display.
+  const automaticTeamColumns = teams.length > 36 ? 4 : teams.length > 20 ? 3 : null;
+  const teamColumnCount = automaticTeamColumns ?? (showTwoColumns ? 2 : 1);
+  const highCapacityTeams = automaticTeamColumns !== null;
 
   // Single place to choose tonight's round (used by the header dropdown and the
   // big desk picker). Behaviour identical to the original inline handler.
@@ -2350,6 +2357,8 @@ function QuizControllerInner() {
         style={
           railWidthPx != null
             ? { gridTemplateColumns: `minmax(0, 1fr) ${railWidthPx}px` }
+            : highCapacityTeams
+            ? { gridTemplateColumns: `minmax(0, 1fr) minmax(${teamColumnCount === 4 ? 760 : 620}px, ${teamColumnCount === 4 ? 62 : 52}vw)` }
             : showTwoColumns
             ? { gridTemplateColumns: "minmax(0, 1fr) minmax(640px, 46vw)" }
             : undefined
@@ -2699,8 +2708,8 @@ function QuizControllerInner() {
             )}
           </section>
 
-          <section className="qi-mc-teams" aria-label="Team standings list" style={showTwoColumns ? { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0 12px", minWidth: 0 } : { display: "block", minWidth: 0 }}>
-            <div className="qi-mc-teams__header" style={{ flexWrap: "wrap", rowGap: 8 }}>
+          <section className={`qi-mc-teams${highCapacityTeams ? " qi-mc-teams--capacity" : ""}`} aria-label="Team standings list" style={teamColumnCount > 1 ? { display: "grid", gridTemplateColumns: `repeat(${teamColumnCount}, minmax(0, 1fr))`, gap: highCapacityTeams ? "0 5px" : "0 12px", minWidth: 0 } : { display: "block", minWidth: 0 }}>
+            <div className="qi-mc-teams__header" style={{ flexWrap: "wrap", rowGap: 8, gridColumn: teamColumnCount > 1 ? "1 / -1" : undefined }}>
               <div><span>Live answers</span><strong>Teams & scores</strong></div>
               {/* This row (2-COL toggle, SHOW ROUND LEADERS toggle, X/Y
                   answered pill) had no wrap and no width limit, so at
@@ -2711,9 +2720,10 @@ function QuizControllerInner() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", minWidth: 0, maxWidth: "100%" }}>
                 <button
                   onClick={() => setShowTwoColumns(v => !v)}
+                  disabled={highCapacityTeams}
                   title="Switch the team list between one and two columns, widening the panel to fit more teams on screen"
-                  style={{ padding: "5px 10px", borderRadius: 8, background: showTwoColumns ? "rgba(190,38,193,0.25)" : "#150A2E", border: "1px solid " + (showTwoColumns ? "#D94FDC" : "#2E1A52"), color: showTwoColumns ? "#fff" : "#6B5A8E", font: "700 11px 'Inter'", letterSpacing: ".04em", cursor: "pointer", whiteSpace: "nowrap" }}
-                >{showTwoColumns ? "2-COL" : "1-COL"}</button>
+                  style={{ padding: "5px 10px", borderRadius: 8, background: teamColumnCount > 1 ? "rgba(190,38,193,0.25)" : "#150A2E", border: "1px solid " + (teamColumnCount > 1 ? "#D94FDC" : "#2E1A52"), color: teamColumnCount > 1 ? "#fff" : "#6B5A8E", font: "700 11px 'Inter'", letterSpacing: ".04em", cursor: highCapacityTeams ? "default" : "pointer", whiteSpace: "nowrap", opacity: highCapacityTeams ? .82 : 1 }}
+                >{highCapacityTeams ? `AUTO ${teamColumnCount}-COL` : showTwoColumns ? "2-COL" : "1-COL"}</button>
                 <button
                   onClick={() => setShowRoundLeaders(v => !v)}
                   title="Sort and highlight by points scored in THIS round instead of the running total"
@@ -2772,11 +2782,13 @@ function QuizControllerInner() {
                       <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const, fontVariantNumeric:"tabular-nums" }}>{s.total_points}</span>
                     )}
                     <button
+                      className="qi-mc-team-tool"
                       onClick={e => { e.stopPropagation(); toggleTeamBlocked(s.team_name); }}
                       title={isBlocked ? "Unblock - let them answer this question" : "Block this team from answering the current question"}
                       style={{ width:26, height:26, borderRadius:8, background:isBlocked?"rgba(255,59,78,0.25)":"#150A2E", border:"1px solid "+(isBlocked?"#FF3B4E":"#2E1A52"), color:isBlocked?"#fff":"#6B5A8E", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
                     ><IconBlock /></button>
                     <button
+                      className="qi-mc-team-tool"
                       onClick={e => { e.stopPropagation(); toggleTeamScrambled(s.team_name); }}
                       title={isScrambled ? "Unscramble their keyboard" : "Scramble this team's keyboard for the current question"}
                       style={{ width:26, height:26, borderRadius:8, background:isScrambled?"rgba(217,79,220,0.25)":"#150A2E", border:"1px solid "+(isScrambled?"#D94FDC":"#2E1A52"), color:isScrambled?"#fff":"#6B5A8E", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
@@ -2814,7 +2826,7 @@ function QuizControllerInner() {
                         <button onClick={() => { setAdjustTeam(null); setAdjustAmount(""); }} aria-label="Cancel score adjustment" style={{ padding:"2px 6px", borderRadius:6, background:"rgba(255,255,255,0.08)", border:"none", color:"#aaa", fontSize:11, cursor:"pointer" }}>X</button>
                       </div>
                     ) : (
-                      <button onClick={() => setAdjustTeam(s.team_name)} style={{ marginLeft:"auto", fontSize:10, padding:"2px 6px", borderRadius:6, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.45)", cursor:"pointer" }}>+/- pts</button>
+                      <button className="qi-mc-team-adjust" onClick={() => setAdjustTeam(s.team_name)} style={{ marginLeft:"auto", fontSize:10, padding:"2px 6px", borderRadius:6, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.45)", cursor:"pointer" }}>+/- pts</button>
                     )}
                   </div>
                 </div>

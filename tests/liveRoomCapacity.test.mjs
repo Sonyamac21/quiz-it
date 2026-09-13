@@ -22,3 +22,11 @@ test("50-team handset fallback polling stays below 40 session reads per second",
   const interval = Number(match[1]);
   assert.ok(50_000 / interval < 40, `configured interval would produce ${50_000 / interval} reads/s`);
 });
+
+test("large host rooms automatically use a non-scrolling compact roster", () => {
+  assert.match(host, /teams\.length > 36 \? 4 : teams\.length > 20 \? 3/);
+  assert.match(host, /qi-mc-teams--capacity/);
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.qi-mc-teams--capacity \{ overflow:hidden;/);
+  assert.match(css, /\.qi-mc-teams--capacity \.qi-mc-team-card__answer/);
+});

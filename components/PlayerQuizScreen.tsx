@@ -19,6 +19,7 @@ import { IconBlock } from "@/components/icons";
 import { CountUp } from "@/components/CountUp";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 import { isAnswerCorrect } from "@/lib/quiz/answerScoring";
+import { FitBlockText } from "@/components/FitBlockText";
 
 type Question = {
   question_text: string;
@@ -163,7 +164,7 @@ function PictureQuestion({ imageUrl, questionText, onSubmit, questionIndex, time
         )}
       </div>
       {/* Only the centre swaps; the same header and card footer remain mounted. */}
-      <div style={{ flex:"1 1 0", minHeight:0, overflowY:"auto", display:"flex", flexDirection:"column" }}>
+      <div style={{ flex:"1 1 0", minHeight:0, overflow:"hidden", display:"flex", flexDirection:"column" }}>
         {!imageDismissed ? (
           <button type="button" aria-label="Hide picture and answer" onClick={() => setImageDismissed(true)}
             style={{ flex:1, minHeight:0, width:"100%", border:0, background:"transparent", color:purple, padding:0, display:"flex", flexDirection:"column", alignItems:"center", gap:12, cursor:"pointer" }}>
@@ -176,7 +177,7 @@ function PictureQuestion({ imageUrl, questionText, onSubmit, questionIndex, time
           </button>
         ) : (
           <>
-            <div className="qi-player-question-text">{questionText}</div>
+            <FitBlockText className="qi-player-question-text" maxViewportHeight={0.18} minFontSize={13}>{questionText}</FitBlockText>
             {!timerReady ? <div className="qi-player-waiting-timer">{timeLeft === 0 ? "TIME’S UP · ANSWERS LOCKED" : "WAITING FOR HOST TO START TIMER"}</div> : !submitted ? <AnswerKeypad mode="text" onSubmit={onSubmit} /> : (
               <div style={{ padding:18, borderRadius:12, background:"rgba(190,38,193,0.15)", textAlign:"center" }}>
                 <strong style={{ color:purple }}>Answer submitted!</strong>
@@ -1889,8 +1890,10 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           )}
         </div>
         {/* The timer stays outside the scroll area, below the team header. */}
-        <div className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-        <div className="qi-player-question-text">{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+        <div className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <FitBlockText className="qi-player-question-text" maxViewportHeight={0.18} minFontSize={13}>
+          {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
+        </FitBlockText>
         {error && (
           <div role="alert" style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, marginBottom: 10, textAlign: "center" as const }}>{error}</div>
         )}

@@ -20,6 +20,7 @@ import { useDisplayResponder } from "@/lib/diagnostics/useDisplayHealth";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 import { useFlip } from "@/components/useFlip";
 import { CountUp } from "@/components/CountUp";
+import { FitBlockText } from "@/components/FitBlockText";
 
 type Question = {
   question_text: string;
@@ -354,7 +355,7 @@ function DisplayFullscreenControl() {
     return () => document.removeEventListener("fullscreenchange", sync);
   }, []);
   if (fullscreen) return null;
-  return <button type="button" className="qi-display-fullscreen" onClick={() => {
+  return <button type="button" className="qi-display-fullscreen-top" onClick={() => {
     // FULLSCREEN is the natural one-time operator gesture on a TV/iPad.
     // Use it to silently unlock all coordinated audio channels as well.
     void enableShowAudio().catch(() => {});
@@ -2060,9 +2061,9 @@ function DisplayScreenInner() {
         </div>
         {/* CONTENT */}
         <div className="qi-display-answer-content">
-          <div className="qi-display-answer-question">
+          <FitBlockText className="qi-display-answer-question" maxViewportHeight={0.16} minFontSize={20}>
             {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
-          </div>
+          </FitBlockText>
           {isMulti ? (
             <div className="qi-display-answer-options">
               {options.map((opt, idx) => {
@@ -2080,7 +2081,7 @@ function DisplayScreenInner() {
             <div className="qi-display-answer-hero-wrap">
               <div className="qi-display-answer-hero">
                 <div className="qi-display-answer-hero-label">CORRECT ANSWER</div>
-                <div className="qi-display-answer-hero-text">{correctText}</div>
+                <FitBlockText className="qi-display-answer-hero-text" maxViewportHeight={0.3} minFontSize={28}>{correctText}</FitBlockText>
               </div>
             </div>
           )}
@@ -2190,7 +2191,7 @@ function DisplayScreenInner() {
               </div>
             )}
             <div className="qi-display-picture-copy">
-              <div className="qi-display-picture-question-text">{question.question_text.replace(/^Show teams this image:\s*/i, "")}</div>
+              <FitBlockText className="qi-display-picture-question-text" maxViewportHeight={0.42} minFontSize={24}>{question.question_text.replace(/^Show teams this image:\s*/i, "")}</FitBlockText>
               <div className="qi-display-answer-on-phone">
                 Type your answer on your phone
               </div>

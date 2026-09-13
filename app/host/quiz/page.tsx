@@ -27,6 +27,7 @@ import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
 import { clearPendingManualAdjustment, loadPendingManualAdjustment, savePendingManualAdjustment, type PendingManualAdjustment } from "@/lib/quiz/manualAdjustment";
 import { calculateSpinPayout, type SpinPayoutLabel } from "@/lib/quiz/spinPayout";
 import { clearHostPreviewRecovery, loadHostPreviewRecovery, saveHostPreviewRecovery } from "@/lib/quiz/hostPreviewRecovery";
+import { FitBlockText } from "@/components/FitBlockText";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
 
@@ -2628,7 +2629,9 @@ function QuizControllerInner() {
                 )}
               </div>
 
-              <h1 className="qi-mc-question__title">{currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</h1>
+              <FitBlockText as="h1" className="qi-mc-question__title" maxViewportHeight={0.22} minFontSize={18}>
+                {currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
+              </FitBlockText>
 
               {hostPhase === "hot_seat" && (
                 <div className={`qi-hot-seat-host${hotSeatCurrentAnswer ? " qi-hot-seat-host--answered" : hotSeatStatus === "claimed" ? " qi-hot-seat-host--claimed" : ""}`} role="status" aria-live="assertive">
@@ -2668,14 +2671,14 @@ function QuizControllerInner() {
               )}
 
               {currentQ.question_type==="multi_tap" && (
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
+                <div className="qi-mc-options qi-mc-options--multi-tap">
                   {(["a","b","c","d","e","f"] as const).map(l => {
                     const opt = currentQ[("option_"+l) as keyof Question] as string | null;
                     if (!opt) return null;
                     const isCorrect = (currentQ.correct_answer||"").split(",").map(s=>s.trim().toLowerCase()).includes(l);
                     const showCorrect = isCorrect;
                     return (
-                      <div key={l} style={{ padding:"14px 18px", borderRadius:12, background:showCorrect?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.06)", border:"2px solid "+(showCorrect?"#22c55e":"rgba(255,255,255,0.15)"), fontSize:15, boxShadow:showCorrect?"0 0 16px rgba(34,197,94,0.3)":"none" }}>
+                      <div key={l} className="qi-mc-option" style={{ background:showCorrect?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.06)", borderColor:showCorrect?"#22c55e":"rgba(255,255,255,0.15)", boxShadow:showCorrect?"0 0 16px rgba(34,197,94,0.3)":"none" }}>
                         <span style={{ color:"#BE26C1", fontWeight:800, marginRight:8 }}>{l.toUpperCase()}.</span>
                         <span style={{ color:"#fff", fontWeight:600 }}>{opt}</span>
                       </div>
@@ -2712,8 +2715,8 @@ function QuizControllerInner() {
               {(
                 <div className="qi-mc-answer-key">
                   <div style={{ fontSize:12, color:"rgba(34,197,94,0.7)", marginBottom:4, letterSpacing:2 }}>ANSWER</div>
-                  <div style={{ fontSize:24, fontWeight:700, color:"#22c55e" }}>{getCorrectAnswerText(currentQ)}</div>
-                  {currentQ.explanation && <div style={{ fontSize:14, color:"rgba(255,255,255,0.6)", marginTop:8 }}>{currentQ.explanation}</div>}
+                  <FitBlockText className="qi-mc-answer-key__answer" maxViewportHeight={0.11} minFontSize={14}>{getCorrectAnswerText(currentQ)}</FitBlockText>
+                  {currentQ.explanation && <div className="qi-mc-answer-key__explanation">{currentQ.explanation}</div>}
                 </div>
               )}
 

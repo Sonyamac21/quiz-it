@@ -1708,7 +1708,10 @@ function DisplayScreenInner() {
     // for player handsets specifically, per the host - the Display's own
     // gallery uses intermissionVenuePhotos (the venue's own Display
     // Slides/Adverts, curated for the TV) plus approved customer photos.
-    const galleryPhotos = [...intermissionVenuePhotos, ...approvedCustomerPhotos];
+    // Skip any slot with nothing actually uploaded for it rather than
+    // rotating in a blank/broken frame - only show slides that genuinely
+    // have an image attached for this venue.
+    const galleryPhotos = [...intermissionVenuePhotos, ...approvedCustomerPhotos].filter(url => !!url && url.trim().length > 0);
     const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes || galleryPhotos.length > 0;
     // No venue content → the approved Fable holding shot. With content →
     // preserve the working offers/WhatsApp/other-quizzes advertising layout.

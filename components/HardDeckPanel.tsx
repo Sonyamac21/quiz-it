@@ -24,7 +24,9 @@ function rankLabel(rank: number): string {
 // Flat points per correct card - replaces the old escalating ladder
 // (10/25/50/100). A steal always takes exactly this amount too, since it's
 // what the busting team was gambling for on the card that broke them.
-const CARD_POINTS = 10;
+// Exported so the player handset can show the real steal stake instead of a
+// hardcoded number that can drift out of sync with this value.
+export const CARD_POINTS = 10;
 
 type Props = {
   sessionId: string;
@@ -88,6 +90,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
           if (row.hard_deck_potential !== undefined) setPotential(row.hard_deck_potential);
           if (row.hard_deck_steal_guesses !== undefined) setStealGuesses(row.hard_deck_steal_guesses || {});
           if (row.hard_deck_steal_winners !== undefined) setStealWinners(row.hard_deck_steal_winners || []);
+          if (row.hard_deck_steal_points !== undefined) setStealPoints(row.hard_deck_steal_points || 0);
           if (row.hard_deck_play_id !== undefined) setPlayId(row.hard_deck_play_id || "");
         }
       )
@@ -172,7 +175,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
     setStealWinners([]);
     setStealPoints(0);
     setPlayId(nextPlayId);
-    pushState({ hard_deck_status: "wheel", hard_deck_team: null, hard_deck_cards: [], hard_deck_guess: null, hard_deck_potential: 0, hard_deck_has_swapped: false, hard_deck_wheel_target: targetIdx, hard_deck_wheel_spinning: false, hard_deck_steal_guesses: {}, hard_deck_steal_winners: [], hard_deck_play_id: nextPlayId, phase: "hard_deck" });
+    pushState({ hard_deck_status: "wheel", hard_deck_team: null, hard_deck_cards: [], hard_deck_guess: null, hard_deck_potential: 0, hard_deck_has_swapped: false, hard_deck_wheel_target: targetIdx, hard_deck_wheel_spinning: false, hard_deck_steal_guesses: {}, hard_deck_steal_winners: [], hard_deck_steal_points: 0, hard_deck_play_id: nextPlayId, phase: "hard_deck" });
   }
 
   function onWheelResult(seg: { label: string }) {
@@ -193,7 +196,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
   function keepBase() {
     setStatus("awaiting_guess");
     setStealGuesses({});
-    pushState({ hard_deck_status: "awaiting_guess", hard_deck_steal_guesses: {}, hard_deck_steal_winners: [] });
+    pushState({ hard_deck_status: "awaiting_guess", hard_deck_steal_guesses: {}, hard_deck_steal_winners: [], hard_deck_steal_points: 0 });
   }
 
   function swapBase() {
@@ -204,7 +207,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
     setHasSwapped(true);
     setStatus("awaiting_guess");
     setStealGuesses({});
-    pushState({ hard_deck_cards: [card], hard_deck_has_swapped: true, hard_deck_status: "awaiting_guess", hard_deck_steal_guesses: {}, hard_deck_steal_winners: [] });
+    pushState({ hard_deck_cards: [card], hard_deck_has_swapped: true, hard_deck_status: "awaiting_guess", hard_deck_steal_guesses: {}, hard_deck_steal_winners: [], hard_deck_steal_points: 0 });
   }
 
   async function revealNextCard() {
@@ -258,7 +261,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
       setStatus("lost");
       setStealWinners(winners);
       setStealPoints(stolenPoints);
-      await pushState({ hard_deck_cards: newCards, hard_deck_status: "lost", hard_deck_potential: 0, hard_deck_guess: null, hard_deck_steal_winners: winners });
+      await pushState({ hard_deck_cards: newCards, hard_deck_status: "lost", hard_deck_potential: 0, hard_deck_guess: null, hard_deck_steal_winners: winners, hard_deck_steal_points: stolenPoints });
       onScoreChange?.();
       revealInFlightRef.current = false;
       return;

@@ -29,5 +29,10 @@ export async function fetchActiveVenueOffers(venueId: string | null, includeAllV
     .filter(row => includeAllVenues || row.venue_id === venueId || row.venue_id === null)
     .filter(row => !row.start_date || row.start_date <= today)
     .filter(row => !row.end_date || row.end_date >= today)
+    // A row with no image actually attached (image_url blank/whitespace)
+    // has nothing to show - previously it still rotated in, landing on
+    // handsets as a broken-image icon for its turn. Only rotate slides that
+    // genuinely have an uploaded image for this venue.
+    .filter(row => !!row.image_url && row.image_url.trim().length > 0)
     .map(row => getMediaUrl(row.image_url) || row.image_url);
 }

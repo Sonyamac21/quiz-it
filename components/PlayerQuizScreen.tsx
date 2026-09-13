@@ -9,6 +9,7 @@ import { SlotReels } from "@/components/SlotReels";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitTotalPoints, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { Crest } from "@/components/fable/HandsetStates";
+import { CARD_POINTS as HARD_DECK_CARD_POINTS } from "@/components/HardDeckPanel";
 import { teamInitials } from "@/components/TeamBadge";
 import { PlayerShell, PlayerStatusBar, PlayerResultBanner } from "@/components/player/PlayerUI";
 import { TeamPhotoUpload } from "@/components/player/TeamPhotoUpload";
@@ -370,6 +371,31 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [hardDeckGuess, setHardDeckGuess] = useState<string | null>(null);
   const [hardDeckStealGuesses, setHardDeckStealGuesses] = useState<Record<string, string>>({});
   const [hardDeckStealWinners, setHardDeckStealWinners] = useState<string[]>([]);
+  const [hardDeckStealPoints, setHardDeckStealPoints] = useState(0);
+  // Once a team plays Reverse, their total_points gets its digits reversed
+  // directly (play_reverse_card RPC) rather than incremented normally - so
+  // any "+N points this question" delta calculated by comparing before/after
+  // totals is no longer meaningful for this team (the jump reflects the
+  // digit-reversal, not what the question actually awarded). Suppress the
+  // points banners for a team once they've used Reverse, for the rest of
+  // the quiz, per the host's explicit request.
+  const [reverseUsed, setReverseUsed] = useState(false);
+  useEffect(() => {
+    if (!sessionPin || !teamName) return;
+    const supabase = createSupabaseBrowserClient();
+    let cancelled = false;
+    supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin).eq("card_type", "reverse").then(({ data }) => {
+      if (!cancelled && data && data.length > 0) setReverseUsed(true);
+    });
+    const channel = supabase
+      .channel("reverse-watch-" + sessionPin + "-" + teamName)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + sessionPin }, (payload) => {
+        const row = payload.new as { team_name?: string; card_type?: string };
+        if (row.team_name === teamName && row.card_type === "reverse") setReverseUsed(true);
+      })
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [sessionPin, teamName]);
   const [stickGamblePressed, setStickGamblePressed] = useState<string | null>(null);
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
@@ -403,7 +429,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // skipped from the carousel instead, same idea as the venue reel's own
   // stale-hotlink handling.
   const [failedOfferPhotos, setFailedOfferPhotos] = useState<Set<string>>(new Set());
-  const visibleOfferPhotos = venueOfferPhotos.filter(url => !failedOfferPhotos.has(url));
+  const visibleOfferPhotos = venueOfferPhotos.filter(url => !!url && url.trim().length > 0 && !failedOfferPhotos.has(url));
   useEffect(() => {
     if (phase !== "intermission") { setVenueOfferPhotos([]); setFailedOfferPhotos(new Set()); return; }
     let cancelled = false;
@@ -568,7 +594,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     async function fetchSession() {
       const { data, error: fetchError } = await supabase
         .from("sessions")
-        .select("current_session_round_id, phase, status, round_number, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, hard_deck_steal_guesses, hard_deck_steal_winners, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, venue_record_id, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
+        .select("current_session_round_id, phase, status, round_number, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, hard_deck_steal_guesses, hard_deck_steal_winners, hard_deck_steal_points, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, venue_record_id, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
         .eq("pin", sessionPin)
         .single();
       if (fetchError) {
@@ -798,6 +824,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     setHardDeckGuess((data.hard_deck_guess as string) || null);
     setHardDeckStealGuesses((data.hard_deck_steal_guesses as Record<string, string>) || {});
     setHardDeckStealWinners((data.hard_deck_steal_winners as string[]) || []);
+    setHardDeckStealPoints((data.hard_deck_steal_points as number) || 0);
     // THE PURSUIT — hydrate handset mirror (pursuit_status + current question idx).
     const pursuitState = readPursuitState(data);
     const newPursuitStatus = pursuitState.status;
@@ -1319,12 +1346,11 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
         {!isSelected && hardDeckStatus === "awaiting_guess" && (
           <>
-            {/* Was a stale hardcoded "2-POINT STEAL" left over from an old
-                point ladder - HardDeckPanel's CARD_POINTS is 10 (split
-                evenly across every team that steals correctly), so this
-                copy is now generic rather than naming a number that can
-                drift out of sync with the actual payout again. */}
-            <div style={{ font: "800 16px 'Inter'", color: "#E8C36A", letterSpacing: ".08em" }}>PLAY FOR A STEAL</div>
+            {/* Names the real stake being gambled (HardDeckPanel's
+                CARD_POINTS, imported so this can never drift out of sync
+                with the actual payout again) rather than a stale hardcoded
+                "2-POINT STEAL" left over from an old point ladder. */}
+            <div style={{ font: "800 16px 'Inter'", color: "#E8C36A", letterSpacing: ".08em" }}>PLAY FOR A {HARD_DECK_CARD_POINTS}-POINT STEAL</div>
             <div style={{ display: "flex", gap: 16, width: "100%", maxWidth: 380 }}>
               {(["higher", "lower"] as const).map(choice => (
                 <button key={choice} onClick={() => submitHardDeckGuess(choice)} disabled={!!myHardDeckGuess || !playerToken}
@@ -1375,7 +1401,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           <div style={{ font: "800 22px 'Inter'", color: "#2EE06E", letterSpacing: 0.5 }}>{isSelected ? "You won" : hardDeckTeam + " won"} {hardDeckPotential} points!</div>
         )}
         {hardDeckStatus === "lost" && (
-          <div style={{ font: "800 22px 'Inter'", color: "#FF3B4E", letterSpacing: 0.5 }}>{isSelected ? "Bust — better luck next time!" : hardDeckStealWinners.includes(teamName) ? "STEAL WON · +2 POINTS" : hardDeckTeam + " busted!"}</div>
+          <div style={{ font: "800 22px 'Inter'", color: "#FF3B4E", letterSpacing: 0.5 }}>{isSelected ? "Bust — better luck next time!" : hardDeckStealWinners.includes(teamName) ? `STEAL WON · +${hardDeckStealPoints} POINT${hardDeckStealPoints === 1 ? "" : "S"}` : hardDeckTeam + " busted!"}</div>
         )}
       </div>
     );
@@ -1522,7 +1548,9 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
                 fastest_points comes from the session row the host writes AFTER
                 the score is committed, so this reflects the stored award, not a
                 pre-calculated estimate. */}
-            {fastestPoints > 0 ? (
+            {reverseUsed ? (
+              <div style={{ font: "700 18px 'Inter'", color: "#B9A8D9", marginBottom: 32, textAlign: "center" }}>Check the leaderboard for your total</div>
+            ) : fastestPoints > 0 ? (
               <div style={{ padding: "20px 40px", borderRadius: 20, background: "rgba(46,224,110,0.15)", border: "2px solid rgba(46,224,110,0.5)", marginBottom: 32, textAlign: "center" }}>
                 <div style={{ font: "700 12px 'Inter'", letterSpacing: 3, color: "#2EE06E", marginBottom: 4 }}>POINTS AWARDED</div>
                 <div style={{ font: "900 56px 'Inter'", color: "#2EE06E", textShadow: "0 0 20px rgba(46,224,110,0.6)", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>+{fastestPoints}</div>
@@ -1561,7 +1589,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               {fastestTeamName && (
                 <div style={{ fontSize: 32, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 24px rgba(190,38,193,0.6)", marginBottom: 16 }}>{fastestTeamName}</div>
               )}
-              {myQuestionPoints !== null && (
+              {myQuestionPoints !== null && !reverseUsed && (
                 <div style={{ padding: "8px 20px", borderRadius: 14, background: myQuestionPoints > 0 ? "rgba(46,224,110,0.15)" : "rgba(255,255,255,0.06)", border: "1px solid " + (myQuestionPoints > 0 ? "rgba(46,224,110,0.5)" : "rgba(255,255,255,0.12)"), marginBottom: 16, textAlign: "center" as const }}>
                   <div style={{ font: "800 26px 'Inter'", color: myQuestionPoints > 0 ? "#2EE06E" : "rgba(255,255,255,0.5)" }}>{myQuestionPoints > 0 ? "+" : ""}<CountUp value={myQuestionPoints} /> {myQuestionPoints === 1 ? "point" : "points"}</div>
                 </div>

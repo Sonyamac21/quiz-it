@@ -172,6 +172,7 @@ function QuizControllerInner() {
   const [unoCards, setUnoCards] = useState<UnoCard[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
   const [scoringError, setScoringError] = useState<string | null>(null);
+  const [scoringInProgress, setScoringInProgress] = useState(false);
   const [pointsPerQ, setPointsPerQ] = useState(DEFAULT_POINTS_PER_QUESTION);
   const [timeBonus, setTimeBonus] = useState(5);
   const [timerDuration, setTimerDuration] = useState<number>(PLATFORM_CONFIG.timers.defaultSeconds);
@@ -335,6 +336,11 @@ function QuizControllerInner() {
   // silently landing as 0: two runs read the same pre-update score and the
   // second write clobbered the first's correct total.
   const revealingRef = useRef(false);
+  // The answer screen becomes visible before its asynchronous database scoring
+  // has necessarily finished. Keep a synchronous guard as well as UI state so
+  // Space/double-clicks cannot publish a celebration with fastest_points=0
+  // while the real award is still being committed.
+  const scoringInProgressRef = useRef(false);
   const tickAudioRef = useRef<AudioContext|null>(null);
   const tickIntervalRef = useRef<ReturnType<typeof setInterval>|null>(null);
   const victorySongRef = useRef<HTMLAudioElement|null>(null);
@@ -459,6 +465,10 @@ function QuizControllerInner() {
     if (pursuitActive) return; // The Pursuit panel owns Space while it's running.
     if (hardDeckActive) return; // The Hard Deck panel owns Space while it's running.
     if (!connected || !selectedRound) return;
+    if (scoringInProgressRef.current) {
+      showToast("Scoring is still being confirmed. Please wait a moment.", "warning", 3500);
+      return;
+    }
     if (scoringError && (hostPhase === "answer" || hostPhase === "celebration")) {
       showToast("Scoring is not confirmed. Retry scoring before continuing.", "error", 7000);
       return;
@@ -957,12 +967,22 @@ function QuizControllerInner() {
 
   async function retryAutomaticScoring() {
     if (!currentQ || !sessionPin) return;
+    if (scoringInProgressRef.current) return;
+    scoringInProgressRef.current = true;
+    setScoringInProgress(true);
     const { data, error } = await scopedAnswersQuery(sessionPin, qIdx);
     if (error) {
       showToast("Could not reload answers. Check the connection and retry.", "error", 7000);
+      scoringInProgressRef.current = false;
+      setScoringInProgress(false);
       return;
     }
-    await autoScore(teams, currentQ, data ?? answers);
+    try {
+      await autoScore(teams, currentQ, data ?? answers);
+    } finally {
+      scoringInProgressRef.current = false;
+      setScoringInProgress(false);
+    }
   }
 
   async function adjustScore(teamName: string, delta: number) {
@@ -1696,6 +1716,8 @@ function QuizControllerInner() {
     if (!currentQ || !sessionId || !sessionPin) return;
     if (revealingRef.current) return;
     revealingRef.current = true;
+    scoringInProgressRef.current = true;
+    setScoringInProgress(true);
     setTimeout(() => { revealingRef.current = false; }, 2000);
     if (timerRef.current) clearInterval(timerRef.current);
     stopTickAudio();
@@ -1711,7 +1733,12 @@ function QuizControllerInner() {
     const { data: freshAnswers } = await scopedAnswersQuery(sessionPin, qIdx);
     const answersToScore = freshAnswers ?? answers;
     setAnswers(answersToScore);
-    await autoScore(teams, currentQ, answersToScore);
+    try {
+      await autoScore(teams, currentQ, answersToScore);
+    } finally {
+      scoringInProgressRef.current = false;
+      setScoringInProgress(false);
+    }
     // Every team that got this question right should hear their own theme
     // song, not just the single "fastest correct" team the celebration/spin
     // flow already handles - record the full list here so the Display can
@@ -1728,6 +1755,10 @@ function QuizControllerInner() {
 
   async function doCelebrate() {
     if (!sessionId || !sessionPin) return;
+    if (scoringInProgressRef.current) {
+      showToast("Scoring is still being confirmed. Please wait a moment.", "warning", 3500);
+      return;
+    }
     if (scoringError) {
       showToast("Scoring is not confirmed. Retry scoring before celebrating.", "error", 7000);
       return;
@@ -2086,6 +2117,7 @@ function QuizControllerInner() {
     hostPhase === "hot_seat" && (hotSeatCurrentAnswer || (hotSeatStatus === "claimed" && timeLeft <= 0)) ? "SPACE: Lock Out & Reopen Buzz" :
     hostPhase === "hot_seat" && (hotSeatStatus === "idle" || teams.length - hotSeatLockedTeams.length <= 0) ? "SPACE: Reveal Answer" :
     hostPhase === "hot_seat" ? "Waiting for the buzz" :
+    hostPhase === "answer" && scoringInProgress ? "SCORING: Confirming points…" :
     hostPhase === "answer" ? "SPACE: Celebrate Fastest Team" :
     hostPhase === "celebration" ? (isLastQ ? "SPACE: End Round" : "SPACE: Preview Next Question") :
     hostPhase === "round_end" ? "SPACE: Start Next Round" :
@@ -2103,6 +2135,7 @@ function QuizControllerInner() {
     hostPhase === "hot_seat" && hotSeatAnswerIsCorrect ? "Award Points & Reveal" :
     hostPhase === "hot_seat" && (hotSeatCurrentAnswer || (hotSeatStatus === "claimed" && timeLeft <= 0)) ? "Lock Out & Reopen Buzz" :
     hostPhase === "hot_seat" && (hotSeatStatus === "idle" || teams.length - hotSeatLockedTeams.length <= 0) ? "Reveal Answer" :
+    hostPhase === "answer" && scoringInProgress ? "Confirming scores…" :
     hostPhase === "answer" ? "Celebrate Fastest Team" :
     hostPhase === "celebration" ? (isLastQ ? "End Round" : "Next Question") :
     hostPhase === "round_end" ? "Start Next Round" : "";
@@ -2347,7 +2380,7 @@ function QuizControllerInner() {
           clickable (same as pressing Space). Readable from across the room / at a
           glance while talking. Timer phase shows the live countdown instead. */}
       {selectedRound && nextActionLabel && (
-        <button onClick={handleSpacebar} className={`qi-mc-next${hostPhase==="timer" ? " qi-mc-next--timer" : ""}`}>
+        <button onClick={handleSpacebar} disabled={scoringInProgress} className={`qi-mc-next${hostPhase==="timer" ? " qi-mc-next--timer" : ""}`}>
           <span className="qi-mc-next__eyebrow">{upcomingRound ? `Up next: ${upcomingRound.name} (${upcomingRound.round_type})` : "Next action"}</span>
           <span className="qi-mc-next__label">{nextActionLabel}</span>
           {hostPhase==="timer" && <span className={`qi-mc-next__timer${(timeLeft ?? 0)<=5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft}s</span>}
@@ -2645,7 +2678,7 @@ function QuizControllerInner() {
                 <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doSendQuestion} disabled={hostPhase!=="preview"}>Send Live</button>
                 <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doStartTimer} disabled={hostPhase==="timer"}>{hostPhase==="timer" ? timeLeft+"s" : "Timer"}</button>
                 <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doRevealAnswer} disabled={hostPhase==="answer"}>Reveal</button>
-                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doCelebrate}>Celebrate</button>
+                <button className="qi-button qi-button--quiet qi-mc-manual__button" disabled={scoringInProgress} onClick={doCelebrate}>{scoringInProgress ? "Confirming scores…" : "Celebrate"}</button>
                 <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doDumpQuestion} title="Skip this question without scoring it - stays in the round for next time">Dump Q</button>
                 {isLastQ ? (
                   <button className="qi-button qi-button--secondary qi-mc-manual__last" onClick={doEndRound}>End Round</button>

@@ -425,7 +425,18 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
                   safety net for an unusually long one. */}
               <div className="qi-host-harddeck-cards" style={{ padding: "20px 24px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)", maxWidth: "92vw", maxHeight: "min(50vh, 400px)", overflow: "auto" }}>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", maxWidth: "min(88vw, 900px)" }}>
-                  {cards.map((c, i) => (
+                  {cards.length === 0 ? (
+                    // Waiting on the host to reveal the base card - previously
+                    // this whole panel was just an empty bordered box until
+                    // the first card appeared, reading as broken ("no base
+                    // card at all"). A face-down placeholder fills the same
+                    // slot the real card will occupy so the panel never looks
+                    // empty while the host reads out the "Reveal Base Card"
+                    // Next-Action prompt above.
+                    <div style={{ width: "clamp(82px,8vw,120px)", height: "clamp(118px,11.5vw,172px)", borderRadius: 14, background: "linear-gradient(160deg, #3a1740 0%, #1c0a20 100%)", border: "1px solid rgba(190,38,193,0.4)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -6px 10px rgba(0,0,0,0.3), 0 6px 16px rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontSize: "clamp(22px,2.4vw,32px)", color: "rgba(190,38,193,0.6)", fontFamily: "'Bruno Ace SC', sans-serif" }}>?</span>
+                    </div>
+                  ) : cards.map((c, i) => (
                     <div key={i} style={{ width: "clamp(82px,8vw,120px)", height: "clamp(118px,11.5vw,172px)", borderRadius: 14, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: "clamp(28px,3vw,44px)", fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
                       <div>{rankLabel(c.rank)}</div>
                       <div style={{ fontSize: 28 }}>{c.suit}</div>

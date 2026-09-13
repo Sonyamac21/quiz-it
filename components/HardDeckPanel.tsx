@@ -319,23 +319,6 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
     onRoundComplete?.();
   }
 
-  // Previously a tiny 11px pill buried in the header nav next to "Open
-  // Display" - easy to lose entirely among the other controls there. Now
-  // portaled to a fixed, centered, large call-to-action so the host can spot
-  // it at a glance regardless of what else is on screen, matching how the
-  // main overlay itself is already portaled straight to <body>.
-  // No floating launch button anymore - Hard Deck now starts only from its
-  // own round_start screen in the running order (see autoStartRoundId
-  // above), exactly like Pursuit has zero manual launch button of its own.
-  const warningPanel = scoreWarnings.length > 0 ? (
-    <div role="alert" style={{ position: "fixed", bottom: 16, left: 16, right: 16, zIndex: 10000, padding: 16, background: "#3b1018", color: "white", border: "2px solid #ff8290", borderRadius: 12 }}>
-      <strong>Hard Deck scoring needs attention</strong>
-      {scoreWarnings.map(message => <div key={message}>{message}</div>)}
-      <button onClick={() => setScoreWarnings([])}>Dismiss warning</button>
-    </div>
-  ) : null;
-  if (!open) return typeof document !== "undefined" && warningPanel ? createPortal(warningPanel, document.body) : null;
-
   const showRevealBaseButton = !showWheel && team && cards.length === 0;
 
   // Single "next action" the host takes to advance the hand - surfaced in
@@ -354,6 +337,45 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
     : (status === "won" || status === "lost") ? startHardDeck
     : undefined;
   const nextDisabled = status === "awaiting_guess" && !guess;
+
+  // The Next-Action bar's "Space ↵" hint mirrors Pursuit's, so pressing
+  // Space needs to actually trigger it here too - Pursuit has its own
+  // keydown listener for exactly this reason (the main host page's global
+  // spacebar handler stands down via onActiveChange while this overlay is
+  // open, so nothing else is listening for Space at all while Hard Deck is
+  // running). Without this, the bar showed a live next-action and a Space
+  // hint that silently did nothing, which read as "the base card never
+  // revealed" rather than "the button just needs a click instead".
+  useEffect(() => {
+    if (!open || !nextHandler || nextDisabled) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.code !== "Space" && e.key !== " ") return;
+      if (e.repeat) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      e.preventDefault();
+      nextHandler!();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, nextHandler, nextDisabled]);
+
+  // Previously a tiny 11px pill buried in the header nav next to "Open
+  // Display" - easy to lose entirely among the other controls there. Now
+  // portaled to a fixed, centered, large call-to-action so the host can spot
+  // it at a glance regardless of what else is on screen, matching how the
+  // main overlay itself is already portaled straight to <body>.
+  // No floating launch button anymore - Hard Deck now starts only from its
+  // own round_start screen in the running order (see autoStartRoundId
+  // above), exactly like Pursuit has zero manual launch button of its own.
+  const warningPanel = scoreWarnings.length > 0 ? (
+    <div role="alert" style={{ position: "fixed", bottom: 16, left: 16, right: 16, zIndex: 10000, padding: 16, background: "#3b1018", color: "white", border: "2px solid #ff8290", borderRadius: 12 }}>
+      <strong>Hard Deck scoring needs attention</strong>
+      {scoreWarnings.map(message => <div key={message}>{message}</div>)}
+      <button onClick={() => setScoreWarnings([])}>Dismiss warning</button>
+    </div>
+  ) : null;
+  if (!open) return typeof document !== "undefined" && warningPanel ? createPortal(warningPanel, document.body) : null;
 
   // Rendered through a portal to <body> rather than inline. This component is
   // mounted inside the host header, which uses `backdrop-filter: blur()`; that

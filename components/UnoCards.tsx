@@ -8,8 +8,22 @@ const CARDS = [
   { type: "x2",      label: "Boost",    emoji: "⚡", color: "#facc15", bg: "rgba(234,179,8,0.2)",   desc: "Doubles your points for every correct answer in the current round." },
 ];
 
+// PlayerQuizScreen renders a fresh UnoPlayerCards instance for each major
+// phase (question, answer, celebration, waiting). On slower handsets the new
+// instance used to start with `used=[]`, briefly paint every card, then hide
+// already-spent cards when its database read completed. Keep the last
+// authoritative inventory for this team in module memory so phase changes
+// never regress to the optimistic "all cards available" state.
+const usedCardsCache = new Map<string, string[]>();
+
+function cardInventoryKey(sessionPin: string | undefined, teamName: string) {
+  return `${sessionPin || "no-session"}:${teamName.trim().toLowerCase()}`;
+}
+
 export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber, compact = false, enabled = true }: { teamName: string; sessionPin?: string; playerToken?: string; roundNumber?: number; compact?: boolean; enabled?: boolean }) {
-  const [used, setUsed] = useState<string[]>([]);
+  const inventoryKey = cardInventoryKey(sessionPin, teamName);
+  const [used, setUsed] = useState<string[]>(() => [...(usedCardsCache.get(inventoryKey) || [])]);
+  const [inventoryReady, setInventoryReady] = useState(() => usedCardsCache.has(inventoryKey));
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   // A card disappears from the rail entirely - on every screen size, since
   // this one component renders on phone/iPad/tablet alike - the moment it's
@@ -23,13 +37,26 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
   useEffect(() => {
     if (!sessionPin) return;
     const supabase = createSupabaseBrowserClient();
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const cached = usedCardsCache.get(inventoryKey);
+    setUsed(cached ? [...cached] : []);
+    setInventoryReady(!!cached);
     const refetch = async () => {
-      const { data } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin);
-      if (data) {
-        setUsed([...new Set(data.map(d => d.card_type))]);
+      const { data, error } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin);
+      if (cancelled) return;
+      if (error) {
+        // Do not reveal an unverified set of cards during a brief network
+        // failure. Retry in place while preserving the rail's footprint.
+        retryTimer = setTimeout(refetch, 2000);
+        return;
       }
+      const next = [...new Set((data || []).map(d => d.card_type))];
+      usedCardsCache.set(inventoryKey, next);
+      setUsed(next);
+      setInventoryReady(true);
     };
-    refetch();
+    void refetch();
     // Keep EVERY rendered instance of this team's cards in sync via realtime.
     // Each screen (question/answer/celebration) mounts its own UnoPlayerCards with
     // independent local state; without this, a card played on one screen still
@@ -41,11 +68,20 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "uno_cards", filter: "session_pin=eq." + sessionPin }, (payload) => {
         const row = payload.new as { team_name?: string; card_type?: string };
         if (row.team_name !== teamName) return;
-        if (row.card_type) setUsed(prev => prev.includes(row.card_type!) ? prev : [...prev, row.card_type!]);
+        if (row.card_type) setUsed(prev => {
+          if (prev.includes(row.card_type!)) return prev;
+          const next = [...prev, row.card_type!];
+          usedCardsCache.set(inventoryKey, next);
+          return next;
+        });
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [teamName, sessionPin]);
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [teamName, sessionPin, inventoryKey]);
   const [playing, setPlaying] = useState<string | null>(null);
 
   const playCard = async (cardType: string) => {
@@ -103,7 +139,12 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
         // this handset reflects whatever actually happened rather than
         // assuming the card is still available.
         const { data: cards } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin);
-        if (cards) setUsed([...new Set(cards.map(d => d.card_type))]);
+        if (cards) {
+          const next = [...new Set(cards.map(d => d.card_type))];
+          usedCardsCache.set(inventoryKey, next);
+          setUsed(next);
+          setInventoryReady(true);
+        }
         const reason = String(row?.reason || "");
         // Surface the raw reason in the console for every unhandled case
         // (e.g. "handset-not-authorised", "session-not-active") instead of
@@ -117,7 +158,11 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
         setPlaying(null);
         return;
       }
-      setUsed(prev => [...prev, cardType]);
+      setUsed(prev => {
+        const next = prev.includes(cardType) ? prev : [...prev, cardType];
+        usedCardsCache.set(inventoryKey, next);
+        return next;
+      });
       setFeedback({ ok: true, text: `Reverse accepted · score is now ${row.total_points ?? 0}.` });
       setPlaying(null);
       return;
@@ -154,12 +199,21 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
       // refreshes and reconnects. Refetch so this handset immediately reflects
       // a card that another client has already spent.
       const { data } = await supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin);
-      if (data) setUsed([...new Set(data.map(d => d.card_type))]);
+      if (data) {
+        const next = [...new Set(data.map(d => d.card_type))];
+        usedCardsCache.set(inventoryKey, next);
+        setUsed(next);
+        setInventoryReady(true);
+      }
       setFeedback({ ok: false, text: `${CARDS.find(card => card.type === cardType)?.label || "Card"} was not accepted. Please tap again.` });
       setPlaying(null);
       return;
     }
-    setUsed(prev => [...prev, cardType]);
+    setUsed(prev => {
+      const next = prev.includes(cardType) ? prev : [...prev, cardType];
+      usedCardsCache.set(inventoryKey, next);
+      return next;
+    });
     setFeedback({ ok: true, text: `${CARDS.find(card => card.type === cardType)?.label || "Card"} accepted.` });
     setPlaying(null);
   };
@@ -175,6 +229,13 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
       reverse: { face: "linear-gradient(160deg,#4a0a12,#1a0306 70%)", ink: "#FF3B4E", sig: "↻", cname: "REVERSE" },
     };
     const remaining = visibleCards.length;
+    if (!inventoryReady) {
+      return (
+        <div className="fbl qi-player-card-inventory-loading" aria-busy="true" style={{ minHeight: 132, padding: "18px 14px 0", display: "grid", placeItems: "center" }}>
+          <span style={{ font: "700 10px 'Inter'", color: "#8f7cac", letterSpacing: ".14em" }}>CHECKING YOUR POWER CARDS…</span>
+        </div>
+      );
+    }
     return (
       <div className="fbl" style={{ paddingTop: 4, padding: "4px 14px 0" }}>
         <div className="qi-player-card-rail" style={{ display: "flex", gap: 10 }}>
@@ -222,6 +283,10 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
         </div>
       </div>
     );
+  }
+
+  if (!inventoryReady) {
+    return <div className="qi-player-card-inventory-loading" aria-busy="true" style={{ minHeight: 132, display: "grid", placeItems: "center", color: "#8f7cac", letterSpacing: ".12em", fontSize: 11, fontWeight: 700 }}>CHECKING YOUR POWER CARDS…</div>;
   }
 
   return (

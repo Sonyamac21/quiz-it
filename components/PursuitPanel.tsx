@@ -21,8 +21,7 @@ import {
   applyOutcome,
   checkPursuitAnswer,
   pursuitCorrectAnswerText,
-  PURSUIT_WINNER_BONUS,
-  PURSUIT_CORRECT_POINTS,
+  pursuitStagePoints,
 } from "@/lib/quiz/pursuit";
 
 // THE PURSUIT — host controller.
@@ -392,13 +391,19 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
       const correct = checkPursuitAnswer(latestByTeam.get(name)?.answer_text, q);
       const updated = applyOutcome(entry, correct);
       nextRace[name] = updated;
-      // Flat 10 points per correct answer, on top of the separate 100-point
-      // winner bonus finishRound() awards to whoever finishes with the most
-      // correct. eventKey is per team+question+round so a re-render or a
-      // safety-net poll re-running advanceRace can never double-pay it.
+      // 10 points per correct answer, except the 7th (a perfect clear) which
+      // is worth 40 so a full 7/7 run totals a flat 100 instead of 70 - per
+      // the host's explicit request: 5 correct = 50, 6 correct = 60, 7
+      // correct = 100. No separate end-of-round winner bonus anymore; a
+      // team's score is entirely its own correct-answer count via
+      // pursuitStagePoints, the same function the handset's banked-score
+      // display reads (pursuitTotalPoints), so they can never drift apart.
+      // eventKey is per team+question+round so a re-render or a safety-net
+      // poll re-running advanceRace can never double-pay it.
       if (correct) {
-        const result = await applyScoreDelta(supabase, sessionPin, name, PURSUIT_CORRECT_POINTS, {
-          roundDelta: PURSUIT_CORRECT_POINTS,
+        const stagePoints = pursuitStagePoints(updated.stage);
+        const result = await applyScoreDelta(supabase, sessionPin, name, stagePoints, {
+          roundDelta: stagePoints,
           eventKey: `pursuit-correct:${sessionId}:${chosenRound?.id || "round"}:${name}:${qIndex}`,
         });
         if (result.error) reportWarning(`${name}: correct-answer points were not confirmed. Check the saved score before continuing.`);
@@ -413,16 +418,10 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
   }
 
   async function finishRound() {
-    const highest = Math.max(0, ...teamNames.map(name => race[name]?.stage ?? 0));
-    const winners = highest > 0 ? teamNames.filter(name => (race[name]?.stage ?? 0) === highest) : [];
-    for (const name of winners) {
-      const result = await applyScoreDelta(supabase, sessionPin, name, PURSUIT_WINNER_BONUS, {
-        roundDelta: PURSUIT_WINNER_BONUS,
-        eventKey: `pursuit-winner:${sessionId}:${chosenRound?.id || "round"}:${name}`,
-      });
-      if (result.error) reportWarning(`${name}: winner bonus was not confirmed. Check the saved score before continuing.`);
-      if (result.scoreboardSyncError) reportWarning(`${name}: winner bonus saved, but the scoreboard failed to refresh.`);
-    }
+    // No separate winner bonus anymore - every team's score is already fully
+    // paid out per correct answer in advanceRace() (via pursuitStagePoints),
+    // including the 100-point total for a perfect 7/7 clear. finishRound()
+    // now only closes out the round.
     setStatus("complete");
     await pushState({ pursuit_status: "complete" });
     if (chosenRound?.id) {

@@ -69,29 +69,25 @@ export function getPursuitPhaseLabel(phase: PursuitPhase): string {
 // ---------------------------------------------------------------------------
 
 export const PURSUIT_TOTAL_QUESTIONS = 7;
-export const PURSUIT_WINNER_BONUS = 100;
 
-// Flat per-correct-answer points, independent of PURSUIT_WINNER_BONUS (100
-// pts), which is awarded once at the end only to whoever finishes with the
-// highest correct count - not to every team, and not baked into a per-stage
-// ladder. This is the single source of truth PursuitPanel (host, awards the
-// real points) and pursuitTotalPoints below (handset display) both read, so
-// the two can never drift out of sync with each other again - a stale local
-// copy of this same number in PursuitPanel.tsx previously caused the
-// handset's displayed "Banked score" to show an old ladder value (jumping
-// straight to 100 at stage 7) that didn't match the real, correct saved
-// score (stage * 10, plus the separate winner bonus only for the leader(s),
-// only once, at the very end).
+// Flat per-correct-answer points - 10 for each of the first 6 correct
+// answers. Getting all 7 correct is a full clear and pays a flat 100 total
+// instead of 70 (per the host's explicit request: "10 points for every
+// correct answer - only if 7 correct then 100 points awarded" / "6 correct -
+// 60, 5 correct - 50 etc"), i.e. the last correct answer of a perfect run is
+// worth 40, not 10. There is no separate end-of-round winner bonus anymore -
+// a team's score is entirely determined by its own correct-answer count.
+// This is the single source of truth PursuitPanel (host, awards the real
+// points) and pursuitTotalPoints below (handset display) both read, so the
+// two can never drift out of sync with each other again.
 export const PURSUIT_CORRECT_POINTS = 10;
+export const PURSUIT_PERFECT_CLEAR_POINTS = 100;
 
-/** Total points a team holds having completed `stage` questions (0 = none).
- * This is ONLY the per-question total - it deliberately excludes
- * PURSUIT_WINNER_BONUS, which is never known mid-round (it depends on every
- * other team's final stage too) and is only ever paid once, separately, at
- * finishRound(). */
+/** Total points a team holds having completed `stage` questions (0 = none). */
 export function pursuitTotalPoints(stage: number): number {
   if (stage < 1) return 0;
-  return Math.min(stage, PURSUIT_TOTAL_QUESTIONS) * PURSUIT_CORRECT_POINTS;
+  if (stage >= PURSUIT_TOTAL_QUESTIONS) return PURSUIT_PERFECT_CLEAR_POINTS;
+  return stage * PURSUIT_CORRECT_POINTS;
 }
 
 /** Points awarded for reaching `stage` - the delta over the previous stage. */

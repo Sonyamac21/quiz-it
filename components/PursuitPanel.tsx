@@ -539,6 +539,15 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
                 questionCategory={currentQuestion?.question_type ?? null}
                 correctAnswer={currentQuestion ? pursuitCorrectAnswerText(currentQuestion) : null}
                 style={{ height: "100%", maxHeight: "100%" }}
+                // The board's own title zone + question panel are sized with
+                // vh/vw units tuned for the Display's full-viewport hero -
+                // squeezed into this small fixed-height card they overlapped
+                // themselves (live testing: "PURSUIT" and "CORRECT WINS"
+                // rendering on top of each other). This console already shows
+                // its own header above and its own full question block
+                // (.qi-mc-question) below, so hide the board's redundant
+                // copies here rather than fight viewport units in a small box.
+                hideHeader
               />
             </div>
           )}

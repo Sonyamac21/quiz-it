@@ -29,6 +29,21 @@ type Props = {
   // instead of the Display's full-viewport 100dvh, without needing a second
   // copy of the component.
   style?: CSSProperties;
+  // The title zone (its own "THE PURSUIT" wordmark + gate tracker) and
+  // question panel (GATE N + full question text) are sized with
+  // viewport-relative units tuned for the Display's full 100dvh hero
+  // surface. Squeezed into the host console's small fixed-height embed
+  // card, that typography doesn't scale down with the container - it
+  // stayed viewport-sized and overlapped itself and the panel below it
+  // (live testing caught this: "PURSUIT" and "CORRECT WINS" rendering on
+  // top of each other). The host console already shows its own header
+  // ("THE PURSUIT" + Finish Round Early) and its own full-size question
+  // block (.qi-mc-question) around this embed, so hiding this component's
+  // OWN copies of the same information there removes the duplication
+  // instead of trying to make viewport units respond to a small container.
+  // The Display's own usage (the actual full-viewport hero) is unaffected -
+  // it never passes this prop.
+  hideHeader?: boolean;
 };
 
 // Timeline offsets for the one choreographed reveal pass (Motion Language v1.0).
@@ -39,7 +54,7 @@ function cssVars(vars: Record<string, string>): CSSProperties {
   return vars as CSSProperties;
 }
 
-export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questionText, questionCategory, correctAnswer, style: styleOverride }: Props) {
+export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questionText, questionCategory, correctAnswer, style: styleOverride, hideHeader = false }: Props) {
   const boardRef = useRef<HTMLDivElement | null>(null);
   const [boardWidth, setBoardWidth] = useState(1300);
 
@@ -159,25 +174,27 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
         </div>
       )}
 
-      <div className="pu-tz">
-        <div className="pu-title"><span className="accent">THE</span> PURSUIT</div>
-        <div className="pu-gatebar">
-          <div className="pu-gates">
-            {Array.from({ length: PURSUIT_TOTAL_QUESTIONS }).map((_, i) => {
-              const n = i + 1;
-              const cls = ["pu-gate-dot", n < gate ? "done" : "", n === gate ? "now" : ""].filter(Boolean).join(" ");
-              return <div key={i} className={cls} />;
-            })}
-          </div>
-          <div className="pu-stakes">
-            {gate > 0
-              ? <>QUESTION {gate} OF {PURSUIT_TOTAL_QUESTIONS} · <b>MOST CORRECT WINS</b></>
-              : <>ROUND BONUS: <b>100 PTS</b></>}
+      {!hideHeader && (
+        <div className="pu-tz">
+          <div className="pu-title"><span className="accent">THE</span> PURSUIT</div>
+          <div className="pu-gatebar">
+            <div className="pu-gates">
+              {Array.from({ length: PURSUIT_TOTAL_QUESTIONS }).map((_, i) => {
+                const n = i + 1;
+                const cls = ["pu-gate-dot", n < gate ? "done" : "", n === gate ? "now" : ""].filter(Boolean).join(" ");
+                return <div key={i} className={cls} />;
+              })}
+            </div>
+            <div className="pu-stakes">
+              {gate > 0
+                ? <>QUESTION {gate} OF {PURSUIT_TOTAL_QUESTIONS} · <b>MOST CORRECT WINS</b></>
+                : <>ROUND BONUS: <b>100 PTS</b></>}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {showQPanel && (
+      {!hideHeader && showQPanel && (
         <div className="pu-qpanel on">
           <span className="pu-qcat">GATE {Math.max(1, gate)}{questionCategory ? " · " + questionCategory.toUpperCase() : ""}</span>
           {status === "question" && typeof timeLeft === "number" && (
@@ -221,10 +238,12 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
                   : "THE PURSUIT COMPLETE")
             : `${teamNames.length} OF ${teamNames.length} TEAMS STILL PLAYING.`}
         </div>
-        <div className="pu-brandbadge">
-          <span className="pu-brandbadge-avatar" aria-hidden="true"><img src="/sonya-avatar.png" alt="" /></span>
-          <span>QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</span>
-        </div>
+        {!hideHeader && (
+          <div className="pu-brandbadge">
+            <span className="pu-brandbadge-avatar" aria-hidden="true"><img src="/sonya-avatar.png" alt="" /></span>
+            <span>QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</span>
+          </div>
+        )}
       </div>
     </div>
   );

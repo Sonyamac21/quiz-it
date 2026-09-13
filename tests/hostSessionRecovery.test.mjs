@@ -20,6 +20,6 @@ test("realtime recovery reloads session, teams, answers, cards and scores", () =
 
 test("host refresh preserves a question preview without exposing it to players", () => {
   assert.match(source, /saveHostPreviewRecovery\(window\.sessionStorage, \{ sessionId, roundId: selectedRound\.id, questionIndex: idx \}\)/);
-  assert.match(source, /setHostPhase\(hasMatchingPreview \? "preview" : restoredPhase as HostPhase\)/);
+  assert.match(source, /const recoveredHostPhase = hasMatchingPreview \? "preview" : restoredPhase as HostPhase;[\s\S]*hostPhaseRef\.current = recoveredHostPhase;[\s\S]*setHostPhase\(recoveredHostPhase\)/);
   assert.match(source, /clearHostPreviewRecovery\(window\.sessionStorage\)/);
 });

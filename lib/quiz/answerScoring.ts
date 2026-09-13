@@ -209,8 +209,17 @@ export function getCorrectAnswerText(q: ScorableQuestion): string {
 // other type uses, and out of the plain green/red reveal coloring - both of
 // which assume a binary right/wrong that doesn't apply.
 export function nearestWinsDistance(ans: ScorableAnswer, q: ScorableQuestion): number | null {
-  const guess = parseFloat(ans.answer_text);
-  const target = parseFloat(q.correct_answer);
+  const parseQuizNumber = (value: string): number => {
+    // Generated Nearest Wins answers often include display-friendly thousands
+    // separators and an explanation, e.g. "6,433 days (released...)".
+    // parseFloat("6,433") is 6, which previously made a guess of 6 beat 6,200.
+    // Remove grouping separators only when they sit between digit groups, then
+    // parse the leading number while still allowing units/explanatory copy.
+    const normalised = value.trim().replace(/(\d)[,\s](?=\d{3}(?:\D|$))/g, "$1");
+    return parseFloat(normalised);
+  };
+  const guess = parseQuizNumber(ans.answer_text);
+  const target = parseQuizNumber(q.correct_answer);
   if (!Number.isFinite(guess) || !Number.isFinite(target)) return null;
   return Math.abs(guess - target);
 }

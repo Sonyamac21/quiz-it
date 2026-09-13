@@ -14,6 +14,7 @@
 // no risk of the two disagreeing (they're now literally the same function).
 
 export type ScorableQuestion = {
+  question_text?: string;
   question_type: string;
   option_a: string | null;
   option_b: string | null;
@@ -120,6 +121,25 @@ export function normaliseAnswerText(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/^(the|a|an) /i, "").trim();
 }
 
+/** Recover malformed legacy audio answers that stored internal lookup
+ * metadata ("Artist - Title") instead of the one thing the question asks.
+ * New generation rejects this shape before saving. */
+export function canonicalCorrectAnswer(q: ScorableQuestion): string {
+  if (q.question_type !== "audio") return q.correct_answer;
+  const parts = q.correct_answer.split(/\s+[-–—]\s+/).map(part => part.trim()).filter(Boolean);
+  if (parts.length !== 2) return q.correct_answer;
+  const prompt = normaliseAnswerText(q.question_text || "");
+  const asksForArtist = /\b(who|artist|band|singer|group|performer|performs|sings|sang)\b/.test(prompt);
+  const asksForTitle = /\b(song|track|title|tune|record)\b/.test(prompt);
+  // The known legacy generator defect stored Artist - Title, e.g.
+  // "Faithless - Music Matters". Do not guess when the wording is ambiguous.
+  // Artist wording takes precedence because natural artist questions often
+  // still contain “song” or “track” ("Which band performs this song?").
+  if (asksForArtist) return parts[0];
+  if (asksForTitle) return parts[1];
+  return q.correct_answer;
+}
+
 export function levenshteinDistance(a: string, b: string): number {
   const m = a.length, n = b.length;
   const dp: number[][] = Array.from({ length: m + 1 }, (_, i) => Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
@@ -176,7 +196,7 @@ export function getCorrectAnswerText(q: ScorableQuestion): string {
     if (texts.length === keys.length) return texts.join(", ");
     return q.correct_answer;
   }
-  return q.correct_answer;
+  return canonicalCorrectAnswer(q);
 }
 
 // Nearest Wins (SpeedQuizzing's closest-guess mechanic) has no single

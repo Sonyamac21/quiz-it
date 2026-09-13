@@ -19,6 +19,24 @@ test("A2: multiple choice accepts either stored key or stored option text", () =
   assert.equal(isAnswerCorrect({ answer_text: "b" }, { ...baseQuestion, correct_answer: "SZA" }), true);
 });
 
+test("legacy audio Artist - Title metadata scores the answer actually requested", () => {
+  const malformed = {
+    ...baseQuestion,
+    question_type: "audio",
+    question_text: "Name this dance track.",
+    correct_answer: "Faithless - Music Matters",
+  };
+  assert.equal(getCorrectAnswerText(malformed), "Music Matters");
+  assert.equal(isAnswerCorrect({ answer_text: "MUSIC MATTERS" }, malformed), true);
+  assert.equal(isAnswerCorrect({ answer_text: "MISIC MATTERS" }, malformed), true);
+  assert.equal(isAnswerCorrect({ answer_text: "Faithless" }, malformed), false);
+
+  const artistQuestion = { ...malformed, question_text: "Which band performs this song?" };
+  assert.equal(getCorrectAnswerText(artistQuestion), "Faithless");
+  assert.equal(isAnswerCorrect({ answer_text: "Faithless" }, artistQuestion), true);
+  assert.equal(isAnswerCorrect({ answer_text: "Music Matters" }, artistQuestion), false);
+});
+
 test("A1: sequence comparison uses semantic order after options are randomised", () => {
   const question = {
     ...baseQuestion,

@@ -454,6 +454,20 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-team-card { min-width: 0; }
 .qi-mc-team-card__answer > button { flex-shrink: 0; white-space: nowrap; }
 .qi-mc-team-card__answer > span { font-size: var(--qi-type-sm) !important; }
+.qi-mc-teams--capacity { overflow:hidden; padding:7px 8px; align-content:start; }
+.qi-mc-teams--capacity .qi-mc-teams__header { top:-7px; margin:-7px -8px 5px; padding:6px 8px; }
+.qi-mc-teams--capacity .qi-mc-team-card { min-width:0; margin:0 0 4px; padding:3px 5px; border-radius:7px; box-shadow:none; }
+.qi-mc-teams--capacity .qi-mc-team-card__summary { min-height:18px; grid-template-columns:18px 18px minmax(0,1fr) 6px auto!important; gap:4px!important; }
+.qi-mc-teams--capacity .qi-mc-team-card__summary>span:first-child { min-width:18px!important; font-size:10px!important; }
+.qi-mc-teams--capacity .qi-mc-team-card__summary .fbh-crest { width:17px!important; height:17px!important; font-size:6px!important; }
+.qi-mc-teams--capacity .qi-mc-team-card__summary>span:nth-child(3) { display:block!important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px!important; }
+.qi-mc-teams--capacity .qi-mc-team-card__summary>span:nth-child(5) { min-width:28px!important; font-size:12px!important; }
+.qi-mc-teams--capacity .qi-mc-team-tool { display:none!important; }
+.qi-mc-teams--capacity .qi-mc-team-card__answer { min-height:13px; margin-top:1px; gap:3px; overflow:hidden; }
+.qi-mc-teams--capacity .qi-mc-team-card__answer>span { min-width:0!important; font-size:9px!important; line-height:1.1; }
+.qi-mc-teams--capacity .qi-mc-team-card__answer>div { flex:none; gap:2px!important; }
+.qi-mc-teams--capacity .qi-mc-team-card__answer>div>span { width:6px!important; height:6px!important; }
+.qi-mc-teams--capacity .qi-mc-team-adjust { display:none!important; }
 
 /* Keep the live host console inside a laptop/venue-control viewport. Width-only
    scaling made long questions oversized on widescreen displays and pushed the

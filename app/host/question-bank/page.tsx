@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HostShell, HostButton, HostInput, HostLoading, Chip } from "@/components/fable/HostConsole";
 import { useConfirmDialog, usePromptDialog } from "@/components/ui/quiz-it-ui";
 import { getMediaUrl } from "@/lib/getMediaUrl";
+import { ImageUploader } from "@/components/ImageUploader";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 
@@ -81,6 +82,54 @@ export default function QuestionBankPage() {
   // check - the browser's own <img onError> catches a link that's already
   // dead right now, regardless of which host it's on.
   const [brokenImageIds, setBrokenImageIds] = useState<Set<string>>(new Set());
+  // No edit path existed anywhere on this page - Approve's own confirm
+  // dialog (above, hasMissingPicture) tells the host to "edit the question
+  // and set it up as a Picture question" for anything missing its original
+  // picture, but there was nothing to click. This modal is that missing
+  // path: question text, correct answer, and (for anything that should be a
+  // picture question) an image via the same ImageUploader used elsewhere in
+  // the app.
+  const [editingQuestion, setEditingQuestion] = useState<BankQuestion | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editAnswer, setEditAnswer] = useState("");
+  const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
+  const [editAsPicture, setEditAsPicture] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+
+  function openEdit(q: BankQuestion) {
+    setEditingQuestion(q);
+    setEditText(q.question_text);
+    setEditAnswer(q.correct_answer);
+    setEditImageUrl(q.question_type === "picture" ? q.option_b : null);
+    setEditAsPicture(q.question_type === "picture");
+  }
+
+  async function saveEdit() {
+    if (!editingQuestion) return;
+    setEditSaving(true);
+    const supabase = createSupabaseBrowserClient();
+    const updates: Record<string, unknown> = {
+      question_text: editText.trim(),
+      correct_answer: editAnswer.trim(),
+    };
+    // Only actually switches the row to a Picture question once a real
+    // image is attached - ticking the box with nothing uploaded yet would
+    // otherwise save a "picture" question with no picture, the exact
+    // problem this modal exists to fix.
+    if (editAsPicture && editImageUrl) {
+      updates.question_type = "picture";
+      updates.option_b = editImageUrl;
+      updates.review_note = null;
+    } else if (!editAsPicture && editingQuestion.question_type === "picture") {
+      updates.question_type = "text_answer";
+      updates.option_b = null;
+    }
+    const { error } = await supabase.from("question_bank").update(updates).eq("id", editingQuestion.id);
+    setEditSaving(false);
+    if (error) { setStatus("Could not save changes: " + error.message); return; }
+    setQuestions(prev => prev.map(q => q.id === editingQuestion.id ? { ...q, ...updates } as BankQuestion : q));
+    setEditingQuestion(null);
+  }
 
   const loadCounts = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -438,6 +487,7 @@ export default function QuestionBankPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
               {q.needs_review && <HostButton onClick={() => approveQuestion(q.id)} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Approve</HostButton>}
               {!q.needs_review && <HostButton onClick={() => { setPickerQuestion(q); setRoundSearch(""); }} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Add to round…</HostButton>}
+              <HostButton onClick={() => openEdit(q)} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Edit</HostButton>
               <HostButton onClick={() => deleteQuestion(q.id)} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Delete</HostButton>
             </div>
           </article>
@@ -449,6 +499,31 @@ export default function QuestionBankPage() {
       {confirmDialogEl}
       {promptDialogEl}
       {pickerQuestion && <div className="qi-confirm"><button className="qi-confirm__scrim" aria-label="Close round picker" onClick={() => setPickerQuestion(null)} /><section className="qi-confirm__panel" role="dialog" aria-modal="true" aria-label="Choose a round"><h2>Add question to a round</h2><p>{pickerQuestion.question_text}</p><HostInput autoFocus placeholder="Search Quiz Plans or round names…" value={roundSearch} onChange={event => setRoundSearch(event.target.value)} aria-label="Search destination rounds" /><div style={{ maxHeight: "45vh", overflowY: "auto", marginTop: 12 }}>{rounds.filter(round => `${round.quizName || "Reusable Round Library"} ${round.name}`.toLowerCase().includes(roundSearch.toLowerCase())).map(round => { const reason = roundUnavailableReason(round, pickerQuestion); return <HostButton key={`${round.table}:${round.id}`} disabled={saving || Boolean(reason)} onClick={async () => { setSaving(true); try { await addToRound(pickerQuestion, `${round.table}:${round.id}`); } finally { setSaving(false); } }} style={{ width: "100%", height: "auto", padding: 10, marginBottom: 6, textAlign: "left", display: "block" }}><small style={{ display: "block", color: "#B9A8D9" }}>{round.quizName || "Reusable Round Library"}</small>{round.name} · {round.questions.length} questions{reason ? ` — ${reason}` : ""}</HostButton>; })}{!rounds.length && <p>No rounds yet. Close this picker and use Build a round.</p>}</div><HostButton onClick={() => setPickerQuestion(null)}>Close</HostButton></section></div>}
+      {editingQuestion && (
+        <div className="qi-confirm">
+          <button className="qi-confirm__scrim" aria-label="Close edit" onClick={() => setEditingQuestion(null)} />
+          <section className="qi-confirm__panel" role="dialog" aria-modal="true" aria-label="Edit question" style={{ maxWidth: 480 }}>
+            <h2>Edit question</h2>
+            <label style={{ display: "block", font: "600 11px 'Inter'", color: "#B9A8D9", marginBottom: 4, marginTop: 10 }}>Question text</label>
+            <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={3} style={{ width: "100%", padding: 10, borderRadius: 8, background: "#150A2E", color: "#F4EFFF", border: "1px solid #4D3175", fontSize: 13, fontFamily: "'Inter',sans-serif", resize: "vertical" }} />
+            <label style={{ display: "block", font: "600 11px 'Inter'", color: "#B9A8D9", marginBottom: 4, marginTop: 10 }}>Correct answer</label>
+            <HostInput value={editAnswer} onChange={e => setEditAnswer(e.target.value)} />
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 14, cursor: "pointer", font: "600 12px 'Inter'", color: "#D9CCF2" }}>
+              <input type="checkbox" checked={editAsPicture} onChange={e => setEditAsPicture(e.target.checked)} /> This is a picture question
+            </label>
+            {editAsPicture && (
+              <div style={{ marginTop: 8 }}>
+                <ImageUploader currentUrl={editImageUrl} onUploaded={setEditImageUrl} />
+                {!editImageUrl && <p style={{ color: "#FFC533", font: "600 11px 'Inter'", marginTop: 6 }}>⚠ No picture attached yet - saving now will leave this as a text question until one's uploaded.</p>}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+              <HostButton onClick={saveEdit} disabled={editSaving || !editText.trim() || !editAnswer.trim()}>{editSaving ? "Saving..." : "Save"}</HostButton>
+              <HostButton onClick={() => setEditingQuestion(null)}>Cancel</HostButton>
+            </div>
+          </section>
+        </div>
+      )}
     </HostShell>
   );
 }

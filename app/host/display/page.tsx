@@ -2070,6 +2070,7 @@ function DisplayScreenInner() {
             </div>
           )}
           <div className="qi-display-picture-prompt">TAKE A GOOD LOOK</div>
+          <QuizItBadge />
         </div>
       );
     }
@@ -2095,7 +2096,6 @@ function DisplayScreenInner() {
             {timeLeft !== null && timeLeft > 0 && (
               <div className={"qi-display-picture-timer" + (timeLeft<=5 ? " is-urgent" : "")}>{timeLeft}</div>
             )}
-            <div style={{ fontSize:18, color:"rgba(255,255,255,0.3)", letterSpacing:2 }}>Quiz-It</div>
           </div>
           <div className="qi-display-picture-layout">
             {imageUrl && (
@@ -2117,6 +2117,7 @@ function DisplayScreenInner() {
               </div>
             </div>
           </div>
+          <QuizItBadge />
         </div>
       );
     }

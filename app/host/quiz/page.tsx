@@ -503,7 +503,7 @@ function QuizControllerInner() {
     else if (hostPhase === "timer") { doRevealAnswer(); }
     else if (hostPhase === "hot_seat") {
       if (hotSeatCurrentAnswer && currentQ && isAnswerCorrect(hotSeatCurrentAnswer, currentQ)) resolveHotSeatCorrect();
-      else if (hotSeatCurrentAnswer || (hotSeatStatus === "claimed" && timeLeft <= 0)) reopenHotSeat(!!hotSeatCurrentAnswer);
+      else if (hotSeatCurrentAnswer || (hotSeatStatus === "claimed" && timeLeft <= 0)) reopenHotSeat(hotSeatCurrentAnswer ? "wrong" : "no-answer");
       else if (hotSeatStatus === "idle" || teams.length - hotSeatLockedTeams.length <= 0) doRevealAnswer();
     }
     else if (hostPhase === "answer") { doCelebrate(); }
@@ -1650,7 +1650,7 @@ function QuizControllerInner() {
   // wasWrongAnswer distinguishes an actual incorrect submission from simply
   // running out the clock with no answer at all - only a genuinely wrong
   // answer costs the team points.
-  async function reopenHotSeat(wasWrongAnswer: boolean = false) {
+  async function reopenHotSeat(outcome: "wrong" | "no-answer" = "wrong") {
     if (!sessionId || !hotSeatTeam) return;
     const penalizedTeam = hotSeatTeam;
     const lockedTeams = Array.from(new Set([...hotSeatLockedTeams, hotSeatTeam]));
@@ -1667,13 +1667,17 @@ function QuizControllerInner() {
       showToast("Hot Seat could not reopen. Check the connection and try again.", "error", 7000);
       return;
     }
-    if (wasWrongAnswer) {
-      const result = await applyScoreDelta(supabase, sessionPin, penalizedTeam, -5, {
-        roundDelta: -5,
-        eventKey: `hotseat-wrong:${sessionId}:r${roundNumber}:${qIdx}:${penalizedTeam}`,
-      });
-      if (result.scoreboardSyncError) console.error("Hot Seat wrong-answer penalty landed but scoreboard sync failed:", result.scoreboardSyncError);
-    }
+    // A team that buzzes in but runs out of time without submitting anything
+    // at all ("no-answer") costs them more than one that answered and got it
+    // wrong ("wrong") - per the host's explicit request, -10 vs -5. Buzzing
+    // in commits a team to the question ahead of everyone else, so failing
+    // to even attempt an answer is treated as the worse outcome.
+    const penalty = outcome === "wrong" ? -5 : -10;
+    const result = await applyScoreDelta(supabase, sessionPin, penalizedTeam, penalty, {
+      roundDelta: penalty,
+      eventKey: `hotseat-${outcome}:${sessionId}:r${roundNumber}:${qIdx}:${penalizedTeam}`,
+    });
+    if (result.scoreboardSyncError) console.error(`Hot Seat ${outcome} penalty landed but scoreboard sync failed:`, result.scoreboardSyncError);
     setHotSeatStatus(nextStatus);
     setHotSeatTeam(null);
     setHotSeatLockedTeams(lockedTeams);

@@ -75,7 +75,7 @@ interface Props {
   playerToken?: string;
 }
 
-function SequenceQuestion({ options, onSubmit, submitted }: { options: string[]; onSubmit: (ans: string) => void; submitted: boolean }) {
+function SequenceQuestion({ options, onSubmit, submitted }: { options: string[]; onSubmit: (answer: string, displayAnswer: string) => void; submitted: boolean }) {
   const [picked, setPicked] = useState<number[]>([]);
   const purple = "#BE26C1";
   const font = "'Inter', sans-serif";
@@ -88,7 +88,7 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
   function resetPicks() { setPicked([]); }
   function submitOrder() {
     const ordered = picked.map(i => options[i]);
-    onSubmit(ordered.join(", "));
+    onSubmit(JSON.stringify(ordered), ordered.join(" → "));
   }
   const allPicked = picked.length === options.length;
 
@@ -1984,7 +1984,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
 
         {timerReady && isSequence && (
-          <SequenceQuestion key={questionIndex} options={seqItems} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} submitted={submitted} />
+          <SequenceQuestion key={questionIndex} options={seqItems} onSubmit={(answer, displayAnswer) => { setMySubmittedDisplay(displayAnswer); submitAnswer(answer); }} submitted={submitted} />
         )}
 
         {timerReady && !isMultiChoice && !isSequence && !isMultiTap && !submitted && (

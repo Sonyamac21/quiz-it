@@ -51,6 +51,33 @@ test("A1: sequence comparison uses semantic order after options are randomised",
   assert.equal(isAnswerCorrect({ answer_text: "Michael Jackson,David Bowie,The Beatles,Elvis Presley" }, question), false);
 });
 
+test("Hot Seat sequences accept legacy text answers and JSON handset orders", () => {
+  const question = {
+    ...baseQuestion,
+    question_type: "sequence",
+    option_a: "First, with a comma",
+    option_b: "Second",
+    option_c: "Third",
+    option_d: "Fourth",
+    correct_answer: "First, with a comma, Second, Third, Fourth",
+  };
+  assert.equal(isAnswerCorrect({ answer_text: JSON.stringify(["First, with a comma", "Second", "Third", "Fourth"]) }, question), true);
+  assert.equal(isAnswerCorrect({ answer_text: JSON.stringify(["Second", "First, with a comma", "Third", "Fourth"]) }, question), false);
+});
+
+test("sequence scoring accepts edited answers stored as ordered option text", () => {
+  const question = {
+    ...baseQuestion,
+    question_type: "sequence",
+    option_a: "Alpha",
+    option_b: "Beta",
+    option_c: "Gamma",
+    option_d: "Delta",
+    correct_answer: "Gamma, Alpha, Delta, Beta",
+  };
+  assert.equal(isAnswerCorrect({ answer_text: JSON.stringify(["Gamma", "Alpha", "Delta", "Beta"]) }, question), true);
+});
+
 test("A3: Multi Tap gives two points for each correctly judged option", () => {
   const question = {
     ...baseQuestion,

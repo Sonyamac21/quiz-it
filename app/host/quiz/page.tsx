@@ -1764,7 +1764,7 @@ function QuizControllerInner() {
 
   async function resolveHotSeatCorrect() {
     if (!hotSeatTeam || !currentQ) return;
-    const answer = answers.find(item => item.team_name === hotSeatTeam);
+    const answer = sharedLatestAnswerForTeam(answers, hotSeatTeam);
     if (!answer || !isAnswerCorrect(answer, currentQ)) return;
     await doRevealAnswer();
   }

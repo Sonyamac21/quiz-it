@@ -53,6 +53,34 @@ function answerKeys(value: string): string[] {
   return [...new Set(value.split(",").map(key => key.trim().toLowerCase()).filter(Boolean))];
 }
 
+function parseSequenceItems(value: string): string[] {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed) && parsed.every(item => typeof item === "string")) return parsed.map(item => item.trim());
+    } catch { /* legacy answers fall through to comma parsing */ }
+  }
+  return trimmed.split(",").map(item => item.trim()).filter(Boolean);
+}
+
+/** Resolve current key-based and legacy text-based stored sequence answers. */
+export function sequenceCorrectItems(q: ScorableQuestion): string[] {
+  const options = [q.option_a, q.option_b, q.option_c, q.option_d].filter((item): item is string => Boolean(item));
+  const raw = parseSequenceItems(q.correct_answer || "");
+  if (raw.length === options.length && raw.every(item => /^[a-d]$/i.test(item))) {
+    const map: Record<string, string | null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
+    return raw.map(key => map[key.toLowerCase()]).filter((item): item is string => Boolean(item));
+  }
+  if (raw.length === options.length) return raw;
+  // Recover legacy text answers when an option itself contains a comma.
+  const stored = normaliseAnswerText(q.correct_answer || "");
+  const located = options.map(item => ({ item, at: stored.indexOf(normaliseAnswerText(item)) }));
+  if (located.every(entry => entry.at >= 0)) return located.sort((a, b) => a.at - b.at).map(entry => entry.item);
+  return [];
+}
+
 export function normaliseTeamName(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -183,10 +211,8 @@ export function getCorrectAnswerText(q: ScorableQuestion): string {
     return map[storedKey] || q.correct_answer;
   }
   if (q.question_type === "sequence") {
-    const map: Record<string, string | null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
-    const order = q.correct_answer.split(",").map(s => s.trim().toLowerCase());
-    const texts = order.map(key => map[key]).filter((t): t is string => !!t);
-    if (texts.length === order.length) return texts.join(", ");
+    const texts = sequenceCorrectItems(q);
+    if (texts.length) return texts.join(" → ");
     return q.correct_answer;
   }
   if (q.question_type === "multi_tap") {
@@ -249,17 +275,17 @@ export function isAnswerCorrect(ans: ScorableAnswer, q: ScorableQuestion): boole
   // as one fuzzy-matched blob (a team that tapped every item right but in the
   // wrong order must not read as correct).
   if (q.question_type === "sequence") {
-    const map: Record<string, string | null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
-    const order = (q.correct_answer || "").split(",").map(s => s.trim().toLowerCase());
-    const correctItems = order.map(key => map[key]).filter((t): t is string => !!t);
-    if (correctItems.length === 0 || correctItems.length !== order.length) return false;
-    const submittedItems = (ans.answer_text || "").split(",").map(s => s.trim());
+    const correctItems = sequenceCorrectItems(q);
+    if (correctItems.length === 0) return false;
+    const submittedItems = parseSequenceItems(ans.answer_text || "");
     if (submittedItems.length !== correctItems.length) return false;
     // Current handsets submit the ordered option text. Accept an ordered key
     // sequence too so older clients and restored answers are scored identically.
     const submittedKeys = submittedItems.map(item => item.toLowerCase());
     if (submittedKeys.every(item => /^[a-d]$/.test(item))) {
-      return order.every((key, i) => key === submittedKeys[i]);
+      const map: Record<string, string | null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
+      const submittedText = submittedKeys.map(key => map[key]);
+      return correctItems.every((item, i) => normaliseAnswerText(item) === normaliseAnswerText(submittedText[i] || ""));
     }
     return correctItems.every((item, i) => normaliseAnswerText(item) === normaliseAnswerText(submittedItems[i] || ""));
   }

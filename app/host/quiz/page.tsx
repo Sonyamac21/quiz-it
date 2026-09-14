@@ -28,6 +28,7 @@ import { clearPendingManualAdjustment, loadPendingManualAdjustment, savePendingM
 import { calculateSpinPayout, type SpinPayoutLabel } from "@/lib/quiz/spinPayout";
 import { clearHostPreviewRecovery, loadHostPreviewRecovery, saveHostPreviewRecovery } from "@/lib/quiz/hostPreviewRecovery";
 import { FitBlockText } from "@/components/FitBlockText";
+import { speedBonusForRank, type FinalBonusMode } from "@/lib/quiz/speedBonus";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
 
@@ -176,6 +177,7 @@ function QuizControllerInner() {
   const [scoringInProgress, setScoringInProgress] = useState(false);
   const [pointsPerQ, setPointsPerQ] = useState(DEFAULT_POINTS_PER_QUESTION);
   const [timeBonus, setTimeBonus] = useState(5);
+  const [finalBonusMode, setFinalBonusMode] = useState<FinalBonusMode>("sliding_all");
   const [timerDuration, setTimerDuration] = useState<number>(PLATFORM_CONFIG.timers.defaultSeconds);
   // True while The Pursuit overlay is running — the global spacebar handler stands
   // down so the Pursuit panel drives Space itself (no double-handling).
@@ -438,6 +440,11 @@ function QuizControllerInner() {
     if (selectedRound) roundQuestionsRef.current = [...selectedRound.questions];
   }, [selectedRound]);
   useEffect(() => {
+    if (!sessionPin) return;
+    const saved = window.localStorage.getItem(`quizit:final-bonus-mode:${sessionPin}`);
+    if (saved === "winner_only" || saved === "sliding_all") setFinalBonusMode(saved);
+  }, [sessionPin]);
+  useEffect(() => {
     const pinFromUrl = searchParams.get("pin");
     if (pinFromUrl && pinFromUrl.length === 4 && !connected) {
       setPinInput(pinFromUrl);
@@ -465,7 +472,7 @@ function QuizControllerInner() {
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [hostPhase, selectedRound, qIdx, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, timerDuration, dangerZone, dangerPenalty, wipeoutMode, timeLeft, isLastQ, pursuitActive, hardDeckActive]);
+  }, [hostPhase, selectedRound, qIdx, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, finalBonusMode, timerDuration, dangerZone, dangerPenalty, wipeoutMode, timeLeft, isLastQ, pursuitActive, hardDeckActive]);
 
   async function handleSpacebar() {
     if (pursuitActive) return; // The Pursuit panel owns Space while it's running.
@@ -881,9 +888,12 @@ function QuizControllerInner() {
       .sort((a, b) => a.submittedAt - b.submittedAt);
 
     const rankBonus: Record<string, number> = {};
+    const selectedIsFinalRound = rounds.length > 0 && selectedRound?.position === rounds[rounds.length - 1]?.position;
     correctEntries.forEach((entry, idx) => {
       const availableBonus = q.question_type === "multi_tap" ? 4 : timeBonus;
-      rankBonus[entry.teamName] = selectedRound?.round_type === "hot_seat" ? 0 : Math.max(0, availableBonus - idx);
+      rankBonus[entry.teamName] = selectedRound?.round_type === "hot_seat"
+        ? 0
+        : speedBonusForRank(idx, availableBonus, selectedIsFinalRound, finalBonusMode);
     });
     // Record whoever actually ranked #1 here - this IS the fastest-correct
     // determination that decides the bonus points above, so it's also the
@@ -2783,6 +2793,21 @@ function QuizControllerInner() {
                   <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Max time bonus</label>
                   <input type="number" value={timeBonus} onChange={e => setTimeBonus(Number(e.target.value))} style={{ width:60, padding:"6px 8px", borderRadius:10, background:"#0A0118", color:"#fff", border:"1px solid #2E1A52", font:"600 14px 'Inter'", textAlign:"center" as const }} />
                 </div>
+                {rounds.length > 0 && selectedRound?.position === rounds[rounds.length - 1]?.position && (
+                  <div style={{ display:"grid", gap:6 }}>
+                    <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9" }}>Final-round speed bonus</label>
+                    <div role="group" aria-label="Final-round speed bonus mode" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+                      {(["winner_only", "sliding_all"] as FinalBonusMode[]).map(mode => {
+                        const active = finalBonusMode === mode;
+                        return <button key={mode} type="button" aria-pressed={active} onClick={() => {
+                          setFinalBonusMode(mode);
+                          if (sessionPin) window.localStorage.setItem(`quizit:final-bonus-mode:${sessionPin}`, mode);
+                        }} style={{ minHeight:38, padding:"6px 8px", borderRadius:10, background:active?"rgba(190,38,193,.28)":"#150A2E", border:`1px solid ${active?"#D94FDC":"#2E1A52"}`, color:active?"#fff":"#8A7AB0", font:"700 11px 'Inter'", cursor:"pointer" }}>{mode === "winner_only" ? "WINNER ONLY" : "ALL CORRECT"}</button>;
+                      })}
+                    </div>
+                    <span style={{ font:"400 10px 'Inter'", color:"#8A7AB0", lineHeight:1.35 }}>{finalBonusMode === "winner_only" ? `Only the fastest correct team gets +${timeBonus}.` : `Every correct team gets a ranked bonus, from +${timeBonus} down to +1.`}</span>
+                  </div>
+                )}
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Danger Zone</label>
                   <button onClick={() => setDangerZone((p: boolean) => !p)} style={{ padding:"6px 16px", borderRadius:10, background:dangerZone?"rgba(190,38,193,0.25)":"#150A2E", border:"1px solid "+(dangerZone?"#D94FDC":"#2E1A52"), color:dangerZone?"#fff":"#6B5A8E", font:"700 12px 'Inter'", letterSpacing:".08em", cursor:"pointer" }}>{dangerZone ? "ON" : "OFF"}</button>
@@ -2804,7 +2829,7 @@ function QuizControllerInner() {
               </div>
             )}
             {!roundSettingsOpen && (
-              <div style={{ font:"400 12px 'Inter'", color:"#6B5A8E" }}>{currentQ?.question_type === "multi_tap" ? "2pts/correct choice" : `${pointsPerQ}pts/q`} · {getTimerForQuestion(currentQ, timerDuration)}s · +{timeBonus} bonus · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal"}</div>
+              <div style={{ font:"400 12px 'Inter'", color:"#6B5A8E" }}>{currentQ?.question_type === "multi_tap" ? "2pts/correct choice" : `${pointsPerQ}pts/q`} · {getTimerForQuestion(currentQ, timerDuration)}s · +{timeBonus} bonus{rounds.length > 0 && selectedRound?.position === rounds[rounds.length - 1]?.position ? finalBonusMode === "winner_only" ? " (winner only)" : " (all correct)" : ""} · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal"}</div>
             )}
           </section>
 

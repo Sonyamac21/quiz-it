@@ -167,6 +167,14 @@ button, input, select, textarea { font: inherit; }
   transition: transform var(--qi-motion-fast) var(--qi-ease-settle), border-color var(--qi-motion-fast), background var(--qi-motion-fast), box-shadow var(--qi-motion-fast);
 }
 .qi-button:hover:not(:disabled) { transform: translateY(-1px); }
+
+/* Round-prep cards expand their full question body on hover. Keep the
+   permanent action footer in a higher stacking layer than that preview;
+   otherwise the preview paints over Edit/Regenerate precisely when the
+   pointer enters the card. The opaque footer also prevents long option text
+   from showing through beneath the controls. */
+.qi-prep-question-actions { position:relative; z-index:42; flex-shrink:0; padding-top:8px; margin-top:0 !important; background:#150a2e; box-shadow:0 -8px 14px #150a2e; }
+.qi-prep-question-preview { overscroll-behavior:contain; }
 .qi-button:active:not(:disabled) { transform: translateY(1px); }
 .qi-button:disabled { color: var(--qi-text-muted); cursor: not-allowed; opacity: 0.58; box-shadow: none; }
 .qi-button--primary { background: var(--qi-accent); border-color: var(--qi-accent-bright); box-shadow: var(--qi-shadow-glow); }

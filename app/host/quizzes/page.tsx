@@ -1908,11 +1908,11 @@ export default function QuizBuilderPage() {
                               {/* Hover expands the full, untruncated question/options in a
                                   popover above everything else, same as the Question Library. */}
                               {isCardHovered && (
-                                <div style={{ position: "absolute", top: -1, left: -1, right: -1, zIndex: 40, background: "#150A2E", border: "1px solid #BE26C1", borderRadius: 12, padding: "12px 34px 12px 14px", boxShadow: "0 12px 32px rgba(0,0,0,0.55)", maxHeight: 480, overflowY: "auto" }}>
+                                <div className="qi-prep-question-preview" style={{ position: "absolute", top: -1, left: -1, right: -1, zIndex: 40, background: "#150A2E", border: "1px solid #BE26C1", borderRadius: 12, padding: "12px 34px 12px 14px", boxShadow: "0 12px 32px rgba(0,0,0,0.55)", maxHeight: 480, overflowY: "auto" }}>
                                   {cardBody}
                                 </div>
                               )}
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                              <div className="qi-prep-question-actions" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                                 <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>EDIT</HostButton>
                                 <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace with a new AI-generated question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
                                 <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Drag to reorder</span>

@@ -11,7 +11,7 @@ import { useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
-import { eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings } from "@/lib/quiz/prepRules";
+import { eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "@/lib/quiz/prepRules";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const HOT_SEAT_TOTAL_QUESTIONS = 5;
@@ -74,6 +74,7 @@ const VALID_INTENTS: GuidedIntent[] = ["create", "duplicate", "assign"];
 // fields this page reads/writes when inserting one into a Quiz Plan round.
 type BankQuestion = {
   id: string;
+  created_at?: string | null;
   question_text: string;
   question_type: string;
   option_a: string | null;
@@ -327,7 +328,13 @@ export default function QuizBuilderPage() {
     // From Library) hard-excludes anything already used.
     // Bulk-imported questions (e.g. the SpeedQuizzing archive) land as
     // needs_review=true and stay out of this picker until reviewed/approved.
-    let query = supabase.from("question_bank").select("*").or("needs_review.is.null,needs_review.eq.false").order("created_at", { ascending: false }).limit(100);
+    let query = supabase.from("question_bank").select("*")
+      .or("needs_review.is.null,needs_review.eq.false")
+      // Order before limiting so recently-used rows cannot crowd unused
+      // questions out of the 100-row manual picker window.
+      .order("times_used", { ascending: true, nullsFirst: true })
+      .order("created_at", { ascending: false })
+      .limit(100);
     // Type filter is explicit and host-controlled (see libraryTypeFilter) -
     // "" means no filter. typeOverride lets a caller apply a just-changed
     // filter value immediately, since setLibraryTypeFilter's state update
@@ -339,7 +346,9 @@ export default function QuizBuilderPage() {
       query = query.or(`question_text.ilike.%${term}%,correct_answer.ilike.%${term}%,topic.ilike.%${term}%`);
     }
     const { data } = await query;
-    setLibraryResults((data || []) as BankQuestion[]);
+    // Defensive client sort keeps the intended grouping even if an older
+    // database/schema ignores the ordered usage column.
+    setLibraryResults(sortLibraryQuestionsByUsage((data || []) as BankQuestion[]));
     setLibraryLoading(false);
   }
   async function addLibraryQuestion(round: QuizRound, bankQ: BankQuestion) {

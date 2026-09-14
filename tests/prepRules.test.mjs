@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { eligibleLibraryQuestions, resolveRoundGenerationSettings } from "../lib/quiz/prepRules.ts";
+import { eligibleLibraryQuestions, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "../lib/quiz/prepRules.ts";
 
 test("A7: regeneration retains the round's saved theme and difficulty", () => {
   assert.deepEqual(
@@ -38,4 +38,17 @@ test("A9: a rejected library question stays excluded from later pulls for that r
     { id: "available", question_text: "Available question", correct_answer: "Yes" },
   ];
   assert.deepEqual(eligibleLibraryQuestions(pool, [], new Set(["rejected"])).map(question => question.id), ["available"]);
+});
+
+test("used library questions move below all unused questions in the picker", () => {
+  const questions = [
+    { id: "used-new", times_used: 1, created_at: "2026-09-14T09:00:00Z" },
+    { id: "unused-old", times_used: 0, created_at: "2026-09-10T09:00:00Z" },
+    { id: "used-old", times_used: 3, created_at: "2026-09-01T09:00:00Z" },
+    { id: "unused-new", times_used: null, created_at: "2026-09-13T09:00:00Z" },
+  ];
+  assert.deepEqual(
+    sortLibraryQuestionsByUsage(questions).map(question => question.id),
+    ["unused-new", "unused-old", "used-new", "used-old"],
+  );
 });

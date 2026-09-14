@@ -12,3 +12,7 @@ test("handset keypad and sequence lock actions use the full available width", ()
   assert.match(css, /\.qi-player-question-screen \.qi-player-keypad__actions,[\s\S]*width:100%; max-width:none; box-sizing:border-box;/);
   assert.match(css, /\.qi-player-question-screen \.qi-player-keypad__submit,[\s\S]*min-width:0; box-sizing:border-box;/);
 });
+
+test("live handset does not show a redundant speed-bonus label", () => {
+  assert.doesNotMatch(player, /Speed bonus/i);
+});

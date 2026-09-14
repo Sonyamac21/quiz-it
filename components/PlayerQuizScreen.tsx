@@ -1918,7 +1918,6 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
                   onClick={() => { if (!selectedAnswer) return; const opt = options.find(o => o.key === selectedAnswer); setMySubmittedDisplay(opt?.text || selectedAnswer); submitAnswer(selectedAnswer); }}>
                   {selectedAnswer ? "LOCK IT IN" : "SELECT AN ANSWER"}
                 </button>
-                {selectedAnswer && <div className="lk-note">Speed bonus draining — lock to bank it</div>}
               </>
             )}
             {submitted && <div className="lk-note" role="status" aria-live="polite" style={{ color: "var(--green)", letterSpacing: "0.2em", fontSize: 13 }}>{submissionPending ? "LOCKING…" : "ANSWER LOCKED IN ✓"}</div>}

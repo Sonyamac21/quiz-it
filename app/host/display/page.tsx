@@ -2203,22 +2203,14 @@ function DisplayScreenInner() {
       );
     }
 
-    // STANDARD QUESTION — Fable "live answer meter" layout.
+    // STANDARD QUESTION — clean live-question layout.
     const tLeft = timeLeft ?? 0;
     const allOpts = isMulti ? options : isMultiTap ? multiTapOptions : [];
-    // Real, live locked-in count: distinct still-connected teams that have
-    // actually submitted an answer for this question. Intersecting with the
-    // current `teams` list means a team leaving mid-question doesn't corrupt the
-    // count, and it never exceeds the number of teams in the room.
-    const totalTeams = teams.length;
-    const lockedCount = lockedTeams.filter(t => teams.some(tm => tm.team_name === t)).length;
     // A question with no options on screen (text_answer, number) had exactly
     // the same amount of top-anchored content as a multiple_choice/multi_tap
     // question - just the top bar and the question line - so the whole
-    // middle of the screen sat empty, with only qd-meter's own auto-margin
-    // pulling it down to the bottom. That read as "everything stuck at the
-    // top with a dead gap below", not an intentionally composed screen.
-    // qd--compact centers that shorter content block vertically instead,
+    // middle of the screen otherwise sits empty. qd--compact centers that
+    // shorter content block vertically instead,
     // while multiple_choice/multi_tap (which already fill the middle with
     // their options grid) keep the original top-anchored flow.
     const isCompact = allOpts.length === 0 && question.question_type !== "audio";
@@ -2234,17 +2226,7 @@ function DisplayScreenInner() {
         <div className={"qd" + (isCompact ? " qd--compact" : "")}>
           <div className="qd-top">
             <span><span className="qd-kick">QUESTION {questionIndex + 1}</span> · {(roundName || "GENERAL KNOWLEDGE").toUpperCase()}</span>
-            {/* Same large circular timer as every other question type (the
-                host asked for the bigger countdown back, uniform everywhere)
-                sitting in the top bar's own flow rather than absolutely
-                positioned, so it can't overlap the question text or the
-                fixed corner logo. Grouped with the status text in one flex
-                child so qd-top's existing two-child space-between still just
-                works. */}
-            <span style={{ display: "flex", alignItems: "center", gap: "1.2vw" }}>
-              {tLeft > 0 && <div className={"qi-display-picture-timer" + (tLeft <= 5 ? " is-urgent" : "")}>{tLeft}</div>}
-              <span>{tLeft > 0 ? "SPEED BONUS" : "ANSWERS LOCKED"}</span>
-            </span>
+            {tLeft > 0 && <div className={"qi-display-picture-timer" + (tLeft <= 5 ? " is-urgent" : "")}>{tLeft}</div>}
           </div>
           <FitQuestionText className="qd-q" text={question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")} />
           {allOpts.length > 0 && (
@@ -2260,14 +2242,6 @@ function DisplayScreenInner() {
           {!isMulti && !isMultiTap && question.question_type !== "audio" && (
             <div style={{ textAlign: "center", margin: "2% 6%", color: "var(--text2)", fontSize: "clamp(12px,1.6vw,20px)", fontWeight: 600, letterSpacing: "0.1em" }}>ANSWER ON YOUR PHONE</div>
           )}
-          <div className="qd-meter">
-            <div className="qd-mlabel"><span>ANSWERS LOCKED</span><b className="tnum">{lockedCount} OF {totalTeams}</b></div>
-            <div className="qd-ticks">
-              {Array.from({ length: Math.max(totalTeams, 1) }).map((_, i) => (
-                <div key={i} className={"qd-tick" + (i < lockedCount ? " in" : "") + (i === lockedCount - 1 ? " last" : "")} />
-              ))}
-            </div>
-          </div>
         </div>
         <QuizItBadge />
       </div>

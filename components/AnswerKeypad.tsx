@@ -115,13 +115,13 @@ export function AnswerKeypad({ onSubmit, mode = "text", scrambled = false }: { o
         </button>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+      <div className="qi-player-keypad__actions" style={{ display: "grid", gridTemplateColumns: "minmax(92px, .65fr) minmax(0, 1.35fr)", gap: 8, marginTop: 4, width: "100%" }}>
         <button type="button" className="qi-player-keypad__delete" onClick={backspace} disabled={!value}
-          style={{ flex: 1, padding: isCompact ? "clamp(10px, 2.2vh, 22px)" : "22px", borderRadius: 10, background: "rgba(255,255,255,0.1)", border: "1.5px solid rgba(255,255,255,0.28)", color: value ? "#fff" : "rgba(255,255,255,0.35)", fontSize: 17, fontWeight: 800 as const, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
+          style={{ width: "100%", minWidth: 0, padding: isCompact ? "clamp(10px, 2.2vh, 22px)" : "22px", borderRadius: 10, background: "rgba(255,255,255,0.1)", border: "1.5px solid rgba(255,255,255,0.28)", color: value ? "#fff" : "rgba(255,255,255,0.35)", fontSize: 17, fontWeight: 800 as const, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
           {"\u232B"} DELETE
         </button>
         <button type="button" className="qi-player-keypad__submit" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}
-          style={{ flex: 2, padding: isCompact ? "clamp(12px, 2.6vh, 26px)" : "26px", borderRadius: 12, background: value.trim() ? purple : "#150A2E", color: value.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: value.trim() ? "1px solid #D94FDC" : "1px solid #2E1A52", fontSize: 22, fontWeight: 800, fontFamily: font, letterSpacing: 2, boxShadow: value.trim() ? "0 0 20px rgba(190,38,193,0.35)" : "none", cursor: value.trim() ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
+          style={{ width: "100%", minWidth: 0, boxSizing: "border-box", padding: isCompact ? "clamp(12px, 2.6vh, 26px)" : "26px", borderRadius: 12, background: value.trim() ? purple : "#150A2E", color: value.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: value.trim() ? "1px solid #D94FDC" : "1px solid #2E1A52", fontSize: 22, fontWeight: 800, fontFamily: font, letterSpacing: 2, boxShadow: value.trim() ? "0 0 20px rgba(190,38,193,0.35)" : "none", cursor: value.trim() ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
           LOCK IT IN
         </button>
       </div>

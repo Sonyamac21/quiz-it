@@ -121,13 +121,13 @@ function SequenceQuestion({ options, onSubmit, submitted }: { options: string[];
           </button>
         );
       })}
-      <div className="qi-player-sequence__actions" style={{ display: "flex", gap: 8, marginTop: 6 }}>
+      <div className="qi-player-sequence__actions" style={{ display: "grid", gridTemplateColumns: "minmax(92px, .65fr) minmax(0, 1.35fr)", gap: 8, marginTop: 6, width: "100%" }}>
         <button type="button" onClick={resetPicks} disabled={picked.length === 0}
-          style={{ flex: 1, minHeight: 56, borderRadius: 14, background: "#150A2E", border: "1px solid #2E1A52", color: picked.length ? "#fff" : "rgba(255,255,255,0.3)", font: "700 15px 'Inter'", cursor: picked.length ? "pointer" : "default" }}>
+          style={{ width: "100%", minWidth: 0, minHeight: 56, borderRadius: 14, background: "#150A2E", border: "1px solid #2E1A52", color: picked.length ? "#fff" : "rgba(255,255,255,0.3)", font: "700 15px 'Inter'", cursor: picked.length ? "pointer" : "default" }}>
           RESET
         </button>
         <button type="button" onClick={submitOrder} disabled={!allPicked}
-          style={{ flex: 2, minHeight: 56, borderRadius: 14, background: allPicked ? purple : "#150A2E", color: allPicked ? "#fff" : "rgba(255,255,255,0.3)", border: allPicked ? "1px solid #D94FDC" : "1px solid #2E1A52", boxShadow: allPicked ? "0 0 18px rgba(190,38,193,0.35)" : "none", font: "800 18px 'Inter'", letterSpacing: 1, cursor: allPicked ? "pointer" : "default" }}>
+          style={{ width: "100%", minWidth: 0, boxSizing: "border-box", minHeight: 56, borderRadius: 14, background: allPicked ? purple : "#150A2E", color: allPicked ? "#fff" : "rgba(255,255,255,0.3)", border: allPicked ? "1px solid #D94FDC" : "1px solid #2E1A52", boxShadow: allPicked ? "0 0 18px rgba(190,38,193,0.35)" : "none", font: "800 18px 'Inter'", letterSpacing: 1, cursor: allPicked ? "pointer" : "default" }}>
           LOCK IN ORDER
         </button>
       </div>

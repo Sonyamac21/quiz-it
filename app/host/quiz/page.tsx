@@ -332,6 +332,7 @@ function QuizControllerInner() {
   const [roundNumber, setRoundNumber] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
   const hostPhaseRef = useRef<HostPhase>("waiting");
+  const [spaceActionPending, setSpaceActionPending] = useState(false);
   const timerStartPendingRef = useRef(false);
   const timerRevealAllowedAtRef = useRef(0);
   // Guards doRevealAnswer against firing twice in quick succession (double
@@ -460,13 +461,13 @@ function QuizControllerInner() {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       e.preventDefault();
-      handleSpacebar();
+      void handleSpacebar();
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [hostPhase, selectedRound, qIdx, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, timerDuration, dangerZone, dangerPenalty, wipeoutMode, timeLeft, isLastQ, pursuitActive, hardDeckActive]);
 
-  function handleSpacebar() {
+  async function handleSpacebar() {
     if (pursuitActive) return; // The Pursuit panel owns Space while it's running.
     if (hardDeckActive) return; // The Hard Deck panel owns Space while it's running.
     if (!connected || !selectedRound) return;
@@ -479,11 +480,15 @@ function QuizControllerInner() {
       showToast("Scoring is not confirmed. Retry scoring before continuing.", "error", 7000);
       return;
     }
-    if (advancingRef.current) return;
+    if (advancingRef.current) {
+      showToast("Already moving to the next step…", "warning", 1400);
+      return;
+    }
     advancingRef.current = true;
-    setTimeout(() => { advancingRef.current = false; }, 400);
-
-    if (activePhase === "waiting") { doStartRound(); }
+    setSpaceActionPending(true);
+    const startedAt = Date.now();
+    try {
+    if (activePhase === "waiting") { await doStartRound(); }
     else if (activePhase === "round_start") {
       // A round with zero questions (e.g. a Hard Deck / Pursuit placeholder in
       // the running order that's meant to be played through its own overlay
@@ -504,16 +509,16 @@ function QuizControllerInner() {
         // always-visible button floating over the rest of the host UI.
         setHardDeckAutoStartId(selectedRound.id);
       }
-      else if ((selectedRound?.questions.length ?? 0) === 0) doEndRound();
-      else doPreviewQuestion(qIdx);
+      else if ((selectedRound?.questions.length ?? 0) === 0) await doEndRound();
+      else await doPreviewQuestion(qIdx);
     }
-    else if (activePhase === "preview") { doSendQuestion(); }
+    else if (activePhase === "preview") { await doSendQuestion(); }
     else if (activePhase === "question") {
       if (currentQ?.question_type === "picture" && picSubPhase === "image_only") {
-        doRevealPictureQuestion();
+        await doRevealPictureQuestion();
         setPicSubPhase("question_visible");
       } else {
-        doStartTimer();
+        await doStartTimer();
       }
     }
     else if (activePhase === "timer") {
@@ -522,20 +527,26 @@ function QuizControllerInner() {
       // Reveal Answer. The timer phase is made authoritative synchronously,
       // before React rerenders or the key listener can be resubscribed.
       if (timerStartPendingRef.current || Date.now() < timerRevealAllowedAtRef.current) return;
-      doRevealAnswer();
+      await doRevealAnswer();
     }
     else if (activePhase === "hot_seat") {
-      if (hotSeatCurrentAnswer && currentQ && isAnswerCorrect(hotSeatCurrentAnswer, currentQ)) resolveHotSeatCorrect();
-      else if (hotSeatCurrentAnswer || (hotSeatStatus === "claimed" && timeLeft <= 0)) reopenHotSeat(hotSeatCurrentAnswer ? "wrong" : "no-answer");
-      else if (hotSeatStatus === "idle" || teams.length - hotSeatLockedTeams.length <= 0) doRevealAnswer();
+      if (hotSeatCurrentAnswer && currentQ && isAnswerCorrect(hotSeatCurrentAnswer, currentQ)) await resolveHotSeatCorrect();
+      else if (hotSeatCurrentAnswer || (hotSeatStatus === "claimed" && timeLeft <= 0)) await reopenHotSeat(hotSeatCurrentAnswer ? "wrong" : "no-answer");
+      else if (hotSeatStatus === "idle" || teams.length - hotSeatLockedTeams.length <= 0) await doRevealAnswer();
     }
-    else if (activePhase === "answer") { doCelebrate(); }
+    else if (activePhase === "answer") { await doCelebrate(); }
     else if (activePhase === "celebration") {
-      if (isLastQ) { doEndRound(); }
-      else { doPreviewQuestion(qIdx + 1); }
+      if (isLastQ) { await doEndRound(); }
+      else { await doPreviewQuestion(qIdx + 1); }
     }
-    else if (activePhase === "round_end") { chooseRound(rounds.find(r => (r.position ?? 0) === (selectedRound?.position ?? -1) + 1) || null); }
-    else if (activePhase === "quiz_end") { doRevealNextTeam(); }
+    else if (activePhase === "round_end") { await chooseRound(rounds.find(r => (r.position ?? 0) === (selectedRound?.position ?? -1) + 1) || null); }
+    else if (activePhase === "quiz_end") { await doRevealNextTeam(); }
+    } finally {
+      const visibleFor = Date.now() - startedAt;
+      if (visibleFor < 180) await new Promise(resolve => setTimeout(resolve, 180 - visibleFor));
+      advancingRef.current = false;
+      setSpaceActionPending(false);
+    }
   }
 
   async function loadRounds(liveSessionId: string) {
@@ -2430,9 +2441,9 @@ function QuizControllerInner() {
           clickable (same as pressing Space). Readable from across the room / at a
           glance while talking. Timer phase shows the live countdown instead. */}
       {selectedRound && nextActionLabel && (
-        <button onClick={handleSpacebar} disabled={scoringInProgress} className={`qi-mc-next${hostPhase==="timer" ? " qi-mc-next--timer" : ""}`}>
+        <button onClick={() => void handleSpacebar()} disabled={scoringInProgress || spaceActionPending} aria-busy={spaceActionPending} className={`qi-mc-next${hostPhase==="timer" ? " qi-mc-next--timer" : ""}${spaceActionPending ? " is-advancing" : ""}`}>
           <span className="qi-mc-next__eyebrow">{upcomingRound ? `Up next: ${upcomingRound.name} (${upcomingRound.round_type})` : "Next action"}</span>
-          <span className="qi-mc-next__label">{nextActionLabel}</span>
+          <span className="qi-mc-next__label">{spaceActionPending ? "Working…" : nextActionLabel}</span>
           {hostPhase==="timer" && <span className={`qi-mc-next__timer${(timeLeft ?? 0)<=5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft}s</span>}
           <span className="qi-mc-next__key">Space ↵</span>
         </button>

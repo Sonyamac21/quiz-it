@@ -20,6 +20,14 @@ test("timer startup cannot collapse into reveal on a rapid second Space press", 
   assert.match(host, /hostPhaseRef\.current = "timer";[\s\S]*setHostPhase\("timer"\)/);
 });
 
+test("one Space press remains visibly active until its transition finishes", () => {
+  assert.match(host, /async function handleSpacebar\(\)/);
+  assert.match(host, /setSpaceActionPending\(true\)[\s\S]*await doStartRound\(\)/);
+  assert.match(host, /finally \{[\s\S]*advancingRef\.current = false;[\s\S]*setSpaceActionPending\(false\)/);
+  assert.match(host, /aria-busy=\{spaceActionPending\}/);
+  assert.match(host, /spaceActionPending \? "Working…" : nextActionLabel/);
+});
+
 test("host timer and handsets share one persisted wall-clock deadline", () => {
   assert.match(host, /const startedAtMs = Date\.now\(\);[\s\S]*const deadlineMs = startedAtMs \+ dur \* 1000/);
   assert.match(host, /timer_started_at: now,[\s\S]*timer_duration: dur/);

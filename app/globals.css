@@ -406,6 +406,7 @@ button, input, select, textarea { font: inherit; }
   transition: background var(--qi-motion-fast), box-shadow var(--qi-motion-fast);
 }
 .qi-mc-next:hover { background: linear-gradient(90deg, rgb(224 77 227 / 0.4), rgb(190 38 193 / 0.14)); box-shadow: inset 0 0 58px rgb(190 38 193 / 0.2); }
+.qi-mc-next.is-advancing { opacity:.86; cursor:progress; background:linear-gradient(90deg,rgb(190 38 193 / .42),rgb(190 38 193 / .16)); }
 .qi-mc-next__eyebrow { color: var(--qi-text-secondary); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.17em; text-transform: uppercase; }
 .qi-mc-next__label { font-size: clamp(1.65rem, 1.25rem + 1.6vw, 3rem); font-weight: 850; line-height: 1.05; }
 .qi-mc-next__timer { color: var(--qi-accent-bright); font-size: clamp(2.25rem, 1.8rem + 2vw, 4rem); font-weight: 900; font-variant-numeric: tabular-nums; }
@@ -2316,6 +2317,34 @@ button, input, select, textarea { font: inherit; }
 .qi-player-question-screen .qi-player-keypad { width:100%; max-width:680px; margin-inline:auto; }
 .qi-player-question-screen[data-answer-type="number"] .qi-player-keypad,
 .qi-player-question-screen[data-answer-type="nearest_wins"] .qi-player-keypad { max-width:420px; }
+
+/* Use the whole handset viewport without sacrificing the no-scroll gameplay
+   contract. Tall phones grow the active content and type; short phones retain
+   the compact rules below. Each question family owns the flexible middle so
+   unused height becomes larger tap targets/readable text, not dead space. */
+.qi-player-question-screen .qi-player-question-scroll > .fbl,
+.qi-player-question-screen .qi-player-keypad-wrap,
+.qi-player-question-screen .qi-player-sequence { flex:1 1 0; min-height:0; }
+.qi-player-question-screen .qi-player-question-scroll > .fbl,
+.qi-player-question-screen .qi-player-keypad-wrap { display:flex; flex-direction:column; justify-content:center; }
+.qi-player-question-screen[data-answer-type="multiple_choice"] .fbl .opt { flex:1 1 0; max-height:92px; font-size:clamp(17px,4.8vw,23px); }
+.qi-player-question-screen[data-answer-type="multi_tap"] .qi-player-multitap-grid { flex:1 1 0; grid-auto-rows:minmax(48px,1fr); }
+.qi-player-question-screen[data-answer-type="multi_tap"] .qi-player-answer-button { height:100%; font-size:clamp(16px,4.4vw,21px)!important; }
+.qi-player-question-screen .qi-player-keypad-wrap .qi-player-keypad { flex:1 1 auto; justify-content:center; }
+.qi-player-question-screen .qi-player-status__identity strong { font-size:clamp(13px,3.7vw,16px); }
+.qi-player-question-screen .qi-player-status__identity small { font-size:clamp(11px,3vw,13px); }
+.qi-player-waiting-timer { flex:1 1 auto; min-height:0; font-size:clamp(14px,4vw,18px); }
+.qi-player-answer .qi-player-result { min-height:min(34dvh,300px); display:grid; place-content:center; }
+.qi-player-answer .qi-player-answer-comparison { width:100%!important; max-width:none!important; }
+.qi-player-waiting > div:nth-of-type(2) { font-size:clamp(17px,4.8vw,21px)!important; }
+@media (min-height:700px) {
+  .qi-player-question-screen .qi-player-question-text { font-size:clamp(22px,3.4dvh,30px); max-height:21dvh; }
+  .qi-player-question-screen .fbl .lockbar { min-height:clamp(54px,7.5dvh,72px); font-size:clamp(18px,2.7dvh,22px); }
+  .qi-player-question-screen .qi-player-keypad__key { height:clamp(44px,6.2dvh,58px)!important; font-size:clamp(18px,3dvh,25px)!important; }
+  .qi-player-question-screen .qi-player-keypad__submit,.qi-player-question-screen .qi-player-keypad__delete,.qi-player-question-screen .qi-player-keypad__space { min-height:48px!important; font-size:clamp(16px,2.4dvh,20px)!important; }
+  .qi-player-hot-seat__question { font-size:clamp(23px,min(7.5vw,4.8dvh),38px); }
+  .qi-player-hot-seat__state span,.qi-player-observer-progress,.qi-player-pursuit-observer p { font-size:clamp(15px,4.2vw,19px); }
+}
 
 /* The answering team stays on one fixed Hot Seat control surface. Keep the
    shared header/timer visible and scale the active keypad instead of creating

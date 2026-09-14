@@ -1966,7 +1966,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
 
         {timerReady && !isMultiChoice && !isSequence && !isMultiTap && !submitted && (
-          <div style={{ marginBottom: 16 }}>
+          <div className="qi-player-keypad-wrap" style={{ marginBottom: 16 }}>
             <AnswerKeypad key={`${questionIndex}:${question.question_type}`} mode={question.question_type === "number" || question.question_type === "nearest_wins" ? "number" : "text"} scrambled={hostScrambledTeams.includes(teamName)} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
           </div>
         )}

@@ -16,3 +16,11 @@ test("handset keypad and sequence lock actions use the full available width", ()
 test("live handset does not show a redundant speed-bonus label", () => {
   assert.doesNotMatch(player, /Speed bonus/i);
 });
+
+test("handset question families expand into available vertical space", () => {
+  assert.match(player, /className="qi-player-keypad-wrap"/);
+  assert.match(css, /\.qi-player-question-screen \.qi-player-question-scroll > \.fbl,[\s\S]*flex:1 1 0; min-height:0;/);
+  assert.match(css, /data-answer-type="multiple_choice"[\s\S]*flex:1 1 0; max-height:92px/);
+  assert.match(css, /data-answer-type="multi_tap"[\s\S]*grid-auto-rows:minmax\(48px,1fr\)/);
+  assert.match(css, /@media \(min-height:700px\)[\s\S]*qi-player-question-text[\s\S]*font-size:clamp\(22px,3\.4dvh,30px\)/);
+});

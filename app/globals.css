@@ -168,13 +168,12 @@ button, input, select, textarea { font: inherit; }
 }
 .qi-button:hover:not(:disabled) { transform: translateY(-1px); }
 
-/* Round-prep cards expand their full question body on hover. Keep the
-   permanent action footer in a higher stacking layer than that preview;
-   otherwise the preview paints over Edit/Regenerate precisely when the
-   pointer enters the card. The opaque footer also prevents long option text
-   from showing through beneath the controls. */
-.qi-prep-question-actions { position:relative; z-index:42; flex-shrink:0; padding-top:8px; margin-top:0 !important; background:#150a2e; box-shadow:0 -8px 14px #150a2e; }
-.qi-prep-question-preview { overscroll-behavior:contain; }
+/* The expanded round-prep card owns its action footer. Keeping the question
+   body and controls in one flex stack prevents the footer from covering long
+   questions while ensuring Edit/Regenerate never scroll out of reach. */
+.qi-prep-question-actions { position:relative; z-index:1; flex-shrink:0; padding-top:8px; margin-top:0 !important; background:#150a2e; }
+.qi-prep-question-preview { display:flex; flex-direction:column; max-height:min(680px, calc(100vh - 24px)); overflow:hidden; overscroll-behavior:contain; }
+.qi-prep-question-preview__body { min-height:0; overflow-y:auto; padding-right:20px; scrollbar-gutter:stable; }
 .qi-button:active:not(:disabled) { transform: translateY(1px); }
 .qi-button:disabled { color: var(--qi-text-muted); cursor: not-allowed; opacity: 0.58; box-shadow: none; }
 .qi-button--primary { background: var(--qi-accent); border-color: var(--qi-accent-bright); box-shadow: var(--qi-shadow-glow); }

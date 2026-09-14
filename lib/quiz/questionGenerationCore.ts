@@ -431,14 +431,14 @@ export const GENERATION_MODEL = VALIDATION_MODEL;
 // and safely, since it can only ever cause a stuck request to fail faster.)
 export const CLIENT_REQUEST_TIMEOUT_MS = 35_000;
 
-export async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false, model?: string, combinedValidation: boolean = false) {
+export async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false, model?: string, combinedValidation: boolean = false, imageUrl?: string) {
   const res = await withAiRequestSlot(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CLIENT_REQUEST_TIMEOUT_MS);
     return fetch("/api/generate-questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch, model, combinedValidation }),
+      body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch, model, combinedValidation, imageUrl }),
       signal: controller.signal,
     }).catch(e => {
       if (e instanceof Error && e.name === "AbortError") throw new Error("Request to Anthropic timed out after 35s (no response) - retrying.");
@@ -462,6 +462,22 @@ export async function callAPI(prompt: string, maxTokens: number = 8000, structur
   if (structuredOutput && toolResult?.input) return JSON.stringify(toolResult.input);
   const text = data.content.filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
   return text.replace(/```json/g, "").replace(/```/g, "").trim();
+}
+
+async function checkPictureIdentity(q: Question, imageUrl: string): Promise<{ ok: boolean; note: string }> {
+  const prompt =
+    "You are visually validating a commercial pub-quiz picture question. Inspect the supplied image itself, not its filename, URL, search tags or intended query. " +
+    "Pass only when the main visible subject clearly and specifically depicts what the question and intended answer require. Reject generic, ambiguous, loosely related, partially related, or visibly different subjects. " +
+    "For food, a generic dish from the same country is NOT enough: an image intended as Pad Thai must visibly be Pad Thai, not merely Thai ingredients or another Thai meal. " +
+    "If you are not confident that players could identify the intended subject from this exact image, reject it. " +
+    "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"short visual mismatch reason\"}. " +
+    "Question: " + q.question_text + " | Intended image subject: " + (q.option_a || "") + " | Intended answer: " + q.correct_answer;
+  try {
+    const text = await callAPI(prompt, 300, true, false, FACT_CHECK_MODEL, false, imageUrl);
+    return parseModelJson<{ ok: boolean; note?: string }>(text, "object") as { ok: boolean; note: string };
+  } catch (error) {
+    return { ok: false, note: "Visual image check unavailable: " + (error instanceof Error ? error.message : "unknown error") };
+  }
 }
 
 export async function checkQuestion(q: Question, theme: string, recencyNote?: string): Promise<{ ok: boolean; note: string; unavailable?: boolean }> {
@@ -745,6 +761,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
           const pixabayUrl = hit.webformatURL || hit.largeImageURL;
           if (!pixabayUrl) {
             context.report.stages.media = { status: "failed", note: "Matched Pixabay result had no usable image URL" };
+            return null;
+          }
+          const visualCheck = await checkPictureIdentity(q, pixabayUrl);
+          if (!visualCheck.ok) {
+            context.report.stages.media = { status: "failed", note: visualCheck.note || "Pixabay image did not visually match the intended subject" };
             return null;
           }
           const persisted = await persistPixabayImage(pixabayUrl);

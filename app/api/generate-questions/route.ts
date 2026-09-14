@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Validate the prompt.
-    const { prompt, maxTokens, structuredOutput, webSearch, model, combinedValidation } = await req.json();
+    const { prompt, maxTokens, structuredOutput, webSearch, model, combinedValidation, imageUrl } = await req.json();
     // Only approved models are allowed through from the client; this is not
     // a general model passthrough. Quiz generation now explicitly requests
     // Haiku for both writing and validation to minimise commercial running
@@ -104,6 +104,17 @@ export async function POST(req: NextRequest) {
     if (prompt.length > 12000) {
       return NextResponse.json({ error: { message: "Prompt too long" } }, { status: 400 });
     }
+    let verifiedImageUrl: string | null = null;
+    if (imageUrl !== undefined) {
+      try {
+        const parsed = new URL(String(imageUrl));
+        const isPixabay = parsed.hostname === "pixabay.com" || parsed.hostname.endsWith(".pixabay.com");
+        if (parsed.protocol !== "https:" || !isPixabay) throw new Error("unsupported image host");
+        verifiedImageUrl = parsed.toString();
+      } catch {
+        return NextResponse.json({ error: { message: "Image validation only accepts secure Pixabay image URLs." } }, { status: 400 });
+      }
+    }
     // Clamp to a sane range - the fact-check call only needs a short JSON verdict
     // and was previously forced through the same 8000-token ceiling as full
     // question generation, which slowed every single check down for no reason.
@@ -119,7 +130,13 @@ export async function POST(req: NextRequest) {
     const requestBody: Record<string, unknown> = {
       model: resolvedModel,
       max_tokens: tokenLimit,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{
+        role: "user",
+        content: verifiedImageUrl ? [
+          { type: "image", source: { type: "url", url: verifiedImageUrl } },
+          { type: "text", text: prompt },
+        ] : prompt,
+      }],
     };
     if (structuredOutput === true) {
       requestBody.tools = [{

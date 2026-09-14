@@ -4,11 +4,19 @@ import { readFileSync } from 'node:fs';
 
 test('reconnected handset restores answers only from the current round', () => {
   const source = readFileSync(new URL('../components/PlayerQuizScreen.tsx', import.meta.url), 'utf8');
-  const start = source.indexOf('.select("answer_text")');
-  const lookup = source.slice(start, source.indexOf('.maybeSingle()', start));
+  const start = source.indexOf('.select("team_name,answer_text,submitted_at")');
+  const lookup = source.slice(start, source.indexOf('const ownAnswer', start));
   assert.match(lookup, /\.eq\("round_number", roundNumber\)/);
   assert.match(lookup, /\.eq\("question_index", questionIndex\)/);
+  assert.match(source, /find\(row => sameTeamName\(row\.team_name as string, teamName\)\)/);
+  assert.match(source, /const attempts = phase === "question" \? 1 : 4/);
   assert.match(source, /\[phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex, roundNumber\]/);
+});
+
+test('handset never claims no answer before authoritative recovery completes', () => {
+  const source = readFileSync(new URL('../components/PlayerQuizScreen.tsx', import.meta.url), 'utf8');
+  assert.match(source, /answerRecoveryComplete \? "No answer submitted" : "Checking your answer…"/);
+  assert.match(source, /onSubmit=\{\(text\) => \{ setMySubmittedDisplay\(text\); setAnswerText\(text\); submitAnswer\(text\); \}\}/);
 });
 
 test('handset session polling includes round identity used by answer writes', () => {

@@ -238,6 +238,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [tappedItems, setTappedItems] = useState<string[]>([]);
   const [mySubmittedDisplay, setMySubmittedDisplay] = useState("");
+  const [answerRecoveryComplete, setAnswerRecoveryComplete] = useState(false);
   const [error, setError] = useState("");
   const [blockUntil, setBlockUntil] = useState<string | null>(null);
   const [blockTeam, setBlockTeam] = useState<string | null>(null);
@@ -348,27 +349,36 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // already moved on to answer/celebration.
   useEffect(() => {
     if (phase !== "celebration" && phase !== "answer" && phase !== "question") return;
-    if (mySubmittedDisplay || submitted) return;
+    if (mySubmittedDisplay) { setAnswerRecoveryComplete(true); return; }
     if (!sessionPin || !teamName || !question) return;
     let cancelled = false;
     (async () => {
       const supabase = createSupabaseBrowserClient();
-      const { data } = await supabase.from("answers")
-        .select("answer_text")
-        .eq("session_pin", sessionPin)
-        .eq("round_number", roundNumber)
-        .eq("question_index", questionIndex)
-        .ilike("team_name", teamName.trim())
-        .order("submitted_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (cancelled || !data?.answer_text) return;
-      const text = data.answer_text as string;
-      setMySubmittedDisplay(text);
-      setSubmitted(true);
-      if (question.question_type === "multiple_choice") setSelectedAnswer(text);
-      else if (question.question_type === "multi_tap") setTappedItems(text.split(",").filter(Boolean));
-      else setAnswerText(text);
+      // Reveal can arrive on the realtime session channel a fraction before
+      // the answer row is visible to this handset. Retry briefly instead of
+      // rendering a false "No answer submitted" result in that window.
+      const attempts = phase === "question" ? 1 : 4;
+      for (let attempt = 0; attempt < attempts && !cancelled; attempt += 1) {
+        const { data } = await supabase.from("answers")
+          .select("team_name,answer_text,submitted_at")
+          .eq("session_pin", sessionPin)
+          .eq("round_number", roundNumber)
+          .eq("question_index", questionIndex)
+          .order("submitted_at", { ascending: false });
+        const ownAnswer = (data || []).find(row => sameTeamName(row.team_name as string, teamName));
+        if (ownAnswer?.answer_text) {
+          const text = ownAnswer.answer_text as string;
+          setMySubmittedDisplay(text);
+          setSubmitted(true);
+          if (question.question_type === "multiple_choice") setSelectedAnswer(text);
+          else if (question.question_type === "multi_tap") setTappedItems(text.split(",").filter(Boolean));
+          else setAnswerText(text);
+          setAnswerRecoveryComplete(true);
+          return;
+        }
+        if (attempt < attempts - 1) await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      if (!cancelled) setAnswerRecoveryComplete(true);
     })();
     return () => { cancelled = true; };
   }, [phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex, roundNumber]);
@@ -863,6 +873,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       submittingAnswerRef.current = false;
       setTappedItems([]);
       setMySubmittedDisplay("");
+      setAnswerRecoveryComplete(false);
       // This fires exactly once per new question, before any scoring for it
       // can have happened - the earliest possible moment to capture "my
       // total right before this question's points land".
@@ -1606,7 +1617,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           const myQuestionPoints = myRunningPoints !== undefined ? myRunningPoints - pointsBeforeQuestionRef.current : null;
           return (
             <>
-              <div className="qi-player-outcome-heading" role="status" aria-live="polite">{myAnswerCorrect ? "Correct answer" : mySubmittedDisplay ? "Not quite this time" : "No answer submitted"}</div>
+              <div className="qi-player-outcome-heading" role="status" aria-live="polite">{myAnswerCorrect ? "Correct answer" : mySubmittedDisplay ? "Not quite this time" : answerRecoveryComplete ? "No answer submitted" : "Checking your answer…"}</div>
               {question && <div className="qi-player-outcome-question">{question.question_text}</div>}
               {fastestTeamName && (
                 <div style={{ fontSize: 32, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 24px rgba(190,38,193,0.6)", marginBottom: 16 }}>{fastestTeamName}</div>
@@ -1654,7 +1665,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
                 <div className="qi-player-answer-comparison" style={{ width: "100%", maxWidth: 340, display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
                   <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 14px" }}>
                     <div style={{ fontSize: 10, letterSpacing: 1, color: "rgba(255,255,255,0.35)", marginBottom: 4 }}>YOUR ANSWER</div>
-                    <div style={{ fontSize: 14, color: "#fff" }}>{mySubmittedDisplay || "(no answer submitted)"}</div>
+                    <div style={{ fontSize: 14, color: "#fff" }}>{mySubmittedDisplay || (answerRecoveryComplete ? "(no answer submitted)" : "Checking…")}</div>
                   </div>
                   <div style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.4)", borderRadius: 10, padding: "10px 14px" }}>
                     <div style={{ fontSize: 10, letterSpacing: 1, color: "rgba(134,239,172,0.7)", marginBottom: 4 }}>CORRECT ANSWER</div>
@@ -1844,7 +1855,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         submitted={submitted}
         answerText={answerText}
         setAnswerText={setAnswerText}
-        onSubmit={submitAnswer}
+        onSubmit={(text) => { setMySubmittedDisplay(text); setAnswerText(text); submitAnswer(text); }}
         questionIndex={questionIndex}
         timeLeft={timeLeft}
         timerReady={timerReady}

@@ -755,7 +755,17 @@ button, input, select, textarea { font: inherit; }
    is a video, a photo, or nothing at all. */
 .fbl .lb-venue-intro{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vh;text-align:center;padding:0 6%;z-index:2;}
 .fbl .lb-venue-intro.has-media{background:linear-gradient(180deg,rgba(10,1,24,.05) 0%,rgba(10,1,24,.15) 55%,rgba(10,1,24,.72) 100%);border-radius:20px;justify-content:flex-end;padding-bottom:6%;}
-.fbl .lb-venue-intro-logo{width:min(320px,27vw);height:min(260px,22vw);object-fit:contain;border-radius:20px;background:rgba(10,1,24,.4);padding:12px;box-shadow:0 0 60px rgba(190,38,193,.45);animation:lbVenueLogoPop 1s var(--settle) both;}
+/* Was a fixed width+height box with object-fit:contain - correct disaster
+   prevention (nothing overflows), but a wide banner logo and a square logo
+   both get squeezed into the SAME box shape, so any logo whose own aspect
+   ratio doesn't match the box's leaves large empty letterboxed space either
+   side or top/bottom (the "big unused areas" the host flagged). max-width/
+   max-height with width/height:auto instead lets each venue's logo size
+   itself from its own real proportions, only ever capped by these two
+   ceilings - so a wide logo fills the width, a tall one fills the height,
+   and every venue's logo reads as "as large as it can be" rather than all
+   being boxed to one arbitrary rectangle. */
+.fbl .lb-venue-intro-logo{max-width:min(320px,27vw);max-height:min(260px,22vw);width:auto;height:auto;object-fit:contain;border-radius:20px;background:rgba(10,1,24,.4);padding:12px;box-shadow:0 0 60px rgba(190,38,193,.45);animation:lbVenueLogoPop 1s var(--settle) both;}
 .fbl .lb-venue-intro-name{font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:clamp(30px,5.4vw,64px);letter-spacing:.03em;color:#fff;text-shadow:0 12px 50px rgba(190,38,193,.55);animation:lbVenueNameSweep 1s var(--settle) .25s both;}
 .fbl .lb-venue-intro-tagline{font:700 clamp(13px,1.7vw,20px) 'Inter';letter-spacing:.28em;text-transform:uppercase;color:var(--purple-b);animation:lbVenueTaglineFade .8s var(--settle) .6s both;}
 .fbl .lb-venue-intro-bg{position:absolute;inset:0;border-radius:20px;overflow:hidden;background:radial-gradient(ellipse 70% 60% at 50% 40%,rgba(190,38,193,.28),transparent 70%),#150A2E;}
@@ -772,7 +782,7 @@ button, input, select, textarea { font: inherit; }
    from alternating sides so the rotation doesn't feel identical to the
    plain fade the other scenes use. */
 .fbl .lb-reel-brand{text-align:center;padding:0 8%;gap:18px;}
-.fbl .lb-reel-brand-logo{width:min(240px,32vw);height:min(190px,25vw);object-fit:contain;border-radius:16px;margin-bottom:4px;}
+.fbl .lb-reel-brand-logo{max-width:min(240px,32vw);max-height:min(190px,25vw);width:auto;height:auto;object-fit:contain;border-radius:16px;margin-bottom:4px;}
 .fbl .lb-reel-brand-headline{font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:clamp(24px,4vw,44px);color:#fff;letter-spacing:.04em;text-shadow:0 0 40px rgba(190,38,193,.5);animation:lbBrandSlide .7s var(--settle);}
 .fbl .lb-reel-brand-body{font:600 clamp(14px,1.8vw,22px) 'Inter';color:var(--text2);max-width:560px;line-height:1.5;white-space:pre-line;animation:lbBrandSlide .7s var(--settle) .1s both;}
 .fbl .lb-reel-host-photo{width:min(72%,560px);height:min(58%,430px);object-fit:contain;border-radius:12px;box-shadow:0 18px 55px rgba(0,0,0,.4);}
@@ -786,12 +796,12 @@ button, input, select, textarea { font: inherit; }
    object-fit:contain still protects the video's own aspect ratio. */
 .fbl .lb-reel-media{display:block;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
 .fbl .lb-venue-intro.has-media{inset:auto 5% 4%;min-height:34%;padding:5% 6% 4%;border-radius:0 0 clamp(18px,2vw,30px) clamp(18px,2vw,30px);background:linear-gradient(180deg,transparent,rgba(10,1,24,.94) 58%);gap:clamp(7px,1vh,14px);overflow:hidden;}
-.fbl .lb-venue-intro.has-media .lb-venue-intro-logo{position:absolute;left:3%;bottom:14%;width:clamp(80px,12vw,150px);height:clamp(64px,9vw,115px);padding:8px;border-radius:14px;}
+.fbl .lb-venue-intro.has-media .lb-venue-intro-logo{position:absolute;left:3%;bottom:14%;max-width:clamp(80px,12vw,150px);max-height:clamp(64px,9vw,115px);width:auto;height:auto;padding:8px;border-radius:14px;}
 .fbl .lb-venue-intro.has-media .lb-venue-intro-name{max-width:72%;font-size:clamp(28px,3.8vw,58px);line-height:1.08;text-wrap:balance;}
 .fbl .lb-venue-intro.has-media .lb-venue-intro-tagline{font-size:clamp(12px,1.2vw,18px);}
 .fbl .lb-reel-brand::before{content:"";position:absolute;inset:10% 7% 7%;border:1px solid rgba(217,79,220,.22);border-radius:clamp(18px,2vw,30px);background:linear-gradient(145deg,rgba(31,15,62,.88),rgba(10,1,24,.72));box-shadow:0 26px 80px rgba(0,0,0,.3);}
 .fbl .lb-reel-brand-panel{position:relative;z-index:1;width:min(90%,760px);height:min(75%,560px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(14px,2.2vh,28px);padding:clamp(22px,3vw,48px);overflow:hidden;}
-.fbl .lb-reel-brand-logo{width:clamp(120px,18%,220px);height:clamp(90px,20vh,180px);max-width:42%;object-fit:contain;border-radius:14px;margin:0;filter:drop-shadow(0 14px 28px rgba(0,0,0,.35));}
+.fbl .lb-reel-brand-logo{max-width:clamp(120px,18%,220px);max-height:clamp(90px,20vh,180px);width:auto;height:auto;object-fit:contain;border-radius:14px;margin:0;filter:drop-shadow(0 14px 28px rgba(0,0,0,.35));}
 .fbl .lb-reel-brand-headline{max-width:100%;font-size:clamp(28px,3.2vw,54px);line-height:1.16;overflow-wrap:anywhere;text-wrap:balance;}
 .fbl .lb-reel-brand-body{max-width:680px;font-size:clamp(18px,1.7vw,29px);line-height:1.42;text-wrap:balance;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:6;overflow:hidden;}
 /* The Instagram-handle scenes (@handle, single unbroken word/no spaces)
@@ -2142,8 +2152,8 @@ button, input, select, textarea { font: inherit; }
 .qi-display-winner img { object-fit:contain !important; background:#0b0318; }
 .fbl .lb-float-photo img { aspect-ratio:1/1; }
 .fbl .lb-venue-intro-logo,
-.fbl .lb-reel-brand-logo { object-fit:contain; max-width:42%; max-height:24vh; }
-.fbl .lb-venue-intro.has-media .lb-venue-intro-logo { width:clamp(110px,15vw,190px); height:clamp(82px,11vw,140px); max-width:30%; }
+.fbl .lb-reel-brand-logo { object-fit:contain; max-width:42%; max-height:24vh; width:auto; height:auto; }
+.fbl .lb-venue-intro.has-media .lb-venue-intro-logo { max-width:min(30%,clamp(110px,15vw,190px)); max-height:clamp(82px,11vw,140px); width:auto; height:auto; }
 
 .qi-display-intermission { justify-content:flex-start; gap:0; }
 .qi-display-intermission-title { font-size:clamp(34px,7vh,82px); margin:clamp(7px,1.4vh,14px) 0 5px; }
@@ -2196,7 +2206,7 @@ button, input, select, textarea { font: inherit; }
 .fbl .lb-venue-intro-host strong { display:block; margin-top:4px; color:#fff; font:850 clamp(15px,1.4vw,22px)/1.15 'Inter'; overflow-wrap:anywhere; }
 .fbl .lb-venue-intro.has-media .lb-venue-intro-copy { max-width:62%; }
 .fbl .lb-venue-intro.has-media .lb-venue-intro-name { max-width:100%; }
-.fbl .lb-venue-intro.has-media .lb-venue-intro-logo { left:3%; bottom:11%; width:clamp(125px,16vw,220px); height:clamp(92px,12vw,165px); max-width:31%; }
+.fbl .lb-venue-intro.has-media .lb-venue-intro-logo { left:3%; bottom:11%; max-width:min(31%,clamp(125px,16vw,220px)); max-height:clamp(92px,12vw,165px); width:auto; height:auto; }
 .fbl .lb-reel-brand-offers .lb-reel-brand-panel { border-color:rgba(232,195,106,.35); }
 @keyframes qiVenueTimeIn { from{opacity:0;transform:translateY(18px);letter-spacing:.28em} to{opacity:1;transform:none;letter-spacing:.13em} }
 @keyframes qiVenueHostIn { from{opacity:0;transform:translateX(55px) rotate(2deg) scale(.94)} to{opacity:1;transform:none} }
@@ -2255,7 +2265,7 @@ button, input, select, textarea { font: inherit; }
   .fbl .lb-venue-intro-copy { max-width:72%; }
   .fbl .lb-venue-intro.has-media .lb-venue-intro-copy { max-width:66%; }
   .fbl .lb-venue-intro-host { right:2%; bottom:4%; width:min(42%,220px); }
-  .fbl .lb-venue-intro.has-media .lb-venue-intro-logo { left:2%; bottom:5%; max-width:29%; }
+  .fbl .lb-venue-intro.has-media .lb-venue-intro-logo { left:2%; bottom:5%; max-width:29%; width:auto; height:auto; }
 }
 @media (prefers-reduced-motion:reduce) {
   .fbl .lb-venue-intro-time,.fbl .lb-venue-intro-host,.qi-player-venue-ad::after,.qi-player-venue-ad__image { animation:none!important; }

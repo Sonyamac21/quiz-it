@@ -537,20 +537,27 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       } catch {} finally { pending = false; }
     }
     const onVisible = () => { if (document.visibilityState === "visible") acquire(); };
+    const reacquire = () => { void acquire(); };
     if (active) {
       acquire();
       document.addEventListener("visibilitychange", onVisible);
-      window.addEventListener("focus", acquire);
-      window.addEventListener("pageshow", acquire);
-      document.addEventListener("pointerdown", acquire, { passive: true });
+      window.addEventListener("focus", reacquire);
+      window.addEventListener("pageshow", reacquire);
+      window.addEventListener("online", reacquire);
+      document.addEventListener("pointerdown", reacquire, { passive: true });
+      document.addEventListener("touchend", reacquire, { passive: true });
+      document.addEventListener("keydown", reacquire);
     }
-    const watchdog = window.setInterval(acquire, 15000);
+    const watchdog = window.setInterval(reacquire, 5000);
     return () => {
       disposed = true;
       document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", acquire);
-      window.removeEventListener("pageshow", acquire);
-      document.removeEventListener("pointerdown", acquire);
+      window.removeEventListener("focus", reacquire);
+      window.removeEventListener("pageshow", reacquire);
+      window.removeEventListener("online", reacquire);
+      document.removeEventListener("pointerdown", reacquire);
+      document.removeEventListener("touchend", reacquire);
+      document.removeEventListener("keydown", reacquire);
       window.clearInterval(watchdog);
       if (retryTimer) clearTimeout(retryTimer);
       if (sentinel) { sentinel.release().catch(() => {}); sentinel = null; }
@@ -563,32 +570,47 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     if (sessionStatus === "finished") return;
     const video = document.createElement("video");
     video.setAttribute("muted", "");
+    video.setAttribute("autoplay", "");
     video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
     video.setAttribute("loop", "");
     video.setAttribute("preload", "auto");
     video.setAttribute("aria-hidden", "true");
     video.muted = true;
+    video.autoplay = true;
     video.playsInline = true;
     video.loop = true;
+    video.controls = false;
+    video.disablePictureInPicture = true;
     video.src = "/keep-awake.mp4";
     // Keep it technically rendered: iOS may suspend display:none, zero-size,
     // fully transparent, or off-screen media even while play() says it ran.
-    video.style.cssText = "position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:-1;";
+    video.style.cssText = "position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.001;visibility:visible;pointer-events:none;z-index:0;transform:translateZ(0);";
     document.body.appendChild(video);
     const resume = () => { if (document.visibilityState === "visible" && video.paused) video.play().catch(() => {}); };
     resume();
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("focus", resume);
     window.addEventListener("pageshow", resume);
+    window.addEventListener("online", resume);
     document.addEventListener("pointerdown", resume, { passive: true });
     document.addEventListener("touchstart", resume, { passive: true });
-    const watchdog = window.setInterval(resume, 10000);
+    document.addEventListener("touchend", resume, { passive: true });
+    video.addEventListener("pause", resume);
+    video.addEventListener("stalled", resume);
+    video.addEventListener("ended", resume);
+    const watchdog = window.setInterval(resume, 5000);
     return () => {
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("focus", resume);
       window.removeEventListener("pageshow", resume);
+      window.removeEventListener("online", resume);
       document.removeEventListener("pointerdown", resume);
       document.removeEventListener("touchstart", resume);
+      document.removeEventListener("touchend", resume);
+      video.removeEventListener("pause", resume);
+      video.removeEventListener("stalled", resume);
+      video.removeEventListener("ended", resume);
       window.clearInterval(watchdog);
       video.pause();
       video.removeAttribute("src");

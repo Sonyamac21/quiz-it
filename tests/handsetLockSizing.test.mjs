@@ -24,3 +24,12 @@ test("handset question families expand into available vertical space", () => {
   assert.match(css, /data-answer-type="multi_tap"[\s\S]*grid-auto-rows:minmax\(48px,1fr\)/);
   assert.match(css, /@media \(min-height:700px\)[\s\S]*qi-player-question-text[\s\S]*font-size:clamp\(22px,3\.4dvh,30px\)/);
 });
+
+test("handsets continuously recover native and iOS screen-awake protection", () => {
+  assert.match(player, /window\.setInterval\(reacquire, 5000\)/);
+  assert.match(player, /window\.addEventListener\("online", reacquire\)/);
+  assert.match(player, /document\.addEventListener\("touchend", reacquire/);
+  assert.match(player, /video\.setAttribute\("autoplay", ""\)/);
+  assert.match(player, /z-index:0;transform:translateZ\(0\)/);
+  assert.match(player, /video\.addEventListener\("pause", resume\)/);
+});

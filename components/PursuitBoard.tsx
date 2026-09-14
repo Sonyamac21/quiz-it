@@ -198,9 +198,9 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
         <div className="pu-qpanel on">
           <span className="pu-qcat">GATE {Math.max(1, gate)}{questionCategory ? " · " + questionCategory.toUpperCase() : ""}</span>
           {status === "question" && typeof timeLeft === "number" && (
-            <span style={{ float: "right", fontFamily: "'Inter', sans-serif", fontWeight: 800, fontSize: "clamp(20px,3vh,34px)", fontVariantNumeric: "tabular-nums", color: timeLeft <= 5 ? "var(--feature-incorrect)" : "var(--brand-purple-bright)" }}>
-              {timeLeft > 0 ? timeLeft + "s" : "LOCKED"}
-            </span>
+            <div className={`qi-display-picture-timer pu-timer${timeLeft <= 5 ? " is-urgent" : ""}`} aria-label={`${timeLeft} seconds remaining`}>
+              {Math.max(0, timeLeft)}
+            </div>
           )}
           <div className="pu-qtext">{questionText || "Question is live on the handsets."}</div>
           <div className={"pu-qstate" + (status === "reveal" || status === "advance" ? " correct" : "")}>

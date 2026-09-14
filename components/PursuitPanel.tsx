@@ -7,6 +7,7 @@ import { applyScoreDelta } from "@/lib/quiz/scoreService";
 import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
 import { teamInitials } from "@/components/TeamBadge";
 import { PursuitBoard } from "@/components/PursuitBoard";
+import { FitBlockText } from "@/components/FitBlockText";
 import {
   PursuitPhase,
   PursuitRace,
@@ -527,7 +528,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
               in view. PursuitBoard measures its own container via
               ResizeObserver, so it scales to fit whatever height it's given. */}
           {qIndex >= 0 && status !== "idle" && status !== "waiting" && status !== "intro" && (
-            <div style={{ width: "100%", maxWidth: 900, height: "min(46vh, 420px)", margin: "0 auto 20px", position: "relative", borderRadius: "var(--qi-radius-lg, 20px)", overflow: "hidden", border: "1px solid var(--qi-border, rgba(255,255,255,0.14))", boxShadow: "var(--qi-shadow-sm, 0 4px 20px rgba(0,0,0,0.3))" }}>
+            <div className="qi-pursuit-host-board">
               <PursuitBoard
                 status={status}
                 race={race}
@@ -566,7 +567,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
               .qi-mc-question treatment instead of the small text buried
               inside the race graphic's own header. */}
           {currentQuestion && status !== "complete" && status !== "results" && (
-            <div className="qi-mc-question">
+            <div className="qi-mc-question qi-pursuit-host-question">
               <div className="qi-mc-question__meta">
                 <span style={{ background: "rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.4)", color: "#BE26C1", padding: "5px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>Question {qIndex + 1} of {PURSUIT_TOTAL_QUESTIONS}</span>
                 {status === "question" && (
@@ -577,7 +578,7 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
                     : <div style={{ marginLeft: "auto", width: 52, height: 52, borderRadius: "50%", background: (timeLeft ?? 0) <= 5 ? "rgba(239,68,68,0.3)" : "rgba(190,38,193,0.2)", border: "3px solid " + ((timeLeft ?? 0) <= 5 ? "#ef4444" : "#BE26C1"), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, color: (timeLeft ?? 0) <= 5 ? "#ef4444" : "#BE26C1" }}>{timeLeft}</div>
                 )}
               </div>
-              <h1 className="qi-mc-question__title">{currentQuestion.question_text}</h1>
+              <FitBlockText as="h1" className="qi-mc-question__title" maxViewportHeight={0.13} minFontSize={16}>{currentQuestion.question_text}</FitBlockText>
               <div className="qi-mc-answer-key">
                 <div style={{ fontSize: 12, marginBottom: 4, letterSpacing: 2 }}>ANSWER</div>
                 <div style={{ fontSize: 24, fontWeight: 700, color: "#22c55e" }}>{pursuitCorrectAnswerText(currentQuestion)}</div>

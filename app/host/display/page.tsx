@@ -1699,6 +1699,7 @@ function DisplayScreenInner() {
             {currentReelScene === "prizes" && (
               <div className="lb-reel-scene lb-reel-brand lb-reel-brand-prizes">
                 <div className="lb-reel-brand-panel">
+                  {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt={venueName ? `${venueName} logo` : "Venue logo"} />}
                   <div className="lb-cardkicker">TONIGHT&rsquo;S PRIZES</div>
                   <div className="lb-reel-brand-body">{venuePrizeInfo}</div>
                 </div>

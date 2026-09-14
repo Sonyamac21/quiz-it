@@ -24,6 +24,7 @@ import {
   genUid,
   MUSIC_TOPICS,
   PICTURE_TOPICS,
+  GENERAL_TOPIC_BUCKETS,
   REGULAR_TYPE_WEIGHTS,
   REQUIRED_REGULAR_TYPES,
   generateOne,
@@ -73,22 +74,9 @@ function allocateRegularTypes(count: number): string[] {
 // The recency bucket is listed TWICE (matches lib/quiz/generateRound.ts) so
 // it comes up roughly every 5-6 questions instead of every 10 - a single
 // slot in ten read as "basically never" per direct host feedback.
-const TOPIC_BUCKETS: string[][] = [
-  ["breaking and trending mainstream headlines from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent mainstream news from the last 3-12 months"],
-  ["movies and TV", "celebrities and showbiz", "awards and entertainment"],
-  ["music", "famous bands and singers", "global chart hits"],
-  ["geography", "famous landmarks", "world travel and international culture"],
-  ["simple history", "famous historical people", "major world events"],
-  ["sport", "football", "international sporting events"],
-  ["breaking celebrity, showbiz and pop-culture news from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent trending pop-culture moments from the last 3-12 months"],
-  ["accessible science and space", "animals", "nature and wildlife"],
-  ["food and drink", "logos and brands", "cars and transport"],
-  ["consumer technology and digital life", "video games", "social media and internet"],
-  ["books and literature", "art and culture", "theatre and musicals"],
-];
-const TOPICS = TOPIC_BUCKETS.flat();
+const TOPICS = GENERAL_TOPIC_BUCKETS.flat();
 function createGeneralTopicPicker(): (launchIndex: number) => string {
-  const shuffledBuckets = TOPIC_BUCKETS.map(shuffle);
+  const shuffledBuckets = GENERAL_TOPIC_BUCKETS.map(shuffle);
   const tried = new Set<string>();
   return (launchIndex: number): string => {
     const bucket = shuffledBuckets[launchIndex % shuffledBuckets.length];

@@ -142,6 +142,27 @@ export type GenerationContext = { error: string; report: CandidateReport };
 
 export const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
 
+// Shared by both generator screens. Geography, sport and verified recent
+// culture/showbiz intentionally receive several distinct buckets so mixed
+// rounds explore a wider pool instead of defaulting to evergreen celebrity
+// and entertainment facts.
+export const GENERAL_TOPIC_BUCKETS: string[][] = [
+  ["verified mainstream headlines from the last 1-3 months (completed stories only; no politics, war, crime or tragedy)", "recent positive world news from the last 3-9 months"],
+  ["world capitals beyond the most commonly asked examples", "countries, borders and neighbouring nations", "flags, currencies and official languages"],
+  ["breaking celebrity and showbiz news from the last 1-6 months (completed and verified; no rumours)", "recent film, television and streaming milestones from the last 3-12 months", "recent awards and red-carpet entertainment"],
+  ["recent international sport from the last 1-9 months (completed results and records only)", "recent completed football tournaments and confirmed transfers", "recent tennis, Formula 1, cricket or rugby results"],
+  ["rivers, lakes, mountains and natural wonders", "islands, coastlines and world travel", "cities, landmarks and UNESCO sites"],
+  ["football clubs, stadiums and international tournaments", "Olympic and Paralympic history", "tennis, Formula 1, cricket, rugby, golf and athletics"],
+  ["current chart hits and music news from the last 1-12 months", "global music awards and touring milestones", "famous bands, singers and collaborations"],
+  ["movies and television across different decades", "globally popular streaming series", "animation, comedy and cinema"],
+  ["celebrities and showbiz across different countries", "actors, presenters and comedians", "major entertainment awards"],
+  ["simple world history from varied continents", "famous historical people beyond royalty", "inventions, exploration and major cultural milestones"],
+  ["accessible science and space", "animals, habitats and wildlife", "weather, oceans and the natural world"],
+  ["food and national cuisines", "famous brands and products", "cars, aviation and transport"],
+  ["consumer technology and digital life", "video games across different eras", "social media and internet culture"],
+  ["books and literature", "art, museums and architecture", "theatre and musicals"],
+];
+
 // A small, permanent "don't use this again" list, separate from the
 // per-session/per-round exclusion lists below - those only cover what THIS
 // generation run has already produced, so a well-known, obvious fact (Burj
@@ -186,6 +207,7 @@ export const VARIETY_ANGLES = [
   "that's a deeper cut, not the most obvious example", "with a British/UK angle", "with a US angle",
   "that's slightly more obscure but still well-known", "involving a lesser-discussed fact about the topic",
   "from a different decade than you'd first think of", "that most people would NOT guess first",
+  "with an Asia, Africa or Middle East angle", "with a continental European angle", "from the Southern Hemisphere",
 ];
 
 // Shared AI concurrency queue. A module-level singleton - the older
@@ -1063,7 +1085,9 @@ export async function isDuplicateInMemory(q: Question, exclusions: ExclusionStat
     const { data, error } = await supabase.rpc("check_question_memory", {
       p_text: memoryText(q),
       p_type: q.question_type,
-      p_threshold: 0.75,
+      // Catch the same fact when it has been reworded more substantially.
+      // The database function also scopes comparisons by question type.
+      p_threshold: 0.68,
     });
     if (error) { console.error("Question Memory check unavailable (allowing question):", error.message); onDegraded?.(); return false; }
     return data != null;

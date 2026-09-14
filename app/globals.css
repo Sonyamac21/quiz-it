@@ -2277,6 +2277,17 @@ button, input, select, textarea { font: inherit; }
 @media (prefers-reduced-motion:reduce) {
   .fbl .lb-venue-intro-time,.fbl .lb-venue-intro-host,.qi-player-venue-ad::after,.qi-player-venue-ad__image { animation:none!important; }
 }
+
+/* Full-size venue TV lobby. Earlier laptop-oriented caps left a narrow
+   centre card surrounded by dead space and made uploaded venue logos read
+   like small badges. These late overrides deliberately own the widescreen
+   proportions while retaining contained, undistorted imagery. */
+@media (min-aspect-ratio: 4/3) and (min-width: 900px) {
+  .qi-display-lobby .lb-split { grid-template-columns:minmax(300px,.22fr) minmax(0,.78fr); }
+  .fbl .lb-reel-brand-panel { width:min(94%,1200px); height:min(82%,760px); }
+  .fbl .lb-reel-brand-logo { max-width:min(42%,360px); max-height:min(30vh,280px); width:auto; height:auto; }
+  .fbl .lb-venue-intro.has-media .lb-venue-intro-logo { left:3%; bottom:9%; max-width:min(36%,clamp(170px,19vw,320px)); max-height:clamp(120px,16vw,220px); width:auto; height:auto; }
+}
 /* Compact answering mode; waiting/results retain their larger team photo.
    Inner overflow remains available for unusually long text/accessibility zoom. */
 .qi-player-question-screen { padding: max(6px,env(safe-area-inset-top)) 12px max(6px,env(safe-area-inset-bottom)) !important; }

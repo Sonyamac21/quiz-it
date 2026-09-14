@@ -51,6 +51,7 @@ import {
   REGULAR_TYPE_WEIGHTS,
   REQUIRED_REGULAR_TYPES,
   MAX_AI_CONCURRENCY,
+  GENERAL_TOPIC_BUCKETS,
   MUSIC_TOPICS,
   PICTURE_TOPICS,
 } from "@/lib/quiz/questionGenerationCore";
@@ -224,20 +225,7 @@ export async function generateValidatedRound(
   // random not-yet-used topic within whichever bucket is due next)
   // guarantees every category gets a fair, spread-out share of every
   // unthemed round.
-  const TOPIC_BUCKETS: string[][] = [
-    ["breaking and trending mainstream headlines from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent mainstream news from the last 3-12 months"],
-    ["movies and TV", "celebrities and showbiz", "awards and entertainment"],
-    ["music", "famous bands and singers", "global chart hits"],
-    ["geography", "famous landmarks", "world travel and international culture"],
-    ["simple history", "famous historical people", "major world events"],
-    ["sport", "football", "international sporting events"],
-    ["breaking celebrity, showbiz and pop-culture news from the last 1-6 months (completed stories only; no politics, war or tragedy)", "recent trending pop-culture moments from the last 3-12 months"],
-    ["accessible science and space", "animals", "nature and wildlife"],
-    ["food and drink", "logos and brands", "cars and transport"],
-    ["consumer technology and digital life", "video games", "social media and internet"],
-    ["books and literature", "art and culture", "theatre and musicals"],
-  ];
-  const shuffledBuckets = TOPIC_BUCKETS.map(shuffle);
+  const shuffledBuckets = GENERAL_TOPIC_BUCKETS.map(shuffle);
   const triedGeneralTopics = new Set<string>();
   const pickGeneralTopic = (launchIndex: number): string => {
     const bucket = shuffledBuckets[launchIndex % shuffledBuckets.length];

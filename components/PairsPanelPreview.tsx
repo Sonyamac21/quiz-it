@@ -72,10 +72,29 @@ function usePairsDemo() {
 }
 
 // ---------- 1. HOST CONSOLE PREVIEW ----------
+// Mock team progress - stands in for the real per-team realtime rows Codex
+// will wire from the session's answer/score tables (same shape as Multi
+// Tap's live team list).
+const MOCK_TEAMS = [
+  { name: "The Quizzards", solved: 2, mistakes: 1 },
+  { name: "Pub Landlords", solved: 3, mistakes: 0 },
+  { name: "No Idea FC", solved: 1, mistakes: 2 },
+  { name: "Trivia Newton John", solved: 0, mistakes: 0 },
+];
+
 export function PairsHostConsolePreview({ onClose }: { onClose?: () => void }) {
   const demo = usePairsDemo();
   return (
     <div style={{ minHeight: "100vh", boxSizing: "border-box", background: "#0A0118", display: "flex", flexDirection: "column" }}>
+      {/* Next-Action bar, matching every other round's host console (Pursuit,
+          Hard Deck) - the host's next move is always the first thing on
+          screen, not something to hunt for further down. */}
+      <div style={{ flexShrink: 0, background: "linear-gradient(135deg,#be26c1,#7a1a7d)", padding: "14px 24px", display: "flex", alignItems: "center", gap: 14 }}>
+        <span style={{ color: "rgba(255,255,255,.75)", fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>NEXT ACTION</span>
+        <span style={{ color: "#fff", fontSize: 16, fontWeight: 800 }}>End Pairs round &amp; reveal scores</span>
+        <span style={{ marginLeft: "auto", color: "rgba(255,255,255,.7)", fontSize: 12, border: "1px solid rgba(255,255,255,.35)", borderRadius: 8, padding: "3px 10px" }}>Space ↵</span>
+      </div>
+
       <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
         <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 20, color: "#D94FDC", letterSpacing: 3 }}>PAIRS</div>
         <span style={{ fontSize: 11, color: "rgba(255,255,255,.4)", border: "1px solid rgba(255,255,255,.2)", borderRadius: 999, padding: "3px 10px" }}>Design preview — not wired to live scoring</span>
@@ -86,30 +105,40 @@ export function PairsHostConsolePreview({ onClose }: { onClose?: () => void }) {
         )}
       </div>
 
-      <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 32, padding: "24px 24px 40px" }}>
+      <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 32, padding: "10px 24px 40px" }}>
         <main style={{ flex: "2 1 480px" }}>
-          <div style={{ color: "#fff", fontSize: 20, fontWeight: 700, marginBottom: 24, textAlign: "center" }}>
-            Find the three pairs — round monitor mirrors the display board live.
+          <div style={{ color: "rgba(255,255,255,.55)", fontSize: 13, marginBottom: 16, textAlign: "center" }}>
+            The three pairs this round — mirrors what's on the display board, so you can check the content at a glance.
           </div>
-          <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 18 }}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} style={{ width: 10, height: 10, borderRadius: 5, background: i < demo.mistakes ? "#e0483b" : "rgba(255,255,255,.12)" }} />
-            ))}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, maxWidth: 560, margin: "0 auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, maxWidth: 620, margin: "0 auto" }}>
             {PLACEHOLDER_PAIRS.map(set => {
               const solved = demo.solvedPairIds.includes(set.pairId);
               return (
-                <div key={set.pairId} style={{ border: solved ? "1px solid #2ee06e" : "1px solid rgba(255,255,255,.14)", borderRadius: 14, padding: 12, opacity: solved ? 1 : 0.5, textAlign: "center" }}>
-                  <div style={{ color: solved ? "#2ee06e" : "rgba(255,255,255,.6)", fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>{solved ? "SOLVED" : "PENDING"}</div>
+                <div key={set.pairId} style={{ border: solved ? "1px solid #2ee06e" : "1px solid rgba(255,255,255,.14)", borderRadius: 14, padding: "14px 12px", opacity: solved ? 1 : 0.85, textAlign: "center" }}>
+                  <div style={{ color: solved ? "#2ee06e" : "rgba(255,255,255,.4)", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>{solved ? "SOLVED" : "LIVE"}</div>
+                  <div style={{ color: "#fff", fontSize: 14, fontWeight: 700 }}>{set.a.label}</div>
+                  <div style={{ color: "rgba(255,255,255,.4)", fontSize: 11, margin: "4px 0" }}>+</div>
+                  <div style={{ color: "#fff", fontSize: 14, fontWeight: 700 }}>{set.b.label}</div>
                 </div>
               );
             })}
           </div>
         </main>
-        <aside style={{ flex: "1 1 220px" }}>
-          <div style={{ color: "rgba(255,255,255,.55)", fontSize: 13, lineHeight: 1.6 }}>
-            Team scoring for this round will follow the same per-pair award pattern as Multi Tap once wired — placeholder here.
+        <aside style={{ flex: "1 1 260px" }}>
+          <div style={{ color: "rgba(255,255,255,.85)", fontSize: 12, fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>TEAM PROGRESS</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {MOCK_TEAMS.slice().sort((a, b) => b.solved - a.solved).map(team => (
+              <div key={team.name} style={{ border: "1px solid rgba(255,255,255,.12)", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ color: "#fff", fontSize: 13, fontWeight: 700 }}>{team.name}</div>
+                  <div style={{ color: "rgba(255,255,255,.4)", fontSize: 11, marginTop: 2 }}>{team.mistakes} mistake{team.mistakes === 1 ? "" : "s"}</div>
+                </div>
+                <div style={{ color: team.solved === 3 ? "#2ee06e" : "#ffc533", fontSize: 15, fontWeight: 800 }}>{team.solved}/3</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ color: "rgba(255,255,255,.4)", fontSize: 11, lineHeight: 1.6, marginTop: 14 }}>
+            Scoring will follow the same per-pair award pattern as Multi Tap once wired to real session state.
           </div>
         </aside>
       </div>

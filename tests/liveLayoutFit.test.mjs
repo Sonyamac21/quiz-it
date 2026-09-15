@@ -38,3 +38,18 @@ test("TV question, picture and reveal copy all remain inside fixed stages", () =
   assert.match(display, /className="qi-display-fullscreen-top"/);
   assert.match(css, /\.qi-display-fullscreen-top\s*\{[^}]*top:/s, "fullscreen control stays away from the bottom-right brand signature");
 });
+
+test("Hot Seat and celebration copy shrink to fit instead of being clipped", () => {
+  assert.match(display, /FitBlockText as="h1" maxViewportHeight=\{0\.34\} minFontSize=\{26\}/);
+  assert.match(display, /FitBlockText className="qi-display-fastest-team"/);
+  assert.match(player, /FitBlockText className="qi-player-hot-seat__question"/);
+  assert.match(player, /FitBlockText className="qi-player-celebration-team"/);
+  assert.match(host, /FitBlockText className="qi-mc-celebration__answer"/);
+  assert.match(host, /FitBlockText className="qi-mc-celebration__team"/);
+});
+
+test("TV reveal and celebration use readable standard branding", () => {
+  assert.match(display, /className="qi-display-answer-brand">QUIZ-IT · Powered by Mac Entertainment/);
+  assert.match(css, /\.qi-display-answer-brand[^}]*font:750 clamp\(13px/);
+  assert.doesNotMatch(display, /fontSize:8, color:"rgba\(255,255,255,0\.14\)"/);
+});

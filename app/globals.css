@@ -469,13 +469,13 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-teams--capacity .qi-mc-teams__header { top:-7px; margin:-7px -8px 5px; padding:6px 8px; }
 .qi-mc-teams--capacity .qi-mc-team-card { min-width:0; margin:0 0 4px; padding:3px 5px; border-radius:7px; box-shadow:none; }
 .qi-mc-teams--capacity .qi-mc-team-card__summary { min-height:18px; grid-template-columns:18px 18px minmax(0,1fr) 6px auto!important; gap:4px!important; }
-.qi-mc-teams--capacity .qi-mc-team-card__summary>span:first-child { min-width:18px!important; font-size:10px!important; }
+.qi-mc-teams--capacity .qi-mc-team-card__summary>span:first-child { min-width:18px!important; font-size:11px!important; }
 .qi-mc-teams--capacity .qi-mc-team-card__summary .fbh-crest { width:17px!important; height:17px!important; font-size:6px!important; }
-.qi-mc-teams--capacity .qi-mc-team-card__summary>span:nth-child(3) { display:block!important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px!important; }
-.qi-mc-teams--capacity .qi-mc-team-card__summary>span:nth-child(5) { min-width:28px!important; font-size:12px!important; }
+.qi-mc-teams--capacity .qi-mc-team-card__summary>span:nth-child(3) { display:block!important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px!important; }
+.qi-mc-teams--capacity .qi-mc-team-card__summary>span:nth-child(5) { min-width:28px!important; font-size:14px!important; }
 .qi-mc-teams--capacity .qi-mc-team-tool { display:none!important; }
 .qi-mc-teams--capacity .qi-mc-team-card__answer { min-height:13px; margin-top:1px; gap:3px; overflow:hidden; }
-.qi-mc-teams--capacity .qi-mc-team-card__answer>span { min-width:0!important; font-size:9px!important; line-height:1.1; }
+.qi-mc-teams--capacity .qi-mc-team-card__answer>span { min-width:0!important; font-size:11px!important; line-height:1.1; }
 .qi-mc-teams--capacity .qi-mc-team-card__answer>div { flex:none; gap:2px!important; }
 .qi-mc-teams--capacity .qi-mc-team-card__answer>div>span { width:6px!important; height:6px!important; }
 .qi-mc-teams--capacity .qi-mc-team-adjust { display:none!important; }
@@ -1659,6 +1659,7 @@ button, input, select, textarea { font: inherit; }
 .qi-display-answer-hero-text { overflow-wrap:anywhere; color:#65ee99; font-size:clamp(58px,7.4vw,140px); font-weight:900; line-height:.98; letter-spacing:-.035em; }
 .qi-display-answer-footer { min-height: 7vh; flex-shrink: 0; padding: 10px var(--qi-display-safe-x); border-top: 1px solid rgba(46,224,110,.18); display: flex; align-items: center; justify-content: space-between; gap: 30px; }
 .qi-display-answer-explanation { min-width:0; color:#b9a8d9; font-size:clamp(13px,1.1vw,18px); font-style:italic; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
+.qi-display-answer-brand { flex:none; color:rgba(255,255,255,.52); font:750 clamp(13px,1.05vw,18px)/1.25 var(--font-body),Inter,sans-serif; letter-spacing:.06em; white-space:nowrap; }
 
 /* Leaderboards and celebration */
 .qi-display-scoreboard .ld { padding: 4vh 8vw 5vh; }
@@ -1693,7 +1694,14 @@ button, input, select, textarea { font: inherit; }
    ...forwards so it fades out once and stays gone, never loops. */
 .qi-display-celebration-flash { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(circle at 50% 42%, rgba(255,255,255,.9), rgba(217,79,220,.35) 38%, transparent 70%); animation: celebrationFlash .7s ease-out forwards; }
 .qi-display-fastest-eyebrow { display: inline-block; animation: eyebrowDrop .5s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
-.qi-display-fastest-team { position: relative; margin-top: 3vh; font-size: clamp(70px,10vw,180px); font-weight: 900; line-height: .92; letter-spacing: -.04em; text-shadow: 0 12px 60px rgba(190,38,193,.48); animation: nameSlam .65s .18s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
+.qi-display-fastest-team { position: relative; max-width:94vw; margin:3vh auto 0; overflow-wrap:anywhere; font-size: clamp(70px,10vw,180px); font-weight: 900; line-height: .92; letter-spacing: -.04em; text-shadow: 0 12px 60px rgba(190,38,193,.48); animation: nameSlam .65s .18s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
+.qi-player-celebration-team { width:100%; max-width:360px; margin:8px auto; overflow-wrap:anywhere; color:#be26c1; font-size:42px; font-weight:900; line-height:1.05; letter-spacing:.04em; text-align:center; text-shadow:0 0 40px rgba(190,38,193,.8); }
+.qi-player-celebration-team.is-secondary { margin-bottom:16px; font-size:32px; text-shadow:0 0 24px rgba(190,38,193,.6); }
+.qi-mc-celebration { height:100%; min-height:0; overflow:hidden; display:flex; flex-direction:column; justify-content:center; text-align:center; padding:clamp(8px,1.5vh,18px) 0; }
+.qi-mc-celebration__answer { overflow-wrap:anywhere; color:#22c55e; font-size:24px; font-weight:700; line-height:1.12; }
+.qi-mc-celebration__explanation { margin-top:8px; color:rgba(255,255,255,.6); font-size:clamp(12px,1.7vh,14px); line-height:1.3; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
+.qi-mc-celebration__team { max-width:100%; margin:0 auto 8px; overflow-wrap:anywhere; color:#be26c1; font-size:42px; font-weight:800; line-height:1.05; letter-spacing:.04em; text-shadow:0 0 40px rgba(190,38,193,.7); }
+@media (max-width:760px) { .qi-display-answer-brand { display:none; } }
 /* A diagonal light sweep that crosses the name once, shortly after it lands
    - the classic "shine" pass used on trophy/winner reveals. Clipped to the
    text's own box so it reads as light hitting the letters, not a random bar

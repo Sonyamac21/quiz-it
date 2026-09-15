@@ -29,4 +29,6 @@ test("large host rooms automatically use a non-scrolling compact roster", () => 
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /\.qi-mc-teams--capacity \{ overflow:hidden;/);
   assert.match(css, /\.qi-mc-teams--capacity \.qi-mc-team-card__answer/);
+  assert.doesNotMatch(css, /\.qi-mc-teams--capacity \.qi-mc-team-card__answer>span[^}]*font-size:9px/);
+  assert.match(css, /\.qi-mc-teams--capacity \.qi-mc-team-card__answer>span[^}]*font-size:11px/);
 });

@@ -1998,9 +1998,9 @@ function DisplayScreenInner() {
         {fastestTeam ? (
           <div className="qi-display-celebration-content">
             <div className="qi-display-eyebrow qi-display-fastest-eyebrow">{question?.question_type === "nearest_wins" ? "CLOSEST GUESS" : "FASTEST CORRECT ANSWER"}</div>
-            <div className="qi-display-fastest-team">
-              {fastestTeam}
-            </div>
+            <FitBlockText className="qi-display-fastest-team" maxViewportHeight={0.2} minFontSize={32}>
+              {fastestTeam || ""}
+            </FitBlockText>
             {/* Never shown until a host has approved this team's photo - see
                 the 202607230002_photo_approval migration. */}
             {showWinnerPhoto && winnerTeam?.photo_url && winnerTeam?.photo_approved && (
@@ -2013,13 +2013,7 @@ function DisplayScreenInner() {
         ) : (
           <div className="qi-display-no-winner">{question?.question_type === "multi_tap" ? "Nobody got all answers correct." : "No correct answers for this question"}</div>
         )}
-        {/* Brand */}
-        <div style={{ position:"absolute", bottom:22, textAlign:"center", zIndex:2 }}>
-          <div style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:16, letterSpacing:3 }}>
-            <span style={{ color:purple }}>QUIZ-</span><span style={{ color:"#fff" }}>IT</span>
-          </div>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.2)", marginTop:3 }}>Powered by Mac Entertainment · by Sonya Mac</div>
-        </div>
+        <QuizItBadge />
         <div style={{ position:"absolute", top:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${purple},transparent)` }} />
         <div style={{ position:"absolute", bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${purple},transparent)` }} />
       </div>
@@ -2092,10 +2086,7 @@ function DisplayScreenInner() {
           <div className="qi-display-answer-explanation">
             {question.explanation || ""}
           </div>
-          <div style={{ textAlign:"right", lineHeight:1.3 }}>
-            <div><span style={{ fontFamily:"'Bruno Ace SC',sans-serif", fontSize:11, letterSpacing:"1.5px" }}><span style={{ color:purple }}>QUIZ-</span><span style={{ color:"#fff" }}>IT</span></span></div>
-            <div style={{ fontSize:8, color:"rgba(255,255,255,0.14)" }}>Powered by Mac Entertainment · by Sonya Mac</div>
-          </div>
+          <div className="qi-display-answer-brand">QUIZ-IT · Powered by Mac Entertainment</div>
         </div>
         <div style={{ position:"absolute", bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,rgba(34,197,94,0.6),transparent)` }} />
       </div>
@@ -2107,7 +2098,9 @@ function DisplayScreenInner() {
     return (
       <div className="qi-display-hot-seat" aria-live="polite">
         <div className="qi-display-hot-seat__meta">HOT SEAT · QUESTION {questionIndex + 1}</div>
-        <h1>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</h1>
+        <FitBlockText as="h1" maxViewportHeight={0.34} minFontSize={26}>
+          {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
+        </FitBlockText>
         {hotSeatStatus === "open" ? (
           <div className="qi-display-hot-seat__call">
             <span>BUZZERS OPEN</span>

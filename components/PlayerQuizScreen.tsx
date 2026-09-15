@@ -1596,7 +1596,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
         {isWinner ? (
           <>
-            <div style={{ fontSize: 42, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 40px rgba(190,38,193,0.8)", margin: "8px 0" }}>{fastestTeamName}</div>
+            <FitBlockText className="qi-player-celebration-team" maxViewportHeight={0.12} minFontSize={22}>{fastestTeamName || ""}</FitBlockText>
             <div style={{ font: "800 18px 'Inter'", color: "#E8C36A", letterSpacing: 2, marginBottom: 24 }}>{"That's you!"}</div>
             {/* Only show a points award when points were genuinely awarded. A
                 "+0" is never a success state — show a neutral line instead.
@@ -1642,7 +1642,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               <div className="qi-player-outcome-heading" role="status" aria-live="polite">{myAnswerCorrect ? "Correct answer" : mySubmittedDisplay ? "Not quite this time" : answerRecoveryComplete ? "No answer submitted" : "Checking your answer…"}</div>
               {question && <div className="qi-player-outcome-question">{question.question_text}</div>}
               {fastestTeamName && (
-                <div style={{ fontSize: 32, fontWeight: 900, color: purple, letterSpacing: 2, textAlign: "center", textShadow: "0 0 24px rgba(190,38,193,0.6)", marginBottom: 16 }}>{fastestTeamName}</div>
+                <FitBlockText className="qi-player-celebration-team is-secondary" maxViewportHeight={0.1} minFontSize={20}>{fastestTeamName || ""}</FitBlockText>
               )}
               {myQuestionPoints !== null && !reverseUsed && (
                 <div style={{ padding: "8px 20px", borderRadius: 14, background: myQuestionPoints > 0 ? "rgba(46,224,110,0.15)" : "rgba(255,255,255,0.06)", border: "1px solid " + (myQuestionPoints > 0 ? "rgba(46,224,110,0.5)" : "rgba(255,255,255,0.12)"), marginBottom: 16, textAlign: "center" as const }}>
@@ -1718,7 +1718,9 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     return (
       <div className="qi-player-state qi-player-hot-seat">
         <PlayerStatusBar teamName={teamName} roundName={roundName || "Hot Seat"} powerCardsEnabled={false} photoUrl={teamPhotoUrl} points={myRunningPoints} />
-        <div className="qi-player-hot-seat__question">{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+        <FitBlockText className="qi-player-hot-seat__question" maxViewportHeight={0.25} minFontSize={16}>
+          {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
+        </FitBlockText>
         {buzzOpen ? (
           <button type="button" className="qi-player-hot-seat__buzz" onClick={claimHotSeat} disabled={buzzing}>
             {buzzing ? "BUZZING…" : "BUZZ"}

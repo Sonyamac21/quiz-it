@@ -133,7 +133,7 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
     pursuit: [
       "Every team races through seven questions at the same time \u2014 each correct answer moves your runner forward one stage.",
       "Wrong answers do not eliminate anyone; every team plays all seven questions.",
-      "The highest correct total wins a 100-point bonus. Tied leaders each receive it.",
+      "Questions 1–6 are worth 10 points each. Completing all seven brings the round total to 100 points.",
     ],
     hot_seat: [
       "Every team starts with one large buzz button.",
@@ -2508,7 +2508,7 @@ function QuizControllerInner() {
               )}
             </div>
           ) : hostPhase === "round_start" ? (
-            <div style={{ textAlign:"center", marginTop:60 }}>
+            <div className="qi-mc-celebration">
               <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#fff", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>{selectedRound.name}</div>
               <div style={{ font:"600 18px 'Inter'", color:"#B9A8D9", marginBottom:32 }}>{selectedRound.questions.length} questions</div>
               <div style={{ font:"400 13px 'Inter'", color:"#6B5A8E", letterSpacing:".16em" }}>{selectedRound.round_type === "pursuit" || selectedRound.round_type === "hard_deck" ? "Announce the round — then SPACE to begin" : "Announce the round — then SPACE to preview Q1"}</div>
@@ -2542,18 +2542,18 @@ function QuizControllerInner() {
               )}
             </div>
           ) : hostPhase === "celebration" ? (
-            <div style={{ textAlign:"center", marginTop:60 }}>
+            <div className="qi-mc-celebration">
               {currentQ && (
                 <div style={{ padding:"16px 20px", borderRadius:12, background:"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.4)", marginBottom:24, maxWidth:480, marginLeft:"auto", marginRight:"auto", textAlign:"left" as const }}>
                   <div style={{ fontSize:12, color:"rgba(34,197,94,0.7)", marginBottom:4, letterSpacing:2 }}>ANSWER</div>
-                  <div style={{ fontSize:24, fontWeight:700, color:"#22c55e" }}>{getCorrectAnswerText(currentQ)}</div>
-                  {currentQ.explanation && <div style={{ fontSize:14, color:"rgba(255,255,255,0.6)", marginTop:8 }}>{currentQ.explanation}</div>}
+                  <FitBlockText className="qi-mc-celebration__answer" maxViewportHeight={0.12} minFontSize={15}>{getCorrectAnswerText(currentQ)}</FitBlockText>
+                  {currentQ.explanation && <div className="qi-mc-celebration__explanation">{currentQ.explanation}</div>}
                 </div>
               )}
               {fastestTeam && <div style={{ fontSize:14, letterSpacing:3, color:"rgba(255,255,255,0.4)", marginBottom:12 }}>{currentQ?.question_type === "nearest_wins" ? "CLOSEST GUESS" : "FASTEST CORRECT ANSWER"}</div>}
               {fastestTeam ? (
                 <>
-                  <div style={{ fontSize:42, fontWeight:800, color:"#BE26C1", letterSpacing:2, textShadow:"0 0 40px rgba(190,38,193,0.7)", marginBottom:8 }}>{fastestTeam}</div>
+                  <FitBlockText className="qi-mc-celebration__team" maxViewportHeight={0.12} minFontSize={20}>{fastestTeam || ""}</FitBlockText>
                   <div style={{ fontSize:16, color:"rgba(255,255,255,0.5)", marginBottom:32 }}>Victory song playing...</div>
                   {!decisionMade && (
                     <div style={{ display:"flex", gap:12, justifyContent:"center", marginBottom:24 }}>

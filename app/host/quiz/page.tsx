@@ -121,10 +121,10 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
     ],
     hard_deck: [
       "One team gets picked by the wheel to play.",
-      "Every other team predicts Higher or Lower privately for a possible 10-point steal.",
+      "Every other team predicts Higher or Lower privately for a share of the playing team's live gamble.",
       "Guess Higher or Lower than the card shown \u2014 get it right, score points and keep going.",
       "After the first card, you can Stick with your points or Gamble for more.",
-      "If the playing team misses, the 10-point steal is shared between every other team with the correct prediction. A tie has no correct prediction.",
+      "If the playing team misses, the amount they gambled is shared between every other team with the correct prediction. A tie has no correct prediction.",
     ],
     spin_to_win: [
       "A bonus feature the host can offer manually after any correct answer \u2014 usually saved for the final question, giving the fastest team one last chance to steal a prize!",

@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { applyScoreDelta } from "@/lib/quiz/scoreService";
+import { HARD_DECK_CARD_POINTS, hardDeckGambleStake, hardDeckStealAward } from "@/lib/quiz/hardDeck";
 
 type PlayingCard = { rank: number; suit: "♠" | "♥" | "♦" | "♣" };
 type HardDeckStatus =
@@ -21,12 +22,9 @@ function rankLabel(rank: number): string {
   return RANK_LABELS[rank] || String(rank);
 }
 
-// Flat points per correct card - replaces the old escalating ladder
-// (10/25/50/100). A steal always takes exactly this amount too, since it's
-// what the busting team was gambling for on the card that broke them.
-// Exported so the player handset can show the real steal stake instead of a
-// hardcoded number that can drift out of sync with this value.
-export const CARD_POINTS = 10;
+// Kept as a compatibility export for existing callers. Scoring and UI use
+// the shared Hard Deck helpers so the gamble and steal can never drift.
+export const CARD_POINTS = HARD_DECK_CARD_POINTS;
 
 type Props = {
   sessionId: string;
@@ -235,18 +233,10 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
       const winners = actualDirection
         ? Object.entries(lockedSteals).filter(([name, answer]) => name !== team && answer === actualDirection).map(([name]) => name)
         : [];
-      // The steal pool is exactly what the busting team was gambling FOR on
-      // this card - a flat CARD_POINTS, same as every successful reveal
-      // below - not `potential`, which is only what they'd already banked
-      // from PREVIOUS successful reveals. On a first-guess bust `potential`
-      // is still 0, which was paying stealing teams nothing even though the
-      // busting team was genuinely gambling for CARD_POINTS on that guess.
-      // That pool is shared evenly across every team that stole correctly
-      // (per the host's explicit request), rather than each stealing team
-      // getting the full CARD_POINTS regardless of how many others also
-      // guessed right - the busting team only lost one card's worth, so the
-      // total paid out to stealers should never exceed that.
-      const stolenPoints = winners.length > 0 ? Math.floor(CARD_POINTS / winners.length) : 0;
+      // The steal pool follows the playing team's live gamble: 10 on the
+      // opening card, then the full accumulated potential they chose to risk.
+      // Correct predictors share that one pool evenly.
+      const stolenPoints = hardDeckStealAward(potential, winners.length);
       setPotential(0);
       await Promise.all(winners.map(async name => {
         try {
@@ -485,6 +475,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
                       </div>
                     </div>
                   )}
+                  <div style={{ color: "#E8C36A", fontSize: 15, fontWeight: 800 }}>Live gamble · {hardDeckGambleStake(potential)} point steal pool</div>
                   <div style={{ color: "#B9A8D9", fontSize: 14 }}>{Object.keys(stealGuesses).length} of {Math.max(0, teams.length - 1)} other teams locked in for a steal</div>
                 </>
               )}

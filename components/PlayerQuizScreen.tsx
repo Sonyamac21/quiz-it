@@ -9,7 +9,7 @@ import { SlotReels } from "@/components/SlotReels";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitTotalPoints, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { Crest } from "@/components/fable/HandsetStates";
-import { CARD_POINTS as HARD_DECK_CARD_POINTS } from "@/components/HardDeckPanel";
+import { hardDeckGambleStake } from "@/lib/quiz/hardDeck";
 import { teamInitials } from "@/components/TeamBadge";
 import { PlayerShell, PlayerStatusBar, PlayerResultBanner } from "@/components/player/PlayerUI";
 import { TeamPhotoUpload } from "@/components/player/TeamPhotoUpload";
@@ -1383,11 +1383,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
         {!isSelected && hardDeckStatus === "awaiting_guess" && (
           <>
-            {/* Names the real stake being gambled (HardDeckPanel's
-                CARD_POINTS, imported so this can never drift out of sync
-                with the actual payout again) rather than a stale hardcoded
-                "2-POINT STEAL" left over from an old point ladder. */}
-            <div style={{ font: "800 16px 'Inter'", color: "#E8C36A", letterSpacing: ".08em" }}>PLAY FOR A {HARD_DECK_CARD_POINTS}-POINT STEAL</div>
+            <div style={{ font: "800 16px 'Inter'", color: "#E8C36A", letterSpacing: ".08em" }}>PLAY FOR A {hardDeckGambleStake(hardDeckPotential)}-POINT STEAL</div>
             <div style={{ display: "flex", gap: 16, width: "100%", maxWidth: 380 }}>
               {(["higher", "lower"] as const).map(choice => (
                 <button key={choice} onClick={() => submitHardDeckGuess(choice)} disabled={!!myHardDeckGuess || !playerToken}

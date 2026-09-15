@@ -75,18 +75,20 @@ function usePairsDemo() {
 export function PairsHostConsolePreview({ onClose }: { onClose?: () => void }) {
   const demo = usePairsDemo();
   return (
-    <div className="qi-pursuit-host-console" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box", background: "var(--qi-bg-page, #0A0118)", zIndex: 200, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div style={{ minHeight: "100vh", boxSizing: "border-box", background: "#0A0118", display: "flex", flexDirection: "column" }}>
       <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
         <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 20, color: "#D94FDC", letterSpacing: 3 }}>PAIRS</div>
         <span style={{ fontSize: 11, color: "rgba(255,255,255,.4)", border: "1px solid rgba(255,255,255,.2)", borderRadius: 999, padding: "3px 10px" }}>Design preview — not wired to live scoring</span>
-        <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-          <button onClick={onClose} style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
-        </div>
+        {onClose && (
+          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+            <button onClick={onClose} style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
+          </div>
+        )}
       </div>
 
-      <div className="qi-mc-workspace" style={{ flex: 1, minHeight: 0 }}>
-        <main className="qi-mc-desk">
-          <div className="qi-mc-question" style={{ marginBottom: 24 }}>
+      <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 32, padding: "24px 24px 40px" }}>
+        <main style={{ flex: "2 1 480px" }}>
+          <div style={{ color: "#fff", fontSize: 20, fontWeight: 700, marginBottom: 24, textAlign: "center" }}>
             Find the three pairs — round monitor mirrors the display board live.
           </div>
           <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 18 }}>
@@ -105,7 +107,7 @@ export function PairsHostConsolePreview({ onClose }: { onClose?: () => void }) {
             })}
           </div>
         </main>
-        <aside className="qi-mc-side">
+        <aside style={{ flex: "1 1 220px" }}>
           <div style={{ color: "rgba(255,255,255,.55)", fontSize: 13, lineHeight: 1.6 }}>
             Team scoring for this round will follow the same per-pair award pattern as Multi Tap once wired — placeholder here.
           </div>
@@ -119,26 +121,24 @@ export function PairsHostConsolePreview({ onClose }: { onClose?: () => void }) {
 export function PairsDisplayPreview() {
   const demo = usePairsDemo();
   return (
-    <div className="fbl fbl-stage qi-display-stage qi-display-question">
-      <div className="qd" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <div className="qi-display-question-number">PAIRS ROUND</div>
-        <div className="qd-q" style={{ fontSize: "clamp(32px,4vw,56px)", textAlign: "center" }}>Find the three pairs</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "clamp(16px,2vw,32px)", marginTop: "4vh" }}>
-          {PLACEHOLDER_PAIRS.map(set => {
-            const solved = demo.solvedPairIds.includes(set.pairId);
-            return (
-              <div key={set.pairId} style={{
-                width: "clamp(140px,14vw,220px)", height: "clamp(140px,14vw,220px)", borderRadius: 24,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                border: solved ? "3px solid #2ee06e" : "2px dashed rgba(255,255,255,.2)",
-                background: solved ? "rgba(46,224,110,.08)" : "rgba(255,255,255,.03)",
-                color: solved ? "#2ee06e" : "rgba(255,255,255,.3)", fontSize: "clamp(14px,1.4vw,20px)", fontWeight: 800,
-              }}>
-                {solved ? "MATCHED" : "?"}
-              </div>
-            );
-          })}
-        </div>
+    <div style={{ minHeight: "100vh", background: "#0A0118", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
+      <div style={{ color: "#cfc2e7", fontSize: 14, letterSpacing: 2, fontWeight: 700 }}>PAIRS ROUND</div>
+      <div style={{ color: "#fff", fontSize: "clamp(32px,4vw,56px)", textAlign: "center", fontWeight: 800, margin: "8px 0 32px" }}>Find the three pairs</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "clamp(16px,2vw,32px)" }}>
+        {PLACEHOLDER_PAIRS.map(set => {
+          const solved = demo.solvedPairIds.includes(set.pairId);
+          return (
+            <div key={set.pairId} style={{
+              width: "clamp(140px,14vw,220px)", height: "clamp(140px,14vw,220px)", borderRadius: 24,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              border: solved ? "3px solid #2ee06e" : "2px dashed rgba(255,255,255,.2)",
+              background: solved ? "rgba(46,224,110,.08)" : "rgba(255,255,255,.03)",
+              color: solved ? "#2ee06e" : "rgba(255,255,255,.3)", fontSize: "clamp(14px,1.4vw,20px)", fontWeight: 800,
+            }}>
+              {solved ? "MATCHED" : "?"}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -148,7 +148,7 @@ export function PairsDisplayPreview() {
 export function PairsPlayerPreview() {
   const demo = usePairsDemo();
   return (
-    <div className="qi-player-experience" style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 16px" }}>
+    <div style={{ minHeight: "100dvh", background: "radial-gradient(ellipse 90% 50% at 50% 15%,rgba(190,38,193,.13),transparent 70%),#090116", display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 16px" }}>
       <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", color: "#ffc533", fontSize: 15, letterSpacing: 2, marginTop: 8 }}>PAIRS</div>
       <div style={{ color: "#cfc2e7", fontSize: 12, marginTop: 2, marginBottom: 14 }}>Tap two that go together</div>
 

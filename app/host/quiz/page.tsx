@@ -121,10 +121,10 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
     ],
     hard_deck: [
       "One team gets picked by the wheel to play.",
-      "Every other team predicts Higher or Lower privately for a possible 2-point steal.",
+      "Every other team predicts Higher or Lower privately for a possible 10-point steal.",
       "Guess Higher or Lower than the card shown \u2014 get it right, score points and keep going.",
       "After the first card, you can Stick with your points or Gamble for more.",
-      "If the playing team misses, every other team with the correct prediction steals 2 points. A tie has no correct prediction.",
+      "If the playing team misses, the 10-point steal is shared between every other team with the correct prediction. A tie has no correct prediction.",
     ],
     spin_to_win: [
       "A bonus feature the host can offer manually after any correct answer \u2014 usually saved for the final question, giving the fastest team one last chance to steal a prize!",
@@ -134,6 +134,11 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
       "Every team races through seven questions at the same time \u2014 each correct answer moves your runner forward one stage.",
       "Wrong answers do not eliminate anyone; every team plays all seven questions.",
       "Questions 1–6 are worth 10 points each. Completing all seven brings the round total to 100 points.",
+    ],
+    bonus: [
+      "This is a bonus round — explain the theme before starting.",
+      `${pointsPerQ} points for a correct answer, with up to +${timeBonus} extra for speed unless the round settings say otherwise.`,
+      timerLine,
     ],
     hot_seat: [
       "Every team starts with one large buzz button.",
@@ -2508,10 +2513,17 @@ function QuizControllerInner() {
               )}
             </div>
           ) : hostPhase === "round_start" ? (
-            <div className="qi-mc-celebration">
-              <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#fff", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>{selectedRound.name}</div>
-              <div style={{ font:"600 18px 'Inter'", color:"#B9A8D9", marginBottom:32 }}>{selectedRound.questions.length} questions</div>
-              <div style={{ font:"400 13px 'Inter'", color:"#6B5A8E", letterSpacing:".16em" }}>{selectedRound.round_type === "pursuit" || selectedRound.round_type === "hard_deck" ? "Announce the round — then SPACE to begin" : "Announce the round — then SPACE to preview Q1"}</div>
+            <div className="qi-mc-round-start">
+              <div className="qi-mc-round-start__eyebrow">ROUND {roundNumber} · HOST BRIEFING</div>
+              <FitBlockText as="h1" className="qi-mc-round-start__title" maxViewportHeight={0.12} minFontSize={22}>{selectedRound.name}</FitBlockText>
+              <div className="qi-mc-round-start__meta">{selectedRound.questions.length} questions · {(selectedRound.round_type && ROUND_TYPE_LABEL[selectedRound.round_type]) || selectedRound.round_type || "General Knowledge"}</div>
+              <div className="qi-mc-round-start__rules" aria-label={`${selectedRound.name} rules`}>
+                <strong>RULES TO ANNOUNCE</strong>
+                <ol>
+                  {((selectedRound.round_type ? rules[selectedRound.round_type] : undefined) || rules.regular).map((rule, index) => <li key={`${selectedRound.id}-rule-${index}`}>{rule}</li>)}
+                </ol>
+              </div>
+              <div className="qi-mc-round-start__action">{selectedRound.round_type === "pursuit" || selectedRound.round_type === "hard_deck" ? "Announce the rules · SPACE to begin" : "Announce the rules · SPACE to preview Q1"}</div>
             </div>
           ) : hostPhase === "round_end" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>

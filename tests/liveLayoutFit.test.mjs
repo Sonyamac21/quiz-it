@@ -53,3 +53,11 @@ test("TV reveal and celebration use readable standard branding", () => {
   assert.match(css, /\.qi-display-answer-brand[^}]*font:750 clamp\(13px/);
   assert.doesNotMatch(display, /fontSize:8, color:"rgba\(255,255,255,0\.14\)"/);
 });
+
+test("every round opens with a fitted host rules briefing", () => {
+  assert.match(host, /hostPhase === "round_start"[\s\S]*?className="qi-mc-round-start"/);
+  assert.match(host, /rules\[selectedRound\.round_type\][\s\S]*?\|\| rules\.regular\)\.map/);
+  assert.match(host, /bonus:\s*\[/);
+  assert.match(css, /\.qi-mc-round-start\s*\{[^}]*height:100%[^}]*overflow:hidden/s);
+  assert.match(css, /\.qi-mc-round-start__rules li[^}]*font-size:clamp\(/);
+});

@@ -36,6 +36,7 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
   const drafts = parseArray(await callAPI(prompt, 1800, false, false, GENERATION_MODEL)).slice(0, count);
   const records: PairRecord[] = [];
   const seen = new Set<string>();
+  const failures: string[] = [];
   for (let index = 0; index < drafts.length; index++) {
     const draft = drafts[index];
     const aLabel = draft.a?.label?.trim(), bLabel = draft.b?.label?.trim();
@@ -50,10 +51,14 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
       const [aImage, bImage] = await Promise.all([sourceImage(aQuery, aLabel), sourceImage(bQuery, bLabel)]);
       records.push({ pair_id: `p${records.length + 1}`, question_type: "pairs", round_type: "pairs", a: { label: aLabel, image_url: aImage }, b: { label: bLabel, image_url: bImage } });
       exclusions.used.push(`${aLabel} + ${bLabel}`);
-    } catch {
+    } catch (error) {
       // A missing or misleading stock image rejects the whole pair rather
       // than saving a half-built round the host cannot play.
+      failures.push(error instanceof Error ? error.message : "image validation failed");
     }
+  }
+  if (records.length === 0 && drafts.length > 0) {
+    throw new Error(`Match Made generation found no usable pairs. ${failures[0] || "The returned pair data was invalid."}`);
   }
   return records;
 }

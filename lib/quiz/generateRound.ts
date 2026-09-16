@@ -153,7 +153,7 @@ export async function generateValidatedRound(
 ): Promise<RoundGenerationResult> {
   const { roundType, difficulty, theme } = spec;
   if (roundType === "pairs") {
-    onProgress?.(`Creating ${spec.count} picture pair${spec.count === 1 ? "" : "s"}…`);
+    onProgress?.("Creating one Match Made question with 3 pairs (6 mixed tiles)…");
     const pairs = await generatePairs(Math.min(3, spec.count), theme, exclusions);
     const questions = pairs as unknown as Question[];
     questions.forEach(question => onAccept?.(question));

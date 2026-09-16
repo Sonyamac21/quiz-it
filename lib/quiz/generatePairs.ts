@@ -44,7 +44,7 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
     const aQuery = draft.a?.image_query?.trim(), bQuery = draft.b?.image_query?.trim();
     if (!aLabel || !bLabel || !aQuery || !bQuery || aLabel.toLowerCase() === bLabel.toLowerCase()) continue;
     const fingerprint = [aLabel, bLabel].map(value => value.toLowerCase()).sort().join(" + ");
-    if (seen.has(fingerprint) || exclusions.used.some(value => value.toLowerCase().includes(fingerprint))) continue;
+    if (seen.has(fingerprint) || exclusions.used.some(value => String(value || "").toLowerCase().includes(fingerprint))) continue;
     seen.add(fingerprint);
     try {
       // Deliberately reuse the exact Pixabay matching + permanent re-hosting

@@ -1278,7 +1278,7 @@ export default function QuizBuilderPage() {
                   .map(({ round, added }) => (
                     <button key={round.id} onClick={() => { addRound(round); setAddRoundOpen(false); }} className="qi-mc-round-card" style={added ? { borderColor: "#2EE06E", background: "rgba(46,224,110,0.08)", opacity: 0.6 } : undefined}>
                       <strong>{added ? "Added: " : ""}{round.name}</strong>
-                      <span style={{ display: "block", color: "#6B5A8E", font: "400 11px 'Inter'" }}>{round.questions.length} questions - {round.round_type}</span>
+                      <span style={{ display: "block", color: "#6B5A8E", font: "400 11px 'Inter'" }}>{round.round_type === "pairs" ? "1 question · 6 tiles" : `${round.questions.length} questions - ${round.round_type}`}</span>
                     </button>
                   ))}
                 </div>
@@ -1380,7 +1380,7 @@ export default function QuizBuilderPage() {
                         </button>
                       );
                     })()}
-                    <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>{round.questions.length} Q - {round.round_type}</span>
+                    <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>{round.round_type === "pairs" ? "1 Q · 6 tiles" : `${round.questions.length} Q - ${round.round_type}`}</span>
                     {/* A round with audio questions still needs each one's
                         actual clip saved in Music Prep before the quiz can go
                         live - previously the only way to notice this was to
@@ -1442,7 +1442,7 @@ export default function QuizBuilderPage() {
                     style={{ flex: 1, minWidth: 0, background: "transparent", border: "1px solid transparent", borderBottom: "1px solid #2E1A52", color: "#fff", font: "700 16px 'Inter'", padding: "4px 2px" }}
                   />
                 </div>
-                <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 12 }}>{activeRound.questions.length} questions - {activeRound.round_type}</div>
+                <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 12 }}>{activeRound.round_type === "pairs" ? "1 question · 6 tiles (3 pairs)" : `${activeRound.questions.length} questions - ${activeRound.round_type}`}</div>
 
                 {/* Grid instead of a plain flex row - these buttons used to
                     hug the left edge and leave a huge dead strip to the

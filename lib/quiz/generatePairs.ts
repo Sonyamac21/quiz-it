@@ -34,12 +34,16 @@ export async function generatePairs(count: number, theme: string, exclusions: Ex
   const prompt = `Create ${count} distinct odd-couple picture pairs for a commercial pub quiz Pairs round.${theme.trim() ? ` Theme: ${theme.trim()}.` : " Use broad, internationally accessible general knowledge."}
 Each pair contains two DIFFERENT concrete things that naturally go together conceptually (examples of the relationship only: lock + key, needle + thread). Do not copy those examples. Do not create visually identical objects, two people, brands, logos, flags, copyrighted characters, wordplay, region-specific slang, abstract ideas, or a pair whose relationship is debatable. Each item must be easy to represent with an ordinary stock photograph and instantly distinguishable on a phone. Use a different relationship and subject area for every pair. Avoid overused facts or content already seen here: ${avoid || "none supplied"}.
 Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label":"short visible label","image_query":"precise English stock-photo search"},"b":{"label":"short visible label","image_query":"precise English stock-photo search"}}. No markdown or explanation.`;
-  const drafts = parseArray(await callAPI(prompt, 1800, false, false, GENERATION_MODEL)).slice(0, count);
   const records: PairRecord[] = [];
   const seen = new Set<string>();
   const failures: string[] = [];
-  for (let index = 0; index < drafts.length; index++) {
-    const draft = drafts[index];
+  let drafts: DraftPair[] = [];
+  for (let attempt = 0; attempt < 4 && records.length < count; attempt++) {
+    const needed = count - records.length;
+    const batch = parseArray(await callAPI(prompt.replace(`Create ${count} distinct`, `Create ${Math.min(needed + 2, 6)} distinct`), 1800, false, false, GENERATION_MODEL)).slice(0, needed + 2);
+    drafts = drafts.concat(batch);
+    for (let index = 0; index < batch.length && records.length < count; index++) {
+    const draft = batch[index];
     const aLabel = draft.a?.label?.trim(), bLabel = draft.b?.label?.trim();
     const aQuery = draft.a?.image_query?.trim(), bQuery = draft.b?.image_query?.trim();
     if (!aLabel || !bLabel || !aQuery || !bQuery || aLabel.toLowerCase() === bLabel.toLowerCase()) continue;
@@ -56,6 +60,7 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
       // A missing or misleading stock image rejects the whole pair rather
       // than saving a half-built round the host cannot play.
       failures.push(error instanceof Error ? error.message : "image validation failed");
+    }
     }
   }
   if (records.length === 0 && drafts.length > 0) {

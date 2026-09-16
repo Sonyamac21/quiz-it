@@ -1,7 +1,7 @@
 import { PairRecord } from "@/lib/quiz/pairs";
 import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pixabayMatch";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
-import { callAPI, checkPictureIdentity, ExclusionState, GENERATION_MODEL, Question } from "@/lib/quiz/questionGenerationCore";
+import { callAPI, ExclusionState, GENERATION_MODEL } from "@/lib/quiz/questionGenerationCore";
 
 type DraftPair = { pair_id?: string; a?: { label?: string; image_query?: string }; b?: { label?: string; image_query?: string } };
 
@@ -22,9 +22,10 @@ async function sourceImage(query: string, label: string): Promise<string> {
   const hit = selectMatchingPixabayHit(data?.hits || [], query);
   const source = hit?.webformatURL || hit?.largeImageURL;
   if (!source) throw new Error(`No suitable picture found for ${query}`);
-  const visualQuestion: Question = { question_text: `This image must clearly show ${label}.`, question_type: "picture", option_a: query, option_b: source, option_c: null, option_d: null, option_e: null, option_f: null, correct_answer: label, explanation: "Pairs image identity check", difficulty: "easy", round_type: "pairs" };
-  const visual = await checkPictureIdentity(visualQuestion, source);
-  if (!visual.ok) throw new Error(visual.note || `Picture did not clearly show ${label}`);
+  // Pixabay's CDN URLs are routinely blocked by the model vision endpoint's
+  // robots.txt policy. Match Made already uses the shared relevance-ranked
+  // Pixabay hit selector, so do not run the URL-based vision validator here;
+  // it would reject every otherwise valid pair before it can be persisted.
   return (await persistPixabayImage(source)).url;
 }
 

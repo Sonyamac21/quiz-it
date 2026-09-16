@@ -827,7 +827,7 @@ export default function QuizBuilderPage() {
     // clamp here too, not just inside generateValidatedRound, so a host
     // asking for more than the round has room for gets told plainly instead
     // of the request silently getting cut down with no explanation.
-    const fixedTotal = round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS : round.round_type === "pairs" ? 1 : null;
+    const fixedTotal = round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS : null;
     const roomLeft = fixedTotal === null ? null : Math.max(0, fixedTotal - round.questions.length);
     if (roomLeft === 0) { setGeneratingMoreStatus(`"${round.name}" already has all ${fixedTotal} pairs (6 tiles).`); return; }
     let n = Math.max(0, Math.floor(requested));

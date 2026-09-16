@@ -1515,7 +1515,7 @@ export default function QuizBuilderPage() {
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Questions
                             {activeRound.round_type === "pairs"
-                              ? <span style={{ color: "#fff" }}>3 pairs · 6 tiles</span>
+                              ? <span style={{ color: "#fff" }}>1 question · 6 tiles (3 pairs)</span>
                               : activeRound.round_type === "pursuit" || activeRound.round_type === "hot_seat"
                               ? <span style={{ color: "#fff" }}>{targetQuestionCount(activeRound.round_type)} (fixed)</span>
                               : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(activeRound.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
@@ -1565,7 +1565,7 @@ export default function QuizBuilderPage() {
                 )}
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-                  <div className="fbh-lbl" style={{ margin: 0 }}>{activeRound.round_type === "pairs" ? "Match Made pairs" : "Questions"}</div>
+                  <div className="fbh-lbl" style={{ margin: 0 }}>{activeRound.round_type === "pairs" ? "Match Made · 1 question / 6 tiles" : "Questions"}</div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     {generatingMoreId === activeRound.id && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{generatingMoreStatus}</span>}
                     {generatingMoreId !== activeRound.id && lastGenerateMoreResult[activeRound.id] && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{lastGenerateMoreResult[activeRound.id]}</span>}

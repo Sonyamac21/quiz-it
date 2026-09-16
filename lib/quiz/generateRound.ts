@@ -158,7 +158,7 @@ export async function generateValidatedRound(
     const questions = pairs as unknown as Question[];
     questions.forEach(question => onAccept?.(question));
     const complete = pairs.length === Math.min(3, spec.count);
-    return { spec, questions, report: [], finalStatus: complete ? `Added ${pairs.length} picture pair${pairs.length === 1 ? "" : "s"}.` : `Added ${pairs.length} of ${Math.min(3, spec.count)} requested picture pairs. Regenerate to fill the missing pair slots.`, stoppedEarly: !complete };
+    return { spec, questions, report: [], finalStatus: complete ? "Added 1 Match Made question (6 tiles / 3 pairs)." : `Added ${pairs.length} of 3 pairs for the Match Made question. Regenerate to fill the missing pair slots.`, stoppedEarly: !complete };
   }
   const existingQuestions = (spec.existingQuestions || []) as Question[];
   // The Pursuit is always exactly 7 gates total, never host-configurable -

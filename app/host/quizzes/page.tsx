@@ -885,7 +885,7 @@ export default function QuizBuilderPage() {
       // run could actually see it, leaving the screen looking exactly like
       // nothing had happened. lastGenerateMoreResult persists independently
       // of the in-flight/button-disabled state until the next run starts.
-      const resultMessage = round.round_type === "pairs" && result.finalStatus
+      const resultMessage = round.round_type === "pairs" && !shortfall && result.finalStatus
         ? result.finalStatus
         : shortfall ? `Added ${actualAdded} of ${n} requested. ${actualAdded < generatedQuestions.length ? "Some generated questions could not be saved. " : ""}${result.finalStatus}` : `Added ${actualAdded} question${actualAdded === 1 ? "" : "s"}. Round now has ${persistedQuestions.length}.`;
       setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: resultMessage }));

@@ -829,10 +829,10 @@ export default function QuizBuilderPage() {
     // of the request silently getting cut down with no explanation.
     const fixedTotal = round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS : round.round_type === "pairs" ? PAIRS_PER_ROUND : null;
     const roomLeft = fixedTotal === null ? null : Math.max(0, fixedTotal - round.questions.length);
-    if (roomLeft === 0) { setGeneratingMoreStatus(`"${round.name}" already has its full ${fixedTotal} questions.`); return; }
+    if (roomLeft === 0) { setGeneratingMoreStatus(`"${round.name}" already has all ${fixedTotal} pairs (6 tiles).`); return; }
     let n = Math.max(0, Math.floor(requested));
     if (!n) return;
-    const capNote = roomLeft !== null && n > roomLeft ? ` (capped to ${roomLeft} - this round is fixed at ${fixedTotal} questions total)` : "";
+    const capNote = roomLeft !== null && n > roomLeft ? ` (capped to ${roomLeft} - Match Made uses ${fixedTotal} pairs per round)` : "";
     if (roomLeft !== null && n > roomLeft) n = roomLeft;
     setGeneratingMoreId(round.id);
     setGeneratingMoreStatus("Queued..." + capNote);
@@ -1514,7 +1514,9 @@ export default function QuizBuilderPage() {
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, alignItems: "center" }}>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Questions
-                            {activeRound.round_type === "pursuit" || activeRound.round_type === "hot_seat" || activeRound.round_type === "pairs"
+                            {activeRound.round_type === "pairs"
+                              ? <span style={{ color: "#fff" }}>3 pairs · 6 tiles</span>
+                              : activeRound.round_type === "pursuit" || activeRound.round_type === "hot_seat"
                               ? <span style={{ color: "#fff" }}>{targetQuestionCount(activeRound.round_type)} (fixed)</span>
                               : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(activeRound.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
                           </label>

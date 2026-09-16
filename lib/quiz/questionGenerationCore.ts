@@ -584,13 +584,14 @@ export async function checkThemeRelevance(q: Question, activeTheme: string): Pro
 
 export function resolveAnswerText(q: Question): string {
   const map: Record<string, string | null> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d, e: q.option_e, f: q.option_f };
-  const key = (q.correct_answer || "").trim().toLowerCase();
-  if (q.question_type === "multiple_choice") return map[key] || q.correct_answer;
+  const raw = typeof q.correct_answer === "string" ? q.correct_answer : "";
+  const key = raw.trim().toLowerCase();
+  if (q.question_type === "multiple_choice") return map[key] || raw;
   if (q.question_type === "multi_tap" || q.question_type === "sequence") {
     const parts = key.split(",").map(s => s.trim()).map(l => map[l]).filter(Boolean) as string[];
-    return parts.length ? parts.join(", ") : q.correct_answer;
+    return parts.length ? parts.join(", ") : raw;
   }
-  return q.correct_answer;
+  return raw;
 }
 
 export async function finalQualityCheck(q: Question, theme: string, recencyNote?: string): Promise<{ ok: boolean; note: string }> {

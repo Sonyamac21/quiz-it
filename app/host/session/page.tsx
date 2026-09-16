@@ -362,6 +362,27 @@ export default function SessionPage() {
     setStatus("finished");
   }
 
+  // Lets the host back out of a session that hasn't actually started -
+  // no team has joined yet, so there's nothing to score or reveal.
+  // Previously the only way to close a session was Start Quiz -> End Quiz,
+  // both of which require (or expect) a team, so an accidentally-started or
+  // test session had no exit. session_rounds cascades on sessions.id
+  // (on delete cascade, see 202607180002_quiz_builder.sql), so deleting the
+  // session row alone is enough - same cleanup the failed-creation rollback
+  // above already relies on. If this came from a Calendar event, revert it
+  // from "live" back to "scheduled" so it isn't stuck showing as in progress.
+  async function cancelSession() {
+    if (!sessionId) return;
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("sessions").delete().eq("id", sessionId);
+    if (preparedEvent) await supabase.from("events").update({ status: "scheduled", updated_at: new Date().toISOString() }).eq("id", preparedEvent.id);
+    localStorage.removeItem(HOST_STORAGE_KEY);
+    setPin(null);
+    setSessionId(null);
+    setTeams([]);
+    setStatus("waiting");
+  }
+
   async function launchDisplay() {
     if (!pin) return;
     try {
@@ -532,6 +553,15 @@ export default function SessionPage() {
               {status === "waiting" && (
                 <HostButton variant="pri" big onClick={startQuiz} disabled={teams.length === 0} style={{ flex: 1 }}>
                   START QUIZ ({teams.length} TEAMS)
+                </HostButton>
+              )}
+              {status === "waiting" && teams.length === 0 && (
+                <HostButton
+                  big
+                  onClick={async () => { if (await confirmDialog("Cancel this session? No team has joined yet, so nothing will be lost. You'll go back to picking a quiz/venue.", { tone: "destructive", confirmLabel: "Cancel Session" })) cancelSession(); }}
+                  style={{ flex: 1 }}
+                >
+                  CANCEL SESSION
                 </HostButton>
               )}
               {status === "active" && (

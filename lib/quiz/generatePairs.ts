@@ -44,8 +44,10 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
     drafts = drafts.concat(batch);
     for (let index = 0; index < batch.length && records.length < count; index++) {
     const draft = batch[index];
-    const aLabel = draft.a?.label?.trim(), bLabel = draft.b?.label?.trim();
-    const aQuery = draft.a?.image_query?.trim(), bQuery = draft.b?.image_query?.trim();
+    const aLabel = typeof draft.a?.label === "string" ? draft.a.label.trim() : "";
+    const bLabel = typeof draft.b?.label === "string" ? draft.b.label.trim() : "";
+    const aQuery = typeof draft.a?.image_query === "string" ? draft.a.image_query.trim() : "";
+    const bQuery = typeof draft.b?.image_query === "string" ? draft.b.image_query.trim() : "";
     if (!aLabel || !bLabel || !aQuery || !bQuery || aLabel.toLowerCase() === bLabel.toLowerCase()) continue;
     const fingerprint = [aLabel, bLabel].map(value => value.toLowerCase()).sort().join(" + ");
     if (seen.has(fingerprint) || exclusions.used.some(value => String(value || "").toLowerCase().includes(fingerprint))) continue;

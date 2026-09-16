@@ -11,6 +11,7 @@ export type PairRecord = {
   b: PairItem;
   question_type?: "pairs";
   round_type?: "pairs";
+  pairs?: PairRecord[];
 };
 
 export type PairTeamProgress = {
@@ -28,6 +29,7 @@ export type PairTile = PairItem & {
 
 export function isPairRecord(value: unknown): value is PairRecord {
   const pair = value as PairRecord | null;
+  if (pair && Array.isArray(pair.pairs)) return pair.pairs.length === PAIRS_PER_ROUND && pair.pairs.every(isPairRecord);
   return Boolean(
     pair && typeof pair.pair_id === "string" && pair.pair_id.trim() &&
     typeof pair.a?.label === "string" && pair.a.label.trim() &&
@@ -38,7 +40,14 @@ export function isPairRecord(value: unknown): value is PairRecord {
 }
 
 export function readPairs(value: unknown): PairRecord[] {
-  return Array.isArray(value) ? value.filter(isPairRecord).slice(0, PAIRS_PER_ROUND) : [];
+  if (!Array.isArray(value)) return [];
+  const out: PairRecord[] = [];
+  for (const item of value) {
+    const row = item as PairRecord;
+    if (Array.isArray(row?.pairs)) out.push(...row.pairs.filter(isPairRecord));
+    else if (isPairRecord(item)) out.push(item);
+  }
+  return out.slice(0, PAIRS_PER_ROUND);
 }
 
 export function readPairsProgress(value: unknown): PairsProgress {

@@ -154,8 +154,8 @@ export async function generateValidatedRound(
   const { roundType, difficulty, theme } = spec;
   if (roundType === "pairs") {
     onProgress?.("Creating one Match Made question with 3 pairs (6 mixed tiles)…");
-    const pairs = await generatePairs(Math.min(3, spec.count), theme, exclusions);
-    const questions = pairs as unknown as Question[];
+    const pairs = await generatePairs(3, theme, exclusions);
+    const questions = pairs.length ? [{ question_type: "pairs", round_type: "pairs", pairs } as unknown as Question] : [];
     questions.forEach(question => onAccept?.(question));
     const complete = pairs.length === 3;
     return { spec, questions, report: [], finalStatus: complete ? "Added 1 Match Made question (6 tiles / 3 pairs)." : `Added ${pairs.length} pair${pairs.length === 1 ? "" : "s"} toward the 3-pair Match Made question. Regenerate to fill the missing pair slots.`, stoppedEarly: !complete };

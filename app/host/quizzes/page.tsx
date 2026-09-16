@@ -18,7 +18,7 @@ const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), t
 const HOT_SEAT_TOTAL_QUESTIONS = 5;
 
 function targetQuestionCount(roundType: string, savedTarget?: number | null): number {
-  if (roundType === "pairs") return PAIRS_PER_ROUND;
+  if (roundType === "pairs") return 1;
   if (roundType === "pursuit") return PURSUIT_TOTAL_QUESTIONS;
   if (roundType === "hot_seat") return HOT_SEAT_TOTAL_QUESTIONS;
   return savedTarget && savedTarget > 0 ? savedTarget : 10;
@@ -827,7 +827,7 @@ export default function QuizBuilderPage() {
     // clamp here too, not just inside generateValidatedRound, so a host
     // asking for more than the round has room for gets told plainly instead
     // of the request silently getting cut down with no explanation.
-    const fixedTotal = round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS : round.round_type === "pairs" ? PAIRS_PER_ROUND : null;
+    const fixedTotal = round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS : round.round_type === "pairs" ? 1 : null;
     const roomLeft = fixedTotal === null ? null : Math.max(0, fixedTotal - round.questions.length);
     if (roomLeft === 0) { setGeneratingMoreStatus(`"${round.name}" already has all ${fixedTotal} pairs (6 tiles).`); return; }
     let n = Math.max(0, Math.floor(requested));
@@ -1869,12 +1869,12 @@ export default function QuizBuilderPage() {
                         ) : (() => {
                           const cardBody = isPairs ? (
                             <>
-                              <div style={{ color: "#D94FDC", font: "700 11px 'Inter'", letterSpacing: ".1em", marginBottom: 8 }}>PAIR {qi + 1}</div>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
-                                {[qr.a, qr.b].map((rawItem, itemIndex) => {
+                              <div style={{ color: "#D94FDC", font: "700 11px 'Inter'", letterSpacing: ".1em", marginBottom: 8 }}>3 PAIRS · 6 TILES</div>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 7 }}>
+                                {(Array.isArray((qr as any).pairs) ? (qr as any).pairs : [qr]).map((pair: any, pairIndex: number) => <div key={pairIndex} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>{[pair.a, pair.b].map((rawItem: any, itemIndex: number) => {
                                   const item = rawItem as { label: string; image_url: string };
                                   return <div key={itemIndex} style={{ borderRadius: 8, overflow: "hidden", background: "#0A0118", position: "relative", aspectRatio: "1" }}><img src={getMediaUrl(item.image_url) ?? item.image_url} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><strong style={{ position: "absolute", inset: "auto 0 0", padding: "12px 5px 5px", background: "linear-gradient(transparent,rgba(0,0,0,.9))", color: "white", textAlign: "center", fontSize: 11 }}>{item.label}</strong></div>;
-                                })}
+                                })}</div>)}
                               </div>
                             </>
                           ) : (
@@ -1931,7 +1931,7 @@ export default function QuizBuilderPage() {
                           const questionActions = (
                             <div className="qi-prep-question-actions" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                               {!isPairs && <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>EDIT</HostButton>}
-                              <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace with a new AI-generated question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
+                              <HostButton onClick={() => isPairs ? generateMoreForRound(activeRound, 3) : swapRoundQuestion(activeRound, qi)} disabled={isSwapping || (isPairs && generatingMoreId === activeRound.id)} title={isPairs ? "Fill this Match Made question to three pairs" : "Replace with a new AI-generated question"} style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping || (isPairs && generatingMoreId === activeRound.id) ? "REGENERATING..." : isPairs ? "FILL 3 PAIRS" : "REGENERATE"}</HostButton>
                               <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Drag to reorder</span>
                             </div>
                           );

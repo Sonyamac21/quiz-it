@@ -486,7 +486,7 @@ export async function callAPI(prompt: string, maxTokens: number = 8000, structur
   return text.replace(/```json/g, "").replace(/```/g, "").trim();
 }
 
-async function checkPictureIdentity(q: Question, imageUrl: string): Promise<{ ok: boolean; note: string }> {
+export async function checkPictureIdentity(q: Question, imageUrl: string): Promise<{ ok: boolean; note: string }> {
   const prompt =
     "You are visually validating a commercial pub-quiz picture question. Inspect the supplied image itself, not its filename, URL, search tags or intended query. " +
     "Pass only when the main visible subject clearly and specifically depicts what the question and intended answer require. Reject generic, ambiguous, loosely related, partially related, or visibly different subjects. " +

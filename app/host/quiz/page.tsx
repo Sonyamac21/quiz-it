@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HardDeckPanel } from "@/components/HardDeckPanel";
 import { PursuitPanel } from "@/components/PursuitPanel";
+import { PairsPanel } from "@/components/PairsRound";
 import { PhotoApprovalPanel } from "@/components/PhotoApprovalPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
 import { initTeamScore, initTeamScores, applyScoreDelta, setScoreAbsolute, resetRoundPoints as resetRoundPointsSvc, getScores as getScoresSvc, syncScoreboardData } from "@/lib/quiz/scoreService";
@@ -135,6 +136,12 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
       "Wrong answers do not eliminate anyone; every team plays all seven questions.",
       "Questions 1–6 are worth 10 points each. Completing all seven brings the round total to 100 points.",
     ],
+    pairs: [
+      "Every handset has the same six pictures in its own shuffled order.",
+      "Tap two pictures that go together. A correct pair locks in; a wrong pair resets with no point penalty.",
+      "Each of the three pairs is worth 1 point. Repeated taps and reconnects cannot award a pair twice.",
+      "The round is complete when every team has matched all three pairs, or you end it early.",
+    ],
     bonus: [
       "This is a bonus round — explain the theme before starting.",
       `${pointsPerQ} points for a correct answer, with up to +${timeBonus} extra for speed unless the round settings say otherwise.`,
@@ -149,11 +156,11 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
   };
 }
 
-const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "Multi Tap", music: "Music Round", hot_seat: "Hot Seat", pursuit: "The Pursuit", bonus: "Bonus Round", hard_deck: "The Hard Deck", nearest_wins: "Nearest Wins" };
+const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "Multi Tap", music: "Music Round", hot_seat: "Hot Seat", pursuit: "The Pursuit", bonus: "Bonus Round", hard_deck: "The Hard Deck", nearest_wins: "Nearest Wins", pairs: "Match Made" };
 
 
 
-type HostPhase = "waiting" | "round_start" | "preview" | "question" | "timer" | "hot_seat" | "answer" | "celebration" | "round_end" | "quiz_end";
+type HostPhase = "waiting" | "round_start" | "preview" | "question" | "timer" | "hot_seat" | "pairs" | "answer" | "celebration" | "round_end" | "quiz_end";
 
 function playSound(file: string, volume = 1.0) {
   return playShowAudio(file, { channel: file.includes("countdown") ? "timer" : "cue", volume });
@@ -329,6 +336,8 @@ function QuizControllerInner() {
   // round, exactly like every other round type.
   const [hardDeckAutoStartId, setHardDeckAutoStartId] = useState<string | null>(null);
   const [hardDeckActive, setHardDeckActive] = useState(false);
+  const [pairsAutoStartId, setPairsAutoStartId] = useState<string | null>(null);
+  const [pairsActive, setPairsActive] = useState(false);
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
@@ -477,11 +486,12 @@ function QuizControllerInner() {
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [hostPhase, selectedRound, qIdx, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, finalBonusMode, timerDuration, dangerZone, dangerPenalty, wipeoutMode, timeLeft, isLastQ, pursuitActive, hardDeckActive]);
+  }, [hostPhase, selectedRound, qIdx, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, finalBonusMode, timerDuration, dangerZone, dangerPenalty, wipeoutMode, timeLeft, isLastQ, pursuitActive, hardDeckActive, pairsActive]);
 
   async function handleSpacebar() {
     if (pursuitActive) return; // The Pursuit panel owns Space while it's running.
     if (hardDeckActive) return; // The Hard Deck panel owns Space while it's running.
+    if (pairsActive) return; // Pairs owns Space while its full-screen controller is running.
     if (!connected || !selectedRound) return;
     if (scoringInProgressRef.current) {
       showToast("Scoring is still being confirmed. Please wait a moment.", "warning", 3500);
@@ -521,6 +531,7 @@ function QuizControllerInner() {
         // always-visible button floating over the rest of the host UI.
         setHardDeckAutoStartId(selectedRound.id);
       }
+      else if (selectedRound?.round_type === "pairs") setPairsAutoStartId(selectedRound.id);
       else if ((selectedRound?.questions.length ?? 0) === 0) await doEndRound();
       else await doPreviewQuestion(qIdx);
     }
@@ -2178,13 +2189,14 @@ function QuizControllerInner() {
     // question would appear, so clear any stale id from a previous round.
     setPursuitAutoStartId(null);
     setHardDeckAutoStartId(null);
+    setPairsAutoStartId(null);
     if (r?.hide_leaderboard) { setShowScoreboard(false); setShowScoreboardOnHandsets(false); }
     roundQuestionsRef.current = r ? [...r.questions] : [];
   }
 
   const spacebarHint =
     hostPhase === "waiting" ? (roundNumber === 1 ? "SPACE: Start Quiz" : "SPACE: Start Round") :
-    hostPhase === "round_start" ? (selectedRound?.round_type === "pursuit" ? "SPACE: Start The Pursuit" : selectedRound?.round_type === "hard_deck" ? "SPACE: Start The Hard Deck" : "SPACE: Preview First Question") :
+    hostPhase === "round_start" ? (selectedRound?.round_type === "pursuit" ? "SPACE: Start The Pursuit" : selectedRound?.round_type === "hard_deck" ? "SPACE: Start The Hard Deck" : selectedRound?.round_type === "pairs" ? "SPACE: Start Match Made" : "SPACE: Preview First Question") :
     hostPhase === "preview" ? "SPACE: Send Question Live" :
     hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "SPACE: Reveal Question Text" :
     hostPhase === "question" ? "SPACE: Start Timer" :
@@ -2203,7 +2215,7 @@ function QuizControllerInner() {
   // the host never hunts and can drive the whole show from peripheral vision.
   const nextActionLabel =
     hostPhase === "waiting" ? (roundNumber === 1 ? "Start Quiz" : "Start Round") :
-    hostPhase === "round_start" ? (selectedRound?.round_type === "pursuit" ? "Start The Pursuit" : selectedRound?.round_type === "hard_deck" ? "Start The Hard Deck" : "Preview First Question") :
+    hostPhase === "round_start" ? (selectedRound?.round_type === "pursuit" ? "Start The Pursuit" : selectedRound?.round_type === "hard_deck" ? "Start The Hard Deck" : selectedRound?.round_type === "pairs" ? "Start Match Made" : "Preview First Question") :
     hostPhase === "preview" ? "Send Question Live" :
     hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "Reveal Question Text" :
     hostPhase === "question" ? "Start Timer" :
@@ -2368,7 +2380,7 @@ function QuizControllerInner() {
 
               {selectedRound && (() => {
                 const rt = selectedRound.questions[0]?.round_type || "regular";
-                const key = (rt === "multi_tap" || rt === "music" || rt === "nearest_wins") ? rt : "regular";
+                const key = (rt === "multi_tap" || rt === "music" || rt === "nearest_wins" || rt === "pairs") ? rt : "regular";
                 return (
                   <div style={{ marginBottom:20 }}>
                     <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>{(ROUND_TYPE_LABEL[key]||"GENERAL KNOWLEDGE").toUpperCase()} — CURRENT ROUND</div>
@@ -2411,6 +2423,7 @@ function QuizControllerInner() {
         )}
           {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setHardDeckActive(active); if (!active) setHardDeckAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={hardDeckAutoStartId} />}
           {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pursuitAutoStartId} />}
+          {sessionId && <PairsPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pairs").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPairsActive(active); if (!active) setPairsAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pairsAutoStartId} />}
           {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
           <a href={sessionPin ? `/host/display?pin=${encodeURIComponent(sessionPin)}` : "/host/display"} target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
         </nav>
@@ -2506,7 +2519,7 @@ function QuizControllerInner() {
                       className="qi-mc-round-card"
                     >
                       <strong>{(r.position ?? 0) + 1}. {r.name}</strong>
-                      <span>{r.completed_at ? "✓ Completed" : "Upcoming"} · {r.round_type === "pursuit" ? "The Pursuit" : r.round_type === "hot_seat" ? `Hot Seat · ${r.questions?.length || 0} questions` : `${r.questions?.length || 0} questions${r.round_type && r.round_type !== "regular" ? " · " + r.round_type : ""}`}</span>
+                      <span>{r.completed_at ? "✓ Completed" : "Upcoming"} · {r.round_type === "pursuit" ? "The Pursuit" : r.round_type === "hot_seat" ? `Hot Seat · ${r.questions?.length || 0} questions` : r.round_type === "pairs" ? `${r.questions?.length || 0} pairs · Match Made` : `${r.questions?.length || 0} questions${r.round_type && r.round_type !== "regular" ? " · " + r.round_type : ""}`}</span>
                     </button>
                   ))}
                 </div>
@@ -2523,7 +2536,7 @@ function QuizControllerInner() {
                   {((selectedRound.round_type ? rules[selectedRound.round_type] : undefined) || rules.regular).map((rule, index) => <li key={`${selectedRound.id}-rule-${index}`}>{rule}</li>)}
                 </ol>
               </div>
-              <div className="qi-mc-round-start__action">{selectedRound.round_type === "pursuit" || selectedRound.round_type === "hard_deck" ? "Announce the rules · SPACE to begin" : "Announce the rules · SPACE to preview Q1"}</div>
+              <div className="qi-mc-round-start__action">{selectedRound.round_type === "pursuit" || selectedRound.round_type === "hard_deck" || selectedRound.round_type === "pairs" ? "Announce the rules · SPACE to begin" : "Announce the rules · SPACE to preview Q1"}</div>
             </div>
           ) : hostPhase === "round_end" ? (
             <div style={{ textAlign:"center", marginTop:60 }}>

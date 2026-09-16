@@ -11,6 +11,8 @@ import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { SlotReels } from "@/components/SlotReels";
 import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitCorrectAnswerText, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { PursuitBoard } from "@/components/PursuitBoard";
+import { PairsDisplayBoard } from "@/components/PairsRound";
+import { PairRecord, PairsProgress, readPairs, readPairsProgress } from "@/lib/quiz/pairs";
 import { teamInitials } from "@/components/TeamBadge";
 import { RoundStart, RoundEnd, Intermission, IntermissionGallery, WaitingForHost } from "@/components/fable/DisplayStates";
 import { enableShowAudio, playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
@@ -37,7 +39,7 @@ type Question = {
   fade_out?: boolean;
 };
 type Score = { team_name: string; total_points: number; };
-type Phase = "waiting" | "round_start" | "question" | "hot_seat" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission" | "spin_to_win" | "pursuit";
+type Phase = "waiting" | "round_start" | "question" | "hot_seat" | "answer" | "celebration" | "round_end" | "scoreboard" | "quiz_end" | "hard_deck" | "intermission" | "spin_to_win" | "pursuit" | "pairs";
 
 // Corner branding badge shown on every display screen. Centralised so the
 // design only has to be changed in one place instead of the 7 identical
@@ -600,6 +602,8 @@ function DisplayScreenInner() {
   const [pursuitStatus, setPursuitStatus] = useState<PursuitPhase>("idle");
   const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
   const [pursuitQIndex, setPursuitQIndex] = useState(-1);
+  const [pairsContent, setPairsContent] = useState<PairRecord[]>([]);
+  const [pairsProgress, setPairsProgress] = useState<PairsProgress>({});
   const prevPursuitStatusRef = useRef<string>("idle");
   const prevPursuitRaceRef = useRef<PursuitRace>({});
   const pursuitUrgentPlayedRef = useRef<number>(-1);
@@ -1138,6 +1142,8 @@ function DisplayScreenInner() {
       }
       prevPursuitRaceRef.current = newRace;
     }
+    setPairsContent(readPairs(data.pairs_content));
+    setPairsProgress(readPairsProgress(data.pairs_progress));
     setIntermissionOffers((data.intermission_offers as string) || "");
     setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
     setIntermissionOtherQuizzes((data.intermission_other_quizzes as string) || "");
@@ -1488,6 +1494,15 @@ function DisplayScreenInner() {
   }
 
   // WAITING / HOLDING SCREEN
+  if (!displayLeaderboard && phase === "pairs") {
+    return (
+      <div className="fbl fbl-stage qi-display-stage" style={{ height: "100vh", overflow: "hidden" }}>
+        <PairsDisplayBoard pairs={pairsContent} progress={pairsProgress} teamNames={teams.map(team => team.team_name)} />
+        <QuizItBadge />
+      </div>
+    );
+  }
+
   // THE HARD DECK
   if (!displayLeaderboard && phase === "hard_deck") {
     const rankLabels: Record<number,string> = { 1:"A", 11:"J", 12:"Q", 13:"K" };

@@ -10,6 +10,8 @@ import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitTotalPoints, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { Crest } from "@/components/fable/HandsetStates";
 import { hardDeckGambleStake } from "@/lib/quiz/hardDeck";
+import { PairsPlayerBoard } from "@/components/PairsRound";
+import { PairRecord, PairsProgress, readPairs, readPairsProgress } from "@/lib/quiz/pairs";
 import { teamInitials } from "@/components/TeamBadge";
 import { PlayerShell, PlayerStatusBar, PlayerResultBanner } from "@/components/player/PlayerUI";
 import { TeamPhotoUpload } from "@/components/player/TeamPhotoUpload";
@@ -33,7 +35,7 @@ type Question = {
   correct_answer: string;
 };
 
-type Phase = "waiting" | "question" | "hot_seat" | "answer" | "celebration" | "hard_deck" | "intermission" | "spin_to_win" | "quiz_end" | "pursuit";
+type Phase = "waiting" | "question" | "hot_seat" | "answer" | "celebration" | "hard_deck" | "intermission" | "spin_to_win" | "quiz_end" | "pursuit" | "pairs";
 type UpcomingQuiz = { venue_name: string; event_date: string; start_time: string };
 
 function formatUpcomingDate(value: string): string {
@@ -423,6 +425,8 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [pursuitStatus, setPursuitStatus] = useState<PursuitPhase>("idle");
   const [pursuitQIndex, setPursuitQIndex] = useState(-1);
   const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
+  const [pairsContent, setPairsContent] = useState<PairRecord[]>([]);
+  const [pairsProgress, setPairsProgress] = useState<PairsProgress>({});
   const [connectionLost, setConnectionLost] = useState(false);
   const [failedAnswer, setFailedAnswer] = useState<string | null>(null);
   const [sessionStatus, setSessionStatus] = useState<string>("waiting");
@@ -630,7 +634,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     async function fetchSession() {
       const { data, error: fetchError } = await supabase
         .from("sessions")
-        .select("current_session_round_id, phase, status, round_number, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, hard_deck_steal_guesses, hard_deck_steal_winners, hard_deck_steal_points, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, venue_record_id, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
+        .select("current_session_round_id, phase, status, round_number, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, hard_deck_steal_guesses, hard_deck_steal_winners, hard_deck_steal_points, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, venue_record_id, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, pairs_status, pairs_content, pairs_progress, pairs_round_id, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
         .eq("pin", sessionPin)
         .single();
       if (fetchError) {
@@ -867,6 +871,8 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     setPursuitStatus(newPursuitStatus);
     setPursuitQIndex(readQIndex(pursuitState));
     setPursuitRace(readRace(pursuitState));
+    setPairsContent(readPairs(data.pairs_content));
+    setPairsProgress(readPairsProgress(data.pairs_progress));
     setSpinOffered(!!data.spin_offered);
     setSpinChoice((data.spin_choice as string) || null);
     setIntermissionOffers((data.intermission_offers as string) || "");
@@ -1138,7 +1144,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // designed against it and letting a team play Reverse/Steal/etc mid-race
   // would corrupt results in ways nobody's accounted for. Treated the same
   // as Hot Seat: unavailable for the duration of the round, not just hidden.
-  const powerCardsUsableNow = allowPowerCards && phase !== "pursuit" && phase !== "hot_seat" && phase !== "quiz_end";
+  const powerCardsUsableNow = allowPowerCards && phase !== "pursuit" && phase !== "pairs" && phase !== "hot_seat" && phase !== "quiz_end";
   const PowerCards = () => (
     powerCardsUsableNow ? <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
       <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={powerCardsUsableNow} />
@@ -1162,6 +1168,38 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
       </PlayerShell>
     );
+  }
+
+  if (phase === "pairs") {
+    return <PairsPlayerBoard
+      pairs={pairsContent}
+      progress={pairsProgress}
+      teamName={teamName}
+      disabled={connectionLost}
+      onSelect={async tile => {
+        const supabase = createSupabaseBrowserClient();
+        await supabase.rpc("submit_pairs_attempt", {
+          p_session_pin: sessionPin,
+          p_team_name: teamName,
+          p_player_token: playerToken,
+          p_first_tile_id: tile.id,
+          p_second_tile_id: null,
+        });
+      }}
+      onAttempt={async (first, second) => {
+        const supabase = createSupabaseBrowserClient();
+        const { data, error: attemptError } = await supabase.rpc("submit_pairs_attempt", {
+          p_session_pin: sessionPin,
+          p_team_name: teamName,
+          p_player_token: playerToken,
+          p_first_tile_id: first.id,
+          p_second_tile_id: second.id,
+        });
+        if (attemptError) return { correct: false, reason: attemptError.message };
+        const row = Array.isArray(data) ? data[0] : data;
+        return { correct: Boolean(row?.correct), reason: String(row?.reason || "") };
+      }}
+    />;
   }
 
   if (phase === "pursuit" && pursuitStatus === "question" && pursuitRace[teamName]?.status !== "active") {

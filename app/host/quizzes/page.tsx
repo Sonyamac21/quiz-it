@@ -11,18 +11,21 @@ import { useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
+import { isPairRecord, PAIRS_PER_ROUND } from "@/lib/quiz/pairs";
 import { eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "@/lib/quiz/prepRules";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const HOT_SEAT_TOTAL_QUESTIONS = 5;
 
 function targetQuestionCount(roundType: string, savedTarget?: number | null): number {
+  if (roundType === "pairs") return PAIRS_PER_ROUND;
   if (roundType === "pursuit") return PURSUIT_TOTAL_QUESTIONS;
   if (roundType === "hot_seat") return HOT_SEAT_TOTAL_QUESTIONS;
   return savedTarget && savedTarget > 0 ? savedTarget : 10;
 }
 
 function validQuestionsForRound<T extends Record<string, unknown> | Question>(roundType: string, questions: T[]): T[] {
+  if (roundType === "pairs") return questions.filter(isPairRecord);
   if (roundType !== "multi_tap") return questions;
   return questions.filter(question => !multiTapSuitabilityError(question as Question));
 }
@@ -254,6 +257,7 @@ export default function QuizBuilderPage() {
     hot_seat: "Hot Seat",
     bonus: "Bonus",
     hard_deck: "The Hard Deck",
+    pairs: "Match Made",
   };
   // Round types that are AI-question rounds and can be generated. Hard Deck
   // (and any future non-question round type) is added to the running order as
@@ -263,7 +267,7 @@ export default function QuizBuilderPage() {
   // through to its default mixed-type branch for any unrecognised round
   // type), it just gets its own label/tab so it's distinguishable in the
   // running order.
-  const GENERATABLE_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "pursuit", "hot_seat", "bonus"]);
+  const GENERATABLE_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "pursuit", "hot_seat", "bonus", "pairs"]);
   // Adds a brand-new, empty round straight into this Quiz Plan's running order
   // (no need to first create/save it in the Round Library) and immediately
   // selects it in the Generate All panel with sensible defaults, so a host can
@@ -719,7 +723,7 @@ export default function QuizBuilderPage() {
     const shortfalls: Record<string, number> = {};
     targets.forEach(r => {
       const cfgCount = bulkConfig[r.id]?.count;
-      const effectiveTarget = r.round_type === "hot_seat" || r.round_type === "pursuit"
+      const effectiveTarget = r.round_type === "hot_seat" || r.round_type === "pursuit" || r.round_type === "pairs"
         ? targetQuestionCount(r.round_type)
         : Number.isFinite(cfgCount) && (cfgCount as number) > 0
         ? (cfgCount as number)
@@ -823,7 +827,7 @@ export default function QuizBuilderPage() {
     // clamp here too, not just inside generateValidatedRound, so a host
     // asking for more than the round has room for gets told plainly instead
     // of the request silently getting cut down with no explanation.
-    const fixedTotal = round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS : null;
+    const fixedTotal = round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS : round.round_type === "pairs" ? PAIRS_PER_ROUND : null;
     const roomLeft = fixedTotal === null ? null : Math.max(0, fixedTotal - round.questions.length);
     if (roomLeft === 0) { setGeneratingMoreStatus(`"${round.name}" already has its full ${fixedTotal} questions.`); return; }
     let n = Math.max(0, Math.floor(requested));
@@ -1510,7 +1514,7 @@ export default function QuizBuilderPage() {
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, alignItems: "center" }}>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Questions
-                            {activeRound.round_type === "pursuit" || activeRound.round_type === "hot_seat"
+                            {activeRound.round_type === "pursuit" || activeRound.round_type === "hot_seat" || activeRound.round_type === "pairs"
                               ? <span style={{ color: "#fff" }}>{targetQuestionCount(activeRound.round_type)} (fixed)</span>
                               : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(activeRound.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
                           </label>
@@ -1559,7 +1563,7 @@ export default function QuizBuilderPage() {
                 )}
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-                  <div className="fbh-lbl" style={{ margin: 0 }}>Questions</div>
+                  <div className="fbh-lbl" style={{ margin: 0 }}>{activeRound.round_type === "pairs" ? "Match Made pairs" : "Questions"}</div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     {generatingMoreId === activeRound.id && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{generatingMoreStatus}</span>}
                     {generatingMoreId !== activeRound.id && lastGenerateMoreResult[activeRound.id] && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{lastGenerateMoreResult[activeRound.id]}</span>}
@@ -1579,9 +1583,9 @@ export default function QuizBuilderPage() {
                         </HostButton>
                       </div>
                     )}
-                    <HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); const allowed = allowedLibraryTypesForRound(activeRound.round_type); const defaultType = allowed.length === 1 ? allowed[0] : ""; setLibraryTypeFilter(defaultType); loadLibraryQuestions("", defaultType); } return next; }); setAddQuestionOpenId(null); setRandomOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
+                    {activeRound.round_type !== "pairs" && <><HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); const allowed = allowedLibraryTypesForRound(activeRound.round_type); const defaultType = allowed.length === 1 ? allowed[0] : ""; setLibraryTypeFilter(defaultType); loadLibraryQuestions("", defaultType); } return next; }); setAddQuestionOpenId(null); setRandomOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
                     <HostButton onClick={() => { setRandomOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); setAddQuestionOpenId(null); }}>{randomOpenId === activeRound.id ? "CLOSE" : "🎲 RANDOM FROM LIBRARY"}</HostButton>
-                    <HostButton onClick={() => { setAddQuestionOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); setRandomOpenId(null); }}>{addQuestionOpen ? "CLOSE" : "+ ADD QUESTION"}</HostButton>
+                    <HostButton onClick={() => { setAddQuestionOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); setRandomOpenId(null); }}>{addQuestionOpen ? "CLOSE" : "+ ADD QUESTION"}</HostButton></>}
                   </div>
                 </div>
                 {randomOpenId === activeRound.id && (
@@ -1674,6 +1678,7 @@ export default function QuizBuilderPage() {
                     // to be pulled out of the generic options list and shown
                     // as an actual photo instead of raw text/a URL string.
                     const isPicture = qType === "picture";
+                    const isPairs = isPairRecord(qr);
                     const photoQuery = isPicture ? String(qr.option_a ?? "") : "";
                     const photoUrl = isPicture ? String(qr.option_b ?? "") : "";
                     const optionLetters = ["a", "b", "c", "d", "e", "f"] as const;
@@ -1857,7 +1862,17 @@ export default function QuizBuilderPage() {
                             </div>
                           </div>
                         ) : (() => {
-                          const cardBody = (
+                          const cardBody = isPairs ? (
+                            <>
+                              <div style={{ color: "#D94FDC", font: "700 11px 'Inter'", letterSpacing: ".1em", marginBottom: 8 }}>PAIR {qi + 1}</div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                                {[qr.a, qr.b].map((rawItem, itemIndex) => {
+                                  const item = rawItem as { label: string; image_url: string };
+                                  return <div key={itemIndex} style={{ borderRadius: 8, overflow: "hidden", background: "#0A0118", position: "relative", aspectRatio: "1" }}><img src={getMediaUrl(item.image_url) ?? item.image_url} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><strong style={{ position: "absolute", inset: "auto 0 0", padding: "12px 5px 5px", background: "linear-gradient(transparent,rgba(0,0,0,.9))", color: "white", textAlign: "center", fontSize: 11 }}>{item.label}</strong></div>;
+                                })}
+                              </div>
+                            </>
+                          ) : (
                             <>
                             <div style={{ font: "400 13px 'Inter'", color: "#D9CCF2", lineHeight: 1.5 }}>
                               <strong style={{ color: "#6B5A8E" }}>{"⠿ "}{qi + 1}.</strong> {String(qr.question_text ?? "")}
@@ -1910,7 +1925,7 @@ export default function QuizBuilderPage() {
                           const isCardHovered = hoveredQuestionKey === editKey;
                           const questionActions = (
                             <div className="qi-prep-question-actions" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                              <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>EDIT</HostButton>
+                              {!isPairs && <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>EDIT</HostButton>}
                               <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace with a new AI-generated question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
                               <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Drag to reorder</span>
                             </div>

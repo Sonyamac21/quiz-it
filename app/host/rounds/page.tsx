@@ -37,7 +37,7 @@ type Round = {
   synced_from_quiz_round_id: string | null;
 };
 
-const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", multi_tap:"Multi Tap", picture:"Picture", audio:"Music", nearest_wins:"Nearest Wins" };
+const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", text_answer:"Text Answer", number:"Number", sequence:"Sequence", multi_tap:"Multi Tap", picture:"Picture", audio:"Music", nearest_wins:"Nearest Wins", pairs:"Match Made" };
 
 const ROUND_LAUNCHER_TYPES: { key: string; label: string }[] = [
   { key: "regular",   label: "General Knowledge" },
@@ -47,6 +47,7 @@ const ROUND_LAUNCHER_TYPES: { key: string; label: string }[] = [
   { key: "nearest_wins", label: "Nearest Wins" },
   { key: "pursuit",   label: "The Pursuit" },
   { key: "hot_seat",  label: "Hot Seat" },
+  { key: "pairs",     label: "Match Made" },
 ];
 
 const selectStyle: React.CSSProperties = { flex: 1, padding: "9px 12px", borderRadius: 14, background: "#150A2E", color: "#fff", border: "1px solid #2E1A52", fontSize: 13, fontFamily: "'Inter',sans-serif", minWidth: 0, outline: "none" };
@@ -203,7 +204,7 @@ export default function RoundsPage() {
           const roundRow = (r: Round) => (
             <div key={r.id} className="fbh-panel">
               <div style={{ font: "700 15px 'Inter'", marginBottom: 4 }}>{r.name}</div>
-              <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E", marginBottom: 10 }}>{r.questions?.length || 0} questions · {r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
+              <div style={{ font: "400 12px 'Inter'", color: "#6B5A8E", marginBottom: 10 }}>{r.questions?.length || 0} {r.round_type === "pairs" ? "pairs" : "questions"} · {typeLabel[r.round_type] || r.round_type} · {r.difficulty} · {new Date(r.created_at).toLocaleDateString()}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <HostButton onClick={() => setOpenRound(r)} style={{ height: 36 }}>View</HostButton>
                 <HostButton onClick={() => moveRoundToFolder(r)} style={{ height: 36 }}>Move</HostButton>

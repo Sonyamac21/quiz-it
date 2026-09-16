@@ -26,6 +26,7 @@
 // see generateAllRounds() in this file for the batch orchestrator.
 
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
+import { generatePairs } from "@/lib/quiz/generatePairs";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   type Question,
@@ -151,6 +152,14 @@ export async function generateValidatedRound(
   wallClockScale = 1,
 ): Promise<RoundGenerationResult> {
   const { roundType, difficulty, theme } = spec;
+  if (roundType === "pairs") {
+    onProgress?.(`Creating ${spec.count} picture pair${spec.count === 1 ? "" : "s"}…`);
+    const pairs = await generatePairs(Math.min(3, spec.count), theme, exclusions);
+    const questions = pairs as unknown as Question[];
+    questions.forEach(question => onAccept?.(question));
+    const complete = pairs.length === Math.min(3, spec.count);
+    return { spec, questions, report: [], finalStatus: complete ? `Added ${pairs.length} picture pair${pairs.length === 1 ? "" : "s"}.` : `Added ${pairs.length} of ${Math.min(3, spec.count)} requested picture pairs. Regenerate to fill the missing pair slots.`, stoppedEarly: !complete };
+  }
   const existingQuestions = (spec.existingQuestions || []) as Question[];
   // The Pursuit is always exactly 7 gates total, never host-configurable -
   // but this used to force count to the FULL 7 regardless of what was asked

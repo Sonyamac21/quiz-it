@@ -33,7 +33,7 @@ export type QuizPreflight = {
   warnings: QuizPreflightIssue[];
 };
 
-const QUESTION_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "nearest_wins", "pursuit", "hot_seat", "bonus"]);
+const QUESTION_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "nearest_wins", "pursuit", "hot_seat", "bonus", "pairs"]);
 
 function normalisedKeys(value: unknown): string[] {
   return String(value ?? "").toLowerCase().split(",").map(item => item.trim()).filter(Boolean);
@@ -60,6 +60,12 @@ export function getQuizPreflight(quiz: Plan): QuizPreflight {
     }
     if (round.round_type === "pursuit" && questions.length !== 7) {
       blockers.push({ code: "pursuit-count", roundId: round.id, message: `${roundName} must contain exactly 7 questions (currently ${questions.length}).` });
+    }
+    if (round.round_type === "pairs" && (questions.length !== 3 || questions.some(question => {
+      const pair = question as { pair_id?: unknown; a?: { label?: unknown; image_url?: unknown }; b?: { label?: unknown; image_url?: unknown } };
+      return !String(pair.pair_id || "").trim() || !String(pair.a?.label || "").trim() || !String(pair.a?.image_url || "").trim() || !String(pair.b?.label || "").trim() || !String(pair.b?.image_url || "").trim();
+    }))) {
+      blockers.push({ code: "pairs-incomplete", roundId: round.id, message: `${roundName} must contain exactly 3 complete image pairs.` });
     }
 
     questions.forEach((raw, index) => {

@@ -603,7 +603,10 @@ function DisplayScreenInner() {
   useEffect(() => {
     if (phase !== "intermission") { setPromoImagePhotos([]); return; }
     let cancelled = false;
-    fetchActiveVenueOffers(venueRecordId, true, "display").then(urls => { if (!cancelled) setPromoImagePhotos(urls); });
+    // includeAllVenues=false here (unlike the handset's own fetch) - a
+    // Display screen should only ever show ITS OWN venue's per-venue
+    // images plus the generic (every-venue) ones, never another venue's.
+    fetchActiveVenueOffers(venueRecordId, false, "display").then(urls => { if (!cancelled) setPromoImagePhotos(urls); });
     return () => { cancelled = true; };
   }, [phase, venueRecordId]);
   // THE PURSUIT — display-side mirror of pursuit_status + the pursuit_data race.
@@ -755,14 +758,28 @@ function DisplayScreenInner() {
     ...(venueInstagramTag ? ["social"] : []),
     "cards",
     ...(approvedCustomerPhotos.length > 0 ? ["photos"] : []),
+    // Promo Images targeted at "display" (see Media & Music) - only added
+    // to the rotation once any are actually uploaded/active for this venue.
+    ...(promoImagePhotos.length > 0 ? ["promo"] : []),
   ];
+  // Reused both for the pre-show lobby ("waiting") and, when there's no
+  // dedicated intermission content (offers text/WhatsApp/gallery) set up
+  // for this session, as the intermission holding screen too - a rotating
+  // venue animation + any uploaded promo photos beats a bare "ROUND X
+  // COMING UP" card sitting there doing nothing.
   useEffect(() => {
-    if (phase !== "waiting") return;
+    if (phase !== "waiting" && phase !== "intermission") return;
     const id = window.setInterval(() => {
       setReelSceneIdx(i => (i + 1) % reelScenes.length);
     }, 7000);
     return () => window.clearInterval(id);
   }, [phase, reelScenes.length]);
+  const [promoPhotoIdx, setPromoPhotoIdx] = useState(0);
+  useEffect(() => {
+    if (promoImagePhotos.length < 2) return;
+    const id = window.setInterval(() => setPromoPhotoIdx(i => (i + 1) % promoImagePhotos.length), 6000);
+    return () => window.clearInterval(id);
+  }, [promoImagePhotos.length]);
   useEffect(() => {
     if (approvedCustomerPhotos.length === 0) return;
     const id = window.setInterval(() => {
@@ -1615,6 +1632,141 @@ function DisplayScreenInner() {
     );
   }
 
+  // The animated venue reel (branded intro card, offers/prizes/social
+  // scenes, approved photos, and now Promo Images) - shared by the
+  // pre-show lobby below AND the intermission screen further down when
+  // there's no dedicated intermission content configured, so a live show
+  // never idles on a bare "coming up" card while it has real branding and
+  // content to show instead.
+  function renderVenueReel() {
+    return (
+      <div className="lb-cardstage lb-reel">
+        <div className="lb-reel-title">{venueName ? `TONIGHT AT ${venueName.toUpperCase()}` : "TONIGHT'S SHOW"}</div>
+
+        {currentReelScene === "venue" && (
+          <div className="lb-reel-scene lb-reel-venue">
+            {venueHeroVideoUrl && !venueHeroVideoFailed ? (
+              <video key={venueHeroVideoUrl} className="lb-reel-media" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline onError={() => setVenueHeroVideoFailed(true)} onLoadedData={() => setVenueHeroVideoFailed(false)} />
+            ) : venueHeroImageUrl ? (
+              <img className="lb-reel-media" src={getMediaUrl(venueHeroImageUrl) || undefined} alt={venueName || "Venue"} />
+            ) : (
+              <div className="lb-venue-intro-bg" />
+            )}
+            <div className={"lb-venue-intro" + ((venueHeroVideoUrl && !venueHeroVideoFailed) || venueHeroImageUrl ? " has-media" : "")}>
+              {venueLogoUrl && <img className="lb-venue-intro-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
+              <div className="lb-venue-intro-copy">
+                <div className="lb-venue-intro-name">{venueName || "TONIGHT'S QUIZ"}</div>
+                {venueScheduleText && <div className="lb-venue-intro-time">QUIZ NIGHT · {venueScheduleText}</div>}
+                <div className="lb-venue-intro-tagline">Quiz-It · Powered by Mac Entertainment · by Sonya Mac</div>
+              </div>
+              {(() => {
+                const safeHostName = venueHostName && !venueHostName.includes("@") ? venueHostName : null;
+                if (!venueHostPhotoUrl && !safeHostName) return null;
+                return (
+                  <div className="lb-venue-intro-host">
+                    {venueHostPhotoUrl && <img src={getMediaUrl(venueHostPhotoUrl) || undefined} alt={safeHostName || "Quiz host"} />}
+                    <div><small>YOUR HOST</small><strong>{safeHostName || "Mac Entertainment"}</strong></div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {currentReelScene === "offers" && intermissionOffers.trim() && (
+          <div className="lb-reel-scene lb-reel-brand lb-reel-brand-offers">
+            <div className="lb-reel-brand-panel">
+              {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
+              <div className="lb-cardkicker">TONIGHT AT {venueName?.toUpperCase() || "THE VENUE"}</div>
+              <div className="lb-reel-brand-body">{intermissionOffers}</div>
+            </div>
+          </div>
+        )}
+
+        {currentReelScene === "prizes" && (
+          <div className="lb-reel-scene lb-reel-brand lb-reel-brand-prizes">
+            <div className="lb-reel-brand-panel">
+              {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt={venueName ? `${venueName} logo` : "Venue logo"} />}
+              <div className="lb-cardkicker">TONIGHT&rsquo;S PRIZES</div>
+              <div className="lb-reel-brand-body">{venuePrizeInfo}</div>
+            </div>
+          </div>
+        )}
+
+        {currentReelScene === "social" && (
+          <div className="lb-reel-scene lb-reel-brand lb-reel-brand-social">
+            <div className="lb-reel-brand-panel">
+              {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
+              <div className="lb-cardkicker">FOLLOW THE VENUE</div>
+              <FitText className="lb-reel-brand-headline"><InstagramGlyph />{venueInstagramTag}</FitText>
+            </div>
+          </div>
+        )}
+
+        {currentReelScene === "tag-us" && (
+          <div className="lb-reel-scene lb-reel-brand lb-reel-brand-social">
+            <div className="lb-reel-brand-panel">
+              <div className="lb-cardkicker">SHARE THE NIGHT</div>
+              <FitText className="lb-reel-brand-headline"><InstagramGlyph />@macentertainmentuae</FitText>
+              <div className="lb-reel-brand-body">Tag us in your posts and stories!</div>
+            </div>
+          </div>
+        )}
+
+        {currentReelScene === "cards" && (
+          <div className="lb-reel-scene">
+            {!allowPowerCards ? (
+              <>
+                <div className="lb-cardkicker">ROUND RULE</div>
+                <div className="lb-pcard">
+                  <div className="lb-pcard-sigil" aria-hidden="true">◇</div>
+                  <div className="lb-pcard-name">POWER CARDS PAUSED</div>
+                  <div className="lb-pcard-rule">Unused cards stay available for a later round.</div>
+                </div>
+              </>
+            ) : <>
+            <div className="lb-cardkicker">POWER CARDS</div>
+            {(() => {
+              const c = POWER_CARD_INFO[powerCardIdx];
+              return (
+                <div key={powerCardIdx} className="lb-pcard" style={{ borderColor: c.color, boxShadow: `0 0 60px ${c.glow}` }}>
+                  <div className="lb-pcard-sigil" style={{ color: c.color, textShadow: `0 0 34px ${c.glow}` }}>{c.sigil}</div>
+                  <div className="lb-pcard-name" style={{ color: c.color }}>{c.name}</div>
+                  <div className="lb-pcard-rule">{c.rule}</div>
+                  <div className="lb-pcard-meta">Once per quiz</div>
+                </div>
+              );
+            })()}
+            <div className="lb-dots">
+              {POWER_CARD_INFO.map((_, i) => <span key={i} className={"lb-dot" + (i === powerCardIdx ? " on" : "")} />)}
+            </div>
+            </>}
+          </div>
+        )}
+
+        {currentReelScene === "photos" && approvedCustomerPhotos.length > 0 && (
+          <div className="lb-reel-scene lb-reel-photos">
+            {[0, 1, 2].map(slot => {
+              const photo = approvedCustomerPhotos[(floatingPhotoIdx + slot) % approvedCustomerPhotos.length];
+              if (!photo) return null;
+              return (
+                <div key={slot} className={`lb-float-photo lb-float-photo-${slot}`} style={{ animationDelay: `${slot * 1.3}s` }}>
+                  <img src={photo} alt="Team photo" />
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {currentReelScene === "promo" && promoImagePhotos.length > 0 && (
+          <div className="lb-reel-scene lb-reel-venue">
+            <img key={promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]} className="lb-reel-media" src={promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]} alt="Promo" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (!displayLeaderboard && (phase === "waiting" || phase === "round_start" || phase === "round_end")) {
     if (phase !== "waiting") {
       // Fable Display "show structure" states, wired to the real phase +
@@ -1655,145 +1807,7 @@ function DisplayScreenInner() {
               ))}
             </div>
           </div>
-          <div className="lb-cardstage lb-reel">
-            <div className="lb-reel-title">{venueName ? `TONIGHT AT ${venueName.toUpperCase()}` : "TONIGHT'S SHOW"}</div>
-
-            {currentReelScene === "venue" && (
-              <div className="lb-reel-scene lb-reel-venue">
-                {/* This animated title-card (logo pop, name sweep, tagline
-                    fade) always plays, whether or not a Hero Video/Image has
-                    been uploaded - it's the actual "animation at the
-                    beginning" a Hero Video/Image was never a substitute for.
-                    With media uploaded, it overlays the bottom of the frame
-                    over a gradient scrim so both are visible together;
-                    without media, it fills the frame over an animated
-                    branded glow background instead of a blank prompt. */}
-                {venueHeroVideoUrl && !venueHeroVideoFailed ? (
-                  <video key={venueHeroVideoUrl} className="lb-reel-media" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline onError={() => setVenueHeroVideoFailed(true)} onLoadedData={() => setVenueHeroVideoFailed(false)} />
-                ) : venueHeroImageUrl ? (
-                  <img className="lb-reel-media" src={getMediaUrl(venueHeroImageUrl) || undefined} alt={venueName || "Venue"} />
-                ) : (
-                  <div className="lb-venue-intro-bg" />
-                )}
-                <div className={"lb-venue-intro" + ((venueHeroVideoUrl && !venueHeroVideoFailed) || venueHeroImageUrl ? " has-media" : "")}>
-                  {venueLogoUrl && <img className="lb-venue-intro-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
-                  <div className="lb-venue-intro-copy">
-                    <div className="lb-venue-intro-name">{venueName || "TONIGHT'S QUIZ"}</div>
-                    {venueScheduleText && <div className="lb-venue-intro-time">QUIZ NIGHT · {venueScheduleText}</div>}
-                    {/* Matches the brand tagline used everywhere else in the
-                        app ("Quiz-It · Powered by Mac Entertainment · by
-                        Sonya Mac") - this card had drifted to a bare
-                        "Powered by Quiz-It", the one place the brand line
-                        was inverted. */}
-                    <div className="lb-venue-intro-tagline">Quiz-It · Powered by Mac Entertainment · by Sonya Mac</div>
-                  </div>
-                  {/* venueHostName comes straight from the venue's admin
-                      profile field (default_host_name) - nothing stops
-                      someone typing their own login email in there, and it
-                      would then get read out loud on a public venue TV
-                      screen. No individual host's personal contact detail
-                      should ever be displayed; everything is attributed to
-                      Mac Entertainment instead. Anything containing "@" is
-                      treated as unset rather than rendered. */}
-                  {(() => {
-                    const safeHostName = venueHostName && !venueHostName.includes("@") ? venueHostName : null;
-                    if (!venueHostPhotoUrl && !safeHostName) return null;
-                    return (
-                      <div className="lb-venue-intro-host">
-                        {venueHostPhotoUrl && <img src={getMediaUrl(venueHostPhotoUrl) || undefined} alt={safeHostName || "Quiz host"} />}
-                        <div><small>YOUR HOST</small><strong>{safeHostName || "Mac Entertainment"}</strong></div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-
-            {currentReelScene === "offers" && intermissionOffers.trim() && (
-              <div className="lb-reel-scene lb-reel-brand lb-reel-brand-offers">
-                <div className="lb-reel-brand-panel">
-                  {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
-                  <div className="lb-cardkicker">TONIGHT AT {venueName?.toUpperCase() || "THE VENUE"}</div>
-                  <div className="lb-reel-brand-body">{intermissionOffers}</div>
-                </div>
-              </div>
-            )}
-
-            {currentReelScene === "prizes" && (
-              <div className="lb-reel-scene lb-reel-brand lb-reel-brand-prizes">
-                <div className="lb-reel-brand-panel">
-                  {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt={venueName ? `${venueName} logo` : "Venue logo"} />}
-                  <div className="lb-cardkicker">TONIGHT&rsquo;S PRIZES</div>
-                  <div className="lb-reel-brand-body">{venuePrizeInfo}</div>
-                </div>
-              </div>
-            )}
-
-            {currentReelScene === "social" && (
-              <div className="lb-reel-scene lb-reel-brand lb-reel-brand-social">
-                <div className="lb-reel-brand-panel">
-                  {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
-                  <div className="lb-cardkicker">FOLLOW THE VENUE</div>
-                  <FitText className="lb-reel-brand-headline"><InstagramGlyph />{venueInstagramTag}</FitText>
-                </div>
-              </div>
-            )}
-
-            {currentReelScene === "tag-us" && (
-              <div className="lb-reel-scene lb-reel-brand lb-reel-brand-social">
-                <div className="lb-reel-brand-panel">
-                  <div className="lb-cardkicker">SHARE THE NIGHT</div>
-                  <FitText className="lb-reel-brand-headline"><InstagramGlyph />@macentertainmentuae</FitText>
-                  <div className="lb-reel-brand-body">Tag us in your posts and stories!</div>
-                </div>
-              </div>
-            )}
-
-            {currentReelScene === "cards" && (
-              <div className="lb-reel-scene">
-                {!allowPowerCards ? (
-                  <>
-                    <div className="lb-cardkicker">ROUND RULE</div>
-                    <div className="lb-pcard">
-                      <div className="lb-pcard-sigil" aria-hidden="true">◇</div>
-                      <div className="lb-pcard-name">POWER CARDS PAUSED</div>
-                      <div className="lb-pcard-rule">Unused cards stay available for a later round.</div>
-                    </div>
-                  </>
-                ) : <>
-                <div className="lb-cardkicker">POWER CARDS</div>
-                {(() => {
-                  const c = POWER_CARD_INFO[powerCardIdx];
-                  return (
-                    <div key={powerCardIdx} className="lb-pcard" style={{ borderColor: c.color, boxShadow: `0 0 60px ${c.glow}` }}>
-                      <div className="lb-pcard-sigil" style={{ color: c.color, textShadow: `0 0 34px ${c.glow}` }}>{c.sigil}</div>
-                      <div className="lb-pcard-name" style={{ color: c.color }}>{c.name}</div>
-                      <div className="lb-pcard-rule">{c.rule}</div>
-                      <div className="lb-pcard-meta">Once per quiz</div>
-                    </div>
-                  );
-                })()}
-                <div className="lb-dots">
-                  {POWER_CARD_INFO.map((_, i) => <span key={i} className={"lb-dot" + (i === powerCardIdx ? " on" : "")} />)}
-                </div>
-                </>}
-              </div>
-            )}
-
-            {currentReelScene === "photos" && approvedCustomerPhotos.length > 0 && (
-              <div className="lb-reel-scene lb-reel-photos">
-                {[0, 1, 2].map(slot => {
-                  const photo = approvedCustomerPhotos[(floatingPhotoIdx + slot) % approvedCustomerPhotos.length];
-                  if (!photo) return null;
-                  return (
-                    <div key={slot} className={`lb-float-photo lb-float-photo-${slot}`} style={{ animationDelay: `${slot * 1.3}s` }}>
-                      <img src={photo} alt="Team photo" />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {renderVenueReel()}
           <div className="lb-foot">
             <div className="lb-start">SHOW STARTS SOON</div>
           </div>
@@ -1814,14 +1828,24 @@ function DisplayScreenInner() {
     // have an image attached for this venue.
     const galleryPhotos = [...intermissionVenuePhotos, ...promoImagePhotos, ...approvedCustomerPhotos].filter(url => !!url && url.trim().length > 0);
     const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes || galleryPhotos.length > 0;
-    // No venue content → the approved Fable holding shot. With content →
-    // preserve the working offers/WhatsApp/other-quizzes advertising layout.
+    // No dedicated intermission content set up (no offers/WhatsApp/other-
+    // quizzes text, no gallery photos) → the same animated venue reel used
+    // in the pre-show lobby (branded intro, offers/prizes/social scenes,
+    // approved photos, Promo Images) rather than a bare "ROUND X COMING
+    // UP" card sitting idle. With dedicated content → keep the working
+    // offers/WhatsApp/other-quizzes advertising layout below.
     if (!hasContent) {
       return (
-        <>
+        <div className="fbl fbl-stage qi-display-stage qi-display-lobby">
           <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-          <Intermission nextLabel={`ROUND ${roundNumber + 1} COMING UP`} />
-        </>
+          <div className="lb">
+            {renderVenueReel()}
+            <div className="lb-foot">
+              <div className="lb-start">ROUND {roundNumber + 1} COMING UP</div>
+            </div>
+          </div>
+          <QuizItBadge />
+        </div>
       );
     }
     return (

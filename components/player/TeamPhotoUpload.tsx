@@ -11,8 +11,13 @@ import { prepareParticipantPhoto } from "@/lib/images/prepareParticipantPhoto";
 type Props = { sessionPin: string; teamName: string };
 type Status = "idle" | "uploading" | "sent" | "error";
 
+// Always rendered open at a fixed height, no collapse/expand toggle - a
+// collapsible version changed size depending on whether it was open,
+// which made the venue promo photo above it (sized to fill whatever
+// leftover space this strip left behind) jump around or get pushed off
+// the top of the screen. Keeping this strip's size constant keeps that
+// photo's size constant too.
 export function TeamPhotoUpload({ sessionPin, teamName }: Props) {
-  const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,22 +51,6 @@ export function TeamPhotoUpload({ sessionPin, teamName }: Props) {
     }
   }
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        style={{ padding: "8px 14px", borderRadius: 10, background: "rgba(190,38,193,0.15)", border: "1px solid rgba(190,38,193,0.4)", color: "#D94FDC", fontSize: 12, fontWeight: 700, letterSpacing: 1, cursor: "pointer", flexShrink: 0 }}
-      >
-        📷 Add Photo
-      </button>
-    );
-  }
-
-  // A long, short-height horizontal strip rather than a stacked card - the
-  // stacked version could grow tall enough to sit under the fixed branding
-  // bar at the bottom of the screen (see the intermission layout in
-  // PlayerQuizScreen.tsx). Everything lives on one row now: label, then
-  // both action buttons, then Close.
   return (
     <div style={{ padding: "18px 16px", borderRadius: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(190,38,193,0.3)", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, width: "100%" }}>
       <span style={{ fontSize: 13, color: "#D94FDC", fontWeight: 700, letterSpacing: 1, whiteSpace: "nowrap", flexShrink: 0 }}>SHARE PHOTO</span>
@@ -89,7 +78,6 @@ export function TeamPhotoUpload({ sessionPin, teamName }: Props) {
           {status === "error" && <div style={{ fontSize: 12, color: "#ff8290", flexShrink: 0, alignSelf: "center" }}>{error}</div>}
         </div>
       )}
-      <button onClick={() => { setOpen(false); setStatus("idle"); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 14, cursor: "pointer", flexShrink: 0 }}>Close</button>
     </div>
   );
 }

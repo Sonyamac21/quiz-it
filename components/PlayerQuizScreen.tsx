@@ -1525,8 +1525,17 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes || visibleOfferPhotos.length > 0;
     return (
       <div className="qi-player-state qi-player-intermission" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
-        <div style={{ fontSize: 22, color: purple, letterSpacing: 4, fontWeight: 700 }}>INTERMISSION</div>
-        <div style={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }}>Next round starting soon...</div>
+        {/* With a venue promo photo already filling the screen, the
+            INTERMISSION heading is redundant chrome eating into the space
+            the photo could use - only show it when there's no photo to
+            fall back on (offers text only, or the plain ME-logo holding
+            state). */}
+        {visibleOfferPhotos.length === 0 && (
+          <>
+            <div style={{ fontSize: 22, color: purple, letterSpacing: 4, fontWeight: 700 }}>INTERMISSION</div>
+            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }}>Next round starting soon...</div>
+          </>
+        )}
         <div className="qi-player-intermission-grid">
         {!hasContent && (
           <img src="/me-logo.jpg" alt="ME" style={{ width: 70, height: 70, borderRadius: "50%", border: "2px solid " + purple, marginTop: 12 }} />

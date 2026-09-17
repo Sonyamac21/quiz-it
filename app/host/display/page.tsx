@@ -1835,10 +1835,36 @@ function DisplayScreenInner() {
     // UP" card sitting idle. With dedicated content → keep the working
     // offers/WhatsApp/other-quizzes advertising layout below.
     if (!hasContent) {
+      // Same lb-split layout as the pre-show lobby, PIN panel included -
+      // a team can still join mid-show, and intermission (between rounds)
+      // is exactly when someone's most likely to be joining for the first
+      // time, so the join instructions can't disappear once the show's
+      // underway.
       return (
         <div className="fbl fbl-stage qi-display-stage qi-display-lobby">
           <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
-          <div className="lb">
+          <div className="lb lb-split">
+            <div className="lb-join">
+              <div className="lb-kicker">JOIN TONIGHT&rsquo;S SHOW</div>
+              <div className="lb-pin"><small>ENTER PIN</small>{sessionPin}</div>
+              <div className="lb-how">
+                <div className="lb-qr" />
+                <div className="lb-steps">
+                  <b>1.</b> Go to quiz-it.app or scan<br />
+                  <b>2.</b> Enter the PIN<br />
+                  <b>3.</b> Name your team
+                </div>
+              </div>
+              <div className={"lb-count" + (countPulsing ? " lb-count-pulse" : "")}><b>{teams.length} TEAM{teams.length === 1 ? "" : "S"}</b> IN THE ROOM</div>
+              <div className="lb-crests">
+                {teams.map((t) => (
+                  <div key={t.team_name} className={"lb-team" + (flaringTeams.has(t.team_name) ? " new" : "")}>
+                    <div className="crest">{teamInitials(t.team_name)}</div>
+                    <span>{t.team_name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
             {renderVenueReel()}
             <div className="lb-foot">
               <div className="lb-start">ROUND {roundNumber + 1} COMING UP</div>

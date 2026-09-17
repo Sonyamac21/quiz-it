@@ -2156,16 +2156,20 @@ button, input, select, textarea { font: inherit; }
 .qi-player-harddeck-cards > div > div { max-height: min(32dvh,230px); width:auto !important; }
 .qi-player-hard-deck button { min-height:clamp(66px,14dvh,116px) !important; }
 .qi-player-hard-deck > div:last-child { max-width:100%; }
-.qi-player-intermission { box-sizing:border-box; min-height:0 !important; max-height:100dvh; justify-content:flex-start !important; gap:clamp(5px,1.2dvh,12px) !important; padding:env(safe-area-inset-top) 8px max(12px,env(safe-area-inset-bottom)) !important; }
+/* Bottom padding reserves room for the fixed "Quiz-It · Powered by..." brand
+   pill (join-form.tsx, position:fixed bottom:10) that sits on top of every
+   phase screen - without it, a tall promo photo + the Share Photo strip
+   could grow right under the pill and get visually covered by it. */
+.qi-player-intermission { box-sizing:border-box; min-height:0 !important; max-height:100dvh; justify-content:flex-start !important; gap:clamp(5px,1.2dvh,12px) !important; padding:env(safe-area-inset-top) 8px calc(48px + env(safe-area-inset-bottom)) !important; }
 .qi-player-intermission-grid { width:min(100%,720px); flex:1; min-height:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:minmax(0,auto); align-content:center; gap:clamp(6px,1.1dvh,12px); overflow:hidden; }
 .qi-player-intermission-grid > * { width:100% !important; max-width:none !important; min-width:0; box-sizing:border-box; padding:clamp(7px,1.25dvh,13px) !important; margin:0 !important; }
-.qi-player-intermission-grid > .qi-player-venue-ad { grid-column:1/-1; height:min(76dvh,760px); aspect-ratio:auto !important; }
+.qi-player-intermission-grid > .qi-player-venue-ad { grid-column:1/-1; height:min(70dvh,700px); aspect-ratio:auto !important; }
 .qi-player-intermission-grid img[alt="WhatsApp QR"] { width:min(12dvh,96px) !important; height:min(12dvh,96px) !important; }
 .qi-player-intermission-grid > img { grid-column:1/-1; justify-self:center; width:min(14dvh,70px) !important; height:min(14dvh,70px) !important; object-fit:contain; }
 @media (max-width:340px),(max-height:620px) {
   .qi-player-intermission-grid { gap:5px; }
   .qi-player-intermission-grid > * { padding:6px !important; font-size:11px !important; }
-  .qi-player-intermission-grid > .qi-player-venue-ad { height:62dvh; }
+  .qi-player-intermission-grid > .qi-player-venue-ad { height:56dvh; }
 }
 
 .qi-host-harddeck { height:100dvh; min-height:0; }

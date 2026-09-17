@@ -57,19 +57,19 @@ export function TeamPhotoUpload({ sessionPin, teamName }: Props) {
     );
   }
 
+  // A long, short-height horizontal strip rather than a stacked card - the
+  // stacked version could grow tall enough to sit under the fixed branding
+  // bar at the bottom of the screen (see the intermission layout in
+  // PlayerQuizScreen.tsx). Everything lives on one row now: label, then
+  // both action buttons, then Close.
   return (
-    <div style={{ padding: "12px 14px", borderRadius: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(190,38,193,0.3)", display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 12, color: "#D94FDC", fontWeight: 700, letterSpacing: 1 }}>SHARE A QUIZ NIGHT PHOTO</span>
-        <button onClick={() => { setOpen(false); setStatus("idle"); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 13, cursor: "pointer" }}>Close</button>
-      </div>
+    <div style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(190,38,193,0.3)", display: "flex", alignItems: "center", gap: 10, flexShrink: 0, width: "100%" }}>
+      <span style={{ fontSize: 11, color: "#D94FDC", fontWeight: 700, letterSpacing: 1, whiteSpace: "nowrap", flexShrink: 0 }}>SHARE PHOTO</span>
       {status === "sent" ? (
-        <div style={{ fontSize: 13, color: "#2ee06e" }}>Sent to the host for approval - thanks!</div>
+        <div style={{ fontSize: 13, color: "#2ee06e", flex: 1 }}>Sent to the host for approval - thanks!</div>
       ) : (
-        <>
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>The host checks every photo before it shows on screen.</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <label style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(190,38,193,0.2)", border: "1.5px solid #BE26C1", color: "#fff", fontSize: 13, textAlign: "center" as const, cursor: "pointer" }}>
+        <div style={{ display: "flex", flex: 1, gap: 8, minWidth: 0 }}>
+          <label style={{ flex: 1, padding: "8px 10px", borderRadius: 10, background: "rgba(190,38,193,0.2)", border: "1.5px solid #BE26C1", color: "#fff", fontSize: 12, textAlign: "center" as const, cursor: "pointer", whiteSpace: "nowrap" }}>
             {status === "uploading" ? "Uploading…" : "Take Photo"}
             <input
               ref={inputRef}
@@ -81,15 +81,15 @@ export function TeamPhotoUpload({ sessionPin, teamName }: Props) {
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />
           </label>
-          <label style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(190,38,193,0.2)", border: "1.5px solid #BE26C1", color: "#fff", fontSize: 13, textAlign: "center" as const, cursor: "pointer" }}>
+          <label style={{ flex: 1, padding: "8px 10px", borderRadius: 10, background: "rgba(190,38,193,0.2)", border: "1.5px solid #BE26C1", color: "#fff", fontSize: 12, textAlign: "center" as const, cursor: "pointer", whiteSpace: "nowrap" }}>
             Camera Roll
             <input type="file" accept="image/*" style={{ display: "none" }} disabled={status === "uploading"}
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
           </label>
-          </div>
-          {status === "error" && <div style={{ fontSize: 12, color: "#ff8290" }}>{error}</div>}
-        </>
+          {status === "error" && <div style={{ fontSize: 11, color: "#ff8290", flexShrink: 0, alignSelf: "center" }}>{error}</div>}
+        </div>
       )}
+      <button onClick={() => { setOpen(false); setStatus("idle"); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 13, cursor: "pointer", flexShrink: 0 }}>Close</button>
     </div>
   );
 }

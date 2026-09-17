@@ -161,7 +161,7 @@ export default function PromoImagesPage() {
   return (
     <main className="qi-bo-page">
       <header className="qi-bo-pagehead">
-        <div><p>Media &amp; Music</p><h1>Promo Images</h1><span>What rotates on player handsets and the Display screen&rsquo;s intermission gallery between rounds. Drag a tile to reorder.</span></div>
+        <div><p>Media &amp; Music</p><h1>Promo Images</h1><span>What rotates on player handsets between rounds (not the Display screen). Drag a tile to reorder.</span></div>
       </header>
       {error && <div className="qi-bo-alert" role="alert">{error}</div>}
 

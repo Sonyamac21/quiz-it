@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { BrandLockup } from "@/components/ui/quiz-it-ui";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
+import { fetchActiveVenueOffers } from "@/lib/venueOffers";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { SlotReels } from "@/components/SlotReels";
 import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitCorrectAnswerText, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
@@ -593,11 +594,17 @@ function DisplayScreenInner() {
     const interval = window.setInterval(loadApprovedPhotos, 5000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [phase, sessionPin]);
-  // Venue Offers ("Generic offers"/venue-offer rotation, uploaded on the
-  // Venues page) rotate on player handsets specifically, per the host - the
-  // Display screen's own gallery uses intermissionVenuePhotos (Display
-  // Slides/Adverts, curated for the TV) instead. See fetchActiveVenueOffers
-  // usage in PlayerQuizScreen.tsx for the handset side of this.
+  // Promo Images (managed from Media & Music, not the Venues page) rotate
+  // at EVERY venue on both the handset (see fetchActiveVenueOffers usage in
+  // PlayerQuizScreen.tsx) and here on the Display's own intermission
+  // gallery, alongside this venue's own curated Display Slides/Adverts.
+  const [promoImagePhotos, setPromoImagePhotos] = useState<string[]>([]);
+  useEffect(() => {
+    if (phase !== "intermission") { setPromoImagePhotos([]); return; }
+    let cancelled = false;
+    fetchActiveVenueOffers(venueRecordId, true).then(urls => { if (!cancelled) setPromoImagePhotos(urls); });
+    return () => { cancelled = true; };
+  }, [phase, venueRecordId]);
   // THE PURSUIT — display-side mirror of pursuit_status + the pursuit_data race.
   const [pursuitStatus, setPursuitStatus] = useState<PursuitPhase>("idle");
   const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
@@ -1804,7 +1811,7 @@ function DisplayScreenInner() {
     // Skip any slot with nothing actually uploaded for it rather than
     // rotating in a blank/broken frame - only show slides that genuinely
     // have an image attached for this venue.
-    const galleryPhotos = [...intermissionVenuePhotos, ...approvedCustomerPhotos].filter(url => !!url && url.trim().length > 0);
+    const galleryPhotos = [...intermissionVenuePhotos, ...promoImagePhotos, ...approvedCustomerPhotos].filter(url => !!url && url.trim().length > 0);
     const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes || galleryPhotos.length > 0;
     // No venue content → the approved Fable holding shot. With content →
     // preserve the working offers/WhatsApp/other-quizzes advertising layout.

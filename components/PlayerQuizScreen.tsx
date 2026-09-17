@@ -1536,7 +1536,13 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             <img
               className="qi-player-venue-ad__image"
               key={visibleOfferPhotos[offerPhotoIdx % visibleOfferPhotos.length]}
-              src={getMediaUrl(visibleOfferPhotos[offerPhotoIdx % visibleOfferPhotos.length]) || visibleOfferPhotos[offerPhotoIdx % visibleOfferPhotos.length]}
+              // venueOfferPhotos entries are already resolved via getMediaUrl
+              // inside fetchActiveVenueOffers() - re-wrapping an already-proxied
+              // "/api/media-proxy?url=..." URL here matched the blob-hostname
+              // check a second time (it's still present, URL-encoded, in the
+              // query string) and nested the proxy inside itself, which 500'd
+              // and silently dropped every offer photo from the carousel.
+              src={visibleOfferPhotos[offerPhotoIdx % visibleOfferPhotos.length]}
               alt="Venue promotion"
               style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
               onError={() => setFailedOfferPhotos(prev => new Set(prev).add(visibleOfferPhotos[offerPhotoIdx % visibleOfferPhotos.length]))}

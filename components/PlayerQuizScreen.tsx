@@ -1553,7 +1553,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               // and silently dropped every offer photo from the carousel.
               src={visibleOfferPhotos[offerPhotoIdx % visibleOfferPhotos.length]}
               alt="Venue promotion"
-              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
               onError={() => setFailedOfferPhotos(prev => new Set(prev).add(visibleOfferPhotos[offerPhotoIdx % visibleOfferPhotos.length]))}
             />
             {visibleOfferPhotos.length > 1 && (

@@ -454,7 +454,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     // The handset reel advertises the full Mac Entertainment venue network,
     // not only the room the player is currently standing in. Empty/expired
     // venue offer records are filtered out by fetchActiveVenueOffers.
-    fetchActiveVenueOffers(venueRecordId, true).then(urls => { if (!cancelled) { setVenueOfferPhotos(urls); setOfferPhotoIdx(0); } });
+    fetchActiveVenueOffers(venueRecordId, true, "handset").then(urls => { if (!cancelled) { setVenueOfferPhotos(urls); setOfferPhotoIdx(0); } });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, venueRecordId]);

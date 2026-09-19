@@ -192,7 +192,7 @@ function shuffledCells(): number[] {
   return cells;
 }
 
-type GallerySlotState = { cell: number; photoIdx: number; placement: ReturnType<typeof cellPlacement>; nonce: number; phase: "in" | "hold" | "out" };
+type GallerySlotState = { cell: number; photoIdx: number; placement: ReturnType<typeof cellPlacement>; nonce: number; phase: "pending" | "in" | "hold" | "out" };
 
 // Full-screen "photo wall" for the intermission - team photos taken during
 // the quiz (plus venue promo/gallery images) scattered across a hidden grid
@@ -210,7 +210,10 @@ export function IntermissionGallery({ photos }: { photos: string[] }) {
       photoIdx: i % Math.max(1, photos.length),
       placement: cellPlacement(cells[i]),
       nonce: 0,
-      phase: "in" as const,
+      // Starts hidden - the effect below staggers each slot's first
+      // flutter-in the same way it staggers every later cycle, so the
+      // whole wall doesn't land on screen in one go.
+      phase: "pending" as const,
     }));
   });
 
@@ -247,7 +250,14 @@ export function IntermissionGallery({ photos }: { photos: string[] }) {
     };
 
     slots.forEach((_, i) => {
-      timers.push(window.setTimeout(() => scheduleHold(i), i * 900));
+      // First reveal: flip this slot from "pending" (invisible) to "in"
+      // after its stagger delay, then hand off to the normal hold/leave/
+      // re-enter loop.
+      timers.push(window.setTimeout(() => {
+        if (cancelled) return;
+        setSlots(prev => prev.map((s, idx) => idx === i ? { ...s, phase: "in" } : s));
+        scheduleHold(i);
+      }, i * 900 + 300));
     });
 
     return () => { cancelled = true; timers.forEach(clearTimeout); };
@@ -260,7 +270,9 @@ export function IntermissionGallery({ photos }: { photos: string[] }) {
   if (photos.length === 0) return null;
   return (
     <div className="qi-display-photo-wall">
-      {slots.map((slot, i) => (
+      {slots.filter(slot => slot.phase !== "pending").map(slot => {
+        const i = slots.indexOf(slot);
+        return (
         // Keyed on nonce so each new photo/placement is a fresh DOM node -
         // that's what makes the flutter-in keyframe actually replay every
         // cycle instead of freezing at whichever angle it first entered
@@ -279,7 +291,8 @@ export function IntermissionGallery({ photos }: { photos: string[] }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={photos[slot.photoIdx % photos.length]} alt="" />
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

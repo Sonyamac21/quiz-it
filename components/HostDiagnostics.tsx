@@ -1,4 +1,5 @@
 "use client";
+import { hostPerformance } from "@/lib/diagnostics/hostPerformance";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { stopAllShowAudio, getShowAudioState, subscribeShowAudio } from "@/lib/audio/showAudio";
@@ -245,6 +246,10 @@ export function HostDiagnostics(props: HostDiagnosticsProps) {
           </Card>
 
           <Card title="Realtime" health={realtimeHealth}>
+            <Metric label="Score events / reads" value={`${hostPerformance.scoreEvents} / ${hostPerformance.scoreReads}`} />
+            <Metric label="Score refreshes combined" value={String(hostPerformance.coalesced)} />
+            <Metric label="Score reads pending / failed" value={`${hostPerformance.scorePending} / ${hostPerformance.scoreErrors}`} />
+            <Metric label="Last score read" value={`${hostPerformance.scoreLastMs} ms`} />
             <Metric label="Supabase state" value={realtime.status} health={realtimeHealth} /><Metric label="Subscription" value={realtime.status === "SUBSCRIBED" ? "Active" : "Not active"} />
             <Metric label="Last reconnect" value={timeLabel(realtime.lastReconnect)} /><Metric label="Subscription errors" value={realtime.errors} health={realtime.errors ? "warning" : "healthy"} />
             <Metric label="Last successful sync" value={timeLabel(realtime.lastSync)} /><Metric label="Observed sync age" value={Number.isFinite(realtimeAge) ? `${Math.round(realtimeAge)} ms` : "Unavailable"} />

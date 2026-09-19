@@ -1,4 +1,5 @@
 "use client";
+import { createRefreshQueue, hostPerformance } from "@/lib/diagnostics/hostPerformance";
 import { leaderboardVisibilityUpdate } from "@/lib/quiz/leaderboardVisibility";
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -832,15 +833,25 @@ function QuizControllerInner() {
     if (data) setUnoCards(data);
   }
 
+  const scoreRefreshQueue = useRef(createRefreshQueue());
   async function loadScores(pin: string) {
+    return scoreRefreshQueue.current(async () => {
+    const started = performance.now();
+    hostPerformance.scoreReads++;
+    hostPerformance.scorePending++;
     const supabase = createSupabaseBrowserClient();
     try {
       const data = await getScoresSvc(supabase, pin);
       setScores(data);
     } catch (error) {
       console.error("Could not refresh host scores:", error);
+      hostPerformance.scoreErrors++;
       showToast("Could not refresh scores. Keeping the last confirmed totals.", "error", 7000);
+    } finally {
+      hostPerformance.scorePending--;
+      hostPerformance.scoreLastMs = Math.round(performance.now() - started);
     }
+    });
   }
 
   async function ensureScores(pin: string, teamList: Team[]) {
@@ -1431,6 +1442,7 @@ function QuizControllerInner() {
         setUnoCards(prev => prev.some(x => x.id === c.id) ? prev : [c, ...prev]);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "scores", filter: "session_pin=eq." + pin }, () => {
+        hostPerformance.scoreEvents++;
         setRealtimeLastSync(diagnosticTimestamp());
         loadScores(pin);
       })

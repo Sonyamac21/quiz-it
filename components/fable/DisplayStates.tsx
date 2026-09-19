@@ -227,7 +227,7 @@ export function IntermissionGallery({ photos }: { photos: string[] }) {
     let cancelled = false;
     const timers: number[] = [];
     const HOLD_MS = 7000;
-    const LEAVE_MS = 1130; // matches .qi-display-photo-flutter.is-out's animation-duration in globals.css
+    const LEAVE_MS = 1700; // matches .qi-display-photo-flutter.is-out's animation-duration in globals.css
 
     const scheduleHold = (slotIndex: number) => {
       timers.push(window.setTimeout(() => {

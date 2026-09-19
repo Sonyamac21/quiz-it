@@ -37,18 +37,25 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
   const records: PairRecord[] = [];
   const seen = new Set<string>();
   const failures: string[] = [];
+  const attemptedLabels = new Set<string>();
+  let attempts = 0;
   let drafts: DraftPair[] = [];
   for (let attempt = 0; attempt < 4 && records.length < count; attempt++) {
+    attempts++;
     const needed = count - records.length;
-    const batch = parseArray(await callAPI(prompt.replace(`Create ${count} distinct`, `Create ${Math.min(needed + 2, 6)} distinct`), 1800, false, false, GENERATION_MODEL)).slice(0, needed + 2);
+    const batch = parseArray(await callAPI(prompt.replace(`Create ${count} distinct`, `Create ${Math.min(needed + 2, 6)} distinct`) + `\nDo not reuse these already attempted items (including failed images): ${[...attemptedLabels].join(", ")}.`, 1800, false, false, GENERATION_MODEL)).slice(0, needed + 2);
     drafts = drafts.concat(batch);
     for (let index = 0; index < batch.length && records.length < count; index++) {
     const draft = batch[index];
+    if (!draft || typeof draft !== "object") continue;
     const aLabel = typeof draft.a?.label === "string" ? draft.a.label.trim() : "";
     const bLabel = typeof draft.b?.label === "string" ? draft.b.label.trim() : "";
     const aQuery = typeof draft.a?.image_query === "string" ? draft.a.image_query.trim() : "";
     const bQuery = typeof draft.b?.image_query === "string" ? draft.b.image_query.trim() : "";
     if (!aLabel || !bLabel || !aQuery || !bQuery || aLabel.toLowerCase() === bLabel.toLowerCase()) continue;
+    if (attemptedLabels.has(aLabel.toLowerCase()) || attemptedLabels.has(bLabel.toLowerCase())) continue;
+    attemptedLabels.add(aLabel.toLowerCase());
+    attemptedLabels.add(bLabel.toLowerCase());
     const fingerprint = [aLabel, bLabel].map(value => value.toLowerCase()).sort().join(" + ");
     if (seen.has(fingerprint) || exclusions.used.some(value => String(value || "").toLowerCase().includes(fingerprint))) continue;
     seen.add(fingerprint);
@@ -65,8 +72,8 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
     }
     }
   }
-  if (records.length === 0 && drafts.length > 0) {
-    throw new Error(`Match Made generation found no usable pairs. ${failures[0] || "The returned pair data was invalid."}`);
+  if (records.length !== count) {
+    throw new Error(`Match Made needs ${count} complete pairs. Found ${records.length} after ${attempts} batches (${drafts.length} candidates). Existing content has been kept. ${failures[0] || "Try a broader theme."}`);
   }
   return records;
 }

@@ -11,8 +11,14 @@ export type PairRecord = {
   b: PairItem;
   question_type?: "pairs";
   round_type?: "pairs";
-  pairs?: PairRecord[];
 };
+
+export type PairsQuestion = { question_type: "pairs"; round_type: "pairs"; pairs: PairRecord[] };
+
+export function isPairsQuestion(value: unknown): value is PairsQuestion {
+  const q = value as PairsQuestion | null;
+  return Boolean(q && Array.isArray(q.pairs) && q.pairs.length === PAIRS_PER_ROUND && q.pairs.every(isPairRecord) && new Set(q.pairs.map(p => p.pair_id)).size === PAIRS_PER_ROUND);
+}
 
 export type PairTeamProgress = {
   solved_pair_ids: string[];
@@ -29,7 +35,6 @@ export type PairTile = PairItem & {
 
 export function isPairRecord(value: unknown): value is PairRecord {
   const pair = value as PairRecord | null;
-  if (pair && Array.isArray(pair.pairs)) return pair.pairs.length === PAIRS_PER_ROUND && pair.pairs.every(isPairRecord);
   return Boolean(
     pair && typeof pair.pair_id === "string" && pair.pair_id.trim() &&
     typeof pair.a?.label === "string" && pair.a.label.trim() &&
@@ -43,7 +48,7 @@ export function readPairs(value: unknown): PairRecord[] {
   if (!Array.isArray(value)) return [];
   const out: PairRecord[] = [];
   for (const item of value) {
-    const row = item as PairRecord;
+    const row = item as PairsQuestion;
     if (Array.isArray(row?.pairs)) out.push(...row.pairs.filter(isPairRecord));
     else if (isPairRecord(item)) out.push(item);
   }
@@ -71,7 +76,23 @@ export function tilesForTeam(pairs: PairRecord[], teamName: string): PairTile[] 
   ]));
   // Stable per-team shuffle: reconnecting never moves a team's tiles, while
   // neighbouring teams do not all receive the same board order.
-  let seed = [...teamName].reduce((total, char) => ((total * 31) + char.charCodeAt(0)) >>> 0, 2166136261);
+  const identity = JSON.stringify([teamName.trim().toLowerCase(), pairs.map(p => [p.pair_id, p.a.label, p.a.image_url, p.b.label, p.b.image_url])]);
+  let seed = [...identity].reduce((total, char) => Math.imul(total ^ char.charCodeAt(0), 16777619) >>> 0, 2166136261);
+  // Six tiles have only 720 permutations. Choose among the layouts that
+  // do not put a match opposite itself in the handset's two-column grid.
+  // Enumerating them avoids unbounded shuffle retries or a fixed fallback.
+  if (tiles.length === 6) {
+    const layouts: PairTile[][] = [];
+    const visit = (placed: PairTile[], remaining: PairTile[]) => {
+      if (!remaining.length) { layouts.push(placed); return; }
+      remaining.forEach((tile, index) => {
+        if (placed.length % 2 === 1 && placed[placed.length - 1].pair_id === tile.pair_id) return;
+        visit([...placed, tile], remaining.filter((_, i) => i !== index));
+      });
+    };
+    visit([], tiles);
+    if (layouts.length) return layouts[seed % layouts.length];
+  }
   const result = [...tiles];
   for (let i = result.length - 1; i > 0; i--) {
     seed = (seed * 1664525 + 1013904223) >>> 0;

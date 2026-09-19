@@ -11,7 +11,7 @@ import { useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
-import { isPairRecord, PAIRS_PER_ROUND } from "@/lib/quiz/pairs";
+import { isPairRecord, isPairsQuestion, PAIRS_PER_ROUND } from "@/lib/quiz/pairs";
 import { eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "@/lib/quiz/prepRules";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -25,7 +25,7 @@ function targetQuestionCount(roundType: string, savedTarget?: number | null): nu
 }
 
 function validQuestionsForRound<T extends Record<string, unknown> | Question>(roundType: string, questions: T[]): T[] {
-  if (roundType === "pairs") return questions.filter(isPairRecord);
+  if (roundType === "pairs") return questions.filter(isPairsQuestion);
   if (roundType !== "multi_tap") return questions;
   return questions.filter(question => !multiTapSuitabilityError(question as Question));
 }
@@ -785,7 +785,7 @@ export default function QuizBuilderPage() {
           const { data: liveRow } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
           const liveQuestions = validQuestionsForRound(round.round_type, (liveRow?.questions || round.questions) as Record<string, unknown>[]);
           const generatedQuestions = validQuestionsForRound(round.round_type, result.questions);
-          const mergedQuestions = [...liveQuestions, ...generatedQuestions];
+          const mergedQuestions = round.round_type === "pairs" ? (generatedQuestions.length ? generatedQuestions : (liveRow?.questions || round.questions)) : [...liveQuestions, ...generatedQuestions];
           const { data: savedRow, error: saveError } = await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id).select("questions").single();
           if (saveError) throw new Error(`Could not save generated questions for ${round.name}: ${saveError.message}`);
           const persistedQuestions = (savedRow?.questions || mergedQuestions) as Record<string, unknown>[];
@@ -829,10 +829,11 @@ export default function QuizBuilderPage() {
     // of the request silently getting cut down with no explanation.
     const fixedTotal = round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS : null;
     const roomLeft = fixedTotal === null ? null : Math.max(0, fixedTotal - round.questions.length);
-    if (roomLeft === 0) { setGeneratingMoreStatus(`"${round.name}" already has all ${fixedTotal} pairs (6 tiles).`); return; }
+    if (roomLeft === 0) { setGeneratingMoreStatus(`"${round.name}" already has all ${fixedTotal} questions.`); return; }
     let n = Math.max(0, Math.floor(requested));
+    if (round.round_type === "pairs") n = 1;
     if (!n) return;
-    const capNote = roomLeft !== null && n > roomLeft ? ` (capped to ${roomLeft} - Match Made uses ${fixedTotal} pairs per round)` : "";
+    const capNote = roomLeft !== null && n > roomLeft ? ` (capped to ${roomLeft} remaining questions)` : "";
     if (roomLeft !== null && n > roomLeft) n = roomLeft;
     setGeneratingMoreId(round.id);
     setGeneratingMoreStatus("Queued..." + capNote);
@@ -869,7 +870,7 @@ export default function QuizBuilderPage() {
       const { data: liveRow } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
       const liveQuestions = validQuestionsForRound(round.round_type, (liveRow?.questions || round.questions) as Record<string, unknown>[]);
       const generatedQuestions = validQuestionsForRound(round.round_type, result.questions);
-      const mergedQuestions = [...liveQuestions, ...generatedQuestions];
+      const mergedQuestions = round.round_type === "pairs" ? (generatedQuestions.length ? generatedQuestions : (liveRow?.questions || round.questions)) : [...liveQuestions, ...generatedQuestions];
       const { data: savedRow, error: saveError } = await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id).select("questions").single();
       if (saveError) throw new Error("Could not save the generated questions: " + saveError.message);
       const persistedQuestions = (savedRow?.questions || mergedQuestions) as Record<string, unknown>[];
@@ -1683,7 +1684,7 @@ export default function QuizBuilderPage() {
                     // to be pulled out of the generic options list and shown
                     // as an actual photo instead of raw text/a URL string.
                     const isPicture = qType === "picture";
-                    const isPairs = isPairRecord(qr);
+                    const isPairs = isPairRecord(qr) || isPairsQuestion(qr);
                     const photoQuery = isPicture ? String(qr.option_a ?? "") : "";
                     const photoUrl = isPicture ? String(qr.option_b ?? "") : "";
                     const optionLetters = ["a", "b", "c", "d", "e", "f"] as const;
@@ -1717,7 +1718,7 @@ export default function QuizBuilderPage() {
                           cursor: "grab",
                           // Only clamp to a uniform height while just viewing (not
                           // mid-edit, where the full form needs to stay visible).
-                          height: isEditing ? undefined : 260,
+                          height: isEditing || isPairs ? undefined : 260,
                           display: isEditing ? undefined : "flex",
                           flexDirection: isEditing ? undefined : "column",
                         }}
@@ -1870,7 +1871,7 @@ export default function QuizBuilderPage() {
                           const cardBody = isPairs ? (
                             <>
                               <div style={{ color: "#D94FDC", font: "700 11px 'Inter'", letterSpacing: ".1em", marginBottom: 8 }}>3 PAIRS · 6 TILES</div>
-                              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 7 }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 7 }}>
                                 {(Array.isArray((qr as any).pairs) ? (qr as any).pairs : [qr]).map((pair: any, pairIndex: number) => <div key={pairIndex} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>{[pair.a, pair.b].map((rawItem: any, itemIndex: number) => {
                                   const item = rawItem as { label: string; image_url: string };
                                   return <div key={itemIndex} style={{ borderRadius: 8, overflow: "hidden", background: "#0A0118", position: "relative", aspectRatio: "1" }}><img src={getMediaUrl(item.image_url) ?? item.image_url} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><strong style={{ position: "absolute", inset: "auto 0 0", padding: "12px 5px 5px", background: "linear-gradient(transparent,rgba(0,0,0,.9))", color: "white", textAlign: "center", fontSize: 11 }}>{item.label}</strong></div>;
@@ -1927,7 +1928,7 @@ export default function QuizBuilderPage() {
                             })()}
                             </>
                           );
-                          const isCardHovered = hoveredQuestionKey === editKey;
+                          const isCardHovered = !isPairs && hoveredQuestionKey === editKey;
                           const questionActions = (
                             <div className="qi-prep-question-actions" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                               {!isPairs && <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>EDIT</HostButton>}

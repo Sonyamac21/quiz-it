@@ -53,10 +53,10 @@ export function TeamPhotoUpload({ sessionPin, teamName }: Props) {
 
   return (
     <div style={{ padding: "18px 16px", borderRadius: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(190,38,193,0.3)", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, width: "100%" }}>
-      <span style={{ fontSize: 13, color: "#D94FDC", fontWeight: 700, letterSpacing: 1, whiteSpace: "nowrap", flexShrink: 0 }}>SHARE PHOTO</span>
+      {status !== "sent" && <span style={{ fontSize: 13, color: "#D94FDC", fontWeight: 700, letterSpacing: 1, whiteSpace: "nowrap", flexShrink: 0 }}>SHARE PHOTO</span>}
       {status === "sent" ? (
-        <div style={{ display: "flex", alignItems: "center", flex: 1, gap: 10, minWidth: 0 }}>
-          <div style={{ fontSize: 15, color: "#2ee06e", flex: 1 }}>Sent to the host for approval - thanks!</div>
+        <div style={{ display: "flex", alignItems: "center", flex: 1, gap: 14, minWidth: 0 }}>
+          <div style={{ fontSize: 15, color: "#2ee06e", fontWeight: 600, flex: 1, whiteSpace: "nowrap" }}>Thanks!</div>
           <button onClick={() => setStatus("idle")} style={{ flexShrink: 0, padding: "10px 14px", borderRadius: 10, background: "rgba(190,38,193,0.2)", border: "1.5px solid #BE26C1", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
             Share Another
           </button>

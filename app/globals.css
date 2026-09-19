@@ -1628,7 +1628,11 @@ button, input, select, textarea { font: inherit; }
 .qi-display-picture-prompt { position: absolute; bottom: 3vh; font-size: clamp(13px,1.2vw,20px); color: #9c89c2; letter-spacing: .28em; }
 .qi-display-media-error { padding: clamp(36px,5vw,70px); border-radius: 24px; background: var(--qi-display-surface); border: 1px solid rgba(255,255,255,.16); text-align: center; }
 .qi-display-picture-question { position: relative; display: flex; flex-direction: column; }
-.qi-display-picture-header { min-height: 9vh; display: flex; align-items: center; gap: 18px; padding: 0 var(--qi-display-safe-x); border-bottom: 1px solid var(--qi-display-line); }
+/* The fixed top-left DisplayCornerMark (logo + wordmark, ~140-160px tall)
+   sits on top of every phase. This header used to start flush at the very
+   top of the screen with no clearance, so its round/question-number text
+   rendered directly underneath the corner mark and the two overlapped. */
+.qi-display-picture-header { min-height: 9vh; padding-top: clamp(120px,15vh,164px); display: flex; align-items: center; gap: 18px; padding-left: var(--qi-display-safe-x); padding-right: var(--qi-display-safe-x); border-bottom: 1px solid var(--qi-display-line); }
 /* Bumped from clamp(12px,1vw,17px) - same room-readability fix as the
    picture-round meta line above. */
 .qi-display-question-number { color: #a999c6; font-size: clamp(18px,1.6vw,28px); font-weight: 750; letter-spacing: .18em; }
@@ -1650,7 +1654,11 @@ button, input, select, textarea { font: inherit; }
 
 /* Answer reveal */
 .qi-display-answer-reveal { position: relative; display: flex; flex-direction: column; animation: flashReveal .45s var(--ease-land, ease-out); }
-.qi-display-answer-header { min-height: 9vh; flex-shrink: 0; padding: 0 var(--qi-display-safe-x); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(46,224,110,.25); }
+/* Same corner-mark clearance fix as .qi-display-picture-header above - this
+   header used to sit flush at the top of the screen (padding-top: 0), which
+   put "ANSWER REVEALED" / the round name directly under the fixed logo +
+   wordmark badge instead of below it. */
+.qi-display-answer-header { min-height: 9vh; flex-shrink: 0; padding-top: clamp(120px,15vh,164px); padding-left: var(--qi-display-safe-x); padding-right: var(--qi-display-safe-x); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(46,224,110,.25); }
 .qi-display-answer-meta { display: flex; align-items: center; gap: 16px; color: #b9a8d9; font-size: clamp(13px,1.1vw,18px); font-weight: 750; letter-spacing: .16em; }
 .qi-display-answer-meta strong { padding: 7px 14px; background: rgba(46,224,110,.1); border: 1px solid rgba(46,224,110,.48); border-radius: 999px; color: #65ee99; font-size: .82em; }
 .qi-display-answer-content { flex: 1; min-height: 0; padding: 3vh var(--qi-display-safe-x) 2vh; display: flex; flex-direction: column; gap: 2vh; }

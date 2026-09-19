@@ -2226,7 +2226,7 @@ function DisplayScreenInner() {
     if (isPicture && pictureSubPhase === "question_visible") {
       const pTLeft = timeLeft ?? 0;
       return (
-        <div className="qi-display-picture-question">
+        <div className="fbl qi-display-picture-question">
       <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
           {/* Same final-5s red vignette + threshold every other question type
               uses (see qd-urgent below) - a Picture question previously had its

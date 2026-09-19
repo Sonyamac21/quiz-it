@@ -2061,7 +2061,17 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           </div>
         )}
 
-        {submitted && (
+        {/* Multiple choice and Multi Tap already show their own compact
+            "ANSWER(S) LOCKED IN ✓" note right inside their own option-grid
+            block above (see the .lk-note divs) - this generic banner used
+            to render unconditionally on top of submitted===true regardless
+            of question type, so those two types got BOTH indicators at
+            once, stacked directly on top of each other (and, for Multi
+            Tap, on top of the grid itself once the extra banner's height
+            squeezed the flex-shrinking grid below its content's natural
+            size). This banner is now only the locked-in indicator for the
+            question types that don't already have their own. */}
+        {submitted && !isMultiChoice && !isMultiTap && (
           <PlayerResultBanner tone="locked" title={submissionPending ? "LOCKING…" : "LOCKED IN ✓"}>{mySubmittedDisplay || "Waiting for the reveal"}</PlayerResultBanner>
         )}
         </div>

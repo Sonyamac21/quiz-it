@@ -22,6 +22,7 @@ import { CountUp } from "@/components/CountUp";
 import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@/lib/quiz/hotSeat";
 import { isAnswerCorrect } from "@/lib/quiz/answerScoring";
 import { FitBlockText } from "@/components/FitBlockText";
+import { getRoundRulesBlurb } from "@/lib/quiz/roundRulesCopy";
 
 type Question = {
   question_text: string;
@@ -463,6 +464,26 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     const id = window.setInterval(() => setOfferPhotoIdx(i => (i + 1) % visibleOfferPhotos.length), 6000);
     return () => window.clearInterval(id);
   }, [visibleOfferPhotos.length]);
+  // Next round's rules preview, shown alongside the venue photos during the
+  // intermission break. next_round_info() is a narrow SECURITY DEFINER RPC
+  // (session_rounds itself is host-only under RLS) that just hands back the
+  // upcoming round's name + round_type - the actual "how to play" wording
+  // lives in lib/quiz/roundRulesCopy.ts, looked up by that round_type. Not
+  // every session has a next round (last round of the night, or a legacy
+  // session with no quiz_id/session_rounds), so a missing/failed result
+  // just means this panel doesn't render - never an error the player sees.
+  const [nextRoundInfo, setNextRoundInfo] = useState<{ name: string; roundType: string } | null>(null);
+  useEffect(() => {
+    if (phase !== "intermission" || !sessionPin) { setNextRoundInfo(null); return; }
+    let cancelled = false;
+    const supabase = createSupabaseBrowserClient();
+    supabase.rpc("next_round_info", { p_session_pin: sessionPin }).then(({ data, error }) => {
+      if (cancelled || error || !data || !data.length) { if (!cancelled) setNextRoundInfo(null); return; }
+      const row = data[0] as { round_name?: string; round_type?: string };
+      if (row.round_name && row.round_type) setNextRoundInfo({ name: row.round_name, roundType: row.round_type });
+    });
+    return () => { cancelled = true; };
+  }, [phase, sessionPin]);
   const [upcomingQuizzes, setUpcomingQuizzes] = useState<UpcomingQuiz[]>([]);
   const [quizEndRevealedCount, setQuizEndRevealedCount] = useState(0);
   const [quizEndTrophyVisible, setQuizEndTrophyVisible] = useState(false);
@@ -1522,7 +1543,8 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   }
 
   if (phase === "intermission") {
-    const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes || visibleOfferPhotos.length > 0;
+    const hasContent = intermissionOffers || intermissionWhatsapp || intermissionOtherQuizzes || visibleOfferPhotos.length > 0 || !!nextRoundInfo;
+    const nextRoundRules = nextRoundInfo ? getRoundRulesBlurb(nextRoundInfo.roundType) : null;
     return (
       <div className="qi-player-state qi-player-intermission" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 16, textAlign: "center" as const, fontFamily: font }}>
         {/* With a venue promo photo already filling the screen, the
@@ -1563,6 +1585,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
                 ))}
               </div>
             )}
+          </div>
+        )}
+        {nextRoundRules && nextRoundInfo && (
+          <div style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(190,38,193,0.1)", border: "1.5px solid rgba(190,38,193,0.5)", width: "100%", maxWidth: 340 }}>
+            <div style={{ fontSize: 11, color: purple, letterSpacing: 2, marginBottom: 6 }}>UP NEXT · {nextRoundInfo.name.toUpperCase()}</div>
+            <div style={{ fontSize: 15, color: "#fff", lineHeight: 1.4 }}>{nextRoundRules.blurb}</div>
           </div>
         )}
         {intermissionOffers && (

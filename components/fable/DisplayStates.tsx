@@ -164,13 +164,12 @@ const PLACEMENT_Y: [number, number] = [30, 92];
 // per-cell jitter and rotation are what stop it reading as a grid. More
 // cells than the max photo count on screen at once, so a freed cell is
 // always available for the next photo to land in.
-const GRID_COLS = 3;
-const GRID_ROWS = 2;
+const GRID_COLS = 4;
+const GRID_ROWS = 3;
 const GRID_CELLS = GRID_COLS * GRID_ROWS;
-// Max photos on screen at once - deliberately fewer than GRID_CELLS so the
-// wall reads as a handful of photos with real breathing room between them
-// rather than a dense, cluttered grid.
-const MAX_ACTIVE_PHOTOS = 4;
+// Max photos on screen at once - fewer than GRID_CELLS so a freed cell is
+// always available for the next photo to land in without waiting.
+const MAX_ACTIVE_PHOTOS = 6;
 
 function cellPlacement(cell: number): { x: number; y: number; rot: number; scale: number; drift: number } {
   const col = cell % GRID_COLS;
@@ -183,7 +182,9 @@ function cellPlacement(cell: number): { x: number; y: number; rot: number; scale
     x: cx + (Math.random() - 0.5) * cellW * 0.5,
     y: cy + (Math.random() - 0.5) * cellH * 0.5,
     rot: -16 + Math.random() * 32,
-    scale: 0.78 + Math.random() * 0.28,
+    // Wider range than before (was a narrow 0.78-1.06) so photos genuinely
+    // vary in size on screen instead of all landing roughly the same.
+    scale: 0.62 + Math.random() * 0.72,
     // Sideways sway amplitude (px, signed) for the flutter-in/out keyframes
     // below - randomised per landing so photos drift and wobble in like a
     // dropped photo catching air, rather than falling in a dead-straight

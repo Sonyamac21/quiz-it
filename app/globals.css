@@ -1621,27 +1621,33 @@ button, input, select, textarea { font: inherit; }
 }
 .qi-display-photo-flutter img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 2px; }
 .qi-display-photo-flutter.is-in {
-  animation: photoWallFlutterIn 750ms cubic-bezier(.2,.75,.35,1) forwards;
+  animation: photoWallFlutterIn 1450ms cubic-bezier(.16,.72,.3,1) forwards;
 }
 .qi-display-photo-flutter.is-out {
-  animation: photoWallFlutterOut 650ms ease-in forwards;
+  animation: photoWallFlutterOut 850ms ease-in forwards;
 }
 /* Named distinctly from the winner's-photo "photoFlutterIn" keyframe below
    (@keyframes photoFlutterIn, used by .qi-display-fastest-photo img) - the
    two used to share a name, so this rule was silently overridden by that
    later one in the cascade, which wobbles through several rotation swings
    and always ends flat (transform:none). That's what looked like every
-   photo here "straightening up" after landing. Rotation is held constant
-   at --rot for the whole fall so it lands at, and stays at, its assigned
-   angle - only position/scale/opacity animate. */
+   photo here "straightening up" after landing.
+   Genuinely flutters rather than just dropping: sways side to side
+   (--drift, signed and randomised per photo) and rocks around its final
+   angle (--rot) a few times on the way down, settling exactly at --rot/no
+   sway by 100% so it still lands at, and holds, its assigned tilt. */
 @keyframes photoWallFlutterIn {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(var(--scale, 1)) rotate(var(--rot, 0deg)) translateY(-160px); }
-  70% { opacity: 1; transform: translate(-50%, -50%) scale(var(--scale, 1)) rotate(var(--rot, 0deg)) translateY(6px); }
+  0%   { opacity: 0; transform: translate(calc(-50% - var(--drift, 0px) * 1.3), -50%) scale(var(--scale, 1)) rotate(calc(var(--rot, 0deg) - 38deg)) translateY(-260px); }
+  24%  { opacity: 1; transform: translate(calc(-50% + var(--drift, 0px) * 1), -50%) scale(var(--scale, 1)) rotate(calc(var(--rot, 0deg) + 20deg)) translateY(-150px); }
+  46%  { transform: translate(calc(-50% - var(--drift, 0px) * .55), -50%) scale(var(--scale, 1)) rotate(calc(var(--rot, 0deg) - 13deg)) translateY(-72px); }
+  66%  { transform: translate(calc(-50% + var(--drift, 0px) * .28), -50%) scale(var(--scale, 1)) rotate(calc(var(--rot, 0deg) + 7deg)) translateY(-28px); }
+  84%  { transform: translate(calc(-50% - var(--drift, 0px) * .1), -50%) scale(var(--scale, 1)) rotate(calc(var(--rot, 0deg) - 2deg)) translateY(-4px); }
   100% { opacity: 1; transform: translate(-50%, -50%) scale(var(--scale, 1)) rotate(var(--rot, 0deg)) translateY(0); }
 }
 @keyframes photoWallFlutterOut {
-  0% { opacity: 1; transform: translate(-50%, -50%) scale(var(--scale, 1)) rotate(var(--rot, 0deg)) translateY(0); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(calc(var(--scale, 1) * .92)) rotate(var(--rot, 0deg)) translateY(50px); }
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(var(--scale, 1)) rotate(var(--rot, 0deg)) translateY(0); }
+  40%  { opacity: 1; transform: translate(calc(-50% + var(--drift, 0px) * .5), -50%) scale(var(--scale, 1)) rotate(calc(var(--rot, 0deg) + 14deg)) translateY(30px); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--drift, 0px) * 1.1), -50%) scale(calc(var(--scale, 1) * .85)) rotate(calc(var(--rot, 0deg) + 30deg)) translateY(110px); }
 }
 @media (prefers-reduced-motion: reduce) {
   .qi-display-photo-flutter.is-in, .qi-display-photo-flutter.is-out { animation: none; opacity: 1; transform: translate(-50%, -50%) scale(var(--scale, 1)) rotate(var(--rot, 0deg)); }

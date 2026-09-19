@@ -168,7 +168,7 @@ const GRID_COLS = 4;
 const GRID_ROWS = 3;
 const GRID_CELLS = GRID_COLS * GRID_ROWS;
 
-function cellPlacement(cell: number): { x: number; y: number; rot: number; scale: number } {
+function cellPlacement(cell: number): { x: number; y: number; rot: number; scale: number; drift: number } {
   const col = cell % GRID_COLS;
   const row = Math.floor(cell / GRID_COLS);
   const cellW = (PLACEMENT_X[1] - PLACEMENT_X[0]) / GRID_COLS;
@@ -180,6 +180,11 @@ function cellPlacement(cell: number): { x: number; y: number; rot: number; scale
     y: cy + (Math.random() - 0.5) * cellH * 0.5,
     rot: -16 + Math.random() * 32,
     scale: 0.78 + Math.random() * 0.28,
+    // Sideways sway amplitude (px, signed) for the flutter-in/out keyframes
+    // below - randomised per landing so photos drift and wobble in like a
+    // dropped photo catching air, rather than falling in a dead-straight
+    // line. Sign picked at random so some sway starts left, some right.
+    drift: (45 + Math.random() * 65) * (Math.random() < 0.5 ? -1 : 1),
   };
 }
 
@@ -222,7 +227,7 @@ export function IntermissionGallery({ photos }: { photos: string[] }) {
     let cancelled = false;
     const timers: number[] = [];
     const HOLD_MS = 7000;
-    const LEAVE_MS = 650;
+    const LEAVE_MS = 850; // matches .qi-display-photo-flutter.is-out's animation-duration in globals.css
 
     const scheduleHold = (slotIndex: number) => {
       timers.push(window.setTimeout(() => {
@@ -286,6 +291,7 @@ export function IntermissionGallery({ photos }: { photos: string[] }) {
             top: `${slot.placement.y}%`,
             "--rot": `${slot.placement.rot}deg`,
             "--scale": slot.placement.scale,
+            "--drift": `${slot.placement.drift}px`,
           } as CSSProperties}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -2040,7 +2040,14 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
         {timerReady && !isMultiChoice && !isSequence && !isMultiTap && !submitted && (
           <div className="qi-player-keypad-wrap" style={{ marginBottom: 16 }}>
-            <AnswerKeypad key={`${questionIndex}:${question.question_type}`} mode={question.question_type === "number" || question.question_type === "nearest_wins" ? "number" : "text"} scrambled={hostScrambledTeams.includes(teamName)} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
+            {/* question_type alone isn't always reliable for this - a music
+                round question like "what year was this released?" can come
+                through tagged as a generic text type even though its
+                correct_answer is purely digits, which handed players a full
+                QWERTY keyboard for what's obviously a numeric answer. A
+                digits-only correct_answer forces the numeric keypad
+                regardless of the stored question_type. */}
+            <AnswerKeypad key={`${questionIndex}:${question.question_type}`} mode={question.question_type === "number" || question.question_type === "nearest_wins" || /^\d+$/.test((question.correct_answer || "").trim()) ? "number" : "text"} scrambled={hostScrambledTeams.includes(teamName)} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
           </div>
         )}
 

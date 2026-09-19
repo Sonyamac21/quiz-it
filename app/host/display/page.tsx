@@ -1877,6 +1877,19 @@ function DisplayScreenInner() {
     return (
       <div className="qi-display-intermission">
       <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
+        {/* This screen (photos/offers/WhatsApp) previously had no PIN at
+            all, unlike every other lobby-style screen (pre-show waiting,
+            and the plainer intermission fallback below) - a team joining
+            mid-intermission had nowhere to get the PIN from. A small
+            persistent chip rather than the full "JOIN TONIGHT'S SHOW"
+            panel, since this screen's own layout is built around a single
+            centered column, not the split layout that panel expects. */}
+        {sessionPin && (
+          <div className="qi-display-pin-chip">
+            <span>ENTER PIN</span>
+            <strong>{sessionPin}</strong>
+          </div>
+        )}
         <div className="qi-display-eyebrow">TAKE A BREATHER</div>
         <div className="qi-display-intermission-title">{venueName ? venueName.toUpperCase() : "INTERMISSION"}</div>
         <div className="qi-display-intermission-subtitle">Next round starting soon…</div>

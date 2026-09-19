@@ -164,9 +164,13 @@ const PLACEMENT_Y: [number, number] = [30, 92];
 // per-cell jitter and rotation are what stop it reading as a grid. More
 // cells than the max photo count on screen at once, so a freed cell is
 // always available for the next photo to land in.
-const GRID_COLS = 4;
-const GRID_ROWS = 3;
+const GRID_COLS = 3;
+const GRID_ROWS = 2;
 const GRID_CELLS = GRID_COLS * GRID_ROWS;
+// Max photos on screen at once - deliberately fewer than GRID_CELLS so the
+// wall reads as a handful of photos with real breathing room between them
+// rather than a dense, cluttered grid.
+const MAX_ACTIVE_PHOTOS = 4;
 
 function cellPlacement(cell: number): { x: number; y: number; rot: number; scale: number; drift: number } {
   const col = cell % GRID_COLS;
@@ -207,7 +211,7 @@ type GallerySlotState = { cell: number; photoIdx: number; placement: ReturnType<
 // two photos can never be handed the same spot. Presentation-only (per
 // this file's convention); the caller merges and filters the photo list.
 export function IntermissionGallery({ photos }: { photos: string[] }) {
-  const slotCount = Math.min(GRID_CELLS, Math.max(3, photos.length * 2));
+  const slotCount = Math.min(MAX_ACTIVE_PHOTOS, Math.max(2, photos.length));
   const [slots, setSlots] = useState<GallerySlotState[]>(() => {
     const cells = shuffledCells();
     return Array.from({ length: slotCount }, (_, i) => ({
@@ -226,7 +230,7 @@ export function IntermissionGallery({ photos }: { photos: string[] }) {
     if (photos.length === 0) return;
     let cancelled = false;
     const timers: number[] = [];
-    const HOLD_MS = 7000;
+    const HOLD_MS = 11000;
     const LEAVE_MS = 1700; // matches .qi-display-photo-flutter.is-out's animation-duration in globals.css
 
     const scheduleHold = (slotIndex: number) => {
@@ -262,7 +266,7 @@ export function IntermissionGallery({ photos }: { photos: string[] }) {
         if (cancelled) return;
         setSlots(prev => prev.map((s, idx) => idx === i ? { ...s, phase: "in" } : s));
         scheduleHold(i);
-      }, i * 900 + 300));
+      }, i * 2200 + 500));
     });
 
     return () => { cancelled = true; timers.forEach(clearTimeout); };

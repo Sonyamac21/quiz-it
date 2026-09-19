@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { calculateSpinPayout } from "../lib/quiz/spinPayout.ts";
+import { scoreBarPercent } from "../lib/quiz/scoreBar.ts";
 
 const scores = [
   { team_name: "Alpha", total_points: 100 },
@@ -15,11 +16,25 @@ test("numeric spin outcomes add and subtract their displayed value", () => {
   assert.equal(calculateSpinPayout(scores, "Spinner", "+50 Points"), 75);
   assert.equal(calculateSpinPayout(scores, "Spinner", "-10 Points"), 15);
   assert.equal(calculateSpinPayout(scores, "Spinner", "-20 Points"), 5);
-  assert.equal(calculateSpinPayout(scores, "Spinner", "-30 Points"), 0);
+  assert.equal(calculateSpinPayout(scores, "Spinner", "-30 Points"), -5);
 });
 
-test("negative spin outcomes are floored at zero", () => {
-  assert.equal(calculateSpinPayout([{ team_name: "Spinner", total_points: 8 }], "Spinner", "-30 Points"), 0);
+test("deductions cross zero and continue below zero", () => {
+  assert.equal(calculateSpinPayout([{ team_name: "Spinner", total_points: 5 }], "Spinner", "-20 Points"), -15);
+  assert.equal(calculateSpinPayout([{ team_name: "Spinner", total_points: -8 }], "Spinner", "-30 Points"), -38);
+  assert.equal(calculateSpinPayout([{ team_name: "Spinner", total_points: 0 }], "Spinner", "-10 Points"), -10);
+});
+
+test("placement and bars remain ordered with negative scores", () => {
+  const board = [{ team_name: "A", total_points: -5 }, { team_name: "B", total_points: -20 }, { team_name: "Spinner", total_points: -30 }];
+  assert.equal(calculateSpinPayout(board, "Spinner", "Last Place"), -21);
+  assert.equal(calculateSpinPayout(board, "Spinner", "3rd Place"), -21);
+  assert.equal(calculateSpinPayout(board.slice(1), "Spinner", "2nd Place"), -21);
+  for (const totals of [[-5, -20, -30], [20, 0, -30], [0, 0, 0], [-5, -5, -5]]) {
+    const widths = totals.map(score => scoreBarPercent(score, totals[0], totals.at(-1)));
+    assert.ok(widths.every(w => w >= 4 && w <= 100));
+    assert.ok(widths[0] >= widths[1] && widths[1] >= widths[2]);
+  }
 });
 
 test("placement outcomes target the requested leaderboard position", () => {

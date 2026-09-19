@@ -1,4 +1,5 @@
 "use client";
+import { scoreBarPercent } from "@/lib/quiz/scoreBar";
 import { displayLeaderboardVisible } from "@/lib/quiz/leaderboardVisibility";
 import { useEffect, useLayoutEffect, useState, useRef, Suspense, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -1953,7 +1954,8 @@ function DisplayScreenInner() {
       return <WaitingForHost message="STANDINGS HIDDEN FOR THIS ROUND" />;
     }
     const sorted = [...scoreboardData].sort((a,b) => b.total_points - a.total_points);
-    const leader = sorted[0]?.total_points || 1;
+    const leader = sorted[0]?.total_points ?? 0;
+    const lowest = sorted[sorted.length - 1]?.total_points ?? 0;
     const topGap = sorted.length >= 3 ? sorted[0].total_points - sorted[2].total_points : sorted.length === 2 ? sorted[0].total_points - sorted[1].total_points : 0;
     return (
       <div className="fbl fbl-stage qi-display-stage qi-display-scoreboard">
@@ -1969,7 +1971,7 @@ function DisplayScreenInner() {
                 <div className="crest">{teamInitials(s.team_name)}</div>
                 <div className="name">{s.team_name}</div>
                 {move ? <div className="move" role="status" aria-live="polite" aria-label={`${s.team_name} climbed ${move} place${move === 1 ? "" : "s"}`}>&#9650;{move}</div> : null}
-                <div className="gapbar"><i style={{ width: Math.max(4, Math.round((s.total_points / leader) * 100)) + "%" }} /></div>
+                <div className="gapbar"><i style={{ width: scoreBarPercent(s.total_points, leader, lowest) + "%" }} /></div>
                 <div className="pts tnum"><CountUp value={s.total_points} /></div>
               </div>
             );

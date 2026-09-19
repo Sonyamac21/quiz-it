@@ -1621,10 +1621,10 @@ button, input, select, textarea { font: inherit; }
 }
 .qi-display-photo-flutter img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 2px; }
 .qi-display-photo-flutter.is-in {
-  animation: photoWallFlutterIn 1450ms cubic-bezier(.16,.72,.3,1) forwards;
+  animation: photoWallFlutterIn 1930ms cubic-bezier(.16,.72,.3,1) forwards;
 }
 .qi-display-photo-flutter.is-out {
-  animation: photoWallFlutterOut 850ms ease-in forwards;
+  animation: photoWallFlutterOut 1130ms ease-in forwards;
 }
 /* Named distinctly from the winner's-photo "photoFlutterIn" keyframe below
    (@keyframes photoFlutterIn, used by .qi-display-fastest-photo img) - the

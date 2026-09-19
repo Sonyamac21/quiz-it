@@ -1548,6 +1548,12 @@ button, input, select, textarea { font: inherit; }
 .qi-display-intermission { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--qi-display-safe-y) var(--qi-display-safe-x); }
 .qi-display-intermission-title { font-size: clamp(48px, 6.2vw, 104px); line-height: 1; margin: 16px 0 10px; }
 .qi-display-intermission-subtitle { color: var(--qi-display-muted); font-size: clamp(19px,1.7vw,29px); margin-bottom: 4vh; }
+/* Sit above the photo wall (z-index:0) via plain sibling z-index instead of
+   relying on negative-z-index stacking, which broke - see the photo-wall
+   comment above. */
+.qi-display-intermission .qi-display-eyebrow,
+.qi-display-intermission .qi-display-intermission-title,
+.qi-display-intermission .qi-display-intermission-subtitle { position: relative; z-index: 1; }
 .qi-display-promo-grid { width: min(92vw, 1280px); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: clamp(24px,3vw,52px); align-items: stretch; position: relative; z-index: 2; }
 .qi-display-promo-stack { display: grid; gap: 22px; }
 .qi-display-promo-card { padding: clamp(24px,2.6vw,42px); border-radius: 24px; background: var(--qi-display-surface); border: 1px solid var(--qi-display-line); box-shadow: 0 22px 58px rgba(0,0,0,.28); }
@@ -1592,10 +1598,15 @@ button, input, select, textarea { font: inherit; }
 .qi-display-promo-gallery-img.active { opacity: 1; }
 
 /* Fluttering photo wall - team photos taken during the quiz, scattered
-   full-screen behind the title/promo copy (negative z-index, so it sits
-   behind the static text of .qi-display-intermission without needing to
-   touch that text's own stacking) rather than one small rotating frame. */
-.qi-display-photo-wall { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+   full-screen behind the title/promo copy, rather than one small rotating
+   frame. A negative z-index here previously made the whole wall invisible:
+   .qi-display-intermission is position:relative but has no z-index of its
+   own, so it never actually becomes a stacking-context root, and a
+   negative-z-index child of a non-stacking-context ancestor can paint
+   behind that ancestor's own background instead of just behind its text.
+   Using z-index:0 here plus z-index:1 on the title/subtitle/eyebrow below
+   keeps the layering to plain sibling z-index comparison instead. */
+.qi-display-photo-wall { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .qi-display-photo-flutter {
   position: absolute;
   width: clamp(160px, 15vw, 250px);

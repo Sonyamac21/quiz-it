@@ -155,36 +155,64 @@ export function Intermission({
 // the screen - kept clear of the top-left corner brand mark and the
 // centered "TAKE A BREATHER / venue name / next round" title block (which
 // all sit in the top ~26% of the screen), and clear of the fullscreen
-// button in the top-right. Positions are picked at random within these
-// bounds (see randomPlacement below), not from a fixed layout.
+// button in the top-right.
 const PLACEMENT_X: [number, number] = [7, 93];
 const PLACEMENT_Y: [number, number] = [30, 92];
+// Photos are placed on a hidden grid, one photo per cell, with a random
+// jitter + rotation inside each cell - pure random x/y let photos land on
+// top of each other, so a grid is what actually guarantees no overlap; the
+// per-cell jitter and rotation are what stop it reading as a grid. More
+// cells than the max photo count on screen at once, so a freed cell is
+// always available for the next photo to land in.
+const GRID_COLS = 4;
+const GRID_ROWS = 3;
+const GRID_CELLS = GRID_COLS * GRID_ROWS;
 
-function randomPlacement(): { x: number; y: number; rot: number; scale: number } {
+function cellPlacement(cell: number): { x: number; y: number; rot: number; scale: number } {
+  const col = cell % GRID_COLS;
+  const row = Math.floor(cell / GRID_COLS);
+  const cellW = (PLACEMENT_X[1] - PLACEMENT_X[0]) / GRID_COLS;
+  const cellH = (PLACEMENT_Y[1] - PLACEMENT_Y[0]) / GRID_ROWS;
+  const cx = PLACEMENT_X[0] + cellW * (col + 0.5);
+  const cy = PLACEMENT_Y[0] + cellH * (row + 0.5);
   return {
-    x: PLACEMENT_X[0] + Math.random() * (PLACEMENT_X[1] - PLACEMENT_X[0]),
-    y: PLACEMENT_Y[0] + Math.random() * (PLACEMENT_Y[1] - PLACEMENT_Y[0]),
+    x: cx + (Math.random() - 0.5) * cellW * 0.5,
+    y: cy + (Math.random() - 0.5) * cellH * 0.5,
     rot: -16 + Math.random() * 32,
-    scale: 0.72 + Math.random() * 0.34,
+    scale: 0.78 + Math.random() * 0.28,
   };
 }
 
-// One "photo taken during the quiz" fluttering onto the screen, holding for
-// a while, then fluttering off again to be replaced at a fresh random spot
-// - each slot runs its own independent, staggered loop rather than a shared
-// clock, so the wall never all-changes-at-once and instead feels alive/
-// continuous.
-function GalleryPhotoSlot({ photos, startDelayMs, startIndex, step }: { photos: string[]; startDelayMs: number; startIndex: number; step: number }) {
-  // Starts at its own offset into the photo list and advances by `step`
-  // (the total slot count) each cycle, so with plenty of photos every slot
-  // works through its own slice of the full set instead of all slots
-  // showing the same handful at once - the whole set gets shown over time.
-  // With only a few photos, the modulo just wraps straight back around, so
-  // the same one or two photos repeat rather than leaving a slot empty.
-  const [photoIdx, setPhotoIdx] = useState(startIndex);
-  const [placement, setPlacement] = useState(randomPlacement);
-  const [entering, setEntering] = useState(false);
-  const [leaving, setLeaving] = useState(false);
+function shuffledCells(): number[] {
+  const cells = Array.from({ length: GRID_CELLS }, (_, i) => i);
+  for (let i = cells.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+  return cells;
+}
+
+type GallerySlotState = { cell: number; photoIdx: number; placement: ReturnType<typeof cellPlacement>; nonce: number; phase: "in" | "hold" | "out" };
+
+// Full-screen "photo wall" for the intermission - team photos taken during
+// the quiz (plus venue promo/gallery images) scattered across a hidden grid
+// (so nothing overlaps) at a random jittered position and angle within its
+// cell, fluttering onto the screen like polaroids landing, rather than one
+// small rotating frame. Cell assignment is owned here (not per-photo) so
+// two photos can never be handed the same spot. Presentation-only (per
+// this file's convention); the caller merges and filters the photo list.
+export function IntermissionGallery({ photos }: { photos: string[] }) {
+  const slotCount = Math.min(GRID_CELLS, Math.max(3, photos.length * 2));
+  const [slots, setSlots] = useState<GallerySlotState[]>(() => {
+    const cells = shuffledCells();
+    return Array.from({ length: slotCount }, (_, i) => ({
+      cell: cells[i],
+      photoIdx: i % Math.max(1, photos.length),
+      placement: cellPlacement(cells[i]),
+      nonce: 0,
+      phase: "in" as const,
+    }));
+  });
 
   useEffect(() => {
     if (photos.length === 0) return;
@@ -193,60 +221,64 @@ function GalleryPhotoSlot({ photos, startDelayMs, startIndex, step }: { photos: 
     const HOLD_MS = 7000;
     const LEAVE_MS = 650;
 
-    const cycle = () => {
-      if (cancelled) return;
-      setEntering(true);
-      setLeaving(false);
+    const scheduleHold = (slotIndex: number) => {
       timers.push(window.setTimeout(() => {
         if (cancelled) return;
-        setLeaving(true);
+        setSlots(prev => prev.map((s, i) => i === slotIndex ? { ...s, phase: "out" } : s));
         timers.push(window.setTimeout(() => {
           if (cancelled) return;
-          setPhotoIdx(p => (p + step) % photos.length);
-          setPlacement(randomPlacement());
-          cycle();
+          setSlots(prev => {
+            const usedCells = new Set(prev.filter((_, i) => i !== slotIndex).map(s => s.cell));
+            const freeCells = shuffledCells().filter(c => !usedCells.has(c));
+            const nextCell = freeCells[0] ?? prev[slotIndex].cell;
+            const next = [...prev];
+            next[slotIndex] = {
+              cell: nextCell,
+              photoIdx: (next[slotIndex].photoIdx + slotCount) % photos.length,
+              placement: cellPlacement(nextCell),
+              nonce: next[slotIndex].nonce + 1,
+              phase: "in",
+            };
+            return next;
+          });
+          scheduleHold(slotIndex);
         }, LEAVE_MS));
       }, HOLD_MS));
     };
 
-    const start = window.setTimeout(cycle, startDelayMs);
-    timers.push(start);
+    slots.forEach((_, i) => {
+      timers.push(window.setTimeout(() => scheduleHold(i), i * 900));
+    });
+
     return () => { cancelled = true; timers.forEach(clearTimeout); };
-    // photos.length intentionally excludes photoIdx - each slot advances its
-    // own index independently of re-renders from other slots or new photos.
+    // Runs once per photo-list identity / slot count change - each slot's
+    // own loop re-reads current state via the setSlots updater rather than
+    // closing over `slots`, so it doesn't need slots itself as a dep.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photos.length, startDelayMs, step]);
+  }, [photos.length, slotCount]);
 
   if (photos.length === 0) return null;
-  const url = photos[photoIdx % photos.length];
-  return (
-    <div
-      className={"qi-display-photo-flutter" + (entering ? " is-in" : "") + (leaving ? " is-out" : "")}
-      style={{
-        left: `${placement.x}%`,
-        top: `${placement.y}%`,
-        "--rot": `${placement.rot}deg`,
-        "--scale": placement.scale,
-      } as CSSProperties}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt="" />
-    </div>
-  );
-}
-
-// Full-screen "photo wall" for the intermission - team photos taken during
-// the quiz (plus venue promo/gallery images) scattered at random within a
-// safe area and fluttering onto the screen like polaroids landing, rather
-// than one small rotating frame. Presentation-only (per this file's
-// convention); the caller merges and filters the photo list.
-export function IntermissionGallery({ photos }: { photos: string[] }) {
-  if (photos.length === 0) return null;
-  const slotCount = Math.min(8, Math.max(3, photos.length * 2));
   return (
     <div className="qi-display-photo-wall">
-      {Array.from({ length: slotCount }).map((_, i) => (
-        <GalleryPhotoSlot key={i} photos={photos} startDelayMs={i * 850} startIndex={i % photos.length} step={slotCount} />
+      {slots.map((slot, i) => (
+        // Keyed on nonce so each new photo/placement is a fresh DOM node -
+        // that's what makes the flutter-in keyframe actually replay every
+        // cycle instead of freezing at whichever angle it first entered
+        // with (a plain class toggle on the same node doesn't restart a
+        // CSS animation that's already applied via "forwards").
+        <div
+          key={`${i}-${slot.nonce}`}
+          className={"qi-display-photo-flutter" + (slot.phase === "out" ? " is-out" : " is-in")}
+          style={{
+            left: `${slot.placement.x}%`,
+            top: `${slot.placement.y}%`,
+            "--rot": `${slot.placement.rot}deg`,
+            "--scale": slot.placement.scale,
+          } as CSSProperties}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photos[slot.photoIdx % photos.length]} alt="" />
+        </div>
       ))}
     </div>
   );

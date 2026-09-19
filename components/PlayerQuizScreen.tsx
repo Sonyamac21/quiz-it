@@ -1606,8 +1606,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     const isWinner = sameTeamName(fastestTeamName, teamName);
     const confettiColors = ["#BE26C1","#fbbf24","#22c55e","#38bdf8","#f87171","#a78bfa"];
     return (
-      <div className="qi-player-state qi-player-celebration" style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, position: "relative", overflow: "hidden" }}>
-        {myRunningPoints !== undefined && <div style={{ color: "#D94FDC", fontWeight: 800, marginBottom: 12 }}>Your team total: {myRunningPoints} pts</div>}
+      <div className="qi-player-state qi-player-celebration" style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", padding: 24, fontFamily: font, position: "relative", overflow: "hidden" }}>
         <style>{`
           @keyframes fall { 0% { transform: translateY(-20px) rotate(0deg); opacity:1; } 100% { transform: translateY(110vh) rotate(720deg); opacity:0; } }
           @keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.15} }
@@ -1623,6 +1622,14 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             opacity: 0.9, pointerEvents: "none" as const,
           }} />
         ))}
+        {/* Main content stretches to fill whatever space the power cards
+            row below doesn't need (flex:1, centered within itself) instead
+            of the whole screen being one centered block - that used to
+            leave a large dead gap between the content and the cards
+            whenever the content was short, with the cards stranded well
+            above the bottom of the screen instead of anchored to it. */}
+        <div style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflowY: "auto" }}>
+        {myRunningPoints !== undefined && <div style={{ color: "#D94FDC", fontWeight: 800, marginBottom: 12 }}>Your team total: {myRunningPoints} pts</div>}
         {fastestTeamName && (
           <>
             {isWinner && spinOffered && !spinChoice && (
@@ -1747,7 +1754,10 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             </>
           );
         })()}
-        {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+        </div>
+        <div style={{ flexShrink: 0, width: "100%" }}>
+          {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+        </div>
       </div>
     );
   }

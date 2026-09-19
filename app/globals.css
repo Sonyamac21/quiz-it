@@ -1591,6 +1591,46 @@ button, input, select, textarea { font: inherit; }
 .qi-display-promo-gallery-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.1s ease; }
 .qi-display-promo-gallery-img.active { opacity: 1; }
 
+/* Fluttering photo wall - team photos taken during the quiz, scattered
+   full-screen behind the title/promo copy (negative z-index, so it sits
+   behind the static text of .qi-display-intermission without needing to
+   touch that text's own stacking) rather than one small rotating frame. */
+.qi-display-photo-wall { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.qi-display-photo-flutter {
+  position: absolute;
+  width: clamp(160px, 15vw, 250px);
+  aspect-ratio: 4 / 5;
+  padding: 10px 10px 28px;
+  background: #fdfaf6;
+  border-radius: 6px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.06);
+  transform: translate(-50%, -50%) scale(var(--scale, 1)) rotate(var(--rot, 0deg)) translateY(-120px);
+  opacity: 0;
+  transition: none;
+}
+.qi-display-photo-flutter img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 2px; }
+.qi-display-photo-flutter.is-in {
+  animation: photoFlutterIn 900ms cubic-bezier(.2,.8,.3,1.1) forwards;
+}
+.qi-display-photo-flutter.is-out {
+  animation: photoFlutterOut 650ms ease-in forwards;
+}
+@keyframes photoFlutterIn {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(var(--scale, 1)) rotate(calc(var(--rot, 0deg) - 18deg)) translateY(-140px); }
+  70% { opacity: 1; transform: translate(-50%, -50%) scale(var(--scale, 1)) rotate(calc(var(--rot, 0deg) + 3deg)) translateY(4px); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(var(--scale, 1)) rotate(var(--rot, 0deg)) translateY(0); }
+}
+@keyframes photoFlutterOut {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(var(--scale, 1)) rotate(var(--rot, 0deg)) translateY(0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(calc(var(--scale, 1) * .9)) rotate(calc(var(--rot, 0deg) - 10deg)) translateY(60px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qi-display-photo-flutter.is-in, .qi-display-photo-flutter.is-out { animation: none; opacity: 1; transform: translate(-50%, -50%) scale(var(--scale, 1)) rotate(var(--rot, 0deg)); }
+}
+@media (max-width: 900px), (max-height: 620px) {
+  .qi-display-photo-flutter { width: clamp(110px, 20vw, 170px); }
+}
+
 /* Live question */
 /* Bounded to the real viewport (was min-height:100vh via the shared .fbl .qd
    rule, which lets a tall stack of children push the box taller than the

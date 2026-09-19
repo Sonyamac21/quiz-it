@@ -10,7 +10,7 @@
  * here reads Supabase or drives the show.
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 const BADGE = "QUIZ-IT";
 
@@ -151,25 +151,98 @@ export function Intermission({
   );
 }
 
-// Rotating photo gallery for the intermission screen - venue offer/gallery
-// photos plus host-approved customer photos, already merged and filtered by
-// the caller (this stays presentation-only, per this file's convention: no
-// Supabase reads happen here). Cross-fades on a fixed interval; a single
-// photo just holds still instead of flashing.
-export function IntermissionGallery({ photos, intervalMs = 6000 }: { photos: string[]; intervalMs?: number }) {
-  const [index, setIndex] = useState(0);
+// Scattered positions/rotations for the fluttering photo wall below - a
+// fixed hand-tuned spread across the full screen (not randomised at runtime,
+// so the layout doesn't jump on every render) with enough entries that a
+// venue with only a couple of photos still fills the screen by reusing
+// slots. Kept deliberately clear of dead-center, where the title/promo
+// copy sits.
+const GALLERY_SLOTS: { x: number; y: number; rot: number; scale: number }[] = [
+  { x: 4,  y: 10, rot: -8, scale: 0.92 },
+  { x: 82, y: 8,  rot: 6,  scale: 0.85 },
+  { x: 20, y: 58, rot: 5,  scale: 1.0 },
+  { x: 68, y: 60, rot: -6, scale: 0.95 },
+  { x: 2,  y: 62, rot: 9,  scale: 0.8 },
+  { x: 88, y: 42, rot: -4, scale: 0.9 },
+  { x: 42, y: 4,  rot: -5, scale: 0.78 },
+  { x: 48, y: 70, rot: 7,  scale: 0.88 },
+];
+
+// One "photo taken during the quiz" fluttering onto the screen, holding for
+// a while, then fluttering off again to be replaced - each slot runs its
+// own independent, staggered loop rather than a shared clock, so the wall
+// never all-changes-at-once and instead feels alive/continuous.
+function GalleryPhotoSlot({ slot, photos, startDelayMs, startIndex, step }: { slot: { x: number; y: number; rot: number; scale: number }; photos: string[]; startDelayMs: number; startIndex: number; step: number }) {
+  // Starts at its own offset into the photo list and advances by `step`
+  // (the total slot count) each cycle, so with plenty of photos every slot
+  // works through its own slice of the full set instead of all slots
+  // showing the same handful at once - the whole set gets shown over time.
+  // With only a few photos, the modulo just wraps straight back around, so
+  // the same one or two photos repeat rather than leaving a slot empty.
+  const [photoIdx, setPhotoIdx] = useState(startIndex);
+  const [entering, setEntering] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+
   useEffect(() => {
-    if (photos.length < 2) return;
-    const id = window.setInterval(() => setIndex(current => (current + 1) % photos.length), intervalMs);
-    return () => window.clearInterval(id);
-  }, [photos.length, intervalMs]);
+    if (photos.length === 0) return;
+    let cancelled = false;
+    const timers: number[] = [];
+    const HOLD_MS = 7000;
+    const LEAVE_MS = 650;
+
+    const cycle = () => {
+      if (cancelled) return;
+      setEntering(true);
+      setLeaving(false);
+      timers.push(window.setTimeout(() => {
+        if (cancelled) return;
+        setLeaving(true);
+        timers.push(window.setTimeout(() => {
+          if (cancelled) return;
+          setPhotoIdx(p => (p + step) % photos.length);
+          cycle();
+        }, LEAVE_MS));
+      }, HOLD_MS));
+    };
+
+    const start = window.setTimeout(cycle, startDelayMs);
+    timers.push(start);
+    return () => { cancelled = true; timers.forEach(clearTimeout); };
+    // photos.length intentionally excludes photoIdx - each slot advances its
+    // own index independently of re-renders from other slots or new photos.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photos.length, startDelayMs, step]);
+
   if (photos.length === 0) return null;
-  const safeIndex = index % photos.length;
+  const url = photos[photoIdx % photos.length];
   return (
-    <div className="qi-display-promo-gallery">
-      {photos.map((url, i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img key={url + i} src={url} alt="" className={"qi-display-promo-gallery-img" + (i === safeIndex ? " active" : "")} />
+    <div
+      className={"qi-display-photo-flutter" + (entering ? " is-in" : "") + (leaving ? " is-out" : "")}
+      style={{
+        left: `${slot.x}%`,
+        top: `${slot.y}%`,
+        "--rot": `${slot.rot}deg`,
+        "--scale": slot.scale,
+      } as CSSProperties}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt="" />
+    </div>
+  );
+}
+
+// Full-screen "photo wall" for the intermission - team photos taken during
+// the quiz (plus venue promo/gallery images) scattered and fluttering onto
+// the screen like polaroids landing, rather than one small rotating frame.
+// Presentation-only (per this file's convention); the caller merges and
+// filters the photo list.
+export function IntermissionGallery({ photos }: { photos: string[] }) {
+  if (photos.length === 0) return null;
+  const slotCount = Math.min(GALLERY_SLOTS.length, Math.max(3, photos.length * 2));
+  return (
+    <div className="qi-display-photo-wall">
+      {GALLERY_SLOTS.slice(0, slotCount).map((slot, i) => (
+        <GalleryPhotoSlot key={i} slot={slot} photos={photos} startDelayMs={i * 850} startIndex={i % photos.length} step={slotCount} />
       ))}
     </div>
   );

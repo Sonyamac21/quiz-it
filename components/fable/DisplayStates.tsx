@@ -151,28 +151,30 @@ export function Intermission({
   );
 }
 
-// Scattered positions/rotations for the fluttering photo wall below - a
-// fixed hand-tuned spread across the full screen (not randomised at runtime,
-// so the layout doesn't jump on every render) with enough entries that a
-// venue with only a couple of photos still fills the screen by reusing
-// slots. Kept deliberately clear of dead-center, where the title/promo
-// copy sits.
-const GALLERY_SLOTS: { x: number; y: number; rot: number; scale: number }[] = [
-  { x: 4,  y: 10, rot: -8, scale: 0.92 },
-  { x: 82, y: 8,  rot: 6,  scale: 0.85 },
-  { x: 20, y: 58, rot: 5,  scale: 1.0 },
-  { x: 68, y: 60, rot: -6, scale: 0.95 },
-  { x: 2,  y: 62, rot: 9,  scale: 0.8 },
-  { x: 88, y: 42, rot: -4, scale: 0.9 },
-  { x: 42, y: 4,  rot: -5, scale: 0.78 },
-  { x: 48, y: 70, rot: 7,  scale: 0.88 },
-];
+// Safe placement bounds for the fluttering photo wall, as a percentage of
+// the screen - kept clear of the top-left corner brand mark and the
+// centered "TAKE A BREATHER / venue name / next round" title block (which
+// all sit in the top ~26% of the screen), and clear of the fullscreen
+// button in the top-right. Positions are picked at random within these
+// bounds (see randomPlacement below), not from a fixed layout.
+const PLACEMENT_X: [number, number] = [7, 93];
+const PLACEMENT_Y: [number, number] = [30, 92];
+
+function randomPlacement(): { x: number; y: number; rot: number; scale: number } {
+  return {
+    x: PLACEMENT_X[0] + Math.random() * (PLACEMENT_X[1] - PLACEMENT_X[0]),
+    y: PLACEMENT_Y[0] + Math.random() * (PLACEMENT_Y[1] - PLACEMENT_Y[0]),
+    rot: -16 + Math.random() * 32,
+    scale: 0.72 + Math.random() * 0.34,
+  };
+}
 
 // One "photo taken during the quiz" fluttering onto the screen, holding for
-// a while, then fluttering off again to be replaced - each slot runs its
-// own independent, staggered loop rather than a shared clock, so the wall
-// never all-changes-at-once and instead feels alive/continuous.
-function GalleryPhotoSlot({ slot, photos, startDelayMs, startIndex, step }: { slot: { x: number; y: number; rot: number; scale: number }; photos: string[]; startDelayMs: number; startIndex: number; step: number }) {
+// a while, then fluttering off again to be replaced at a fresh random spot
+// - each slot runs its own independent, staggered loop rather than a shared
+// clock, so the wall never all-changes-at-once and instead feels alive/
+// continuous.
+function GalleryPhotoSlot({ photos, startDelayMs, startIndex, step }: { photos: string[]; startDelayMs: number; startIndex: number; step: number }) {
   // Starts at its own offset into the photo list and advances by `step`
   // (the total slot count) each cycle, so with plenty of photos every slot
   // works through its own slice of the full set instead of all slots
@@ -180,6 +182,7 @@ function GalleryPhotoSlot({ slot, photos, startDelayMs, startIndex, step }: { sl
   // With only a few photos, the modulo just wraps straight back around, so
   // the same one or two photos repeat rather than leaving a slot empty.
   const [photoIdx, setPhotoIdx] = useState(startIndex);
+  const [placement, setPlacement] = useState(randomPlacement);
   const [entering, setEntering] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
@@ -200,6 +203,7 @@ function GalleryPhotoSlot({ slot, photos, startDelayMs, startIndex, step }: { sl
         timers.push(window.setTimeout(() => {
           if (cancelled) return;
           setPhotoIdx(p => (p + step) % photos.length);
+          setPlacement(randomPlacement());
           cycle();
         }, LEAVE_MS));
       }, HOLD_MS));
@@ -219,10 +223,10 @@ function GalleryPhotoSlot({ slot, photos, startDelayMs, startIndex, step }: { sl
     <div
       className={"qi-display-photo-flutter" + (entering ? " is-in" : "") + (leaving ? " is-out" : "")}
       style={{
-        left: `${slot.x}%`,
-        top: `${slot.y}%`,
-        "--rot": `${slot.rot}deg`,
-        "--scale": slot.scale,
+        left: `${placement.x}%`,
+        top: `${placement.y}%`,
+        "--rot": `${placement.rot}deg`,
+        "--scale": placement.scale,
       } as CSSProperties}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -232,17 +236,17 @@ function GalleryPhotoSlot({ slot, photos, startDelayMs, startIndex, step }: { sl
 }
 
 // Full-screen "photo wall" for the intermission - team photos taken during
-// the quiz (plus venue promo/gallery images) scattered and fluttering onto
-// the screen like polaroids landing, rather than one small rotating frame.
-// Presentation-only (per this file's convention); the caller merges and
-// filters the photo list.
+// the quiz (plus venue promo/gallery images) scattered at random within a
+// safe area and fluttering onto the screen like polaroids landing, rather
+// than one small rotating frame. Presentation-only (per this file's
+// convention); the caller merges and filters the photo list.
 export function IntermissionGallery({ photos }: { photos: string[] }) {
   if (photos.length === 0) return null;
-  const slotCount = Math.min(GALLERY_SLOTS.length, Math.max(3, photos.length * 2));
+  const slotCount = Math.min(8, Math.max(3, photos.length * 2));
   return (
     <div className="qi-display-photo-wall">
-      {GALLERY_SLOTS.slice(0, slotCount).map((slot, i) => (
-        <GalleryPhotoSlot key={i} slot={slot} photos={photos} startDelayMs={i * 850} startIndex={i % photos.length} step={slotCount} />
+      {Array.from({ length: slotCount }).map((_, i) => (
+        <GalleryPhotoSlot key={i} photos={photos} startDelayMs={i * 850} startIndex={i % photos.length} step={slotCount} />
       ))}
     </div>
   );

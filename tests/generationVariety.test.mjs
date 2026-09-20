@@ -4,6 +4,13 @@ import { readFileSync } from "node:fs";
 
 const core = readFileSync(new URL("../lib/quiz/questionGenerationCore.ts", import.meta.url), "utf8");
 
+test("malformed model prose cannot impersonate a fatal quota error", () => {
+  assert.doesNotMatch(core, /JSON parse failed\. Raw text/);
+  assert.match(core, /The AI returned commentary instead of valid question data/);
+  assert.match(core, /exactly one web search available/);
+  assert.match(core, /Never substitute unverified current facts/);
+});
+
 test("mixed generation has broad geography, sport and recent-news coverage", () => {
   assert.match(core, /export const GENERAL_TOPIC_BUCKETS/);
   assert.match(core, /world capitals beyond the most commonly asked examples/);
@@ -12,6 +19,13 @@ test("mixed generation has broad geography, sport and recent-news coverage", () 
   assert.match(core, /last 1-3 months/);
   assert.match(core, /breaking celebrity and showbiz news/);
   assert.match(core, /Asia, Africa or Middle East angle/);
+});
+
+test("pairs image matching requires the visible label in Pixabay tags", () => {
+  const match = readFileSync(new URL("../lib/quiz/pixabayMatch.ts", import.meta.url), "utf8");
+  assert.match(match, /requiredLabel\?: string/);
+  assert.match(match, /requiredLabelTerms/);
+  assert.match(readFileSync(new URL("../lib/quiz/generatePairs.ts", import.meta.url), "utf8"), /selectMatchingPixabayHit\(data\?\.hits \|\| \[\], query, label\)/);
 });
 
 test("both generator screens use the shared pool and stronger duplicate threshold", () => {

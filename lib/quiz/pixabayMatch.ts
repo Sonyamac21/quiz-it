@@ -35,15 +35,19 @@ export function buildPixabaySearchQuery(rawQuery: string): string {
 // require a majority of multi-word subject terms. If none match strongly
 // enough, generation rejects this candidate and retries instead of permanently
 // saving an incidental/background appearance of the requested subject.
-export function selectMatchingPixabayHit(hits: PixabayHit[], rawQuery: string): PixabayHit | null {
+export function selectMatchingPixabayHit(hits: PixabayHit[], rawQuery: string, requiredLabel?: string): PixabayHit | null {
   const requested = new Set(normalizedTerms(rawQuery));
   if (requested.size === 0) return null;
+  const labelTerms = requiredLabel ? normalizedTerms(requiredLabel) : [];
+  const requiredLabelTerms = labelTerms.filter(term => term.length >= 4);
   const minimumMatches = Math.max(1, Math.ceil(requested.size * 0.6));
   const ranked = hits.map((hit, index) => {
     const tags = new Set(normalizedTerms(hit.tags || ""));
     const matches = [...requested].filter(term => tags.has(term)).length;
-    return { hit, index, matches };
+    const labelMatches = requiredLabelTerms.filter(term => tags.has(term)).length;
+    return { hit, index, matches, labelMatches };
   }).filter(result => result.matches >= minimumMatches)
-    .sort((a, b) => b.matches - a.matches || a.index - b.index);
+    .filter(result => !requiredLabelTerms.length || result.labelMatches > 0)
+    .sort((a, b) => b.labelMatches - a.labelMatches || b.matches - a.matches || a.index - b.index);
   return ranked[0]?.hit || null;
 }

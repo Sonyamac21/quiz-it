@@ -19,7 +19,7 @@ async function sourceImage(query: string, label: string): Promise<string> {
   const response = await fetch(`https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(search)}&image_type=photo&per_page=8&safesearch=true`);
   if (!response.ok) throw new Error("Picture search failed");
   const data = await response.json();
-  const hit = selectMatchingPixabayHit(data?.hits || [], query);
+  const hit = selectMatchingPixabayHit(data?.hits || [], query, label);
   const source = hit?.webformatURL || hit?.largeImageURL;
   if (!source) throw new Error(`No suitable picture found for ${query}`);
   // Pixabay's CDN URLs are routinely blocked by the model vision endpoint's

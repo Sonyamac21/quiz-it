@@ -165,7 +165,7 @@ const PLACEMENT_Y: [number, number] = [30, 92];
 // cells than the max photo count on screen at once, so a freed cell is
 // always available for the next photo to land in.
 const GRID_COLS = 4;
-const GRID_ROWS = 3;
+const GRID_ROWS = 2;
 const GRID_CELLS = GRID_COLS * GRID_ROWS;
 // Max photos on screen at once - fewer than GRID_CELLS so a freed cell is
 // always available for the next photo to land in without waiting.
@@ -179,12 +179,15 @@ function cellPlacement(cell: number): { x: number; y: number; rot: number; scale
   const cx = PLACEMENT_X[0] + cellW * (col + 0.5);
   const cy = PLACEMENT_Y[0] + cellH * (row + 0.5);
   return {
-    x: cx + (Math.random() - 0.5) * cellW * 0.5,
-    y: cy + (Math.random() - 0.5) * cellH * 0.5,
+    // Jitter pulled in from 0.5x to 0.3x of the cell, and the size range
+    // below narrowed - the wider jitter/scale combination used previously
+    // let a bigger-than-average photo edge into a neighbouring cell's
+    // territory (especially with a 3-row grid's shorter cells), which is
+    // what caused photos to visibly land on top of each other.
+    x: cx + (Math.random() - 0.5) * cellW * 0.3,
+    y: cy + (Math.random() - 0.5) * cellH * 0.3,
     rot: -16 + Math.random() * 32,
-    // Wider range than before (was a narrow 0.78-1.06) so photos genuinely
-    // vary in size on screen instead of all landing roughly the same.
-    scale: 0.62 + Math.random() * 0.72,
+    scale: 0.7 + Math.random() * 0.4,
     // Sideways sway amplitude (px, signed) for the flutter-in/out keyframes
     // below - randomised per landing so photos drift and wobble in like a
     // dropped photo catching air, rather than falling in a dead-straight
@@ -212,7 +215,12 @@ type GallerySlotState = { cell: number; photoIdx: number; placement: ReturnType<
 // two photos can never be handed the same spot. Presentation-only (per
 // this file's convention); the caller merges and filters the photo list.
 export function IntermissionGallery({ photos }: { photos: string[] }) {
-  const slotCount = Math.min(MAX_ACTIVE_PHOTOS, Math.max(2, photos.length));
+  // Always fills MAX_ACTIVE_PHOTOS slots regardless of how many unique
+  // photos exist - was capped at photos.length before, so a venue with
+  // only 4 photos uploaded got 4 sparse slots on screen instead of 6,
+  // never repeating a photo to fill the extra slots. Repeats are fine
+  // (and expected) when there are fewer photos than slots.
+  const slotCount = photos.length === 0 ? 0 : MAX_ACTIVE_PHOTOS;
   const [slots, setSlots] = useState<GallerySlotState[]>(() => {
     const cells = shuffledCells();
     return Array.from({ length: slotCount }, (_, i) => ({

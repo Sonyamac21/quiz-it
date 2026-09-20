@@ -35,6 +35,7 @@ export async function enableShowAudio() {
 }
 const preloaded = new Map<string, HTMLAudioElement>();
 const activeFiles = new Map<ShowAudioChannel, string>();
+const recentlyStarted = new Map<string, number>();
 const listeners = new Set<(state: ShowAudioState) => void>();
 
 export type ShowAudioState = { active: Array<{ channel: ShowAudioChannel; file: string }>; overlap: boolean };
@@ -97,6 +98,16 @@ export function playShowAudio(
 ) {
   if (typeof Audio === "undefined") return null;
   const channel = options.channel ?? "cue";
+  const dedupeKey = `${channel}:${file}`;
+  const now = Date.now();
+  const lastStarted = recentlyStarted.get(dedupeKey) || 0;
+  // Realtime subscriptions and repair polling may deliver one state change
+  // twice. Do not restart the same sound when that happens; restarting it was
+  // heard as doubled/echoing audio on the venue display. Different files and
+  // channels remain independent, and a cue can be deliberately replayed
+  // after this short guard window.
+  if (now - lastStarted < 900) return active.get(channel) || null;
+  recentlyStarted.set(dedupeKey, now);
   stopShowAudio(channel);
   const cached = preloaded.get(file);
   const audio = unlockedPlayers.get(channel) ?? (cached ? cached.cloneNode() as HTMLAudioElement : new Audio(soundUrl(file)));

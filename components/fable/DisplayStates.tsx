@@ -10,7 +10,7 @@
  * here reads Supabase or drives the show.
  */
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 const BADGE = "QUIZ-IT";
 
@@ -164,12 +164,17 @@ const PLACEMENT_Y: [number, number] = [30, 92];
 // per-cell jitter and rotation are what stop it reading as a grid. More
 // cells than the max photo count on screen at once, so a freed cell is
 // always available for the next photo to land in.
-const GRID_COLS = 4;
+// 2 rows (not 3) keeps each cell tall enough for a max-scale (1.1x) 4:5
+// photo to fit without its height spilling into the row above/below - a
+// 3-row grid's shorter cells was the exact thing that caused overlap
+// before. 5 columns instead gives enough total cells (10) to hold
+// MAX_ACTIVE_PHOTOS (8) plus 2 spare, without shrinking row height.
+const GRID_COLS = 5;
 const GRID_ROWS = 2;
 const GRID_CELLS = GRID_COLS * GRID_ROWS;
 // Max photos on screen at once - fewer than GRID_CELLS so a freed cell is
 // always available for the next photo to land in without waiting.
-const MAX_ACTIVE_PHOTOS = 6;
+const MAX_ACTIVE_PHOTOS = 8;
 
 function cellPlacement(cell: number): { x: number; y: number; rot: number; scale: number; drift: number } {
   const col = cell % GRID_COLS;
@@ -205,35 +210,29 @@ function shuffledCells(): number[] {
   return cells;
 }
 
-type GallerySlotState = { cell: number; photoIdx: number; placement: ReturnType<typeof cellPlacement>; nonce: number; phase: "pending" | "in" | "hold" | "out" };
-
-// Full-screen "photo wall" for the intermission - team photos taken during
-// the quiz (plus venue promo/gallery images) scattered across a hidden grid
-// (so nothing overlaps) at a random jittered position and angle within its
-// cell, fluttering onto the screen like polaroids landing, rather than one
-// small rotating frame. Cell assignment is owned here (not per-photo) so
-// two photos can never be handed the same spot. Presentation-only (per
-// this file's convention); the caller merges and filters the photo list.
-export function IntermissionGallery({ photos }: { photos: string[] }) {
-  // Always fills MAX_ACTIVE_PHOTOS slots regardless of how many unique
-  // photos exist - was capped at photos.length before, so a venue with
-  // only 4 photos uploaded got 4 sparse slots on screen instead of 6,
-  // never repeating a photo to fill the extra slots. Repeats are fine
-  // (and expected) when there are fewer photos than slots.
-  const slotCount = photos.length === 0 ? 0 : MAX_ACTIVE_PHOTOS;
-  const [slots, setSlots] = useState<GallerySlotState[]>(() => {
-    const cells = shuffledCells();
-    return Array.from({ length: slotCount }, (_, i) => ({
-      cell: cells[i],
-      photoIdx: i % Math.max(1, photos.length),
-      placement: cellPlacement(cells[i]),
-      nonce: 0,
-      // Starts hidden - the effect below staggers each slot's first
-      // flutter-in the same way it staggers every later cycle, so the
-      // whole wall doesn't land on screen in one go.
-      phase: "pending" as const,
-    }));
-  });
+// One photo's whole life on the wall - claims its own grid cell from a
+// shared registry, flutters in, holds, flutters out, then repeats with a
+// fresh cell + the next photo in this slot's slice of the list. This slot
+// manages its OWN timer lifecycle end to end, independent of every other
+// slot - a previous version stored all slots in one parent array sized
+// once at mount, so a venue adding more photos mid-intermission (growing
+// slotCount) never actually grew that array, and every slot's timers got
+// torn down and restarted (a visible freeze/reset) whenever photos.length
+// changed at all. Splitting each slot into its own component means adding
+// a photo just mounts one more independent slot alongside the others,
+// untouched, and removing one just lets that slot's cell go free.
+function GalleryPhotoSlot({ slotIndex, photos, cellRegistryRef, startDelayMs, step }: {
+  slotIndex: number;
+  photos: string[];
+  cellRegistryRef: { current: Set<number> };
+  startDelayMs: number;
+  step: number;
+}) {
+  const [photoIdx, setPhotoIdx] = useState(slotIndex);
+  const [placement, setPlacement] = useState<ReturnType<typeof cellPlacement> | null>(null);
+  const [phase, setPhase] = useState<"pending" | "in" | "out">("pending");
+  const [nonce, setNonce] = useState(0);
+  const ownedCellRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (photos.length === 0) return;
@@ -242,76 +241,92 @@ export function IntermissionGallery({ photos }: { photos: string[] }) {
     const HOLD_MS = 11000;
     const LEAVE_MS = 1700; // matches .qi-display-photo-flutter.is-out's animation-duration in globals.css
 
-    const scheduleHold = (slotIndex: number) => {
+    const claimCell = () => {
+      const registry = cellRegistryRef.current;
+      if (ownedCellRef.current != null) registry.delete(ownedCellRef.current);
+      const free = shuffledCells().filter(c => !registry.has(c));
+      const cell = free[0] ?? ownedCellRef.current ?? 0;
+      registry.add(cell);
+      ownedCellRef.current = cell;
+      return cellPlacement(cell);
+    };
+
+    const cycle = () => {
+      if (cancelled) return;
+      setPlacement(claimCell());
+      setPhase("in");
       timers.push(window.setTimeout(() => {
         if (cancelled) return;
-        setSlots(prev => prev.map((s, i) => i === slotIndex ? { ...s, phase: "out" } : s));
+        setPhase("out");
         timers.push(window.setTimeout(() => {
           if (cancelled) return;
-          setSlots(prev => {
-            const usedCells = new Set(prev.filter((_, i) => i !== slotIndex).map(s => s.cell));
-            const freeCells = shuffledCells().filter(c => !usedCells.has(c));
-            const nextCell = freeCells[0] ?? prev[slotIndex].cell;
-            const next = [...prev];
-            next[slotIndex] = {
-              cell: nextCell,
-              photoIdx: (next[slotIndex].photoIdx + slotCount) % photos.length,
-              placement: cellPlacement(nextCell),
-              nonce: next[slotIndex].nonce + 1,
-              phase: "in",
-            };
-            return next;
-          });
-          scheduleHold(slotIndex);
+          setPhotoIdx(p => (p + step) % photos.length);
+          setNonce(n => n + 1);
+          cycle();
         }, LEAVE_MS));
       }, HOLD_MS));
     };
 
-    slots.forEach((_, i) => {
-      // First reveal: flip this slot from "pending" (invisible) to "in"
-      // after its stagger delay, then hand off to the normal hold/leave/
-      // re-enter loop.
-      timers.push(window.setTimeout(() => {
-        if (cancelled) return;
-        setSlots(prev => prev.map((s, idx) => idx === i ? { ...s, phase: "in" } : s));
-        scheduleHold(i);
-      }, i * 2200 + 500));
-    });
-
-    return () => { cancelled = true; timers.forEach(clearTimeout); };
-    // Runs once per photo-list identity / slot count change - each slot's
-    // own loop re-reads current state via the setSlots updater rather than
-    // closing over `slots`, so it doesn't need slots itself as a dep.
+    const start = window.setTimeout(cycle, startDelayMs);
+    timers.push(start);
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      if (ownedCellRef.current != null) { cellRegistryRef.current.delete(ownedCellRef.current); ownedCellRef.current = null; }
+    };
+    // photos.length only - each slot's own loop is deliberately independent
+    // of sibling slot count, so it never restarts just because another
+    // slot mounted or unmounted.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photos.length, slotCount]);
+  }, [photos.length, startDelayMs, step]);
+
+  if (phase === "pending" || !placement || photos.length === 0) return null;
+  return (
+    // Keyed on nonce so each new photo/placement is a fresh DOM node -
+    // that's what makes the flutter-in keyframe actually replay every
+    // cycle instead of freezing at whichever angle it first entered with
+    // (a plain class toggle on the same node doesn't restart a CSS
+    // animation that's already applied via "forwards").
+    <div
+      key={nonce}
+      className={"qi-display-photo-flutter" + (phase === "out" ? " is-out" : " is-in")}
+      style={{
+        left: `${placement.x}%`,
+        top: `${placement.y}%`,
+        "--rot": `${placement.rot}deg`,
+        "--scale": placement.scale,
+        "--drift": `${placement.drift}px`,
+      } as CSSProperties}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={photos[photoIdx % photos.length]} alt="" />
+    </div>
+  );
+}
+
+// Full-screen "photo wall" for the intermission - team photos taken during
+// the quiz (plus venue promo/gallery images) scattered across a hidden grid
+// (so nothing overlaps) at a random jittered position and angle within its
+// cell, fluttering onto the screen like polaroids landing, rather than one
+// small rotating frame. Presentation-only (per this file's convention);
+// the caller merges and filters the photo list.
+export function IntermissionGallery({ photos }: { photos: string[] }) {
+  // Always fills MAX_ACTIVE_PHOTOS slots regardless of how many unique
+  // photos exist - repeats are fine (and expected) when there are fewer
+  // photos than slots, rather than leaving the wall sparse.
+  const slotCount = photos.length === 0 ? 0 : MAX_ACTIVE_PHOTOS;
+  // Shared cell-occupancy registry, one Set for the whole wall's lifetime -
+  // a ref rather than React state because slots read/mutate it directly
+  // inside their own timer callbacks; it never needs to trigger a render
+  // itself, only to stay current for whichever slot claims a cell next.
+  const cellRegistryRef = useRef<Set<number>>(new Set());
 
   if (photos.length === 0) return null;
   return (
     <div className="qi-display-photo-wall">
-      {slots.filter(slot => slot.phase !== "pending").map(slot => {
-        const i = slots.indexOf(slot);
-        return (
-        // Keyed on nonce so each new photo/placement is a fresh DOM node -
-        // that's what makes the flutter-in keyframe actually replay every
-        // cycle instead of freezing at whichever angle it first entered
-        // with (a plain class toggle on the same node doesn't restart a
-        // CSS animation that's already applied via "forwards").
-        <div
-          key={`${i}-${slot.nonce}`}
-          className={"qi-display-photo-flutter" + (slot.phase === "out" ? " is-out" : " is-in")}
-          style={{
-            left: `${slot.placement.x}%`,
-            top: `${slot.placement.y}%`,
-            "--rot": `${slot.placement.rot}deg`,
-            "--scale": slot.placement.scale,
-            "--drift": `${slot.placement.drift}px`,
-          } as CSSProperties}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={photos[slot.photoIdx % photos.length]} alt="" />
-        </div>
-        );
-      })}
+      {Array.from({ length: slotCount }).map((_, i) => (
+        <GalleryPhotoSlot key={i} slotIndex={i} photos={photos} cellRegistryRef={cellRegistryRef} startDelayMs={i * 1400 + 400} step={slotCount} />
+      ))}
     </div>
   );
 }

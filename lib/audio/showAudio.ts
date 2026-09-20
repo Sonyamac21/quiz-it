@@ -100,14 +100,22 @@ export function playShowAudio(
   const channel = options.channel ?? "cue";
   const dedupeKey = `${channel}:${file}`;
   const now = Date.now();
-  const lastStarted = recentlyStarted.get(dedupeKey) || 0;
+  let lastStarted = recentlyStarted.get(dedupeKey) || 0;
+  // A display can have two Quiz-It tabs during reconnects. Module memory is
+  // per tab, so coordinate through same-origin storage as well.
+  if (typeof window !== "undefined") {
+    try { lastStarted = Math.max(lastStarted, Number(window.localStorage.getItem(`qi-audio:${dedupeKey}`) || 0)); } catch { /* storage may be blocked */ }
+  }
   // Realtime subscriptions and repair polling may deliver one state change
   // twice. Do not restart the same sound when that happens; restarting it was
   // heard as doubled/echoing audio on the venue display. Different files and
   // channels remain independent, and a cue can be deliberately replayed
   // after this short guard window.
-  if (now - lastStarted < 900) return active.get(channel) || null;
+  if (now - lastStarted < 2500) return active.get(channel) || null;
   recentlyStarted.set(dedupeKey, now);
+  if (typeof window !== "undefined") {
+    try { window.localStorage.setItem(`qi-audio:${dedupeKey}`, String(now)); } catch { /* storage may be blocked */ }
+  }
   stopShowAudio(channel);
   const cached = preloaded.get(file);
   const audio = unlockedPlayers.get(channel) ?? (cached ? cached.cloneNode() as HTMLAudioElement : new Audio(soundUrl(file)));

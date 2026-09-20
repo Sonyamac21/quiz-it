@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { calculateMultiTapScore, getCorrectAnswerText, isAnswerCorrect, latestAnswerForTeam, rankNearestWins } from "../lib/quiz/answerScoring.ts";
 
 const baseQuestion = {
@@ -126,6 +127,12 @@ test("A4: Nearest Wins breaks equal-distance ties by submission time", () => {
     { team_name: "Earlier", answer_text: "90", submitted_at: "2026-09-09T10:00:01.000Z" },
   ], question);
   assert.deepEqual(ranked.map(entry => entry.teamName), ["Earlier", "Later"]);
+});
+
+test("Nearest Wins awards points only to the closest ranked team", () => {
+  const host = readFileSync(new URL("../app/host/quiz/page.tsx", import.meta.url), "utf8");
+  assert.match(host, /const nwDelta = rank === 0 \? pointsPerQ/);
+  assert.doesNotMatch(host, /nwPointShares/);
 });
 
 test("Nearest Wins parses a comma-formatted target with explanatory text", () => {

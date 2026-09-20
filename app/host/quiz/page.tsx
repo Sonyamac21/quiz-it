@@ -938,11 +938,10 @@ function QuizControllerInner() {
     // same single determination.
     // Nearest Wins: no fixed right/wrong, every team's numeric guess is ranked
     // against every other team's, by distance from the correct number.
-    // Closest guess wins full points; being close still counts for something
-    // even without winning outright (tapered by rank, not winner-takes-all).
+    // Only the closest valid guess scores; ties on distance go to whoever
+    // submitted first, same convention as the speed bonus.
     // Ties on distance go to whoever submitted first, same convention as the
     // speed bonus above.
-    const nwPointShares = [1, 0.6, 0.3];
     const teamNames = new Set(teamList.map(team => team.team_name.trim().toLowerCase()));
     const nwEntries = q.question_type === "nearest_wins"
       ? rankNearestWins(currentAnswers.filter(answer => teamNames.has(answer.team_name.trim().toLowerCase())), q)
@@ -971,7 +970,7 @@ function QuizControllerInner() {
       if (q.question_type === "nearest_wins") {
         const rank = nwEntries.findIndex(e => e.teamName === team.team_name);
         if (rank === -1) continue; // no numeric guess submitted - scores nothing
-        const nwDelta = Math.round(pointsPerQ * (nwPointShares[rank] ?? 0)) * (hasBoost(team.team_name) ? 2 : 1);
+        const nwDelta = rank === 0 ? pointsPerQ * (hasBoost(team.team_name) ? 2 : 1) : 0;
         lastDeltasRef.current[team.team_name] = nwDelta;
         if (nwDelta === 0) continue;
         const nwResult = await applyScoreDelta(supabase, sessionPin, team.team_name, nwDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:nearestwins`, isFastest: rank === 0, syncScoreboard: false });

@@ -10,6 +10,8 @@ import {
   PairTile,
   pairProgressForTeam,
   readPairs,
+  readPairsQuestions,
+  pairsForQuestion,
   readPairsProgress,
   tilesForTeam,
 } from "@/lib/quiz/pairs";
@@ -93,6 +95,7 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
   const [roundId, setRoundId] = useState("");
+  const [questionIndex, setQuestionIndex] = useState(0);
   const [pairs, setPairs] = useState<PairRecord[]>([]);
   const [progress, setProgress] = useState<PairsProgress>({});
   const [status, setStatus] = useState("idle");
@@ -102,24 +105,36 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
   const teamNames = useMemo(() => teams.map(team => team.team_name), [teams]);
 
   const hydrate = useCallback((row: Record<string, unknown>) => {
+    if (row.phase !== "pairs") return;
+    setRoundId(String(row.pairs_round_id || ""));
+    setQuestionIndex(Number(row.current_question_index) || 0);
+    setOpen(true);
     setPairs(readPairs(row.pairs_content)); setProgress(readPairsProgress(row.pairs_progress)); setStatus(String(row.pairs_status || "idle"));
   }, []);
   useEffect(() => { onActiveChange?.(open); }, [open, onActiveChange]);
   useEffect(() => {
     if (!sessionId) return;
+    void supabase.from("sessions").select("phase,pairs_round_id,current_question_index,pairs_content,pairs_progress,pairs_status").eq("id", sessionId).single().then(({ data }) => { if (data) hydrate(data); });
     const channel = supabase.channel(`pairs-host-${sessionId}`).on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${sessionId}` }, payload => hydrate(payload.new as Record<string, unknown>)).subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [hydrate, sessionId, supabase]);
 
-  const start = useCallback(async (id: string) => {
+  const start = useCallback(async (id: string, index = 0): Promise<boolean> => {
     const round = rounds.find(item => item.id === id);
-    const content = readPairs(round?.questions);
-    if (!round || content.length !== PAIRS_PER_ROUND) { setError("This Match Made round needs exactly three complete image pairs before it can go live."); setOpen(true); return; }
+    if (index === 0) {
+      const { data: saved, error: readError } = await supabase.from("sessions").select("phase,pairs_round_id,current_question_index,pairs_content,pairs_progress,pairs_status").eq("id", sessionId).single();
+      if (readError) { setError(readError.message); setOpen(true); return false; }
+      if (saved?.phase === "pairs" && saved.pairs_round_id === id) { hydrate(saved); return true; }
+    }
+    const content = pairsForQuestion(round?.questions, index);
+    if (!round || content.length !== PAIRS_PER_ROUND) { setError("This Match Made question needs exactly three complete image pairs before it can go live."); setOpen(true); return false; }
     const initial = Object.fromEntries(teamNames.map(name => [name, { solved_pair_ids: [], mistakes: 0, selected_tile_id: null }]));
-    const { error: writeError } = await supabase.from("sessions").update({ phase: "pairs", pairs_status: "live", pairs_content: content, pairs_progress: initial, pairs_round_id: id, timer_started_at: null, current_question: null, allow_power_cards: false }).eq("id", sessionId);
-    if (writeError) { setError("Could not start Match Made: " + writeError.message); setOpen(true); return; }
+    const { error: writeError } = await supabase.from("sessions").update({ phase: "pairs", current_question_index: index, pairs_status: "live", pairs_content: content, pairs_progress: initial, pairs_round_id: id, timer_started_at: null, current_question: null, allow_power_cards: false }).eq("id", sessionId);
+    if (writeError) { setError("Could not start Match Made: " + writeError.message); setOpen(true); return false; }
+    setQuestionIndex(index);
     setRoundId(id); setPairs(content); setProgress(initial); setStatus("live"); setError(""); setOpen(true);
-  }, [rounds, sessionId, supabase, teamNames]);
+    return true;
+  }, [rounds, sessionId, supabase, teamNames, hydrate]);
   useEffect(() => {
     if (!autoStartRoundId) { lastStartRef.current = null; return; }
     if (lastStartRef.current === autoStartRoundId) return;
@@ -128,10 +143,16 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
 
   const rows = teamNames.map(name => ({ name, ...pairProgressForTeam(progress, name) })).sort((a, b) => b.solved_pair_ids.length - a.solved_pair_ids.length || a.mistakes - b.mistakes);
   const everyoneDone = rows.length > 0 && rows.every(row => row.solved_pair_ids.length >= PAIRS_PER_ROUND);
-  useEffect(() => { if (everyoneDone && status === "live") void supabase.from("sessions").update({ pairs_status: "complete" }).eq("id", sessionId); }, [everyoneDone, sessionId, status, supabase]);
+  useEffect(() => { if (everyoneDone && status === "live") void supabase.from("sessions").update({ pairs_status: "complete" }).eq("id", sessionId).eq("current_question_index", questionIndex).eq("pairs_round_id", roundId); }, [everyoneDone, sessionId, status, supabase, questionIndex, roundId]);
 
   async function finish() {
     if (finishingRef.current) return; finishingRef.current = true;
+    const total = readPairsQuestions(rounds.find(r => r.id === roundId)?.questions).length;
+    if (questionIndex + 1 < total) {
+      try { await start(roundId, questionIndex + 1); onScoreChange?.(); }
+      finally { finishingRef.current = false; }
+      return;
+    }
     const { error: writeError } = await supabase.from("sessions").update({ pairs_status: "complete" }).eq("id", sessionId);
     if (writeError) { setError("Could not finish Match Made: " + writeError.message); finishingRef.current = false; return; }
     setOpen(false); onScoreChange?.(); onRoundComplete?.(); finishingRef.current = false;
@@ -143,7 +164,7 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
   });
   if (!open || typeof document === "undefined") return null;
   return createPortal(<div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "#0a0118", color: "white", display: "flex", flexDirection: "column" }}>
-    <button onClick={() => void finish()} style={{ flexShrink: 0, border: 0, background: "linear-gradient(135deg,#be26c1,#7a1a7d)", color: "white", padding: "14px 24px", display: "flex", alignItems: "center", gap: 14, textAlign: "left", cursor: "pointer" }}><small style={{ letterSpacing: ".12em", opacity: .75 }}>NEXT ACTION</small><strong>{everyoneDone || status === "complete" ? "Continue to round scores" : "End Match Made round early"}</strong><span style={{ marginLeft: "auto", border: "1px solid rgba(255,255,255,.4)", padding: "4px 10px", borderRadius: 8 }}>Space ↵</span></button>
+    <button onClick={() => void finish()} style={{ flexShrink: 0, border: 0, background: "linear-gradient(135deg,#be26c1,#7a1a7d)", color: "white", padding: "14px 24px", display: "flex", alignItems: "center", gap: 14, textAlign: "left", cursor: "pointer" }}><small>QUESTION {questionIndex + 1} / {readPairsQuestions(rounds.find(r => r.id === roundId)?.questions).length}</small><strong>{questionIndex + 1 < readPairsQuestions(rounds.find(r => r.id === roundId)?.questions).length ? "Next Match Made question" : "Finish round and show scores"}</strong><span style={{ marginLeft: "auto" }}>Space ↵</span></button>
     {error && <div role="alert" style={{ padding: 10, textAlign: "center", color: "#ff7d87" }}>{error}</div>}
     <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(280px,1fr)", gap: 24, padding: 22 }}>
       <main style={{ minWidth: 0 }}><div style={{ font: "700 18px 'Inter'", color: "#d94fdc", letterSpacing: ".18em", marginBottom: 12 }}>MATCH MADE</div><div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12, height: "calc(100% - 38px)" }}>{pairs.map(pair => <div key={pair.pair_id} style={{ minHeight: 0, border: "1px solid rgba(255,255,255,.16)", borderRadius: 18, overflow: "hidden", display: "grid", gridTemplateRows: "1fr 1fr" }}>{[pair.a, pair.b].map(item => <div key={item.label} style={{ position: "relative", minHeight: 0 }}>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={item.image_url} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><strong style={{ position: "absolute", inset: "auto 0 0", padding: "18px 10px 8px", background: "linear-gradient(transparent,rgba(0,0,0,.9))", textAlign: "center" }}>{item.label}</strong></div>)}</div>)}</div></main>

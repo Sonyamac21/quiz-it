@@ -15,6 +15,33 @@ export type PairRecord = {
 
 export type PairsQuestion = { question_type: "pairs"; round_type: "pairs"; pairs: PairRecord[] };
 
+export async function generatePairsQuestions(count: number, generate: (index: number) => Promise<PairRecord[]>, accept?: (question: PairsQuestion) => void) {
+  const questions: PairsQuestion[] = [];
+  for (let index = 0; index < Math.max(0, Math.floor(count)); index++) {
+    try {
+      const question: PairsQuestion = { question_type: "pairs", round_type: "pairs", pairs: await generate(index) };
+      if (!isPairsQuestion(question)) throw new Error("The question did not contain three complete, distinct pairs.");
+      questions.push(question);
+      accept?.(question);
+    } catch (error) {
+      return { questions, error: error instanceof Error ? error.message : "Image generation failed." };
+    }
+  }
+  return { questions, error: null };
+}
+
+export function readPairsQuestions(value: unknown): PairsQuestion[] {
+  if (!Array.isArray(value)) return [];
+  const bundled = value.filter(isPairsQuestion);
+  if (bundled.length) return bundled;
+  return value.length === 3 && value.every(isPairRecord)
+    ? [{ question_type: "pairs", round_type: "pairs", pairs: value }] : [];
+}
+
+export function pairsForQuestion(questions: unknown, index: number): PairRecord[] {
+  return (readPairsQuestions(questions)[index]?.pairs || []).map((pair, i) => ({ ...pair, pair_id: `q${index}-p${i}` }));
+}
+
 export function isPairsQuestion(value: unknown): value is PairsQuestion {
   const q = value as PairsQuestion | null;
   return Boolean(q && Array.isArray(q.pairs) && q.pairs.length === PAIRS_PER_ROUND && q.pairs.every(isPairRecord) && new Set(q.pairs.map(p => p.pair_id)).size === PAIRS_PER_ROUND);

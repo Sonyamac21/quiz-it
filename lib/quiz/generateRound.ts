@@ -27,6 +27,7 @@
 
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { generatePairs } from "@/lib/quiz/generatePairs";
+import { generatePairsQuestions } from "@/lib/quiz/pairs";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   type Question,
@@ -153,12 +154,14 @@ export async function generateValidatedRound(
 ): Promise<RoundGenerationResult> {
   const { roundType, difficulty, theme } = spec;
   if (roundType === "pairs") {
-    onProgress?.("Creating one Match Made question with 3 pairs (6 mixed tiles)…");
-    const pairs = await generatePairs(3, theme, exclusions);
-    const questions = pairs.length ? [{ question_type: "pairs", round_type: "pairs", pairs } as unknown as Question] : [];
-    questions.forEach(question => onAccept?.(question));
-    const complete = pairs.length === 3;
-    return { spec, questions, report: [], finalStatus: complete ? "Added 1 Match Made question (6 tiles / 3 pairs)." : `Added ${pairs.length} pair${pairs.length === 1 ? "" : "s"} toward the 3-pair Match Made question. Regenerate to fill the missing pair slots.`, stoppedEarly: !complete };
+    const count = Math.max(0, Math.floor(spec.count));
+    const batch = await generatePairsQuestions(count, async index => {
+      onProgress?.(`Creating Match Made question ${index + 1} of ${count} (3 pairs / 6 tiles each)…`);
+      return generatePairs(3, theme, exclusions);
+    }, question => onAccept?.(question as unknown as Question));
+    const questions = batch.questions as unknown as Question[];
+    if (batch.error) return { spec, questions, report: [], finalStatus: `Created ${questions.length} of ${count} complete Match Made questions. ${batch.error}`, stoppedEarly: true };
+    return { spec, questions, report: [], finalStatus: `Added ${questions.length} Match Made questions, each with 3 pairs / 6 tiles.`, stoppedEarly: false };
   }
   const existingQuestions = (spec.existingQuestions || []) as Question[];
   // The Pursuit is always exactly 7 gates total, never host-configurable -

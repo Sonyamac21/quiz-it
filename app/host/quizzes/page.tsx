@@ -11,14 +11,14 @@ import { useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
-import { isPairRecord, isPairsQuestion, PAIRS_PER_ROUND } from "@/lib/quiz/pairs";
+import { isPairRecord, isPairsQuestion, readPairs, readPairsQuestions, tilesForTeam, PAIRS_PER_ROUND } from "@/lib/quiz/pairs";
 import { eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "@/lib/quiz/prepRules";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const HOT_SEAT_TOTAL_QUESTIONS = 5;
 
 function targetQuestionCount(roundType: string, savedTarget?: number | null): number {
-  if (roundType === "pairs") return 1;
+  if (roundType === "pairs") return savedTarget && savedTarget > 0 ? savedTarget : 5;
   if (roundType === "pursuit") return PURSUIT_TOTAL_QUESTIONS;
   if (roundType === "hot_seat") return HOT_SEAT_TOTAL_QUESTIONS;
   return savedTarget && savedTarget > 0 ? savedTarget : 10;
@@ -723,7 +723,7 @@ export default function QuizBuilderPage() {
     const shortfalls: Record<string, number> = {};
     targets.forEach(r => {
       const cfgCount = bulkConfig[r.id]?.count;
-      const effectiveTarget = r.round_type === "hot_seat" || r.round_type === "pursuit" || r.round_type === "pairs"
+      const effectiveTarget = r.round_type === "hot_seat" || r.round_type === "pursuit"
         ? targetQuestionCount(r.round_type)
         : Number.isFinite(cfgCount) && (cfgCount as number) > 0
         ? (cfgCount as number)
@@ -785,7 +785,7 @@ export default function QuizBuilderPage() {
           const { data: liveRow } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
           const liveQuestions = validQuestionsForRound(round.round_type, (liveRow?.questions || round.questions) as Record<string, unknown>[]);
           const generatedQuestions = validQuestionsForRound(round.round_type, result.questions);
-          const mergedQuestions = round.round_type === "pairs" ? (generatedQuestions.length ? generatedQuestions : (liveRow?.questions || round.questions)) : [...liveQuestions, ...generatedQuestions];
+          const mergedQuestions = [...liveQuestions, ...generatedQuestions];
           const { data: savedRow, error: saveError } = await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id).select("questions").single();
           if (saveError) throw new Error(`Could not save generated questions for ${round.name}: ${saveError.message}`);
           const persistedQuestions = (savedRow?.questions || mergedQuestions) as Record<string, unknown>[];
@@ -831,7 +831,6 @@ export default function QuizBuilderPage() {
     const roomLeft = fixedTotal === null ? null : Math.max(0, fixedTotal - round.questions.length);
     if (roomLeft === 0) { setGeneratingMoreStatus(`"${round.name}" already has all ${fixedTotal} questions.`); return; }
     let n = Math.max(0, Math.floor(requested));
-    if (round.round_type === "pairs") n = 1;
     if (!n) return;
     const capNote = roomLeft !== null && n > roomLeft ? ` (capped to ${roomLeft} remaining questions)` : "";
     if (roomLeft !== null && n > roomLeft) n = roomLeft;
@@ -870,7 +869,7 @@ export default function QuizBuilderPage() {
       const { data: liveRow } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
       const liveQuestions = validQuestionsForRound(round.round_type, (liveRow?.questions || round.questions) as Record<string, unknown>[]);
       const generatedQuestions = validQuestionsForRound(round.round_type, result.questions);
-      const mergedQuestions = round.round_type === "pairs" ? (generatedQuestions.length ? generatedQuestions : (liveRow?.questions || round.questions)) : [...liveQuestions, ...generatedQuestions];
+      const mergedQuestions = [...liveQuestions, ...generatedQuestions];
       const { data: savedRow, error: saveError } = await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id).select("questions").single();
       if (saveError) throw new Error("Could not save the generated questions: " + saveError.message);
       const persistedQuestions = (savedRow?.questions || mergedQuestions) as Record<string, unknown>[];
@@ -1282,7 +1281,7 @@ export default function QuizBuilderPage() {
                   .map(({ round, added }) => (
                     <button key={round.id} onClick={() => { addRound(round); setAddRoundOpen(false); }} className="qi-mc-round-card" style={added ? { borderColor: "#2EE06E", background: "rgba(46,224,110,0.08)", opacity: 0.6 } : undefined}>
                       <strong>{added ? "Added: " : ""}{round.name}</strong>
-                      <span style={{ display: "block", color: "#6B5A8E", font: "400 11px 'Inter'" }}>{round.round_type === "pairs" ? "1 question · 6 tiles" : `${round.questions.length} questions - ${round.round_type}`}</span>
+                      <span style={{ display: "block", color: "#6B5A8E", font: "400 11px 'Inter'" }}>{round.round_type === "pairs" ? `${readPairsQuestions(round.questions).length} questions · 6 tiles each` : `${round.questions.length} questions - ${round.round_type}`}</span>
                     </button>
                   ))}
                 </div>
@@ -1384,7 +1383,7 @@ export default function QuizBuilderPage() {
                         </button>
                       );
                     })()}
-                    <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>{round.round_type === "pairs" ? "1 Q · 6 tiles" : `${round.questions.length} Q - ${round.round_type}`}</span>
+                    <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>{round.round_type === "pairs" ? `${readPairsQuestions(round.questions).length} Q · 6 tiles each` : `${round.questions.length} Q - ${round.round_type}`}</span>
                     {/* A round with audio questions still needs each one's
                         actual clip saved in Music Prep before the quiz can go
                         live - previously the only way to notice this was to
@@ -1446,7 +1445,7 @@ export default function QuizBuilderPage() {
                     style={{ flex: 1, minWidth: 0, background: "transparent", border: "1px solid transparent", borderBottom: "1px solid #2E1A52", color: "#fff", font: "700 16px 'Inter'", padding: "4px 2px" }}
                   />
                 </div>
-                <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 12 }}>{activeRound.round_type === "pairs" ? "1 question · 6 tiles (3 pairs)" : `${activeRound.questions.length} questions - ${activeRound.round_type}`}</div>
+                <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 12 }}>{activeRound.round_type === "pairs" ? `${readPairsQuestions(activeRound.questions).length} questions · 3 pairs / 6 tiles each` : `${activeRound.questions.length} questions - ${activeRound.round_type}`}</div>
 
                 {/* Grid instead of a plain flex row - these buttons used to
                     hug the left edge and leave a huge dead strip to the
@@ -1518,9 +1517,7 @@ export default function QuizBuilderPage() {
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, alignItems: "center" }}>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Questions
-                            {activeRound.round_type === "pairs"
-                              ? <span style={{ color: "#fff" }}>1 question · 6 tiles (3 pairs)</span>
-                              : activeRound.round_type === "pursuit" || activeRound.round_type === "hot_seat"
+                            {activeRound.round_type === "pursuit" || activeRound.round_type === "hot_seat"
                               ? <span style={{ color: "#fff" }}>{targetQuestionCount(activeRound.round_type)} (fixed)</span>
                               : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(activeRound.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
                           </label>
@@ -1569,7 +1566,7 @@ export default function QuizBuilderPage() {
                 )}
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-                  <div className="fbh-lbl" style={{ margin: 0 }}>{activeRound.round_type === "pairs" ? "Match Made · 1 question / 6 tiles" : "Questions"}</div>
+                  <div className="fbh-lbl" style={{ margin: 0 }}>{activeRound.round_type === "pairs" ? "Match Made · 6 tiles per question" : "Questions"}</div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     {generatingMoreId === activeRound.id && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{generatingMoreStatus}</span>}
                     {generatingMoreId !== activeRound.id && lastGenerateMoreResult[activeRound.id] && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{lastGenerateMoreResult[activeRound.id]}</span>}
@@ -1871,11 +1868,11 @@ export default function QuizBuilderPage() {
                           const cardBody = isPairs ? (
                             <>
                               <div style={{ color: "#D94FDC", font: "700 11px 'Inter'", letterSpacing: ".1em", marginBottom: 8 }}>3 PAIRS · 6 TILES</div>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 7 }}>
-                                {(Array.isArray((qr as any).pairs) ? (qr as any).pairs : [qr]).map((pair: any, pairIndex: number) => <div key={pairIndex} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>{[pair.a, pair.b].map((rawItem: any, itemIndex: number) => {
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                                {tilesForTeam(readPairs([qr]), "builder-preview").map((rawItem, itemIndex) => {
                                   const item = rawItem as { label: string; image_url: string };
                                   return <div key={itemIndex} style={{ borderRadius: 8, overflow: "hidden", background: "#0A0118", position: "relative", aspectRatio: "1" }}><img src={getMediaUrl(item.image_url) ?? item.image_url} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><strong style={{ position: "absolute", inset: "auto 0 0", padding: "12px 5px 5px", background: "linear-gradient(transparent,rgba(0,0,0,.9))", color: "white", textAlign: "center", fontSize: 11 }}>{item.label}</strong></div>;
-                                })}</div>)}
+                                })}
                               </div>
                             </>
                           ) : (
@@ -1932,7 +1929,7 @@ export default function QuizBuilderPage() {
                           const questionActions = (
                             <div className="qi-prep-question-actions" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                               {!isPairs && <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>EDIT</HostButton>}
-                              <HostButton onClick={() => isPairs ? generateMoreForRound(activeRound, 3) : swapRoundQuestion(activeRound, qi)} disabled={isSwapping || (isPairs && generatingMoreId === activeRound.id)} title={isPairs ? "Fill this Match Made question to three pairs" : "Replace with a new AI-generated question"} style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping || (isPairs && generatingMoreId === activeRound.id) ? "REGENERATING..." : isPairs ? "FILL 3 PAIRS" : "REGENERATE"}</HostButton>
+                              <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
                               <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Drag to reorder</span>
                             </div>
                           );

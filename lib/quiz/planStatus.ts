@@ -14,7 +14,7 @@
 // accepts whichever shape each caller's Supabase select produced (the
 // dashboard, Calendar, and planner each declare their own local row types)
 // without needing a cast at every call site.
-import { readPairs } from "./pairs";
+import { readPairsQuestions } from "./pairs";
 type PlanRound = { id: string; round_type: string; questions: unknown[]; name?: string };
 type Plan = { quiz_rounds?: PlanRound[] } | null | undefined;
 
@@ -62,7 +62,7 @@ export function getQuizPreflight(quiz: Plan): QuizPreflight {
     if (round.round_type === "pursuit" && questions.length !== 7) {
       blockers.push({ code: "pursuit-count", roundId: round.id, message: `${roundName} must contain exactly 7 questions (currently ${questions.length}).` });
     }
-    if (round.round_type === "pairs" && readPairs(questions).length !== 3) {
+    if (round.round_type === "pairs" && (readPairsQuestions(questions).length === 0 || (questions.some(q => Array.isArray((q as { pairs?: unknown })?.pairs)) && readPairsQuestions(questions).length !== questions.length))) {
       blockers.push({ code: "pairs-incomplete", roundId: round.id, message: `${roundName} must contain exactly 3 complete image pairs.` });
     }
 

@@ -1193,6 +1193,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
   if (phase === "pairs") {
     return <PairsPlayerBoard
+      key={pairsContent.map(pair => pair.pair_id).join("|")}
       pairs={pairsContent}
       progress={pairsProgress}
       teamName={teamName}

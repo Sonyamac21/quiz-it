@@ -1,7 +1,7 @@
 "use client";
 import { scoreBarPercent } from "@/lib/quiz/scoreBar";
 import { displayLeaderboardVisible } from "@/lib/quiz/leaderboardVisibility";
-import { useEffect, useLayoutEffect, useState, useRef, Suspense, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState, useRef, Suspense, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
@@ -620,6 +620,17 @@ function DisplayScreenInner() {
   const prevPursuitRaceRef = useRef<PursuitRace>({});
   const pursuitUrgentPlayedRef = useRef<number>(-1);
   const pursuitLockPlayedRef = useRef<number>(-1);
+  const pursuitCuePlayedRef = useRef<Record<string, number>>({});
+  const playPursuitCue = useCallback((file: string, volume = 1) => {
+    const now = Date.now();
+    const last = pursuitCuePlayedRef.current[file] || 0;
+    // Realtime and the repair poll can deliver the same transition together.
+    // Suppress only an identical cue inside a short window; separate gates and
+    // different sounds remain unaffected.
+    if (now - last < 700) return;
+    pursuitCuePlayedRef.current[file] = now;
+    playSound(file, volume);
+  }, []);
   // Pursuit countdown track + lock click on expiry — once per gate. Previously
   // this only started the countdown-urgent.mp3 track at timeLeft===5, so the
   // host only ever heard the last 5 seconds of what's actually a ~50s ticking
@@ -632,13 +643,13 @@ function DisplayScreenInner() {
     if (pursuitStatus !== "question" || timeLeft === null) return;
     if (timeLeft > 0 && pursuitUrgentPlayedRef.current !== pursuitQIndex) {
       pursuitUrgentPlayedRef.current = pursuitQIndex;
-      playSound("countdown-urgent.mp3", 0.35);
+      playPursuitCue("countdown-urgent.mp3", 0.35);
     }
     if (timeLeft === 0 && pursuitLockPlayedRef.current !== pursuitQIndex) {
       pursuitLockPlayedRef.current = pursuitQIndex;
-      playSound("lock.mp3", 0.5);
+      playPursuitCue("lock.mp3", 0.5);
     }
-  }, [timeLeft, pursuitStatus, pursuitQIndex]);
+  }, [timeLeft, pursuitStatus, pursuitQIndex, playPursuitCue]);
   useEffect(() => {
     if (pursuitStatus !== "question") stopShowAudio("timer");
   }, [pursuitStatus]);
@@ -1125,7 +1136,7 @@ function DisplayScreenInner() {
       // in public/sounds/ (playSound also swallows any missing-file error).
       const prevStatus = prevPursuitStatusRef.current;
       if (p.status !== prevStatus) {
-        if (p.status === "reveal") { playSound("correct-chime.mp3", 0.5); }
+        if (p.status === "reveal") { playPursuitCue("correct-chime.mp3", 0.5); }
         else if (p.status === "advance") {
           const prevRace = prevPursuitRaceRef.current;
           const names = teams.map(t => t.team_name);
@@ -1134,12 +1145,12 @@ function DisplayScreenInner() {
           const newlyFinished = names.some(n => newRace[n]?.status === "completed" && prevRace[n]?.status !== "completed");
           // Runner advancing → footsteps; the final sprint (gate 7) is the same
           // footsteps, louder. Eliminations stay silent.
-          if (advanced) playSound("footsteps.mp3", gate7 ? 0.65 : 0.4);
-          if (newlyFinished) playSound("airhorn.mp3", 0.45);
+          if (advanced) playPursuitCue("footsteps.mp3", gate7 ? 0.65 : 0.4);
+          if (newlyFinished) playPursuitCue("airhorn.mp3", 0.45);
           // Lane compaction whoosh — fired once at COMPACTION_DELAY (1300ms), after
           // the runners have finished moving, as the surviving lanes reflow. Well
           // clear of the footsteps at t=0, so the two never overlap.
-          setTimeout(() => playSound("whoosh.mp3", 0.3), 1300);
+          setTimeout(() => playPursuitCue("whoosh.mp3", 0.3), 1300);
         }
         else if (p.status === "complete") {
           // A sad trombone here made no sense - the "did any team finish" check
@@ -1156,12 +1167,12 @@ function DisplayScreenInner() {
           const winners = highestStage > 0 ? names.filter(n => (newRace[n]?.stage ?? 0) === highestStage) : [];
           if (winners.length === 1) {
             const song = teamsRef.current.find(t => t.team_name === winners[0])?.victory_song;
-            playSound("airhorn.mp3", 0.5);
+            playPursuitCue("airhorn.mp3", 0.5);
             stopShowAudio("music");
             if (song) playShowAudio(victorySongAudioFile(song), { channel: "music", volume: 0.9 });
           } else {
-            playSound("airhorn.mp3", 0.5);
-            playSound("crowd-cheer.mp3", 0.7);
+            playPursuitCue("airhorn.mp3", 0.5);
+            playPursuitCue("crowd-cheer.mp3", 0.7);
           }
         }
         prevPursuitStatusRef.current = p.status;

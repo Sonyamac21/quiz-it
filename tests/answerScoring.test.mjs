@@ -38,6 +38,33 @@ test("legacy audio Artist - Title metadata scores the answer actually requested"
   assert.equal(isAnswerCorrect({ answer_text: "Music Matters" }, artistQuestion), false);
 });
 
+test("a text-type question with a numeric correct_answer requires an exact match, no Levenshtein leniency", () => {
+  // Live bug: "What year was 'Wannabe' by the Spice Girls released?" was
+  // stored as question_type "text" (not "number") with correct_answer
+  // "1996". isFuzzyMatch's generic Levenshtein fallback allows edit distance
+  // up to floor(length * 0.3), which for a 4-digit answer is 1 - so "1997"
+  // (one digit off) was being scored correct. Fix detects a purely numeric
+  // correct_answer directly and requires exact match regardless of the
+  // question's labelled type.
+  const yearQuestion = {
+    ...baseQuestion,
+    question_type: "text",
+    question_text: "What year was 'Wannabe' by the Spice Girls released?",
+    correct_answer: "1996",
+  };
+  assert.equal(isAnswerCorrect({ answer_text: "1996" }, yearQuestion), true);
+  assert.equal(isAnswerCorrect({ answer_text: "1997" }, yearQuestion), false);
+  assert.equal(isAnswerCorrect({ answer_text: "1995" }, yearQuestion), false);
+  assert.equal(isAnswerCorrect({ answer_text: "19996" }, yearQuestion), false);
+
+  // Thousands separators in the stored correct_answer shouldn't break the
+  // exact-match requirement or force players to type the comma themselves.
+  const bigNumberQuestion = { ...baseQuestion, question_type: "text", correct_answer: "6,433" };
+  assert.equal(isAnswerCorrect({ answer_text: "6433" }, bigNumberQuestion), true);
+  assert.equal(isAnswerCorrect({ answer_text: "6,433" }, bigNumberQuestion), true);
+  assert.equal(isAnswerCorrect({ answer_text: "6434" }, bigNumberQuestion), false);
+});
+
 test("A1: sequence comparison uses semantic order after options are randomised", () => {
   const question = {
     ...baseQuestion,

@@ -182,9 +182,23 @@ export function isFuzzyMatch(answer: string, correct: string, q?: ScorableQuesti
     const key = answer.trim().toLowerCase();
     if (key === q.correct_answer.toLowerCase()) return true;
   }
-  // Numbers must match exactly - no fuzzy/typo tolerance, a wrong digit is just wrong
+  // Numbers must match exactly - no fuzzy/typo tolerance, a wrong digit is just wrong.
+  // Gating this purely on question_type === "number" missed questions whose
+  // correct_answer is a plain number but were authored/imported/generated as
+  // question_type "text" (e.g. "What year was X released?" -> "1996") - those
+  // fell through to the Levenshtein fuzzy-match below, where a 4-digit answer
+  // is only edit-distance 1 away from being "correct" (floor(4*0.3)=1), so an
+  // off-by-one guess like "1997" registered as correct. Detect a purely
+  // numeric correct_answer directly (allowing thousands separators, e.g.
+  // "6,433") and require exact match whenever that's the case, independent of
+  // how the question happens to be labelled.
+  const isPlainNumber = (s: string) => /^-?\d{1,3}(,\d{3})*(\.\d+)?$/.test(s.trim()) || /^-?\d+(\.\d+)?$/.test(s.trim());
   if (q && q.question_type === "number") {
     return answer.trim() === correct.trim();
+  }
+  if (isPlainNumber(correct)) {
+    const stripCommas = (s: string) => s.trim().replace(/,/g, "");
+    return stripCommas(answer) === stripCommas(correct);
   }
   const a = normaliseAnswerText(answer);
   const b = normaliseAnswerText(correct);

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import sharp from "sharp";
 
 // Without this, Vercel can kill the function before the Claude API call
 // finishes (default timeout is short), which terminates the process mid-flight
@@ -109,7 +108,7 @@ export async function POST(req: NextRequest) {
     if (imageUrl !== undefined) {
       try {
         const parsed = new URL(String(imageUrl));
-        const isPixabay = parsed.hostname === "pixabay.com" || parsed.hostname.endsWith(".pixabay.com") || parsed.hostname.endsWith("pixabay.com");
+        const isPixabay = parsed.hostname === "pixabay.com" || parsed.hostname.endsWith(".pixabay.com");
         if (parsed.protocol !== "https:" || !isPixabay) throw new Error("unsupported image host");
         verifiedImageUrl = parsed.toString();
       } catch {
@@ -132,9 +131,10 @@ export async function POST(req: NextRequest) {
     // Pixabay URLs because of robots rules, even when our stock-image fetch
     // works. Keep this bounded and restricted; never follow arbitrary redirects.
     let imageData: string | null = null;
+    let imageMediaType = "image/jpeg";
     try {
       if (verifiedImageUrl) {
-        const response = await fetch(verifiedImageUrl, { signal: AbortSignal.timeout(8000) });
+        const response = await fetch(verifiedImageUrl, { redirect: "error", signal: AbortSignal.timeout(8000) });
         if (!response.ok || !response.body) throw new Error("Could not load image for visual verification.");
         const reader = response.body.getReader();
         const chunks: Uint8Array[] = [];
@@ -146,7 +146,14 @@ export async function POST(req: NextRequest) {
           if (size > 5 * 1024 * 1024) { await reader.cancel(); throw new Error("Image is too large for verification."); }
           chunks.push(value);
         }
-        imageData = (await sharp(Buffer.concat(chunks), { limitInputPixels: 40_000_000 }).resize(1024, 1024, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer()).toString("base64");
+        const bytes = Buffer.concat(chunks);
+        // Send the existing stock-photo bytes directly. A native image module
+        // at route scope can fail before POST (and its error handler) loads.
+        if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) imageMediaType = "image/jpeg";
+        else if (bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) imageMediaType = "image/png";
+        else if (bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP") imageMediaType = "image/webp";
+        else throw new Error("The selected picture is not a supported image.");
+        imageData = bytes.toString("base64");
       }
     } catch (error) {
       return NextResponse.json({ error: { message: "Image validation could not load the selected picture: " + (error instanceof Error ? error.message : "unknown error") } }, { status: 422 });
@@ -157,7 +164,7 @@ export async function POST(req: NextRequest) {
       messages: [{
         role: "user",
         content: imageData ? [
-          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: imageData } },
+          { type: "image", source: { type: "base64", media_type: imageMediaType, data: imageData } },
           { type: "text", text: prompt },
         ] : prompt,
       }],

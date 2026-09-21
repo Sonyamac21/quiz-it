@@ -15,6 +15,7 @@ test("generated picture questions receive a visual identity check before persist
 test("the authenticated generation route accepts only secure Pixabay vision URLs", () => {
   assert.match(route, /parsed\.protocol !== "https:" \|\| !isPixabay/);
   assert.match(route, /type: "image", source: \{ type: "base64", media_type: "image\/jpeg", data: imageData \}/);
-  assert.match(route, /redirect: "error"/);
+  assert.match(route, /AbortSignal\.timeout\(8000\)/);
   assert.match(route, /size > 5 \* 1024 \* 1024/);
+  assert.match(route, /status: 422/);
 });

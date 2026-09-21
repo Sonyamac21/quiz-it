@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
+import { BrandLockup } from "@/components/ui/quiz-it-ui";
 import {
   PAIRS_PER_ROUND,
   PairRecord,
@@ -39,7 +40,7 @@ export function PairsDisplayBoard({ pairs, progress, teamNames, complete = false
   );
 }
 
-export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, onSelect, onAttempt }: { pairs: PairRecord[]; progress: PairsProgress; teamName: string; points?: number; disabled?: boolean; onSelect: (tile: PairTile) => Promise<void>; onAttempt: (first: PairTile, second: PairTile) => Promise<{ correct: boolean; reason?: string }> }) {
+export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, disabledReason, onSelect, onAttempt }: { pairs: PairRecord[]; progress: PairsProgress; teamName: string; points?: number; disabled?: boolean; disabledReason?: string; onSelect: (tile: PairTile) => Promise<void>; onAttempt: (first: PairTile, second: PairTile) => Promise<{ correct: boolean; reason?: string }> }) {
   const tiles = useMemo(() => tilesForTeam(pairs, teamName), [pairs, teamName]);
   const mine = pairProgressForTeam(progress, teamName);
   const [selected, setSelected] = useState<PairTile[]>([]);
@@ -78,6 +79,7 @@ export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, 
   return <div style={{ height: "100dvh", overflow: "hidden", background: shell, boxSizing: "border-box", padding: "max(12px,env(safe-area-inset-top)) 14px max(10px,env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", alignItems: "center" }}>
     <div style={{ color: "#ffc533", font: "700 clamp(15px,2.1vh,20px) 'Inter'", letterSpacing: ".18em", marginTop: 4 }}>MATCH MADE</div>
     <div style={{ color: "#cfc2e7", font: "600 clamp(13px,1.8vh,17px) 'Inter'", margin: "3px 0 4px" }}>{done ? "All three matched!" : "Tap two pictures that go together"}</div>
+    {disabledReason && <div role="alert" style={{ color: "#ffc533", fontSize: 16, textAlign: "center", marginBottom: 8 }}>{disabledReason}</div>}
     {points !== undefined && <div style={{ color: "#d94fdc", font: "800 15px 'Inter'", marginBottom: 5 }}>Team total: {points} pts</div>}
     <div style={{ display: "flex", gap: 7, marginBottom: 9 }} aria-label={`${mine.mistakes} mistakes`}>
       <span style={{ color: "#cfc2e7", fontSize: 15 }}>{mine.mistakes} mistakes · +{solved.size} points this question</span>
@@ -213,6 +215,11 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
   onNext: () => void;
 }) {
   return (<div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "#0a0118", color: "white", display: "flex", flexDirection: "column" }}>
+    <header style={{ flexShrink: 0, minHeight: 52, padding: "4px 16px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid #493060" }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}<img src="/me-logo.jpg" alt="Mac Entertainment" width={40} height={40} style={{ borderRadius: 8, objectFit: "contain" }} />
+      <BrandLockup compact />
+      <span style={{ marginLeft: "auto", color: "#cfc2e7", fontSize: 16 }}>MATCH MADE · QUESTION {questionIndex + 1} / {questionCount}</span>
+    </header>
     <button className="qi-mc-next" onClick={() => onNext()} style={{ flexShrink: 0 }}><small className="qi-mc-next__eyebrow">NEXT ACTION · Q{questionIndex + 1}</small><strong className="qi-mc-next__label">{status === "live" ? "Reveal Match Made results" : questionIndex + 1 < questionCount ? "Next Match Made question" : "Finish round and show scores"}</strong><span className="qi-mc-next__key" style={{ marginLeft: "auto" }}>Space ↵</span></button>
     {error && <div role="alert" style={{ padding: 10, textAlign: "center", color: "#ff7d87" }}>{error}</div>}
     <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: rows.length > 20 ? "minmax(0,1fr) minmax(0,2fr)" : "minmax(0,1.4fr) minmax(0,1fr)", gap: 16, padding: 16 }}>
@@ -221,10 +228,10 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
         <h2 style={{ margin: "0 0 6px", fontSize: 20 }}>Teams & scores</h2>
         <div style={{ color: "#cfc2e7", marginBottom: 10 }}>{rows.filter(r => r.solved_pair_ids.length === 3).length}/{rows.length} complete · Power cards disabled</div>
         {fastestTeam && <div style={{ color: "#2ee06e", fontWeight: 800, marginBottom: 8 }}>First complete: {fastestTeam}</div>}
-        <div style={{ flex: 1, display: "grid", gridTemplateColumns: `repeat(${rows.length > 32 ? 4 : rows.length > 20 ? 3 : rows.length > 10 ? 2 : 1},minmax(0,1fr))`, gridAutoRows: "minmax(0,1fr)", gap: 6, minHeight: 0 }}>
-          {rows.map(row => { const score = scoreboard.find(item => item.team_name.trim().toLowerCase() === row.name.trim().toLowerCase()); return <div key={row.name} style={{ minWidth: 0, minHeight: 0, border: "1px solid #493060", borderRadius: 9, padding: "4px 7px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <div style={{ display: "flex", gap: 5, alignItems: "center" }}><strong title={row.name} style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14 }}>{row.name}</strong><b style={{ color: "#d94fdc", fontSize: 18 }}>{score?.total_points ?? "—"}</b></div>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 4, fontSize: 12 }}><span>{row.solved_pair_ids.length}/3 · {row.mistakes} misses</span><strong style={{ color: "#2ee06e" }}>+{row.solved_pair_ids.length} pts</strong></div>
+        <div style={{ flex: 1, display: "grid", gridTemplateColumns: `repeat(${rows.length > 32 ? 4 : rows.length > 20 ? 3 : rows.length > 10 ? 2 : 1},minmax(0,1fr))`, gridAutoRows: "minmax(0,1fr)", gap: rows.length > 32 ? 3 : 6, minHeight: 0 }}>
+          {rows.map(row => { const score = scoreboard.find(item => item.team_name.trim().toLowerCase() === row.name.trim().toLowerCase()); return <div key={row.name} style={{ minWidth: 0, minHeight: 0, border: "1px solid #493060", borderRadius: 9, padding: rows.length > 32 ? "1px 6px" : "4px 7px", lineHeight: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ display: "flex", gap: 5, alignItems: "center" }}><strong title={row.name} style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: rows.length <= 10 ? 22 : 14 }}>{row.name}</strong><b style={{ color: "#d94fdc", fontSize: rows.length <= 10 ? 32 : 18 }}>{score?.total_points ?? "—"}</b></div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 4, fontSize: rows.length <= 10 ? 18 : 12 }}><span>{row.solved_pair_ids.length}/3 · {row.mistakes} misses</span><strong style={{ color: "#2ee06e" }}>+{row.solved_pair_ids.length} pts</strong></div>
           </div>; })}
         </div>
       </aside>

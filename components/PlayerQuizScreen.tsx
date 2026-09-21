@@ -1200,7 +1200,8 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       progress={pairsProgress}
       teamName={teamName}
       points={myRunningPoints}
-      disabled={connectionLost || pairsStatus !== "live"}
+      disabled={connectionLost || pairsStatus !== "live" || !playerToken}
+      disabledReason={!playerToken ? "Use the original browser tab that joined this team. This name-only reconnect cannot submit matches." : undefined}
       onSelect={async tile => {
         const supabase = createSupabaseBrowserClient();
         const { data, error } = await supabase.rpc("submit_pairs_attempt", {

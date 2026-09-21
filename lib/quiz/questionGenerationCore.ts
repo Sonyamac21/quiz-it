@@ -692,11 +692,12 @@ STRICT QUALITY RULES (every question must pass all of these):
     ? " This question is for the \"" + topic + "\" topic - you have a web_search tool available and MUST use it before writing the question. Search for a genuinely well-known breaking or trending entertainment, showbiz, music, sport, technology or culture headline from roughly the last 1-12 months. Use only a completed, stable fact confirmed by reliable search results; never ask about a developing story, prediction, rumour or detail likely to change. If sources are unclear or conflicting, choose a different story. Never use politics, elections, war, crime, tragedy or disaster."
     : " For current or trending topics only, use well-known, completed entertainment, showbiz, music, sport, technology or culture events confirmed by live search - never politics, developing stories, rumours or facts likely to change."}
 8. Wording must allow exactly one defensible, natural answer-not an abbreviation, fragment, trick or technicality.
-9. If the correct_answer is a person's name and only part of the full name (surname only, or first name only) will be stored as the answer, the question_text itself must explicitly state which part is required (e.g. "What is the SURNAME of the actress who played Katniss Everdeen?" with correct_answer "Lawrence", or "What is the FIRST NAME of the actor who played Iron Man?" with correct_answer "Robert"). Never ask an ambiguous full-name question and store only a partial name as the answer.
+9. HARD RULE, check this for every single question, not just ones that obviously look like name questions: if correct_answer is a real person and only PART of their full name (surname only, or first name only) is stored as the answer, question_text MUST explicitly say which part is wanted, using the words "SURNAME" or "FIRST NAME" (capitalised, in the question itself). This applies to EVERY phrasing that identifies someone by description and expects a name back - "Which [naturalist/guitarist/author/scientist/actor/footballer/chef/comedian/...] ...?", "Who ...?", "Name the person who...?" - not only "the actress who played X" style wording. Correct: "What is the SURNAME of the British naturalist who wrote 'On the Origin of Species'?" -> "Darwin". Correct: "What is the SURNAME of the guitarist who played the US national anthem at Woodstock in 1969?" -> "Hendrix". WRONG and must never be written this way: "Which British naturalist wrote 'On the Origin of Species'?" -> "Darwin" (doesn't say surname only - reads like it wants "Charles Darwin"). WRONG: "Which legendary guitarist played the national anthem at Woodstock?" -> "Hendrix" (same problem). The one exception is a person universally known by a single stage name/mononym with no commonly-used surname in that context (Madonna, Beyoncé, Adele, Pele) - a normal full first+last name is never exempt just because only one part feels "well-known enough."
 10. The question must stand alone without its explanation and test one satisfying piece of knowledge.
 11. Stay on TOPIC but use a genuinely different entity and narrow subtopic from the exclusions.
 ${varietyNote}${sessionExclusionNote}${permanentExclusionNote}
 Include a 1-2 sentence explanation of the answer in the explanation field.
+${isRecencyTopic ? 'SEARCH BUDGET: You have exactly one web search available. Use one broad query that can support the entire question, including every correct Multi Tap option. Do not plan additional searches. If the results cannot support a complete question, return [] so another candidate can be tried. Never substitute unverified current facts or commentary about search limits.' : ''}
 Silently check before writing: one array item, every schema key present, unused options null, exact requested type and answer format. Do not write out that checking process - it must not appear anywhere in your reply.
 Your entire reply must be ONLY the JSON array itself - no preamble, no "checking..." notes, no explanation of your reasoning, no markdown, nothing before the opening [ or after the closing ]. The very first character of your reply must be [.
 Return ONLY a valid JSON array with 1 item, no markdown:
@@ -719,7 +720,10 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     try {
       q = parseModelJson<Array<Question & Record<string, unknown>>>(text, "array")[0];
     } catch {
-      throw new Error("JSON parse failed. Raw text (first 500 chars): " + text.slice(0, 500));
+      // Model prose is untrusted content, not an API error. In particular,
+      // quoting "rate limits" here made the round runner treat a malformed
+      // candidate as a fatal quota failure and abandon its remaining retries.
+      throw new Error("The AI returned commentary instead of valid question data. Retrying with another candidate.");
     }
     if (q) { q.question_type = type; }
     if (q) { context.report.questionText = q.question_text || "Untitled candidate"; }

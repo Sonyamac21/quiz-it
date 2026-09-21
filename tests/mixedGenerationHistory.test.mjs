@@ -8,8 +8,9 @@ import ts from "typescript";
 // dependency fails the test instead of contacting the live service.
 const source = readFileSync(new URL("../lib/quiz/questionGenerationCore.ts", import.meta.url), "utf8");
 const exports = {};
+let database;
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
-  exports, require: () => ({}), console,
+  exports, require: () => ({ createSupabaseBrowserClient: () => database }), console,
 });
 const { emptyExclusionState, registerAccepted, duplicateRejectionReason } = exports;
 const pairs = { question_type: "pairs", pairs: [
@@ -39,4 +40,23 @@ test("stale undefined history entries are tolerated without disabling duplicate 
   assert.equal(duplicateRejectionReason(q, [pairs], "", state), null);
   registerAccepted(state, q);
   assert.ok(duplicateRejectionReason(q, [], "", state));
+});
+
+test("saved Quiz Plan pairs are excluded before library sync finishes", async () => {
+  database = { from(table) { return { select() {
+    if (table !== "quiz_rounds") return Promise.resolve({ data: [] });
+    return { order() { return { range() { return Promise.resolve({ data: [{ questions: [pairs] }] }); } }; } };
+  } }; } };
+  const history = await exports.loadUsedQuestions();
+  assert.ok(history.usedAnswers.includes("hammer + nail"));
+  assert.ok(history.usedAnswers.includes("lock + key"));
+  assert.equal(history.used.includes(undefined), false);
+});
+
+test("failed Quiz Plan history read does not silently generate repeated content", async () => {
+  database = { from(table) { return { select() {
+    if (table !== "quiz_rounds") return Promise.resolve({ data: [] });
+    return { order() { return { range() { return Promise.resolve({ data: null, error: { message: "offline" } }); } }; } };
+  } }; } };
+  await assert.rejects(exports.loadUsedQuestions(), /Could not check saved Quiz Plans/);
 });

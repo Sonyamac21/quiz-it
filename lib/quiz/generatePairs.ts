@@ -59,7 +59,7 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
     const aQuery = typeof draft.a?.image_query === "string" ? draft.a.image_query.trim() : "";
     const bQuery = typeof draft.b?.image_query === "string" ? draft.b.image_query.trim() : "";
     if (!aLabel || !bLabel || !aQuery || !bQuery || aLabel.toLowerCase() === bLabel.toLowerCase()) continue;
-    const prior = exclusions.usedAnswers.map(value => value.toLowerCase());
+    const prior = exclusions.usedAnswers.filter(value => typeof value === "string").map(value => value.toLowerCase());
     if (attemptedLabels.has(aLabel.toLowerCase()) || attemptedLabels.has(bLabel.toLowerCase()) || prior.some(value => value.includes(aLabel.toLowerCase()) || value.includes(bLabel.toLowerCase()))) continue;
     attemptedLabels.add(aLabel.toLowerCase());
     attemptedLabels.add(bLabel.toLowerCase());
@@ -72,6 +72,7 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
       const [aImage, bImage] = await Promise.all([sourceImage(aQuery, aLabel), sourceImage(bQuery, bLabel)]);
       records.push({ pair_id: `p${records.length + 1}`, question_type: "pairs", round_type: "pairs", a: { label: aLabel, image_url: aImage }, b: { label: bLabel, image_url: bImage } });
       exclusions.used.push(`${aLabel} + ${bLabel}`);
+      exclusions.usedAnswers.push(fingerprint);
     } catch (error) {
       // A missing or misleading stock image rejects the whole pair rather
       // than saving a half-built round the host cannot play.

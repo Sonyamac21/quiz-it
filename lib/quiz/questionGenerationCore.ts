@@ -358,17 +358,30 @@ export function emptyExclusionState(): ExclusionState {
 // let genuinely-repeated questions resurface once they aged past the window.
 export async function loadUsedQuestions(): Promise<ExclusionState> {
   const supabase = createSupabaseBrowserClient();
-  const [{ data: rounds }, { data: bank }, { data: library }] = await Promise.all([
+  // Read the saved Quiz Plan directly: library synchronisation happens later
+  // and cannot be the source of truth for back-to-back generation requests.
+  const loadPlanQuestions = async () => {
+    const questions: Question[] = [];
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await supabase.from("quiz_rounds").select("id,questions").order("id").range(offset, offset + 499);
+      if (error) throw new Error("Could not check saved Quiz Plans for repeated questions. Please retry. " + error.message);
+      for (const row of data || []) if (Array.isArray(row.questions)) questions.push(...row.questions);
+      if (!data || data.length < 500) return questions;
+    }
+  };
+  const [{ data: rounds }, { data: bank }, { data: library }, planQuestions] = await Promise.all([
     supabase.from("rounds").select("questions"),
     supabase.from("question_bank").select("question_text,question_type,option_a,option_b,option_c,option_d,option_e,option_f,correct_answer"),
     supabase.from("questions").select("question_text,question_type,option_a,option_b,option_c,option_d,option_e,option_f,correct_answer"),
+    loadPlanQuestions(),
   ]);
   const state = emptyExclusionState();
   const remember = (q: Question) => {
+    if (!q || typeof q !== "object") return;
     const pairs = (q as Question & { pairs?: Array<{ a?: { label?: string }; b?: { label?: string } }> }).pairs;
     if (Array.isArray(pairs)) {
       for (const pair of pairs) {
-        const labels = [pair.a?.label, pair.b?.label].filter((label): label is string => typeof label === "string" && Boolean(label.trim()));
+        const labels = [pair?.a?.label, pair?.b?.label].filter((label): label is string => typeof label === "string" && Boolean(label.trim()));
         if (labels.length === 2) state.usedAnswers.push(labels.join(" + ").toLowerCase());
       }
     }
@@ -397,6 +410,7 @@ export async function loadUsedQuestions(): Promise<ExclusionState> {
   if (rounds) rounds.forEach((r: { questions: Question[] }) => r.questions?.forEach(remember));
   if (bank) bank.forEach((q) => remember(q as Question));
   if (library) library.forEach((q) => remember(q as Question));
+  planQuestions.forEach(remember);
   return state;
 }
 

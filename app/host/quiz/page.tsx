@@ -2917,6 +2917,7 @@ function QuizControllerInner() {
               const isFastest = s.team_name === fastestTeam;
               const isBlocked = blockedTeams.includes(s.team_name);
               const isScrambled = scrambledTeams.includes(s.team_name);
+              const questionAward = answersRevealed ? Object.entries(lastDeltasRef.current).find(([name]) => name.trim().toLowerCase() === s.team_name.trim().toLowerCase())?.[1] : undefined;
               return (
                 <div key={s.team_name} className={`qi-mc-team-card${isFastest ? " qi-mc-team-card--fastest" : ""}`} style={{ width: "100%", boxSizing: "border-box", borderColor:isBlocked?"#FF3B4E":isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}>
                   <div
@@ -2979,6 +2980,7 @@ function QuizControllerInner() {
                     })() : (
                       <span style={{ fontSize:12, color:"rgba(255,255,255,0.3)", fontStyle:"italic", flex:1 }}>waiting…</span>
                     )}
+                    {questionAward !== undefined && <strong title="Points earned on this question" style={{ color: questionAward < 0 ? "#FF7D87" : "#2EE06E", fontSize: 14, whiteSpace: "nowrap" }}>{questionAward >= 0 ? "+" : ""}{questionAward} pts</strong>}
                     <PowerCardDots teamName={s.team_name} />
                     {adjustTeam === s.team_name ? (
                       <div style={{ display:"flex", gap:4, marginLeft:"auto" }}>

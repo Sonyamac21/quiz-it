@@ -14,3 +14,10 @@ test("final quality control rejects factually false keys and giveaway decoys", (
   assert.match(source, /'Concrete' among types of cheese MUST FAIL/);
   assert.match(source, /five obvious correct items and one absurd outsider MUST FAIL/);
 });
+
+test("generation enforces explicit name-part wording without rejecting mononyms", () => {
+  assert.match(source, /export function partialNameAnswerError/);
+  assert.match(source, /Person answers must request the full name, surname, or first name explicitly/);
+  assert.match(source, /Madonna/);
+  assert.match(source, /partialNameAnswerError\(q\)/);
+});

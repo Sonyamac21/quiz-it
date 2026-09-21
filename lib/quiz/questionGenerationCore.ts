@@ -116,6 +116,19 @@ export function sequenceSuitabilityError(q: Pick<Question, "question_text" | "qu
   return null;
 }
 
+// Reject a bare surname/first name when the stem clearly asks about a person.
+// Mononyms are exempt because the single word is their complete public name.
+export function partialNameAnswerError(q: Pick<Question, "question_text" | "correct_answer">): string | null {
+  const answer = (q.correct_answer || "").trim();
+  const stem = (q.question_text || "").trim();
+  if (!/^[A-Z][a-zÀ-ÖØ-öø-ÿ'’.-]{2,}$/.test(answer)) return null;
+  if (/(?:surname|last name|family name|first name|given name|forename)/i.test(stem)) return null;
+  const mononyms = new Set(["Adele", "Beyoncé", "Beyonce", "Cher", "Drake", "Madonna", "Monet", "Neymar", "Pelé", "Pele", "Plato", "Prince", "Rihanna", "Shakira", "Sting", "Voltaire"]);
+  if (mononyms.has(answer)) return null;
+  const personCue = /\b(?:who|whose|which)\b|\b(?:actor|actress|artist|author|band|biologist|composer|director|drummer|guitarist|musician|naturalist|painter|player|poet|scientist|singer|writer|played|wrote|directed|performed|starred|frontman|vocalist)\b/i;
+  return personCue.test(stem) ? "Person answers must request the full name, surname, or first name explicitly" : null;
+}
+
 export type ValidationStatus = "passed" | "failed" | "not_run" | "not_applicable";
 export type ValidationStage = "moderation" | "theme" | "duplicate" | "balance" | "memory" | "quality" | "media";
 export type RoundBalanceDetails = {
@@ -903,6 +916,11 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         context.error = "Text Answer must be a single word (got '" + ans + "') - retrying";
         return null;
       }
+    }
+    const partialNameError = partialNameAnswerError(q);
+    if (partialNameError) {
+      context.error = partialNameError + " - retrying";
+      return null;
     }
     q._uid = genUid();
     return q;

@@ -1,13 +1,35 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { generatePairsQuestions, isPairsQuestion, isPairRecord, pairsForQuestion, readPairsQuestions, pairProgressForTeam, readPairs, tilesForTeam } from "../lib/quiz/pairs.ts";
+import { fastestPairsTeam, readPairsProgress, generatePairsQuestions, isPairsQuestion, isPairRecord, pairsForQuestion, readPairsQuestions, pairProgressForTeam, readPairs, tilesForTeam } from "../lib/quiz/pairs.ts";
 
 const pairs = [
   { pair_id: "p1", a: { label: "Lock", image_url: "/lock.jpg" }, b: { label: "Key", image_url: "/key.jpg" } },
   { pair_id: "p2", a: { label: "Needle", image_url: "/needle.jpg" }, b: { label: "Thread", image_url: "/thread.jpg" } },
   { pair_id: "p3", a: { label: "Kettle", image_url: "/kettle.jpg" }, b: { label: "Cup", image_url: "/cup.jpg" } },
 ];
+
+test("first completion uses server time, not team order, and survives reload", () => {
+  const progress = { FirstListed: { solved_pair_ids: ["p1", "p2", "p3"], mistakes: 0, completed_at: "2026-09-21T08:00:02Z" }, Winner: { solved_pair_ids: ["p1", "p2", "p3"], mistakes: 3, completed_at: "2026-09-21T08:00:01Z" }, Partial: { solved_pair_ids: ["p1"], mistakes: 0, completed_at: "2026-09-21T07:00:00Z" } };
+  assert.equal(fastestPairsTeam(readPairsProgress(JSON.parse(JSON.stringify(progress)))), "Winner");
+  assert.equal(fastestPairsTeam({ Legacy: { solved_pair_ids: ["p1", "p2", "p3"], mistakes: 0 } }), null);
+});
+
+test("all live Match Made images use the media proxy for private storage", () => {
+  const source = fs.readFileSync(new URL("../components/PairsRound.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /src=\{(?:tile|item)\.image_url\}/);
+  assert.equal((source.match(/src=\{getMediaUrl\(/g) || []).length, 3);
+  assert.match(source, /Points|points this question/);
+});
+
+test("completion migration preserves atomic awards and durable completion metadata", () => {
+  const sql = fs.readFileSync(new URL("../supabase/migrations/202609210001_pairs_completion.sql", import.meta.url), "utf8");
+  assert.match(sql, /clock_timestamp\(\)/);
+  assert.match(sql, /v_team_progress := v_team_progress \|\|/);
+  assert.match(sql, /values\(p_session_pin, v_canonical_team, 1/);
+  assert.match(sql, /for update/i);
+  assert.match(sql, /score_events/);
+});
 
 test("Pairs content requires complete labels and images", () => {
   assert.equal(readPairs([...pairs, { pair_id: "broken", a: { label: "A", image_url: "" }, b: { label: "B", image_url: "/b" } }]).length, 3);

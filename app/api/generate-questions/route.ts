@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import sharp from "sharp";
 
 // Without this, Vercel can kill the function before the Claude API call
 // finishes (default timeout is short), which terminates the process mid-flight
@@ -127,13 +128,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Supply actual image bytes to vision. The provider cannot fetch some
+    // Pixabay URLs because of robots rules, even when our stock-image fetch
+    // works. Keep this bounded and restricted; never follow arbitrary redirects.
+    let imageData: string | null = null;
+    if (verifiedImageUrl) {
+      const response = await fetch(verifiedImageUrl, { redirect: "error", signal: AbortSignal.timeout(8000) });
+      if (!response.ok || !response.body) throw new Error("Could not load image for visual verification.");
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > 5 * 1024 * 1024) { await reader.cancel(); throw new Error("Image is too large for verification."); }
+        chunks.push(value);
+      }
+      imageData = (await sharp(Buffer.concat(chunks), { limitInputPixels: 40_000_000 }).resize(1024, 1024, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer()).toString("base64");
+    }
     const requestBody: Record<string, unknown> = {
       model: resolvedModel,
       max_tokens: tokenLimit,
       messages: [{
         role: "user",
-        content: verifiedImageUrl ? [
-          { type: "image", source: { type: "url", url: verifiedImageUrl } },
+        content: imageData ? [
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: imageData } },
           { type: "text", text: prompt },
         ] : prompt,
       }],

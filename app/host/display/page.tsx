@@ -616,6 +616,7 @@ function DisplayScreenInner() {
   const [pursuitQIndex, setPursuitQIndex] = useState(-1);
   const [pairsContent, setPairsContent] = useState<PairRecord[]>([]);
   const [pairsProgress, setPairsProgress] = useState<PairsProgress>({});
+  const [pairsStatus, setPairsStatus] = useState("idle");
   const prevPursuitStatusRef = useRef<string>("idle");
   const prevPursuitRaceRef = useRef<PursuitRace>({});
   const pursuitUrgentPlayedRef = useRef<number>(-1);
@@ -1181,6 +1182,7 @@ function DisplayScreenInner() {
     }
     setPairsContent(readPairs(data.pairs_content));
     setPairsProgress(readPairsProgress(data.pairs_progress));
+    setPairsStatus(String(data.pairs_status || "idle"));
     setIntermissionOffers((data.intermission_offers as string) || "");
     setIntermissionWhatsapp((data.intermission_whatsapp as string) || "");
     setIntermissionOtherQuizzes((data.intermission_other_quizzes as string) || "");
@@ -1534,7 +1536,7 @@ function DisplayScreenInner() {
   if (!displayLeaderboard && phase === "pairs") {
     return (
       <div className="fbl fbl-stage qi-display-stage" style={{ height: "100vh", overflow: "hidden" }}>
-        <PairsDisplayBoard pairs={pairsContent} progress={pairsProgress} teamNames={teams.map(team => team.team_name)} />
+        <PairsDisplayBoard pairs={pairsContent} progress={pairsProgress} teamNames={teams.map(team => team.team_name)} complete={pairsStatus === "complete"} />
         <QuizItBadge />
       </div>
     );

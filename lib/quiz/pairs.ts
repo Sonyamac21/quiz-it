@@ -51,9 +51,16 @@ export type PairTeamProgress = {
   solved_pair_ids: string[];
   mistakes: number;
   selected_tile_id?: string | null;
+  completed_at?: string | null;
 };
 
 export type PairsProgress = Record<string, PairTeamProgress>;
+
+export function fastestPairsTeam(progress: PairsProgress): string | null {
+  return Object.entries(progress)
+    .filter(([, row]) => row.solved_pair_ids.length === PAIRS_PER_ROUND && row.completed_at && Number.isFinite(Date.parse(row.completed_at)))
+    .sort((a, b) => Date.parse(a[1].completed_at!) - Date.parse(b[1].completed_at!))[0]?.[0] ?? null;
+}
 
 export type PairTile = PairItem & {
   id: string;
@@ -91,6 +98,7 @@ export function readPairsProgress(value: unknown): PairsProgress {
       solved_pair_ids: Array.isArray(row?.solved_pair_ids) ? row.solved_pair_ids.filter((id): id is string => typeof id === "string") : [],
       mistakes: Number.isFinite(row?.mistakes) ? Math.max(0, Number(row?.mistakes)) : 0,
       selected_tile_id: typeof row?.selected_tile_id === "string" ? row.selected_tile_id : null,
+      completed_at: typeof row?.completed_at === "string" ? row.completed_at : null,
     };
   }
   return result;

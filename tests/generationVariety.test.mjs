@@ -25,7 +25,7 @@ test("pairs image matching requires the visible label in Pixabay tags", () => {
   const match = readFileSync(new URL("../lib/quiz/pixabayMatch.ts", import.meta.url), "utf8");
   assert.match(match, /requiredLabel\?: string/);
   assert.match(match, /requiredLabelTerms/);
-  assert.match(readFileSync(new URL("../lib/quiz/generatePairs.ts", import.meta.url), "utf8"), /selectMatchingPixabayHit\(data\?\.hits \|\| \[\], query, label\)/);
+  assert.match(readFileSync(new URL("../lib/quiz/generatePairs.ts", import.meta.url), "utf8"), /selectMatchingPixabayHit\(candidates, query, label\)/);
 });
 
 test("both generator screens use the shared pool and stronger duplicate threshold", () => {

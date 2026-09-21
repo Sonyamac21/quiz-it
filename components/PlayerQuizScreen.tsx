@@ -428,6 +428,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [pursuitRace, setPursuitRace] = useState<PursuitRace>({});
   const [pairsContent, setPairsContent] = useState<PairRecord[]>([]);
   const [pairsProgress, setPairsProgress] = useState<PairsProgress>({});
+  const [pairsStatus, setPairsStatus] = useState("idle");
   const [connectionLost, setConnectionLost] = useState(false);
   const [failedAnswer, setFailedAnswer] = useState<string | null>(null);
   const [sessionStatus, setSessionStatus] = useState<string>("waiting");
@@ -894,6 +895,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     setPursuitRace(readRace(pursuitState));
     setPairsContent(readPairs(data.pairs_content));
     setPairsProgress(readPairsProgress(data.pairs_progress));
+    setPairsStatus(String(data.pairs_status || "idle"));
     setSpinOffered(!!data.spin_offered);
     setSpinChoice((data.spin_choice as string) || null);
     setIntermissionOffers((data.intermission_offers as string) || "");
@@ -1197,16 +1199,19 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       pairs={pairsContent}
       progress={pairsProgress}
       teamName={teamName}
-      disabled={connectionLost}
+      points={myRunningPoints}
+      disabled={connectionLost || pairsStatus !== "live"}
       onSelect={async tile => {
         const supabase = createSupabaseBrowserClient();
-        await supabase.rpc("submit_pairs_attempt", {
+        const { data, error } = await supabase.rpc("submit_pairs_attempt", {
           p_session_pin: sessionPin,
           p_team_name: teamName,
           p_player_token: playerToken,
           p_first_tile_id: tile.id,
           p_second_tile_id: null,
         });
+        const row = Array.isArray(data) ? data[0] : data;
+        if (error || row?.reason !== "selected") throw new Error(error?.message || row?.reason || "Selection not confirmed");
       }}
       onAttempt={async (first, second) => {
         const supabase = createSupabaseBrowserClient();
@@ -1219,6 +1224,13 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         });
         if (attemptError) return { correct: false, reason: attemptError.message };
         const row = Array.isArray(data) ? data[0] : data;
+        if (row?.correct || row?.reason === "wrong-pair") {
+          setPairsProgress(previous => {
+            const key = Object.keys(previous).find(name => name.trim().toLowerCase() === teamName.trim().toLowerCase()) || teamName;
+            const mine = previous[key] || { solved_pair_ids: [], mistakes: 0 };
+            return { ...previous, [key]: { ...mine, selected_tile_id: null, mistakes: Number(row.mistakes) || 0, solved_pair_ids: row.correct ? [...new Set([...mine.solved_pair_ids, first.pair_id])] : mine.solved_pair_ids } };
+          });
+        }
         return { correct: Boolean(row?.correct), reason: String(row?.reason || "") };
       }}
     />;

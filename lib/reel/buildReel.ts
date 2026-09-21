@@ -38,6 +38,15 @@ const REEL_VARIANTS: ReelVariant[] = [
   { name: "High Contrast", accent: "#FF3B6E", tint: "#FF3B6E", tintOpacity: 0.06, capcutTip: "Bump contrast and saturation a little in CapCut, then add punchy animated captions." },
 ];
 
+// The "QUIZ-" half of the wordmark is always this purple, regardless of
+// which mood variant (Warm Glow, Cool Blue, etc.) got picked for this
+// render - variant.accent is meant for the background tint/border only.
+// drawWordmark() used to be passed variant.accent directly, so the brand
+// logo itself changed colour (orange, blue, gold...) depending on which
+// variant was randomly chosen, instead of staying the fixed Quiz-It brand
+// purple on every reel.
+const BRAND_PURPLE = "#BE26C1";
+
 function pickVariant(): ReelVariant {
   return REEL_VARIANTS[Math.floor(Math.random() * REEL_VARIANTS.length)];
 }
@@ -126,7 +135,7 @@ function drawWordmark(ctx: CanvasRenderingContext2D, y: number, size: number, ac
 
 async function drawTitleCard(ctx: CanvasRenderingContext2D, variant: ReelVariant) {
   drawBackground(ctx, variant);
-  drawWordmark(ctx, HEIGHT * 0.46, 108, variant.accent);
+  drawWordmark(ctx, HEIGHT * 0.46, 108, BRAND_PURPLE);
   ctx.fillStyle = "rgba(255,255,255,0.55)";
   ctx.font = "600 34px 'Inter', sans-serif";
   ctx.fillText("QUIZ NIGHT HIGHLIGHTS", WIDTH / 2, HEIGHT * 0.52);
@@ -157,7 +166,7 @@ async function drawClosingCard(ctx: CanvasRenderingContext2D, venueName: string 
     ctx.font = "800 46px 'Inter', sans-serif";
     ctx.fillText(venueName, WIDTH / 2, HEIGHT * 0.46);
   }
-  drawWordmark(ctx, HEIGHT * 0.58, 72, variant.accent);
+  drawWordmark(ctx, HEIGHT * 0.58, 72, BRAND_PURPLE);
   ctx.fillStyle = "rgba(255,255,255,0.5)";
   ctx.font = "600 30px 'Inter', sans-serif";
   ctx.fillText("SEE YOU NEXT QUIZ NIGHT", WIDTH / 2, HEIGHT * 0.64);

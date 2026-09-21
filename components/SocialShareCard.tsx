@@ -84,9 +84,17 @@ export async function downloadWinnerCard(
     ctx.letterSpacing = "0px";
   }
 
-  // Photo (big, circular) - falls back to a trophy emoji if no team photo
-  const photoY = format === "vertical" ? H * 0.27 : H * 0.18;
+  // Photo (big, circular) - falls back to a trophy emoji if no team photo.
+  // Anchored below the brand block (logo + "Quiz-It" + "powered by..." +
+  // optional venue line) rather than a fixed H fraction - the square format's
+  // fixed 0.18*H put the photo above the venue-name line whenever a venue was
+  // set, so the photo overlapped the branding text.
+  const brandBlockBottom = venueName ? logoBottom + 76 : logoBottom + 40;
   const photoSize = format === "vertical" ? 420 : 320;
+  const photoY = Math.max(
+    format === "vertical" ? H * 0.27 : H * 0.18,
+    brandBlockBottom + 50
+  );
   let photoBottom = photoY + photoSize;
   let drewPhoto = false;
   // Never shown until a host has approved this team's photo - this card can

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LibraryRound, QuizDefinition, QuizRound } from "@/lib/quiz-builder/types";
-import { generateAllRounds, generateValidatedRound, multiTapSuitabilityError, quickExclusionState, type Question, type RoundGenerationSpec } from "@/lib/quiz/generateRound";
+import { generateAllRounds, generateValidatedRound, multiTapSuitabilityError, quickExclusionState, loadUsedQuestions, type Question, type RoundGenerationSpec } from "@/lib/quiz/generateRound";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell, Toggle } from "@/components/fable/HostConsole";
 import { useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
@@ -621,7 +621,10 @@ export default function QuizBuilderPage() {
       // The permanent duplicate check still runs server-side per candidate
       // regardless, so this doesn't weaken duplicate protection.
       const validExisting = validQuestionsForRound(round.round_type, round.questions);
-      const exclusions = quickExclusionState(validExisting as Record<string, unknown>[]);
+      const exclusions = await loadUsedQuestions();
+      const local = quickExclusionState(validExisting as Record<string, unknown>[]);
+      exclusions.used.push(...local.used);
+      local.usedAnswers.forEach(answer => { if (!exclusions.usedAnswers.includes(answer)) exclusions.usedAnswers.push(answer); });
       const result = await generateValidatedRound(
         { roundType: round.round_type, difficulty, theme, count: 1, existingQuestions: validExisting.filter(q => q !== round.questions[qIndex]) },
         exclusions,

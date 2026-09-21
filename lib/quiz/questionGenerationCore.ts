@@ -365,6 +365,13 @@ export async function loadUsedQuestions(): Promise<ExclusionState> {
   ]);
   const state = emptyExclusionState();
   const remember = (q: Question) => {
+    const pairs = (q as Question & { pairs?: Array<{ a?: { label?: string }; b?: { label?: string }> } }).pairs;
+    if (Array.isArray(pairs)) {
+      for (const pair of pairs) {
+        const labels = [pair.a?.label, pair.b?.label].filter((label): label is string => typeof label === "string" && label.trim());
+        if (labels.length === 2) state.usedAnswers.push(labels.join(" + ").toLowerCase());
+      }
+    }
     if (q.question_text) state.used.push(q.question_text);
     state.usedFingerprints.add(questionFingerprint(q));
     // Picture/audio questions draw from a deliberately tiny topic pool
@@ -408,6 +415,11 @@ export async function loadUsedQuestions(): Promise<ExclusionState> {
 export function quickExclusionState(currentRoundQuestions: Record<string, unknown>[]): ExclusionState {
   const state = emptyExclusionState();
   currentRoundQuestions.forEach(q => {
+    const pairs = (q as { pairs?: Array<{ a?: { label?: string }; b?: { label?: string }> } }).pairs;
+    if (Array.isArray(pairs)) pairs.forEach(pair => {
+      const labels = [pair.a?.label, pair.b?.label].filter((label): label is string => typeof label === "string" && label.trim());
+      if (labels.length === 2) state.usedAnswers.push(labels.join(" + ").toLowerCase());
+    });
     const text = q.question_text as string | undefined;
     if (text) state.used.push(text);
     state.usedFingerprints.add(questionFingerprint(q as Question));

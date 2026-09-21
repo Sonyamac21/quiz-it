@@ -36,7 +36,7 @@ async function sourceImage(query: string, label: string): Promise<string> {
 }
 
 export async function generatePairs(count: number, theme: string, exclusions: ExclusionState): Promise<PairRecord[]> {
-  const avoid = exclusions.used.slice(-120).join(" | ").slice(0, 5000);
+  const avoid = [...exclusions.used.slice(-120), ...exclusions.usedAnswers.slice(-120)].join(" | ").slice(0, 7000);
   const prompt = `Create ${count} distinct odd-couple picture pairs for a commercial pub quiz Pairs round.${theme.trim() ? ` Theme: ${theme.trim()}.` : " Use broad, internationally accessible general knowledge."}
 Each pair contains two DIFFERENT concrete things that naturally go together conceptually (examples of the relationship only: lock + key, needle + thread). Do not copy those examples. Do not create visually identical objects, two people, brands, logos, flags, copyrighted characters, wordplay, region-specific slang, abstract ideas, or a pair whose relationship is debatable. Each item must be easy to represent with an ordinary stock photograph and instantly distinguishable on a phone. Use a different relationship and subject area for every pair. Avoid overused facts or content already seen here: ${avoid || "none supplied"}.
 Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label":"short visible label","image_query":"precise English stock-photo search"},"b":{"label":"short visible label","image_query":"precise English stock-photo search"}}. No markdown or explanation.`;
@@ -59,7 +59,8 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
     const aQuery = typeof draft.a?.image_query === "string" ? draft.a.image_query.trim() : "";
     const bQuery = typeof draft.b?.image_query === "string" ? draft.b.image_query.trim() : "";
     if (!aLabel || !bLabel || !aQuery || !bQuery || aLabel.toLowerCase() === bLabel.toLowerCase()) continue;
-    if (attemptedLabels.has(aLabel.toLowerCase()) || attemptedLabels.has(bLabel.toLowerCase())) continue;
+    const prior = exclusions.usedAnswers.map(value => value.toLowerCase());
+    if (attemptedLabels.has(aLabel.toLowerCase()) || attemptedLabels.has(bLabel.toLowerCase()) || prior.some(value => value.includes(aLabel.toLowerCase()) || value.includes(bLabel.toLowerCase()))) continue;
     attemptedLabels.add(aLabel.toLowerCase());
     attemptedLabels.add(bLabel.toLowerCase());
     const fingerprint = [aLabel, bLabel].map(value => value.toLowerCase()).sort().join(" + ");

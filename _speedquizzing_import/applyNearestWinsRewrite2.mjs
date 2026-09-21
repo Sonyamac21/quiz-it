@@ -32,6 +32,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = path.join(__dirname, "..", ".env.local");
 const CSV_PATH = path.join(__dirname, "nearest_wins_rewritten.csv");
 const DRY_RUN = process.argv.includes("--dry-run");
+const DUMP_PATH = path.join(__dirname, "nearest_wins_db_dump.csv");
+const DUMP_ONLY = process.argv.includes("--dump");
 
 function loadEnv() {
   const text = fs.readFileSync(ENV_PATH, "utf8");
@@ -95,6 +97,15 @@ async function main() {
     .eq("source", "speedquizzing_import");
   if (fetchError) { console.error("Fetch failed: " + fetchError.message); process.exit(1); }
   console.log(`Fetched ${dbRows.length} question_bank rows to match against.`);
+
+  if (DUMP_ONLY) {
+    const esc = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+    const lines = ["id,question_text,needs_review,review_note"];
+    for (const r of dbRows) lines.push([esc(r.id), esc(r.question_text), esc(r.needs_review), esc(r.review_note)].join(","));
+    fs.writeFileSync(DUMP_PATH, lines.join("\n"), "utf8");
+    console.log(`Dumped ${dbRows.length} rows to ${DUMP_PATH}`);
+    return;
+  }
 
   const byNorm = new Map();
   for (const dbRow of dbRows) {

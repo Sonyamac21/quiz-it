@@ -107,6 +107,16 @@ async function main() {
   const unmatched = [];
 
   for (const r of rows) {
+    const isRewrite = !!(r.question_text_rewritten && r.question_text_rewritten.trim());
+
+    // A row a prior run already rewrote now has question_text == the target
+    // rewrite, not the original - so check that first, or it'd wrongly show
+    // up as "unmatched" just because the original text no longer exists.
+    if (isRewrite) {
+      const already = byNorm.get(normalize(r.question_text_rewritten));
+      if (already && already.length >= 1) { alreadyDone += already.length; continue; }
+    }
+
     const matches = byNorm.get(normalize(r.question_text_original));
     if (!matches || matches.length === 0) { unmatched.push(r); continue; }
     if (matches.length > 1) {
@@ -115,10 +125,8 @@ async function main() {
       continue;
     }
     const dbRow = matches[0];
-    const isRewrite = !!(r.question_text_rewritten && r.question_text_rewritten.trim());
 
     if (isRewrite) {
-      if (dbRow.question_text === r.question_text_rewritten) { alreadyDone++; continue; }
       if (DRY_RUN) { rewritten++; continue; }
       const { error } = await supabase.from("question_bank")
         .update({ question_text: r.question_text_rewritten })

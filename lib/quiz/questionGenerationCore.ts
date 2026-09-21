@@ -435,7 +435,17 @@ export function blacklistRejected(state: ExclusionState, q: Question) {
 }
 
 export function registerAccepted(state: ExclusionState, q: Question) {
-  state.used = [...state.used, q.question_text];
+  const pairs = (q as unknown as { pairs?: Array<{ a?: { label?: string }; b?: { label?: string } }> }).pairs;
+  if (Array.isArray(pairs)) {
+    for (const pair of pairs) {
+      const labels = [pair?.a?.label, pair?.b?.label]
+        .filter((label): label is string => typeof label === "string" && Boolean(label.trim()))
+        .map(label => label.trim().toLowerCase()).sort();
+      if (labels.length === 2) state.usedAnswers.push(labels.join(" + "));
+    }
+    return;
+  }
+  if (typeof q.question_text === "string" && q.question_text.trim()) state.used.push(q.question_text);
   state.usedFingerprints.add(questionFingerprint(q));
   const normAnswer = resolveAnswerText(q).toLowerCase().trim();
   if (normAnswer) state.usedAnswers = [...state.usedAnswers, normAnswer];
@@ -949,7 +959,7 @@ export function duplicateRejectionReason(q: Question, currentRound: Question[], 
   ]);
   const themeTokens = (theme || "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
   const ignore = new Set<string>([...COMMON, ...themeTokens]);
-  const sigWords = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
+  const sigWords = (s: string) => (typeof s === "string" ? s : "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
   const sigPairs = (s: string) => {
     const words = sigWords(s);
     return new Set(words.slice(0, -1).map((word, index) => word + " " + words[index + 1]));

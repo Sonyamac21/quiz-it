@@ -44,8 +44,6 @@ import {
   registerAccepted,
   blacklistRejected,
   duplicateRejectionReason,
-  questionFingerprint,
-  resolveAnswerText,
   generateOne,
   validateCandidate,
   commitToMemory,
@@ -506,10 +504,7 @@ export async function generateAllRounds(
   const broadcastAccept = (fromIdx: number, q: Question) => {
     perRoundExclusions.forEach((state, j) => {
       if (j === fromIdx) return;
-      state.used = [...state.used, q.question_text];
-      state.usedFingerprints.add(questionFingerprint(q));
-      const normAnswer = resolveAnswerText(q).toLowerCase().trim();
-      if (normAnswer) state.usedAnswers = [...state.usedAnswers, normAnswer];
+      registerAccepted(state, q);
     });
   };
   // Every round shares the same MAX_AI_CONCURRENCY slot pool, so the more

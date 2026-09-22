@@ -1,7 +1,7 @@
 import { PairRecord } from "@/lib/quiz/pairs";
 import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pixabayMatch";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
-import { callAPI, checkPictureIdentity, ExclusionState, fetchWithTimeout, GENERATION_MODEL } from "@/lib/quiz/questionGenerationCore";
+import { callAPI, checkPictureIdentity, ExclusionState, fetchWithTimeout, GENERATION_MODEL, VALIDATION_MODEL } from "@/lib/quiz/questionGenerationCore";
 
 type DraftPair = { pair_id?: string; a?: { label?: string; image_query?: string }; b?: { label?: string; image_query?: string } };
 
@@ -41,7 +41,14 @@ async function sourceImage(query: string, label: string): Promise<string> {
     const source = hit?.webformatURL || hit?.largeImageURL;
     if (!hit || !source) break;
     candidates = candidates.filter((candidate: { webformatURL?: string; largeImageURL?: string }) => (candidate.webformatURL || candidate.largeImageURL) !== source);
-    const verdict = await checkPictureIdentity({ question_text: `Identify the ${label} in this picture.`, question_type: "picture", option_a: label, option_b: null, option_c: null, option_d: null, option_e: null, option_f: null, correct_answer: label, explanation: "", difficulty: "mixed", round_type: "pairs" }, source);
+    // Match Made needs 6 verified images per question (3 pairs x 2), so this
+    // vision call happens far more often per question than for a normal
+    // picture question - it was the single biggest cost driver in host
+    // reports of ~10-20c per Match Made question. Haiku (VALIDATION_MODEL,
+    // already used for the text-generation step) is a fraction of Sonnet's
+    // cost for the same yes/no visual check; picture questions elsewhere in
+    // the app are unaffected and keep the pricier default.
+    const verdict = await checkPictureIdentity({ question_text: `Identify the ${label} in this picture.`, question_type: "picture", option_a: label, option_b: null, option_c: null, option_d: null, option_e: null, option_f: null, correct_answer: label, explanation: "", difficulty: "mixed", round_type: "pairs" }, source, VALIDATION_MODEL);
     if (!verdict.ok) { reason = verdict.note; continue; }
     const saved = await persistPixabayImage(source);
     if (!saved.persisted) throw new Error(`Could not save the verified ${label} picture. Please retry.`);

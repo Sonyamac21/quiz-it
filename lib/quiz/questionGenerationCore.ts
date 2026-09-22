@@ -557,7 +557,15 @@ export async function callAPI(prompt: string, maxTokens: number = 8000, structur
   return text.replace(/```json/g, "").replace(/```/g, "").trim();
 }
 
-export async function checkPictureIdentity(q: Question, imageUrl: string): Promise<{ ok: boolean; note: string }> {
+// `model` defaults to FACT_CHECK_MODEL (Sonnet) so every existing caller -
+// picture questions across the whole app - keeps exactly the same
+// accuracy/cost it always had. Match Made passes VALIDATION_MODEL (Haiku)
+// instead - see generatePairs.ts's sourceImage for why: each Match Made
+// question needs 6 images (3 pairs x 2), and every rejected candidate along
+// the way is another vision call, so this is the single biggest cost lever
+// in that pipeline specifically. Picture questions are one image per
+// question with no such multiplier, so they keep the more accurate model.
+export async function checkPictureIdentity(q: Question, imageUrl: string, model: string = FACT_CHECK_MODEL): Promise<{ ok: boolean; note: string }> {
   const prompt =
     "You are visually validating a commercial pub-quiz picture question. Inspect the supplied image itself, not its filename, URL, search tags or intended query. " +
     "Pass only when the main visible subject clearly and specifically depicts what the question and intended answer require. Reject generic, ambiguous, loosely related, partially related, or visibly different subjects. " +
@@ -566,7 +574,7 @@ export async function checkPictureIdentity(q: Question, imageUrl: string): Promi
     "Reply ONLY with JSON {\"ok\":true,\"note\":\"OK\"} or {\"ok\":false,\"note\":\"short visual mismatch reason\"}. " +
     "Question: " + q.question_text + " | Intended image subject: " + (q.option_a || "") + " | Intended answer: " + q.correct_answer;
   try {
-    const text = await callAPI(prompt, 300, true, false, FACT_CHECK_MODEL, false, imageUrl);
+    const text = await callAPI(prompt, 300, true, false, model, false, imageUrl);
     return parseModelJson<{ ok: boolean; note?: string }>(text, "object") as { ok: boolean; note: string };
   } catch (error) {
     return { ok: false, note: "Visual image check unavailable: " + (error instanceof Error ? error.message : "unknown error") };

@@ -35,14 +35,18 @@ test("Pairs content requires complete labels and images", () => {
   assert.equal(readPairs([...pairs, { pair_id: "broken", a: { label: "A", image_url: "" }, b: { label: "B", image_url: "/b" } }]).length, 3);
 });
 
-test("a request for five generates five complete boards; a later failure retains complete boards only", async () => {
+test("a request for five generates five complete boards; a later failure no longer kills the rest of the batch", async () => {
   let calls = 0;
   const result = await generatePairsQuestions(5, async () => { calls++; return pairs; });
   assert.equal(calls, 5);
   assert.equal(result.questions.length, 5);
   assert.equal(result.error, null);
+  // Bug fixed: one question failing (index 2) used to abort every question
+  // after it too, even though each question is generated independently and
+  // 3/4/5 had no reason to be affected by 2's failure. Now only the failing
+  // question is skipped - the other 4, unrelated and unaffected, still land.
   const partial = await generatePairsQuestions(5, async index => index === 2 ? pairs.slice(0, 1) : pairs);
-  assert.equal(partial.questions.length, 2);
+  assert.equal(partial.questions.length, 4);
   assert.ok(partial.error);
 });
 

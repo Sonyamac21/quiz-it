@@ -17,6 +17,16 @@ export type PairsQuestion = { question_type: "pairs"; round_type: "pairs"; pairs
 
 export async function generatePairsQuestions(count: number, generate: (index: number) => Promise<PairRecord[]>, accept?: (question: PairsQuestion) => void) {
   const questions: PairsQuestion[] = [];
+  // Bug: one question failing (a single stubborn item with no clean stock
+  // photo, say) used to abort the ENTIRE remaining batch immediately -
+  // asking for 5 and getting 4 unrelated later questions killed by an
+  // unrelated earlier failure. Every question is generated independently
+  // (its own AI call, its own image searches), so there is no reason a
+  // failure on question 2 should prevent 3, 4 and 5 - which might have
+  // completely different, perfectly fine content - from ever being tried.
+  // Now every requested question gets its own attempt regardless of
+  // earlier failures, and only the ones that actually failed are reported.
+  const failures: string[] = [];
   for (let index = 0; index < Math.max(0, Math.floor(count)); index++) {
     try {
       const question: PairsQuestion = { question_type: "pairs", round_type: "pairs", pairs: await generate(index) };
@@ -24,10 +34,14 @@ export async function generatePairsQuestions(count: number, generate: (index: nu
       questions.push(question);
       accept?.(question);
     } catch (error) {
-      return { questions, error: error instanceof Error ? error.message : "Image generation failed." };
+      failures.push(error instanceof Error ? error.message : "Image generation failed.");
     }
   }
-  return { questions, error: null };
+  if (!failures.length) return { questions, error: null };
+  const summary = failures.length === 1
+    ? failures[0]
+    : `${failures.length} of ${count} questions failed. First failure: ${failures[0]}`;
+  return { questions, error: summary };
 }
 
 export function readPairsQuestions(value: unknown): PairsQuestion[] {

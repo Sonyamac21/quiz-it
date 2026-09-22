@@ -60,6 +60,7 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
   const failures: string[] = [];
   const attemptedLabels = new Set<string>();
   let attempts = 0;
+  let duplicateSkips = 0;
   let drafts: DraftPair[] = [];
   // Raised from 4 to 8 batches - a themed or less common request can burn
   // through several batches of otherwise-good pair ideas before finding
@@ -81,12 +82,31 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
     const aQuery = typeof draft.a?.image_query === "string" ? draft.a.image_query.trim() : "";
     const bQuery = typeof draft.b?.image_query === "string" ? draft.b.image_query.trim() : "";
     if (!aLabel || !bLabel || !aQuery || !bQuery || aLabel.toLowerCase() === bLabel.toLowerCase()) continue;
-    const prior = exclusions.usedAnswers.filter(value => typeof value === "string").map(value => value.toLowerCase());
-    if (attemptedLabels.has(aLabel.toLowerCase()) || attemptedLabels.has(bLabel.toLowerCase()) || prior.some(value => value.includes(aLabel.toLowerCase()) || value.includes(bLabel.toLowerCase()))) continue;
+    // Bug: this used to be `prior.some(value => value.includes(aLabel...))` -
+    // a SUBSTRING check against every pair fingerprint ever recorded, with no
+    // limit on how far back it looked. Match Made's whole item space is
+    // ordinary household objects (there are only so many of those), so once
+    // "eraser" or "egg" had appeared in ANY past pair, anywhere in this
+    // account's entire generation history, that one substring match
+    // permanently blocked every future candidate whose label merely
+    // contained it - "Egg" blocked forever by a long-past "boiled egg +
+    // toast" pair, even in an unrelated theme months later. That's what was
+    // producing "Found 2 after 8 batches (31 candidates)... Try a broader
+    // theme" with zero real image failures logged: every candidate was being
+    // silently discarded here, before ever reaching an image search. Now it
+    // only blocks an EXACT label match (case-insensitive) and only within a
+    // recent window, so a genuinely fresh idea that happens to share a
+    // common word with old history is no longer collateral damage.
+    const recentPriorLabels = new Set(
+      exclusions.usedAnswers.filter(value => typeof value === "string").slice(-300)
+        .flatMap(value => value.toLowerCase().split(" + "))
+    );
+    if (attemptedLabels.has(aLabel.toLowerCase()) || attemptedLabels.has(bLabel.toLowerCase())
+      || recentPriorLabels.has(aLabel.toLowerCase()) || recentPriorLabels.has(bLabel.toLowerCase())) { duplicateSkips++; continue; }
     attemptedLabels.add(aLabel.toLowerCase());
     attemptedLabels.add(bLabel.toLowerCase());
     const fingerprint = [aLabel, bLabel].map(value => value.toLowerCase()).sort().join(" + ");
-    if (seen.has(fingerprint) || exclusions.used.some(value => String(value || "").toLowerCase().includes(fingerprint))) continue;
+    if (seen.has(fingerprint) || exclusions.used.slice(-300).some(value => String(value || "").toLowerCase() === fingerprint)) { duplicateSkips++; continue; }
     seen.add(fingerprint);
     try {
       // Deliberately reuse the exact Pixabay matching + permanent re-hosting
@@ -103,7 +123,8 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
     }
   }
   if (records.length !== count) {
-    throw new Error(`Match Made needs ${count} complete pairs. Found ${records.length} after ${attempts} batches (${drafts.length} candidates). Existing content has been kept. ${failures[0] || "Try a broader theme."}`);
+    const reason = failures[0] || (duplicateSkips > 0 ? `${duplicateSkips} of ${drafts.length} candidates were skipped as repeats of earlier pairs - try a broader theme.` : "Try a broader theme.");
+    throw new Error(`Match Made needs ${count} complete pairs. Found ${records.length} after ${attempts} batches (${drafts.length} candidates). Existing content has been kept. ${reason}`);
   }
   return records;
 }

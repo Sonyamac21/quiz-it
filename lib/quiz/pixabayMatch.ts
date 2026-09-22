@@ -49,5 +49,17 @@ export function selectMatchingPixabayHit(hits: PixabayHit[], rawQuery: string, r
   }).filter(result => result.matches >= minimumMatches)
     .filter(result => !requiredLabelTerms.length || result.labelMatches > 0)
     .sort((a, b) => b.labelMatches - a.labelMatches || b.matches - a.matches || a.index - b.index);
-  return ranked[0]?.hit || null;
+  if (!ranked.length) return null;
+  // Pixabay's own relevance ranking (the order `hits` already arrives in)
+  // tends to surface the same handful of "editorial pick" style photos for
+  // any given everyday object - moody, similarly toned stock shots. Always
+  // taking the single best-scoring match therefore made every generated
+  // round look visually alike even when the subjects themselves were all
+  // different (reported directly: "same style of photos, not many
+  // variations"). Every hit here is already an equally *valid* match - the
+  // filters above already enforced that - so picking randomly among the
+  // top few, instead of always the first, adds real photographic variety
+  // without ever accepting a worse or less relevant picture.
+  const pool = ranked.slice(0, Math.min(5, ranked.length));
+  return pool[Math.floor(Math.random() * pool.length)].hit;
 }

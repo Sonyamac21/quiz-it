@@ -16,7 +16,11 @@ async function sourceImage(query: string, label: string): Promise<string> {
   const key = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
   if (!key) throw new Error("Pixabay is not configured");
   const search = buildPixabaySearchQuery(query);
-  const response = await fetch(`https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(search)}&image_type=photo&per_page=8&safesearch=true`);
+  // Widened from 8 to 20 - selectMatchingPixabayHit now picks randomly among
+  // the top few qualifying matches rather than always the single best one,
+  // and a pool of 8 usually only had one or two hits that actually cleared
+  // the relevance threshold, leaving nothing to vary between.
+  const response = await fetch(`https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(search)}&image_type=photo&per_page=20&safesearch=true`);
   if (!response.ok) throw new Error("Picture search failed");
   const data = await response.json();
   let candidates = Array.isArray(data?.hits) ? data.hits : [];

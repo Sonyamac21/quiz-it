@@ -25,6 +25,7 @@ import { HOT_SEAT_ANSWER_SECONDS, readHotSeatState, type HotSeatStatus } from "@
 import { useFlip } from "@/components/useFlip";
 import { CountUp } from "@/components/CountUp";
 import { FitBlockText } from "@/components/FitBlockText";
+import { HotSeatDisplay } from "@/components/HotSeatDisplay";
 
 type Question = {
   question_text: string;
@@ -2197,28 +2198,10 @@ function DisplayScreenInner() {
   if (phase === "hot_seat" && question) {
     const eligibleTeams = Math.max(0, teams.length - hotSeatLockedTeams.length);
     return (
-      <div className="qi-display-hot-seat" aria-live="polite">
-        <div className="qi-display-hot-seat__meta">HOT SEAT · QUESTION {questionIndex + 1}</div>
-        <FitBlockText as="h1" maxViewportHeight={0.34} minFontSize={26}>
-          {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
-        </FitBlockText>
-        {hotSeatStatus === "open" ? (
-          <div className="qi-display-hot-seat__call">
-            <span>BUZZERS OPEN</span>
-            <strong>WHO KNOWS IT?</strong>
-            <small>{eligibleTeams} team{eligibleTeams === 1 ? "" : "s"} eligible</small>
-          </div>
-        ) : hotSeatTeam ? (
-          <div className="qi-display-hot-seat__claim">
-            <span>{hotSeatTeam}</span>
-            <strong>TAKES THE HOT SEAT</strong>
-            {hotSeatStatus === "submitted" ? <small>ANSWER LOCKED IN</small> : <div className="qi-display-hot-seat__timer">{timeLeft ?? HOT_SEAT_ANSWER_SECONDS}</div>}
-          </div>
-        ) : (
-          <div className="qi-display-hot-seat__call"><strong>NO TEAMS REMAINING</strong><small>Eyes on the host</small></div>
-        )}
+      <>
+        <HotSeatDisplay question={question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")} questionNumber={questionIndex + 1} status={hotSeatStatus} team={hotSeatTeam} eligibleTeams={eligibleTeams} seconds={timeLeft ?? HOT_SEAT_ANSWER_SECONDS} />
         <QuizItBadge />
-      </div>
+      </>
     );
   }
 

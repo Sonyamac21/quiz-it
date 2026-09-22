@@ -40,7 +40,11 @@ test("TV question, picture and reveal copy all remain inside fixed stages", () =
 });
 
 test("Hot Seat and celebration copy shrink to fit instead of being clipped", () => {
-  assert.match(display, /FitBlockText as="h1" maxViewportHeight=\{0\.34\} minFontSize=\{26\}/);
+  const hotSeat = readFileSync(new URL("../components/HotSeatDisplay.tsx", import.meta.url), "utf8");
+  assert.match(display, /<HotSeatDisplay question=/);
+  assert.match(hotSeat, /FitBlockText as="h1" maxViewportHeight=\{0\.3\} minFontSize=\{26\}/);
+  assert.match(hotSeat, /FitBlockText className="qi-display-hot-seat__team"/);
+  assert.match(css, /\.qi-display-hot-seat__timer\s*\{[^}]*position:absolute;[^}]*top:16px;[^}]*right:/);
   assert.match(display, /FitBlockText className="qi-display-fastest-team"/);
   assert.match(player, /FitBlockText className="qi-player-hot-seat__question"/);
   assert.match(player, /FitBlockText className="qi-player-celebration-team"/);

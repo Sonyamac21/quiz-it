@@ -2370,16 +2370,18 @@ button, input, select, textarea { font: inherit; }
 .qi-player-hot-seat__state { flex:0 1 auto; margin:auto 0; padding:clamp(15px,3dvh,28px) 14px; }
 .qi-player-hot-seat__error { flex:none; margin:7px 0 0; font-size:12px; }
 
-.qi-display-hot-seat { gap:clamp(10px,2.5vh,32px); padding:clamp(18px,3.5vh,52px) clamp(28px,5vw,80px); }
+/* Reserve the persistent brand area independently of question length. */
+.qi-display-hot-seat { position:relative; gap:clamp(10px,2vh,24px); padding:164px clamp(28px,5vw,80px) 44px; }
 .qi-display-hot-seat__meta { flex:none; font-size:clamp(13px,min(1.8vw,2.7vh),25px); }
-.qi-display-hot-seat h1 { flex:0 1 auto; max-height:38vh; overflow:hidden; font-size:clamp(30px,min(5.5vw,7.2vh),82px); line-height:1.06; }
+.qi-display-hot-seat h1 { width:100%; flex:none; font-size:clamp(30px,min(5.5vw,7.2vh),82px); line-height:1.06; overflow-wrap:anywhere; }
 .qi-display-hot-seat__call,.qi-display-hot-seat__claim { flex:0 1 auto; min-height:0; gap:clamp(6px,1.4vh,12px); }
 .qi-display-hot-seat__call strong,.qi-display-hot-seat__claim strong { font-size:clamp(28px,min(5vw,7vh),76px); }
-.qi-display-hot-seat__claim>span { max-width:92vw; overflow-wrap:anywhere; font-size:clamp(38px,min(7vw,9vh),108px); }
-.qi-display-hot-seat__timer { width:clamp(72px,15vh,150px); border-width:clamp(3px,.7vh,5px); font-size:clamp(36px,8vh,82px); }
+.qi-display-hot-seat__team { max-width:100%; overflow-wrap:anywhere; color:#ff8290; font-size:clamp(38px,min(7vw,9vh),108px); line-height:1.05; font-weight:950; text-transform:uppercase; }
+.qi-display-hot-seat__claim strong { font-size:clamp(24px,4vh,52px); }
+.qi-display-hot-seat__timer { position:absolute; top:16px; right:clamp(20px,3vw,52px); width:clamp(110px,11vw,180px); border-width:5px; font-size:clamp(52px,6vw,96px); }
 @media (max-height:620px) {
   .qi-mc-question--hot-seat .qi-mc-answer-key { margin-bottom:3px; padding:4px 8px; font-size:11px; }
-  .qi-display-hot-seat { gap:7px; padding-block:12px; }
+  .qi-display-hot-seat { gap:7px; padding-block:150px 32px; }
   .qi-player-hot-seat__question { max-height:22dvh; }
   .qi-player-hot-seat__buzz { width:min(68vw,34dvh,250px); }
 }

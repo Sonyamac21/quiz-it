@@ -502,6 +502,28 @@ export const GENERATION_MODEL = VALIDATION_MODEL;
 // and safely, since it can only ever cause a stuck request to fail faster.)
 export const CLIENT_REQUEST_TIMEOUT_MS = 35_000;
 
+// Same protection as callAPI's own AbortController above, but factored out
+// for the two plain `fetch` calls in the Match Made image pipeline
+// (Pixabay's search endpoint in generatePairs.ts, and the two fetches inside
+// persistPixabayImage.ts) which never had any timeout at all. A stalled
+// connection to Pixabay's CDN or our own /api/upload-image route left the
+// whole generation hung indefinitely on "Creating Match Made question X of
+// Y..." with no error and no way for the host to recover except reloading
+// the page - this makes a stall fail after CLIENT_REQUEST_TIMEOUT_MS instead
+// of hanging forever, exactly like every other request in the pipeline.
+export async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = CLIENT_REQUEST_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw new Error(`Request to ${input} timed out after ${Math.round(timeoutMs / 1000)}s (no response).`);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function callAPI(prompt: string, maxTokens: number = 8000, structuredOutput: boolean = false, webSearch: boolean = false, model?: string, combinedValidation: boolean = false, imageUrl?: string) {
   const res = await withAiRequestSlot(() => {
     const controller = new AbortController();

@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "@/lib/quiz/questionGenerationCore";
+
 // Pixabay's webformatURL/largeImageURL are convenient to hotlink at generation
 // time, but they are NOT a permanent address - Pixabay's own terms ask
 // integrators not to rely on long-term hotlinking, and in practice these URLs
@@ -27,13 +29,17 @@
 // those questions for review instead of losing that information entirely.
 export async function persistPixabayImage(pixabayUrl: string): Promise<{ url: string; persisted: boolean }> {
   try {
-    const imgRes = await fetch(pixabayUrl);
+    // Neither fetch here previously had any timeout, unlike the rest of the
+    // generation pipeline (see fetchWithTimeout's own comment) - a stalled
+    // connection to Pixabay's CDN or our own upload route hung the whole
+    // Match Made generation indefinitely with no error surfaced.
+    const imgRes = await fetchWithTimeout(pixabayUrl);
     if (!imgRes.ok) return { url: pixabayUrl, persisted: false };
     const blob = await imgRes.blob();
     const file = new File([blob], "pixabay-" + Date.now() + ".jpg", { type: blob.type || "image/jpeg" });
     const formData = new FormData();
     formData.append("file", file);
-    const uploadRes = await fetch("/api/upload-image", { method: "POST", body: formData });
+    const uploadRes = await fetchWithTimeout("/api/upload-image", { method: "POST", body: formData });
     if (!uploadRes.ok) return { url: pixabayUrl, persisted: false };
     const data = await uploadRes.json();
     return data?.url ? { url: data.url, persisted: true } : { url: pixabayUrl, persisted: false };

@@ -1,7 +1,7 @@
 import { PairRecord } from "@/lib/quiz/pairs";
 import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pixabayMatch";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
-import { callAPI, checkPictureIdentity, ExclusionState, GENERATION_MODEL } from "@/lib/quiz/questionGenerationCore";
+import { callAPI, checkPictureIdentity, ExclusionState, fetchWithTimeout, GENERATION_MODEL } from "@/lib/quiz/questionGenerationCore";
 
 type DraftPair = { pair_id?: string; a?: { label?: string; image_query?: string }; b?: { label?: string; image_query?: string } };
 
@@ -20,7 +20,12 @@ async function sourceImage(query: string, label: string): Promise<string> {
   // the top few qualifying matches rather than always the single best one,
   // and a pool of 8 usually only had one or two hits that actually cleared
   // the relevance threshold, leaving nothing to vary between.
-  const response = await fetch(`https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(search)}&image_type=photo&per_page=20&safesearch=true`);
+  // Previously a plain fetch with no timeout - unlike every AI call in this
+  // pipeline (callAPI/checkPictureIdentity), a stalled connection to
+  // Pixabay's search endpoint here hung the whole Match Made generation
+  // indefinitely with the progress text frozen on "Creating Match Made
+  // question X of Y..." and no way to recover short of reloading the page.
+  const response = await fetchWithTimeout(`https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(search)}&image_type=photo&per_page=20&safesearch=true`);
   if (!response.ok) throw new Error("Picture search failed");
   const data = await response.json();
   let candidates = Array.isArray(data?.hits) ? data.hits : [];

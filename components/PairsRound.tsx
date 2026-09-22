@@ -27,7 +27,7 @@ const shell = "radial-gradient(ellipse 70% 55% at 50% 20%,rgba(190,38,193,.16),t
 // (and the same client-side elapsed-time computation) every other round
 // type already uses, so the host console, display screen and player
 // handset all derive the same countdown from one shared pair of columns.
-export const PAIRS_TIMER_SECONDS = 45;
+export const PAIRS_TIMER_SECONDS = 30;
 
 // Every tile image previously had no onError handler at all - a dead or
 // CORS-blocked image URL (Pixabay hotlinks going stale, a re-host failure,

@@ -5,11 +5,40 @@ import { callAPI, checkPictureIdentity, ExclusionState, fetchWithTimeout, GENERA
 
 type DraftPair = { pair_id?: string; a?: { label?: string; image_query?: string }; b?: { label?: string; image_query?: string } };
 
+// Bug: this used to grab from the FIRST "[" to the LAST "]" in the whole
+// response text. That works only when the array is the entire response -
+// but the model sometimes appends a trailing note after the array (or the
+// array itself contains a value with a stray "]" character), and
+// lastIndexOf then swallows that trailing text into the "JSON", producing
+// exactly the live failure reported: "Unexpected non-whitespace character
+// after JSON at position 645 (line 38 column 1)" - valid JSON followed by
+// leftover text that was never supposed to be part of it. This instead
+// walks forward from the first "[" tracking bracket depth (skipping over
+// quoted strings, so a "]" inside a label/query string doesn't miscount)
+// and stops at the bracket that actually closes the array, ignoring
+// anything after it.
 function parseArray(text: string): DraftPair[] {
   const start = text.indexOf("[");
-  const end = text.lastIndexOf("]");
-  if (start < 0 || end <= start) throw new Error("Pairs generator returned invalid JSON");
-  return JSON.parse(text.slice(start, end + 1)) as DraftPair[];
+  if (start < 0) throw new Error("Pairs generator returned invalid JSON: no array found");
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === "\"") inString = false;
+      continue;
+    }
+    if (ch === "\"") { inString = true; continue; }
+    if (ch === "[") depth++;
+    else if (ch === "]") {
+      depth--;
+      if (depth === 0) return JSON.parse(text.slice(start, i + 1)) as DraftPair[];
+    }
+  }
+  throw new Error("Pairs generator returned invalid JSON: no matching closing bracket");
 }
 
 async function sourceImage(query: string, label: string): Promise<string> {

@@ -35,18 +35,23 @@ const STEPS: { key: keyof OnboardingStatus; title: string; body: string; href: s
     cta: "Build Quiz Plan",
   },
   {
-    key: "hasQuestions",
-    title: "Check your Question Library",
-    body: "Every generated or imported question lands here for review before it can go out live.",
-    href: "/host/question-bank",
-    cta: "Review questions",
-  },
-  {
     key: "hasScheduledEvent",
     title: "Schedule your first event",
     body: "Put a venue and a Quiz Plan on the calendar - this is what turns planning into a live show.",
     href: "/host/events",
     cta: "Open Calendar",
+  },
+  {
+    // Moved after "Schedule your first event" rather than straight after
+    // "Build a Quiz Plan" - reviewing generated questions is an ongoing
+    // quality check, not a one-time gate the host needs before they can
+    // schedule a show, so it shouldn't interrupt the venue -> plan ->
+    // schedule sequence that actually gets them to a bookable event.
+    key: "hasQuestions",
+    title: "Check your Question Library",
+    body: "Every generated or imported question lands here for review before it can go out live.",
+    href: "/host/question-bank",
+    cta: "Review questions",
   },
 ];
 

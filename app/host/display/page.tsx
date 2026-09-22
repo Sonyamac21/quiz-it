@@ -2222,9 +2222,18 @@ function DisplayScreenInner() {
           <div className="qi-display-picture-meta">QUESTION {questionIndex+1} · PICTURE ROUND</div>
           <img className="qi-display-picture-image" src={imageUrl} alt="Quiz image" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; setImageLoadFailed(true); }} style={{ display: imageLoadFailed ? "none" : "block" }} />
           {imageLoadFailed && (
+            // This "image only" beat has no question text on screen otherwise -
+            // it's built entirely around the picture. Previously a failed load
+            // left the room staring at a broken-image icon with no context for
+            // several seconds until the host manually moved on. Falling back to
+            // the question text (already loaded, no extra round-trip) keeps the
+            // room reading something instead of a dead screen; the host's own
+            // console still shows the "Image could not be loaded" note if they
+            // want to skip ahead sooner.
             <div className="qi-display-media-error" role="status">
               <div style={{ fontSize:48, marginBottom:16 }}>🖼️</div>
-              <div style={{ fontSize:22, color:"rgba(255,255,255,0.5)" }}>Image could not be loaded</div>
+              <div style={{ fontSize:22, color:"rgba(255,255,255,0.5)", marginBottom:16 }}>Image could not be loaded</div>
+              <FitBlockText className="qi-display-picture-question-text" maxViewportHeight={0.3} minFontSize={20}>{question.question_text.replace(/^Show teams this image:\s*/i, "")}</FitBlockText>
             </div>
           )}
           <div className="qi-display-picture-prompt">TAKE A GOOD LOOK</div>

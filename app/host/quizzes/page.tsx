@@ -1590,7 +1590,7 @@ export default function QuizBuilderPage() {
                       </div>
                     )}
                     {activeRound.round_type !== "pairs" && <><HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); const allowed = allowedLibraryTypesForRound(activeRound.round_type); const defaultType = allowed.length === 1 ? allowed[0] : ""; setLibraryTypeFilter(defaultType); loadLibraryQuestions("", defaultType); } return next; }); setAddQuestionOpenId(null); setRandomOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
-                    <HostButton onClick={() => { setRandomOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); setAddQuestionOpenId(null); }}>{randomOpenId === activeRound.id ? "CLOSE" : "🎲 RANDOM FROM LIBRARY"}</HostButton>
+                    <HostButton onClick={() => { setRandomOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); setAddQuestionOpenId(null); }}>{randomOpenId === activeRound.id ? "CLOSE" : "+ RANDOM FROM LIBRARY"}</HostButton>
                     <HostButton onClick={() => { setAddQuestionOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); setRandomOpenId(null); }}>{addQuestionOpen ? "CLOSE" : "+ ADD QUESTION"}</HostButton></>}
                   </div>
                 </div>

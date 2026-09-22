@@ -94,7 +94,8 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
       "Welcome to Quiz-It! Get your team ready on your phones \u2014 join with the PIN on screen.",
       "Answers lock in the moment you submit \u2014 no changing your mind after.",
       `You've got ${timerSeconds} seconds per question, so don't overthink it.`,
-      "Each Power Card (Time-Out, Boost, Reverse) can be played once per quiz — use them wisely! Reverse can only be played in Rounds 1 and 2.",
+      "Each Power Card (Time-Out, Boost, Reverse) can be played once per quiz — use them wisely!",
+      "Reverse can only be played in Rounds 1 and 2 — don't save it too long.",
       "Have fun, play fair, and good luck!",
     ],
     regular: [
@@ -249,7 +250,7 @@ function QuizControllerInner() {
     if (error) {
       console.error("SESSION UPDATE FAILED [toggleTeamBlocked]:", error);
       setBlockedTeams(prev);
-      showToast(`Could not update block status for ${teamName}. The change didn't save - try again.`, "error", 6000);
+      showToast(`Could not update block status for ${teamName} (${error.message || "connection issue"}). Check your connection and tap again.`, "error", 6000);
     }
   }
 
@@ -269,7 +270,7 @@ function QuizControllerInner() {
     if (error) {
       console.error("SESSION UPDATE FAILED [toggleTeamScrambled]:", error);
       setScrambledTeams(prev);
-      showToast(`Could not update scramble status for ${teamName}. The change didn't save - try again.`, "error", 6000);
+      showToast(`Could not update scramble status for ${teamName} (${error.message || "connection issue"}). Check your connection and tap again.`, "error", 6000);
     }
   }
 

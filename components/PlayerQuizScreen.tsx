@@ -183,8 +183,12 @@ function PictureQuestion({ imageUrl, questionText, onSubmit, questionIndex, time
             <FitBlockText className="qi-player-question-text" maxViewportHeight={0.18} minFontSize={13}>{questionText}</FitBlockText>
             {!timerReady ? <div className="qi-player-waiting-timer">{timeLeft === 0 ? "TIME’S UP · ANSWERS LOCKED" : "WAITING FOR HOST TO START TIMER"}</div> : !submitted ? <AnswerKeypad mode="text" onSubmit={onSubmit} /> : (
               <div style={{ padding:18, borderRadius:12, background:"rgba(190,38,193,0.15)", textAlign:"center" }}>
-                <strong style={{ color:purple }}>Answer submitted!</strong>
-                <div style={{ marginTop:6, color:"#B9A8D9" }}>Waiting for host…</div>
+                {/* Recased to match the all-caps directive style every sibling
+                    waiting state on this screen uses ("WAITING FOR HOST TO
+                    START TIMER", "TIME'S UP · ANSWERS LOCKED") - this used to
+                    be the only one in sentence case with a trailing ellipsis. */}
+                <strong style={{ color:purple }}>ANSWER SUBMITTED</strong>
+                <div style={{ marginTop:6, color:"#B9A8D9" }}>WAITING FOR HOST</div>
               </div>
             )}
           </>

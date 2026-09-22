@@ -30,7 +30,13 @@ async function sourceImage(query: string, label: string): Promise<string> {
   const data = await response.json();
   let candidates = Array.isArray(data?.hits) ? data.hits : [];
   let reason = `No suitable picture found for ${label}`;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // Raised from 3 to 5 - a pool of 20 Pixabay candidates often has several
+  // that look plausible from the search query alone but fail the stricter
+  // identity check (a set of pots shown when the label needs one clear
+  // bowl, say); 3 attempts burned through the closest matches too fast on
+  // some labels and gave up before reaching a genuinely clean shot further
+  // down the ranked list.
+  for (let attempt = 0; attempt < 5; attempt++) {
     const hit = selectMatchingPixabayHit(candidates, query, label);
     const source = hit?.webformatURL || hit?.largeImageURL;
     if (!hit || !source) break;
@@ -55,7 +61,14 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
   const attemptedLabels = new Set<string>();
   let attempts = 0;
   let drafts: DraftPair[] = [];
-  for (let attempt = 0; attempt < 4 && records.length < count; attempt++) {
+  // Raised from 4 to 8 batches - a themed or less common request can burn
+  // through several batches of otherwise-good pair ideas before finding
+  // ones whose images clear the identity check, and 4 was giving up on
+  // legitimately gettable questions rather than a genuinely exhausted
+  // theme. Each failed batch is cheap (one AI call + already-rejected image
+  // fetches, both now timeout-protected), so this just gives it more real
+  // chances rather than more time wasted hanging.
+  for (let attempt = 0; attempt < 8 && records.length < count; attempt++) {
     attempts++;
     const needed = count - records.length;
     const batch = parseArray(await callAPI(prompt.replace(`Create ${count} distinct`, `Create ${Math.min(needed + 2, 6)} distinct`) + `\nDo not reuse these already attempted items (including failed images): ${[...attemptedLabels].join(", ")}.`, 1800, false, false, GENERATION_MODEL)).slice(0, needed + 2);

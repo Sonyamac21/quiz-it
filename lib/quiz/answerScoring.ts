@@ -146,7 +146,18 @@ export function calculateMultiTapScore(
 }
 
 export function normaliseAnswerText(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/^(the|a|an) /i, "").trim();
+  // Live bug: correct_answer "crème brûlée" was reduced to "crme brle" -
+  // the accented letters were being DELETED outright by the [^a-z0-9 ]
+  // strip below, rather than folded to their plain-letter equivalent, which
+  // mangled the correct answer short enough that even a team who typed the
+  // fully correct word minus the accents ("CREME BRULEE") no longer scored
+  // as a close enough match. Unicode-normalize first (NFD splits "é" into
+  // "e" + a separate combining accent mark) and drop only the combining
+  // marks, so accented text folds to its plain-ASCII equivalent instead of
+  // losing the letter entirely - the same technique already used for
+  // Pixabay search terms in lib/quiz/pixabayMatch.ts.
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9 ]/g, "").replace(/^(the|a|an) /i, "").trim();
 }
 
 /** Recover malformed legacy audio answers that stored internal lookup

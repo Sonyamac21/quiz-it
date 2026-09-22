@@ -81,6 +81,20 @@ test("live bug: a single generic word from a long descriptive picture answer is 
   assert.equal(isFuzzyMatch("Big Ben", correct), false);
 });
 
+test("live bug: an accented correct answer no longer mangles into an unmatchable string", () => {
+  // Live incident: correct_answer "crème brûlée". A team who typed the
+  // fully correct word without the accents ("CREME BRULEE") was scored
+  // wrong, along with everyone else, because normaliseAnswerText deleted
+  // the accented letters outright instead of folding them to plain ASCII,
+  // shortening "crème brûlée" down to "crme brle" - too mangled for even a
+  // correct plain-text attempt to register as close enough.
+  const correct = "crème brûlée";
+  assert.equal(isFuzzyMatch("CREME BRULEE", correct), true);
+  assert.equal(isFuzzyMatch("Crème Brûlée", correct), true);
+  assert.equal(isFuzzyMatch("CRAMBUOLE", correct), false);
+  assert.equal(isFuzzyMatch("CRAMBUA", correct), false);
+});
+
 test("short proper-noun word matching still works for genuinely short correct answers", () => {
   assert.equal(isFuzzyMatch("Beatles", "The Beatles"), true);
   assert.equal(isFuzzyMatch("Bowie", "David Bowie"), true);

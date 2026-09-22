@@ -107,11 +107,17 @@ export function playShowAudio(
     try { lastStarted = Math.max(lastStarted, Number(window.localStorage.getItem(`qi-audio:${dedupeKey}`) || 0)); } catch { /* storage may be blocked */ }
   }
   // Realtime subscriptions and repair polling may deliver one state change
-  // twice. Do not restart the same sound when that happens; restarting it was
-  // heard as doubled/echoing audio on the venue display. Different files and
-  // channels remain independent, and a cue can be deliberately replayed
-  // after this short guard window.
-  if (now - lastStarted < 2500) return active.get(channel) || null;
+  // twice, arriving within tens/low hundreds of ms of each other - this guard
+  // exists to stop that pair being heard as doubled/echoing audio. The window
+  // used to be 2500ms, which was long enough to also swallow a genuinely new,
+  // distinct trigger of the same cue file on the same channel - e.g. two
+  // different teams each getting "correct" in the same reveal sequence, a
+  // few hundred ms to ~2s apart, only ever played the first team's chime;
+  // the second was silently dropped by this guard and made it look like
+  // "some team audio didn't play" until enough time passed for a later one
+  // to clear the window. 600ms comfortably covers the realtime/poll echo
+  // case while letting back-to-back distinct events through.
+  if (now - lastStarted < 600) return active.get(channel) || null;
   recentlyStarted.set(dedupeKey, now);
   if (typeof window !== "undefined") {
     try { window.localStorage.setItem(`qi-audio:${dedupeKey}`, String(now)); } catch { /* storage may be blocked */ }

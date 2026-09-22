@@ -346,9 +346,9 @@ const POWER_CARD_INFO = [
   { name: "BOOST", sigil: "⚡", color: "#FFC533", glow: "rgba(255,197,51,.45)", rule: "Doubles your points for every correct answer this round." },
   { name: "REVERSE", sigil: "↻", color: "#FF3B4E", glow: "rgba(255,59,78,.45)", rule: "Reverses the digits of your score." },
 ];
-function playSound(file: string, volume = 1.0) {
+function playSound(file: string, volume = 1.0, loop = false) {
   const timerCue = file.includes("countdown") || file === "lock.mp3";
-  return playShowAudio(file, { channel: timerCue ? "timer" : "cue", volume });
+  return playShowAudio(file, { channel: timerCue ? "timer" : "cue", volume, loop });
 }
 
 function DisplayFullscreenControl() {
@@ -551,6 +551,21 @@ function DisplayScreenInner() {
       playSound("lock.mp3", 0.5);
     }
   }, [phase, hotSeatStatus, hotSeatTeam, timeLeft, questionIndex]);
+  // Match Made's countdown reuses the same shared timer state every other
+  // timed round drives its final-five/lock cues from - this brings it in
+  // line with the rest of the show instead of running silently.
+  useEffect(() => {
+    if (phase !== "pairs" || timeLeft === null) return;
+    const gateKey = String(questionIndex);
+    if (timeLeft === 5 && pairsUrgentPlayedRef.current !== gateKey) {
+      pairsUrgentPlayedRef.current = gateKey;
+      playSound("countdown-urgent.mp3", 0.35);
+    }
+    if (timeLeft === 0 && pairsLockPlayedRef.current !== gateKey) {
+      pairsLockPlayedRef.current = gateKey;
+      playSound("lock.mp3", 0.5);
+    }
+  }, [phase, timeLeft, questionIndex]);
   const [pinInput, setPinInput] = useState("");
   const [connected, setConnected] = useState(false);
   const [sessionPin, setSessionPin] = useState("");
@@ -623,7 +638,19 @@ function DisplayScreenInner() {
   const pursuitUrgentPlayedRef = useRef<number>(-1);
   const pursuitLockPlayedRef = useRef<number>(-1);
   const pursuitCuePlayedRef = useRef<Record<string, number>>({});
-  const playPursuitCue = useCallback((file: string, volume = 1) => {
+  // Match Made previously had no audio at all - every other round type has a
+  // countdown tick, a per-team correct/wrong cue and a round-complete
+  // celebration, so this brings Pairs up to that same standard. Progress is
+  // diffed against the last-seen snapshot (applySession can run twice for the
+  // same underlying change via realtime + repair poll) so a team's own
+  // solved-pair count or mistake count only fires its cue the moment it
+  // actually increases.
+  const prevPairsProgressRef = useRef<PairsProgress>({});
+  const prevPairsStatusRef = useRef<string>("idle");
+  const prevPairsQuestionIndexRef = useRef<number>(-1);
+  const pairsUrgentPlayedRef = useRef<string | null>(null);
+  const pairsLockPlayedRef = useRef<string | null>(null);
+  const playPursuitCue = useCallback((file: string, volume = 1, loop = false) => {
     const now = Date.now();
     const last = pursuitCuePlayedRef.current[file] || 0;
     // Realtime and the repair poll can deliver the same transition together.
@@ -631,21 +658,24 @@ function DisplayScreenInner() {
     // different sounds remain unaffected.
     if (now - last < 700) return;
     pursuitCuePlayedRef.current[file] = now;
-    playSound(file, volume);
+    playSound(file, volume, loop);
   }, []);
   // Pursuit countdown track + lock click on expiry — once per gate. Previously
   // this only started the countdown-urgent.mp3 track at timeLeft===5, so the
   // host only ever heard the last 5 seconds of what's actually a ~50s ticking
-  // clock track meant to be audible for the whole countdown. Now it starts as
-  // soon as the gate's question timer appears (any timeLeft while status is
-  // "question", guarded to fire once per gate via the ref) and is explicitly
+  // clock track meant to be audible for the whole countdown. Then it was
+  // changed to start as soon as the gate's question timer appears - but the
+  // file itself is only 25.31s (confirmed via ffprobe), while a text_answer
+  // question's timer runs 30s, so the track still ran out ~5s before time
+  // actually expired. Now it loops so it's audible for the entire countdown
+  // regardless of that question type's configured duration, and is explicitly
   // stopped the moment the gate leaves "question", so it never bleeds into
   // the reveal/advance cues.
   useEffect(() => {
     if (pursuitStatus !== "question" || timeLeft === null) return;
     if (timeLeft > 0 && pursuitUrgentPlayedRef.current !== pursuitQIndex) {
       pursuitUrgentPlayedRef.current = pursuitQIndex;
-      playPursuitCue("countdown-urgent.mp3", 0.35);
+      playPursuitCue("countdown-urgent.mp3", 0.35, true);
     }
     if (timeLeft === 0 && pursuitLockPlayedRef.current !== pursuitQIndex) {
       pursuitLockPlayedRef.current = pursuitQIndex;
@@ -1180,6 +1210,32 @@ function DisplayScreenInner() {
         prevPursuitStatusRef.current = p.status;
       }
       prevPursuitRaceRef.current = newRace;
+    }
+    {
+      // MATCH MADE — diff the incoming per-team progress against the last
+      // snapshot so a solved-pair or mistake cue fires only the instant it
+      // actually happens, the same way every other round's reveal audio is
+      // keyed off a real change rather than every payload delivery.
+      const newProgress = readPairsProgress(data.pairs_progress);
+      const newStatus = String(data.pairs_status || "idle");
+      const newQuestionIndex = (data.current_question_index as number) ?? 0;
+      const prevProgress = prevPairsProgressRef.current;
+      const sameQuestion = prevPairsQuestionIndexRef.current === newQuestionIndex && prevPairsStatusRef.current !== "idle";
+      if (sameQuestion) {
+        for (const name of Object.keys(newProgress)) {
+          const before = prevProgress[name];
+          const after = newProgress[name];
+          if (!before || !after) continue;
+          if (after.solved_pair_ids.length > before.solved_pair_ids.length) playSound("correct-chime.mp3", 0.4);
+          else if (after.mistakes > before.mistakes) playSound("sad-trombone.mp3", 0.35);
+        }
+      }
+      if (newStatus === "complete" && prevPairsStatusRef.current !== "complete") {
+        playSound("crowd-cheer.mp3", 0.6);
+      }
+      prevPairsProgressRef.current = newProgress;
+      prevPairsStatusRef.current = newStatus;
+      prevPairsQuestionIndexRef.current = newQuestionIndex;
     }
     setPairsContent(readPairs(data.pairs_content));
     setPairsProgress(readPairsProgress(data.pairs_progress));

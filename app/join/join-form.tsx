@@ -222,16 +222,24 @@ export function JoinForm() {
       }
       let photoUrl: string | null = null;
       if (photoFile) {
-        const preparedPhoto = await prepareParticipantPhoto(photoFile);
-        const path = pin + "-" + teamName.trim().replace(/\s+/g, "-").toLowerCase() + "-" + Date.now() + ".jpg";
-        const { error: uploadError } = await supabase.storage.from("team-photos").upload(path, preparedPhoto, {
-          contentType: "image/jpeg",
-          cacheControl: "3600",
-        });
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from("team-photos").getPublicUrl(path);
-          photoUrl = urlData?.publicUrl || null;
-        }
+        // Live bug: an iPad's photo (large, HEIC-derived, or an orientation
+        // canvas.drawImage doesn't like) threw here - and because this whole
+        // step sat inside the same try/catch as team creation, one bad photo
+        // blocked the entire join even though the photo is explicitly
+        // optional. Isolated so a photo failure only ever drops the photo,
+        // never the join itself.
+        try {
+          const preparedPhoto = await prepareParticipantPhoto(photoFile);
+          const path = pin + "-" + teamName.trim().replace(/\s+/g, "-").toLowerCase() + "-" + Date.now() + ".jpg";
+          const { error: uploadError } = await supabase.storage.from("team-photos").upload(path, preparedPhoto, {
+            contentType: "image/jpeg",
+            cacheControl: "3600",
+          });
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage.from("team-photos").getPublicUrl(path);
+            photoUrl = urlData?.publicUrl || null;
+          }
+        } catch { /* photo is optional - continue joining without it */ }
       }
       // Generate and hash on the server. Web Crypto is unavailable on phones
       // opening the LAN test address over plain HTTP, which previously made

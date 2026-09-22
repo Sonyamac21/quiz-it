@@ -17,7 +17,17 @@ export async function prepareParticipantPhoto(file: File): Promise<File> {
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Photo processing is not supported in this browser.");
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    try {
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    } catch {
+      // Some iPad/iPhone photos (large HEIC-derived images, certain
+      // orientations) load fine into an <img> but throw a DOMException from
+      // canvas.drawImage - and DOMException does not extend Error, so a
+      // caller's `error instanceof Error` check misses it and falls back to
+      // a generic, unhelpful message. Re-thrown as a real Error with a
+      // specific one.
+      throw new Error("This photo couldn't be processed. Please try a different photo.");
+    }
 
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not prepare this photo.")), "image/jpeg", JPEG_QUALITY);

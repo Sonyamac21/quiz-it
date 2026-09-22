@@ -207,15 +207,39 @@ export function isFuzzyMatch(answer: string, correct: string, q?: ScorableQuesti
   // Partial match: answer is contained in correct or vice versa - require a meaningful fraction, not just 3+ chars, to avoid false positives like "her" matching inside "Cher"
   if (b.includes(a) && a.length >= 4 && a.length >= b.length * 0.6) return true;
   if (a.includes(b) && b.length >= 4 && b.length >= a.length * 0.6) return true;
-  // Check each word of correct answer against answer
+  // Check each word of correct answer against answer. Live bug: correct_answer
+  // "Christ the Redeemer statue, Rio de Janeiro" let a bare "CHRIST" score as
+  // correct, because this loop accepted a match against ANY 4+ letter word
+  // anywhere in the string - including incidental/descriptive words far from
+  // what actually identifies the answer. Capped to short correct answers (a
+  // proper noun of at most 3 words, e.g. "The Beatles", "David Bowie") so it
+  // can no longer fire against long descriptive answers with appended
+  // location/context text, where a single shared word proves nothing.
   const bWords = b.split(" ");
-  if (bWords.length > 1) {
+  if (bWords.length > 1 && bWords.length <= 3) {
     for (const word of bWords) {
       if (word.length >= 4 && a === word) return true;
     }
   }
   const maxDist = Math.max(1, Math.floor(b.length * 0.3));
-  return levenshteinDistance(a, b) <= maxDist;
+  if (levenshteinDistance(a, b) <= maxDist) return true;
+  // Same live bug, other half: teams that typed the FULL correct phrase with
+  // a genuine typo ("CHRIST THE REDIEMER", "CRHIST THE REDEEMER" for "Christ
+  // the Redeemer statue, Rio de Janeiro") were rejected, because the
+  // Levenshtein tolerance above is scaled to the ENTIRE correct_answer
+  // length - including trailing descriptive text ("statue, Rio de Janeiro")
+  // the answer never needed to reproduce - which dilutes the ratio against a
+  // much shorter real attempt. Compare instead against just the leading
+  // slice of the correct answer the same length as what was typed, so typo
+  // tolerance is judged against what the team actually tried to answer.
+  // Gated to reasonably long answers (10+ characters) so this cannot also
+  // become another way for a single short word to slip through.
+  if (a.length >= 10 && a.length < b.length) {
+    const bPrefix = b.slice(0, a.length);
+    const prefixMaxDist = Math.max(1, Math.floor(a.length * 0.3));
+    if (levenshteinDistance(a, bPrefix) <= prefixMaxDist) return true;
+  }
+  return false;
 }
 
 export function getCorrectAnswerText(q: ScorableQuestion): string {

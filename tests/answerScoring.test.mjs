@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { calculateMultiTapScore, getCorrectAnswerText, isAnswerCorrect, latestAnswerForTeam, rankNearestWins } from "../lib/quiz/answerScoring.ts";
+import { calculateMultiTapScore, getCorrectAnswerText, isAnswerCorrect, isFuzzyMatch, latestAnswerForTeam, rankNearestWins } from "../lib/quiz/answerScoring.ts";
 
 const baseQuestion = {
   question_type: "multiple_choice",
@@ -63,6 +63,27 @@ test("a text-type question with a numeric correct_answer requires an exact match
   assert.equal(isAnswerCorrect({ answer_text: "6433" }, bigNumberQuestion), true);
   assert.equal(isAnswerCorrect({ answer_text: "6,433" }, bigNumberQuestion), true);
   assert.equal(isAnswerCorrect({ answer_text: "6434" }, bigNumberQuestion), false);
+});
+
+test("live bug: a single generic word from a long descriptive picture answer is not a match, but a typo'd full attempt is", () => {
+  // Live incident: correct_answer "Christ the Redeemer statue, Rio de
+  // Janeiro". A team answering the bare word "CHRIST" was scored correct
+  // (getting fastest-answer points) while two other teams who typed the
+  // whole phrase with one typo each were scored wrong.
+  const correct = "Christ the Redeemer statue, Rio de Janeiro";
+  assert.equal(isFuzzyMatch("CHRIST", correct), false);
+  assert.equal(isFuzzyMatch("STATUE", correct), false);
+  assert.equal(isFuzzyMatch("CHRIST THE REDIEMER", correct), true);
+  assert.equal(isFuzzyMatch("CRHIST THE REDEEMER", correct), true);
+  assert.equal(isFuzzyMatch("Christ the Redeemer", correct), true);
+  // A genuinely wrong guess of similar shape must still be rejected.
+  assert.equal(isFuzzyMatch("David the Redeemer", correct), false);
+  assert.equal(isFuzzyMatch("Big Ben", correct), false);
+});
+
+test("short proper-noun word matching still works for genuinely short correct answers", () => {
+  assert.equal(isFuzzyMatch("Beatles", "The Beatles"), true);
+  assert.equal(isFuzzyMatch("Bowie", "David Bowie"), true);
 });
 
 test("A1: sequence comparison uses semantic order after options are randomised", () => {

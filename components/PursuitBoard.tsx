@@ -56,7 +56,9 @@ function cssVars(vars: Record<string, string>): CSSProperties {
 
 export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questionText, questionCategory, correctAnswer, style: styleOverride, hideHeader = false }: Props) {
   const boardRef = useRef<HTMLDivElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const [boardWidth, setBoardWidth] = useState(1300);
+  const [gridHeight, setGridHeight] = useState<number | null>(null);
 
   // displayRace drives runner/block movement; heightRace drives compaction. They
   // are committed at different beats so lanes never move and reflow at once.
@@ -67,13 +69,48 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
   const timersRef = useRef<number[]>([]);
 
   const baseLayout = useMemo(() => computePursuitLayout(teamNames.length), [teamNames.length]);
-  const layout = useMemo(() => scalePursuitLayout(baseLayout, boardWidth), [baseLayout, boardWidth]);
+  const widthScaledLayout = useMemo(() => scalePursuitLayout(baseLayout, boardWidth), [baseLayout, boardWidth]);
 
-  // measure board width so every tier token scales to the real stage
+  // Bug: the host console embeds this same board in a small fixed-height card
+  // (.qi-pursuit-host-board, capped around 280px, overflow:hidden). Lane size
+  // only ever scaled off the board's WIDTH, never its available HEIGHT - so
+  // with 4 teams in that short box, the width-derived lane height (tuned for
+  // the Display's full-viewport hero) needed more vertical room than the box
+  // had, and the bottom lane(s) were silently clipped by overflow:hidden even
+  // though all 4 teams were correctly in the data (confirmed live: sidebar
+  // showed all 4 teams' scores, but this board showed only 2 lanes). Measure
+  // the actual rendered height available for the lane grid and, if the
+  // width-scaled lanes would need more room than that, shrink every token by
+  // the same extra ratio so the true team count always fits and is visible.
+  const twoColForShrink = widthScaledLayout.columns === 2;
+  const rowsForShrink = twoColForShrink ? Math.ceil(teamNames.length / 2) : teamNames.length;
+  const neededHeight = rowsForShrink * widthScaledLayout.laneH + Math.max(0, rowsForShrink - 1) * widthScaledLayout.gap;
+  const heightShrink = gridHeight && neededHeight > gridHeight ? Math.max(0.25, gridHeight / neededHeight) : 1;
+  const layout = useMemo(() => heightShrink === 1 ? widthScaledLayout : {
+    ...widthScaledLayout,
+    laneH: widthScaledLayout.laneH * heightShrink,
+    runner: widthScaledLayout.runner * heightShrink,
+    block: widthScaledLayout.block * heightShrink,
+    nameFs: widthScaledLayout.nameFs * heightShrink,
+    crest: widthScaledLayout.crest * heightShrink,
+    gap: widthScaledLayout.gap * heightShrink,
+  }, [widthScaledLayout, heightShrink]);
+
+  // measure board width so every tier token scales to the real stage, and the
+  // lane grid's own available height (see heightShrink above)
   useEffect(() => {
     const el = boardRef.current;
     if (!el) return;
     const update = () => setBoardWidth(el.clientWidth || 1300);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const update = () => setGridHeight(el.clientHeight || null);
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -209,7 +246,7 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
         </div>
       )}
 
-      <div className="pu-gridwrap">
+      <div className="pu-gridwrap" ref={gridRef}>
         <div className="pu-col">
           {colA.map((name) => (
             <PursuitLane key={name} teamName={name} entry={entryOf(name)} layout={layout} mirror={false} laneHeight={heightsA[name] ?? layout.laneH} />

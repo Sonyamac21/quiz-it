@@ -41,13 +41,25 @@ export function selectMatchingPixabayHit(hits: PixabayHit[], rawQuery: string, r
   const labelTerms = requiredLabel ? normalizedTerms(requiredLabel) : [];
   const requiredLabelTerms = labelTerms.filter(term => term.length >= 4);
   const minimumMatches = Math.max(1, Math.ceil(requested.size * 0.6));
+  // Bug: requiring at least one literal tag match for the requested LABEL
+  // (not just the broader search query) was a hard filter, not a
+  // preference - and Pixabay's tagging is freeform enough that a perfectly
+  // good photo of a raincoat, oxygen mask, etc. often just isn't tagged
+  // with that exact word (tagged "rain jacket", "waterproof coat", whatever
+  // the uploader typed). For a single-word label especially, that's a
+  // single point of failure that can silently zero out every candidate
+  // before the vision check ever runs, with no visible sign that's what
+  // happened - the caller just sees a generic "no suitable picture found".
+  // The broader query-term match below (minimumMatches, already 60% of the
+  // full search phrase) is the real relevance gate; label-tag matches now
+  // only influence which of the relevant hits is preferred, never exclude
+  // an otherwise-good one outright.
   const ranked = hits.map((hit, index) => {
     const tags = new Set(normalizedTerms(hit.tags || ""));
     const matches = [...requested].filter(term => tags.has(term)).length;
     const labelMatches = requiredLabelTerms.filter(term => tags.has(term)).length;
     return { hit, index, matches, labelMatches };
   }).filter(result => result.matches >= minimumMatches)
-    .filter(result => !requiredLabelTerms.length || result.labelMatches > 0)
     .sort((a, b) => b.labelMatches - a.labelMatches || b.matches - a.matches || a.index - b.index);
   if (!ranked.length) return null;
   // Pixabay's own relevance ranking (the order `hits` already arrives in)

@@ -67,11 +67,13 @@ export function PairsDisplayBoard({ pairs, progress, teamNames, complete = false
   const fastest = fastestPairsTeam(progress);
   const completed = teamNames.filter(name => pairProgressForTeam(progress, name).solved_pair_ids.length >= PAIRS_PER_ROUND).length;
   return (
-    <div style={{ height: "100%", width: "100%", boxSizing: "border-box", background: shell, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "clamp(24px,4vh,64px)", position: "relative" }}>
-      {!complete && timeLeft !== undefined && timeLeft !== null && timeLeft > 0 && (
-        <div style={{ position: "absolute", top: "clamp(16px,3vh,32px)", right: "clamp(16px,3vw,48px)", width: "clamp(56px,7vw,88px)", height: "clamp(56px,7vw,88px)", borderRadius: "50%", border: "3px solid " + (timeLeft <= 5 ? "#ef4444" : "#d94fdc"), display: "grid", placeItems: "center", fontSize: "clamp(24px,3vw,42px)", fontWeight: 800, color: timeLeft <= 5 ? "#ef4444" : "#d94fdc", background: "rgba(9,1,22,.6)" }}>{timeLeft}</div>
-      )}
-      <div style={{ color: "#d94fdc", font: "700 clamp(15px,1.3vw,24px) 'Inter'", letterSpacing: ".22em" }}>MATCH MADE ROUND</div>
+    <div style={{ height: "100%", width: "100%", boxSizing: "border-box", background: shell, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "clamp(24px,4vh,64px)" }}>
+      <div style={{ width: "min(86vw,1400px)", display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ color: "#d94fdc", font: "700 clamp(15px,1.3vw,24px) 'Inter'", letterSpacing: ".22em" }}>MATCH MADE ROUND</div>
+        {!complete && timeLeft !== undefined && timeLeft !== null && timeLeft > 0 && (
+          <div className={"qi-display-picture-timer" + (timeLeft <= 5 ? " is-urgent" : "")} style={{ marginLeft: "auto", width: "clamp(60px,6vw,100px)", fontSize: "clamp(28px,3.2vw,52px)", borderWidth: 4 }}>{timeLeft}</div>
+        )}
+      </div>
       <h1 style={{ color: "white", font: "800 clamp(36px,5vw,84px) 'Inter'", margin: ".15em 0 .5em", textAlign: "center" }}>{complete ? "The matching pairs" : timeLeft === 0 ? "Time's up!" : "Find the three pairs"}</h1>
       <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gridTemplateRows: "repeat(2,minmax(0,1fr))", gap: "clamp(12px,2vh,24px)", width: "min(86vw,1400px)" }}>
         {tiles.map(tile => <div key={tile.id} style={{ position: "relative", minHeight: 0, overflow: "hidden", borderRadius: 18, border: "2px solid #493060" }}>
@@ -123,11 +125,16 @@ export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, 
     finally { setBusy(false); attemptRef.current = false; }
   }
 
-  return <div style={{ height: "100dvh", overflow: "hidden", background: shell, boxSizing: "border-box", padding: "max(12px,env(safe-area-inset-top)) 14px max(10px,env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", alignItems: "center" }}>
+  // Bug: the persistent brand pill (app/join/join-form.tsx, fixed
+  // bottom:10/right:12) sits on top of every phase - this board's bottom
+  // padding never left it any clearance, so the last tile row and the
+  // "X/3 matched" footer text both rendered underneath it (live report:
+  // tile labels and the match count cut off by the badge).
+  return <div style={{ height: "100dvh", overflow: "hidden", background: shell, boxSizing: "border-box", padding: "max(12px,env(safe-area-inset-top)) 14px max(64px,calc(56px + env(safe-area-inset-bottom)))", display: "flex", flexDirection: "column", alignItems: "center" }}>
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
       <div style={{ color: "#ffc533", font: "700 clamp(15px,2.1vh,20px) 'Inter'", letterSpacing: ".18em" }}>MATCH MADE</div>
       {timeLeft !== undefined && timeLeft !== null && timeLeft > 0 && (
-        <div style={{ width: 30, height: 30, borderRadius: "50%", border: "2px solid " + (timeLeft <= 5 ? "#ef4444" : "#d94fdc"), display: "grid", placeItems: "center", fontSize: 14, fontWeight: 800, color: timeLeft <= 5 ? "#ef4444" : "#d94fdc" }}>{timeLeft}</div>
+        <div style={{ marginLeft: "auto", flexShrink: 0, width: 44, height: 44, borderRadius: "50%", border: "2px solid currentColor", display: "grid", placeItems: "center", fontSize: 19, fontWeight: 800, color: timeLeft <= 5 ? "#ef4444" : "#d94fdc" }}>{timeLeft}</div>
       )}
     </div>
     <div style={{ color: "#cfc2e7", font: "600 clamp(13px,1.8vh,17px) 'Inter'", margin: "3px 0 4px" }}>{done ? "All three matched!" : "Tap two pictures that go together"}</div>

@@ -59,14 +59,28 @@ export function JoinForm() {
   useEffect(() => {
     (async () => {
       try {
-        const saved = sessionStorage.getItem(STORAGE_KEY);
+        // localStorage, not sessionStorage: live incident - an older phone on
+        // mobile Safari couldn't submit Hard Deck/Match Made attempts (both
+        // require the private handset token), and the player screen showed
+        // "name-only reconnect". sessionStorage is tied to that specific
+        // browsing-context instance - iOS Safari routinely discards a
+        // backgrounded tab's process under memory pressure (far more
+        // aggressively on older/lower-RAM devices) and reloads it fresh from
+        // the network, wiping sessionStorage even though the tab itself never
+        // visibly closed. The real token was still generated at join time and
+        // never actually lost - only sessionStorage's fragile per-context
+        // scope was. localStorage survives that reload, so a returning player
+        // restores with their real token instead of falling back to the
+        // name-only path (which has no token by design, since it can't verify
+        // the person retyping a team name is actually that team).
+        const saved = localStorage.getItem(STORAGE_KEY);
         if (!saved) { setRestoring(false); return; }
         const parsed = JSON.parse(saved);
         if (!parsed?.teamName || !parsed?.sessionPin) { setRestoring(false); return; }
         const MAX_SESSION_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours - a quiz night is a bounded event
         const isStale = !parsed.savedAt || (Date.now() - parsed.savedAt) > MAX_SESSION_AGE_MS;
         if (isStale) {
-          sessionStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(STORAGE_KEY);
           setRestoring(false);
           return;
         }
@@ -81,7 +95,7 @@ export function JoinForm() {
           setPlayerToken(parsed.playerToken || "");
           setDone(true);
         } else {
-          sessionStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(STORAGE_KEY);
         }
       } catch {
       } finally {
@@ -139,7 +153,7 @@ export function JoinForm() {
       // A name-only reconnect deliberately does not inherit the private handset
       // token. It can answer as before, but cannot perform score-changing RPCs.
       setPlayerToken("");
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: match.team_name, sessionPin: pin, savedAt: Date.now() }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: match.team_name, sessionPin: pin, savedAt: Date.now() }));
       setDone(true);
     } catch {
       setReconnectError("Something went wrong. Please try again.");
@@ -248,7 +262,7 @@ export function JoinForm() {
       }
       setSessionPin(pin);
       setPlayerToken(handsetToken);
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin, playerToken: handsetToken, savedAt: Date.now() }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin, playerToken: handsetToken, savedAt: Date.now() }));
       setDone(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Something went wrong. Please try again.");
@@ -264,7 +278,7 @@ export function JoinForm() {
       return (
         <div className="qi-player-live-root">
           {/* Trim here to match how team_name is written everywhere else
-              (join insert, sessionStorage restore) - an untrimmed name here
+              (join insert, localStorage restore) - an untrimmed name here
               caused answers to be written under a slightly different string
               than the team's DB row, so the host's per-team "waiting..."
               status silently never matched even though the aggregate

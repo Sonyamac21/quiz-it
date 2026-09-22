@@ -29,6 +29,14 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Without this, iOS Safari's env(safe-area-inset-*) variables report as 0
+  // even on notched/home-indicator devices, since the page is telling the
+  // browser it doesn't want to draw under those areas in the first place -
+  // several screens (e.g. PairsPlayerBoard's bottom padding) rely on that
+  // inset actually being non-zero to keep content clear of the home
+  // indicator and, on a plain (not "Add to Home Screen") tab, Safari's own
+  // browser chrome.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

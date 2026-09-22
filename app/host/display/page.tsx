@@ -633,6 +633,16 @@ function DisplayScreenInner() {
   const [pairsContent, setPairsContent] = useState<PairRecord[]>([]);
   const [pairsProgress, setPairsProgress] = useState<PairsProgress>({});
   const [pairsStatus, setPairsStatus] = useState("idle");
+  // Bug: if the host reveals Match Made results early (spacebar, before the
+  // countdown reaches 0), nothing ever stopped the still-playing
+  // countdown-urgent.mp3 - Pursuit has this exact cleanup (its own
+  // pursuitStatus effect above stops the "timer" channel the moment the
+  // gate leaves "question") but Pairs never got the equivalent, so the
+  // ticking-clock track kept quietly running into the results reveal and
+  // beyond until it finished on its own ~25s in.
+  useEffect(() => {
+    if (phase === "pairs" && pairsStatus !== "live") stopShowAudio("timer");
+  }, [phase, pairsStatus]);
   const prevPursuitStatusRef = useRef<string>("idle");
   const prevPursuitRaceRef = useRef<PursuitRace>({});
   const pursuitUrgentPlayedRef = useRef<number>(-1);

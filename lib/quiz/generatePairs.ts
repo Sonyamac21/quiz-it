@@ -79,8 +79,15 @@ async function sourceImage(query: string, label: string): Promise<string> {
     // the app are unaffected and keep the pricier default.
     const verdict = await checkPictureIdentity({ question_text: `Identify the ${label} in this picture.`, question_type: "picture", option_a: label, option_b: null, option_c: null, option_d: null, option_e: null, option_f: null, correct_answer: label, explanation: "", difficulty: "mixed", round_type: "pairs" }, source, VALIDATION_MODEL);
     if (!verdict.ok) { reason = verdict.note; continue; }
+    // Bug: persistPixabayImage's own design (see its file comment) is to
+    // fall back to the original Pixabay URL when the re-host step fails,
+    // on the reasoning that a hotlinked image today beats no question at
+    // all. Throwing here on `!saved.persisted` overrode that and discarded
+    // an image that had ALREADY passed the vision identity check - a real
+    // network hiccup on the re-host step (not the picture itself) burned an
+    // entire verified-good candidate and one more expensive retry for no
+    // reason. Accept saved.url either way; it is always a usable image.
     const saved = await persistPixabayImage(source);
-    if (!saved.persisted) throw new Error(`Could not save the verified ${label} picture. Please retry.`);
     return saved.url;
   }
   throw new Error(reason);
@@ -89,7 +96,7 @@ async function sourceImage(query: string, label: string): Promise<string> {
 export async function generatePairs(count: number, theme: string, exclusions: ExclusionState): Promise<PairRecord[]> {
   const avoid = [...exclusions.used.slice(-120), ...exclusions.usedAnswers.slice(-120)].join(" | ").slice(0, 7000);
   const prompt = `Create ${count} distinct odd-couple picture pairs for a commercial pub quiz Pairs round.${theme.trim() ? ` Theme: ${theme.trim()}.` : " Use broad, internationally accessible general knowledge."}
-Each pair contains two DIFFERENT concrete things that naturally go together conceptually (examples of the relationship only: lock + key, needle + thread). Do not copy those examples. Do not create visually identical objects, two people, brands, logos, flags, copyrighted characters, wordplay, region-specific slang, abstract ideas, or a pair whose relationship is debatable. Each item must be easy to represent with an ordinary stock photograph and instantly distinguishable on a phone. Avoid items with several visually different real-world versions where a generic stock photo search returns inconsistent results - e.g. medical/safety equipment (oxygen mask, inhaler, gas mask), generic tools, or anything more commonly shown as a diagram/illustration than a real photograph. Favour single, visually consistent everyday objects instead (teapot, umbrella, guitar, bicycle). Use a different relationship and subject area for every pair. Avoid overused facts or content already seen here: ${avoid || "none supplied"}.
+Each pair contains two DIFFERENT concrete things that naturally go together conceptually (examples of the relationship only: lock + key, needle + thread). Do not copy those examples. Do not create visually identical objects, two people, brands, logos, flags, copyrighted characters, wordplay, region-specific slang, abstract ideas, or a pair whose relationship is debatable. Each item must be a complete, whole physical object, clearly recognisable in one ordinary full-object stock photograph and instantly distinguishable on a phone - never something identifiable only via an extreme close-up, texture or pattern (fingerprint, retina, DNA strand, snowflake). Avoid items with several visually different real-world versions where a generic stock photo search returns inconsistent results - e.g. medical/safety equipment (oxygen mask, inhaler, gas mask), generic tools, or anything more commonly shown as a diagram/illustration than a real photograph. Favour single, visually consistent everyday objects instead (teapot, umbrella, guitar, bicycle). Use a different relationship and subject area for every pair. Avoid overused facts or content already seen here: ${avoid || "none supplied"}.
 Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label":"short visible label","image_query":"precise English stock-photo search"},"b":{"label":"short visible label","image_query":"precise English stock-photo search"}}. No markdown or explanation.`;
   const records: PairRecord[] = [];
   const seen = new Set<string>();

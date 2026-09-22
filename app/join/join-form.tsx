@@ -15,6 +15,23 @@ const STORAGE_KEY = "quizit_player_session";
 // played/stored on the team row; `title` is what the player sees.
 type VictorySong = { id: string; title: string; file_ref: string };
 
+// Live bug: an iPad's join attempt (with AND without a photo, ruling out the
+// image pipeline) showed the bare generic fallback below instead of any real
+// error text. `error instanceof Error` misses this whenever the thrown value
+// isn't a true instance of the SAME Error constructor this bundle holds a
+// reference to - which a Supabase client error, or an error thrown from a
+// different bundled chunk/realm, is not guaranteed to be, even when it has a
+// perfectly good `.message`. Duck-typing on the property itself works
+// regardless of prototype chain, and is what actually reveals what's failing
+// for this device next time instead of masking it as "something went wrong."
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof (error as { message: unknown }).message === "string" && (error as { message: string }).message) {
+    return (error as { message: string }).message;
+  }
+  return fallback;
+}
+
 async function createPlayerToken(): Promise<{ token: string; tokenHash: string }> {
   const response = await fetch("/api/player-token", { method: "POST", cache: "no-store" });
   if (!response.ok) throw new Error("Could not secure this handset. Please try again.");
@@ -155,8 +172,9 @@ export function JoinForm() {
       setPlayerToken("");
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: match.team_name, sessionPin: pin, savedAt: Date.now() }));
       setDone(true);
-    } catch {
-      setReconnectError("Something went wrong. Please try again.");
+    } catch (error) {
+      console.error("RECONNECT FAILED:", error);
+      setReconnectError(errorMessage(error, "Something went wrong. Please try again."));
     } finally {
       setReconnectLoading(false);
     }
@@ -273,7 +291,11 @@ export function JoinForm() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin, playerToken: handsetToken, savedAt: Date.now() }));
       setDone(true);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Something went wrong. Please try again.");
+      // eslint-disable-next-line no-console -- deliberate: this is currently
+      // the only way to see what's actually failing for a device we can't
+      // remote-debug live, at a venue, mid-event.
+      console.error("JOIN FAILED:", error);
+      setError(errorMessage(error, "Something went wrong. Please try again."));
     } finally {
       setLoading(false);
     }

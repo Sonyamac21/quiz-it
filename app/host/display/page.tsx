@@ -1537,7 +1537,7 @@ function DisplayScreenInner() {
   if (!displayLeaderboard && phase === "pairs") {
     return (
       <div className="fbl fbl-stage qi-display-stage" style={{ height: "100vh", overflow: "hidden" }}>
-        <PairsDisplayBoard pairs={pairsContent} progress={pairsProgress} teamNames={teams.map(team => team.team_name)} complete={pairsStatus === "complete"} />
+        <PairsDisplayBoard pairs={pairsContent} progress={pairsProgress} teamNames={teams.map(team => team.team_name)} complete={pairsStatus === "complete"} timeLeft={timeLeft} />
         <QuizItBadge />
       </div>
     );

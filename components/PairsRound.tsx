@@ -29,6 +29,12 @@ const shell = "radial-gradient(ellipse 70% 55% at 50% 20%,rgba(190,38,193,.16),t
 // handset all derive the same countdown from one shared pair of columns.
 export const PAIRS_TIMER_SECONDS = 30;
 
+// Kept in sync with supabase/migrations/202609220001_pairs_two_points_per_match.sql
+// (the actual award happens server-side in submit_pairs_attempt) - this constant
+// only drives the point totals shown in the UI, so they never drift from what's
+// really being awarded.
+export const PAIRS_POINTS_PER_MATCH = 2;
+
 // Every tile image previously had no onError handler at all - a dead or
 // CORS-blocked image URL (Pixabay hotlinks going stale, a re-host failure,
 // a flaky mobile connection dropping the request) just left a blank/broken
@@ -141,7 +147,7 @@ export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, 
     {effectiveReason && <div role="alert" style={{ color: "#ffc533", fontSize: 16, textAlign: "center", marginBottom: 8 }}>{effectiveReason}</div>}
     {points !== undefined && <div style={{ color: "#d94fdc", font: "800 15px 'Inter'", marginBottom: 5 }}>Team total: {points} pts</div>}
     <div style={{ display: "flex", gap: 7, marginBottom: 9 }} aria-label={`${mine.mistakes} mistakes`}>
-      <span style={{ color: "#cfc2e7", fontSize: 15 }}>{mine.mistakes} mistakes · +{solved.size} points this question</span>
+      <span style={{ color: "#cfc2e7", fontSize: 15 }}>{mine.mistakes} mistakes · +{solved.size * PAIRS_POINTS_PER_MATCH} points this question</span>
     </div>
     <div style={{ flex: 1, minHeight: 0, width: "min(100%,430px)", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "repeat(3,minmax(0,1fr))", gap: "clamp(8px,1.4vh,13px)" }}>
       {tiles.map(tile => {
@@ -308,7 +314,7 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
     <button className="qi-mc-next" onClick={() => onNext()} style={{ flexShrink: 0 }}><small className="qi-mc-next__eyebrow">NEXT ACTION · Q{questionIndex + 1}</small><strong className="qi-mc-next__label">{status === "live" ? "Reveal Match Made results" : questionIndex + 1 < questionCount ? "Next Match Made question" : "Finish round and show scores"}</strong><span className="qi-mc-next__key" style={{ marginLeft: "auto" }}>Space ↵</span></button>
     {error && <div role="alert" style={{ padding: 10, textAlign: "center", color: "#ff7d87" }}>{error}</div>}
     <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: rows.length > 20 ? "minmax(0,1fr) minmax(0,2fr)" : "minmax(0,1.4fr) minmax(0,1fr)", gap: 16, padding: 16 }}>
-      <main style={{ minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}><h2 style={{ fontSize: 22, color: "#d94fdc", margin: "0 0 8px" }}>MATCH MADE · {status === "complete" ? "RESULTS" : "LIVE"}</h2><p style={{ margin: "0 0 12px", color: "#cfc2e7" }}>Answer key · 1 point per pair · 3 points available</p><div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: rows.length > 20 ? "1fr" : "repeat(3,minmax(0,1fr))", gridTemplateRows: rows.length > 20 ? "repeat(3,minmax(0,1fr))" : "minmax(0,1fr)", gap: 12 }}>{pairs.map(pair => <div key={pair.pair_id} style={{ minHeight: 0, border: "1px solid #493060", borderRadius: 18, overflow: "hidden", display: "grid", gridTemplateColumns: rows.length > 20 ? "1fr 1fr" : "1fr", gridTemplateRows: rows.length > 20 ? "minmax(0,1fr)" : "1fr 1fr" }}>{[pair.a, pair.b].map(item => <div key={item.label} style={{ position: "relative", minHeight: 0 }}><TileImage src={getMediaUrl(item.image_url)} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} /><strong style={{ position: "absolute", inset: "auto 0 0", padding: "18px 8px 8px", background: "linear-gradient(transparent,rgba(0,0,0,.95))", textAlign: "center", fontSize: 16 }}>{item.label}</strong></div>)}</div>)}</div></main>
+      <main style={{ minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}><h2 style={{ fontSize: 22, color: "#d94fdc", margin: "0 0 8px" }}>MATCH MADE · {status === "complete" ? "RESULTS" : "LIVE"}</h2><p style={{ margin: "0 0 12px", color: "#cfc2e7" }}>Answer key · {PAIRS_POINTS_PER_MATCH} points per pair · {PAIRS_POINTS_PER_MATCH * PAIRS_PER_ROUND} points available</p><div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: rows.length > 20 ? "1fr" : "repeat(3,minmax(0,1fr))", gridTemplateRows: rows.length > 20 ? "repeat(3,minmax(0,1fr))" : "minmax(0,1fr)", gap: 12 }}>{pairs.map(pair => <div key={pair.pair_id} style={{ minHeight: 0, border: "1px solid #493060", borderRadius: 18, overflow: "hidden", display: "grid", gridTemplateColumns: rows.length > 20 ? "1fr 1fr" : "1fr", gridTemplateRows: rows.length > 20 ? "minmax(0,1fr)" : "1fr 1fr" }}>{[pair.a, pair.b].map(item => <div key={item.label} style={{ position: "relative", minHeight: 0 }}><TileImage src={getMediaUrl(item.image_url)} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} /><strong style={{ position: "absolute", inset: "auto 0 0", padding: "18px 8px 8px", background: "linear-gradient(transparent,rgba(0,0,0,.95))", textAlign: "center", fontSize: 16 }}>{item.label}</strong></div>)}</div>)}</div></main>
       <aside style={{ minHeight: 0, display: "flex", flexDirection: "column" }}>
         <h2 style={{ margin: "0 0 6px", fontSize: 20 }}>Teams & scores</h2>
         <div style={{ color: "#cfc2e7", marginBottom: 10 }}>{rows.filter(r => r.solved_pair_ids.length === 3).length}/{rows.length} complete · Power cards disabled</div>
@@ -316,7 +322,7 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
         <div style={{ flex: 1, display: "grid", gridTemplateColumns: `repeat(${rows.length > 32 ? 4 : rows.length > 20 ? 3 : rows.length > 10 ? 2 : 1},minmax(0,1fr))`, gridAutoRows: "minmax(0,1fr)", gap: rows.length > 32 ? 3 : 6, minHeight: 0 }}>
           {rows.map(row => { const score = scoreboard.find(item => item.team_name.trim().toLowerCase() === row.name.trim().toLowerCase()); return <div key={row.name} style={{ minWidth: 0, minHeight: 0, border: "1px solid #493060", borderRadius: 9, padding: rows.length > 32 ? "1px 6px" : "4px 7px", lineHeight: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
             <div style={{ display: "flex", gap: 5, alignItems: "center" }}><strong title={row.name} style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: rows.length <= 10 ? 22 : 14 }}>{row.name}</strong><b style={{ color: "#d94fdc", fontSize: rows.length <= 10 ? 32 : 18 }}>{score?.total_points ?? "—"}</b></div>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 4, fontSize: rows.length <= 10 ? 18 : 12 }}><span>{row.solved_pair_ids.length}/3 · {row.mistakes} misses</span><strong style={{ color: "#2ee06e" }}>+{row.solved_pair_ids.length} pts</strong></div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 4, fontSize: rows.length <= 10 ? 18 : 12 }}><span>{row.solved_pair_ids.length}/3 · {row.mistakes} misses</span><strong style={{ color: "#2ee06e" }}>+{row.solved_pair_ids.length * PAIRS_POINTS_PER_MATCH} pts</strong></div>
           </div>; })}
         </div>
       </aside>

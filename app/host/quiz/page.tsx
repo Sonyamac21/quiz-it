@@ -68,7 +68,10 @@ type Answer = { session_pin: string; id: string; team_name: string; round_number
 type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
 type Score = { team_name: string; total_points: number; round_points: number; correct_count: number; fastest_count: number; };
 
-const typeColor: Record<string,string> = { multiple_choice:"#D94FDC", multi_tap:"#D94FDC", text_answer:"#D94FDC", number:"#D94FDC", sequence:"#D94FDC", picture:"#D94FDC", audio:"#D94FDC", nearest_wins:"#D94FDC" };
+// Distinct per-type colors so the host can tell question types apart at a
+// glance in the live answers/question list - these used to all be the same
+// brand pink, making every type badge visually identical.
+const typeColor: Record<string,string> = { multiple_choice:"#D94FDC", multi_tap:"#38A8FF", text_answer:"#22c55e", number:"#FFC533", sequence:"#a78bfa", picture:"#fb923c", audio:"#2dd4bf", nearest_wins:"#FF3B4E" };
 const typeLabel: Record<string,string> = { multiple_choice:"Multiple Choice", multi_tap:"Multi Tap", text_answer:"Text Answer", number:"Number", sequence:"Sequence", picture:"Picture Round", audio:"Name That Tune", nearest_wins:"Nearest Wins" };
 const cardColor: Record<string,string> = { block:"#38A8FF", reverse:"#FF3B4E", x2:"#FFC533" };
 const cardLabel: Record<string,string> = { block:"Time-Out", reverse:"Reverse", x2:"Boost" };
@@ -157,7 +160,10 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
   };
 }
 
-const ROUND_TYPE_LABEL: Record<string,string> = { regular: "General Knowledge", multi_tap: "Multi Tap", music: "Music Round", hot_seat: "Hot Seat", pursuit: "The Pursuit", bonus: "Bonus Round", hard_deck: "The Hard Deck", nearest_wins: "Nearest Wins", pairs: "Match Made" };
+// Labels match the Quiz Plan builder's own ROUND_TYPE_LABELS (app/host/quizzes/page.tsx)
+// so a round the host named/typed as "Regular" doesn't get relabelled "General
+// Knowledge" once it's live - same round, same name, everywhere the host sees it.
+const ROUND_TYPE_LABEL: Record<string,string> = { regular: "Regular", multi_tap: "Multi Tap", music: "Music Round", hot_seat: "Hot Seat", pursuit: "The Pursuit", bonus: "Bonus Round", hard_deck: "The Hard Deck", nearest_wins: "Nearest Wins", pairs: "Match Made" };
 
 
 
@@ -2394,7 +2400,7 @@ function QuizControllerInner() {
                 const key = (rt === "multi_tap" || rt === "music" || rt === "nearest_wins" || rt === "pairs") ? rt : "regular";
                 return (
                   <div style={{ marginBottom:20 }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>{(ROUND_TYPE_LABEL[key]||"GENERAL KNOWLEDGE").toUpperCase()} — CURRENT ROUND</div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#D94FDC", letterSpacing:2, marginBottom:8 }}>{(ROUND_TYPE_LABEL[key]||"Regular").toUpperCase()} — CURRENT ROUND</div>
                     <ul style={{ margin:0, paddingLeft:20, fontSize:14, lineHeight:1.6 }}>
                       {rules[key as keyof typeof rules].map((r,i) => <li key={i}>{r}</li>)}
                     </ul>
@@ -2540,7 +2546,7 @@ function QuizControllerInner() {
             <div className="qi-mc-round-start">
               <div className="qi-mc-round-start__eyebrow">ROUND {roundNumber} · HOST BRIEFING</div>
               <FitBlockText as="h1" className="qi-mc-round-start__title" maxViewportHeight={0.12} minFontSize={22}>{selectedRound.name}</FitBlockText>
-              <div className="qi-mc-round-start__meta">{selectedRound.questions.length} questions · {(selectedRound.round_type && ROUND_TYPE_LABEL[selectedRound.round_type]) || selectedRound.round_type || "General Knowledge"}</div>
+              <div className="qi-mc-round-start__meta">{selectedRound.questions.length} questions · {(selectedRound.round_type && ROUND_TYPE_LABEL[selectedRound.round_type]) || selectedRound.round_type || "Regular"}</div>
               <div className="qi-mc-round-start__rules" aria-label={`${selectedRound.name} rules`}>
                 <strong>RULES TO ANNOUNCE</strong>
                 <ol>

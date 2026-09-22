@@ -415,7 +415,7 @@ function DisplayWakeControl() {
 // so players learn what each card does before they need to use one mid-game.
 // Colors match the host dashboard's cardColor map exactly for consistency.
 const POWER_CARDS = [
-  { type: "block", emoji: "\u23F8\uFE0F", title: "Time-Out", color: "#3b82f6", desc: "Freezes every OTHER team from answering for a short window, so you get a free run at the question with no competition." },
+  { type: "block", emoji: "\u23F8\uFE0F", title: "Time-Out", color: "#3b82f6", desc: "Freezes every OTHER team from answering for 10 seconds once the host starts the timer, so you get a free run at the question with no competition." },
   { type: "x2", emoji: "\u26A1", title: "Boost", color: "#eab308", desc: "Doubles your team's points for every correct answer in the current round." },
   { type: "reverse", emoji: "\u21BB", title: "Reverse", color: "#ef4444", desc: "Reverses the digits of your team's score." },
 ];
@@ -1790,7 +1790,7 @@ function DisplayScreenInner() {
         <>
           <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
           {phase === "round_start" ? (
-            <RoundStart roundNumber={roundNumber} roundName={roundName || "GENERAL KNOWLEDGE"} />
+            <RoundStart roundNumber={roundNumber} roundName={roundName || "REGULAR ROUND"} />
           ) : (
             <RoundEnd roundNumber={roundNumber} captions={fastestTeam ? [`FASTEST: ${fastestTeam}`] : []} />
           )}
@@ -2151,7 +2151,7 @@ function DisplayScreenInner() {
         {/* HEADER */}
         <div className="qi-display-answer-header">
           <div className="qi-display-answer-meta">
-            <span>{roundName || "GENERAL KNOWLEDGE"}</span>
+            <span>{roundName || "REGULAR ROUND"}</span>
             <strong>ANSWER REVEALED</strong>
           </div>
           <span className="qi-display-question-number">QUESTION {questionIndex + 1}</span>
@@ -2168,7 +2168,7 @@ function DisplayScreenInner() {
                 return (
                   <div key={opt.key} className={"qi-display-answer-option" + (isCorrect ? " is-correct" : " is-dimmed")} style={{ "--qi-option-delay": `${0.08 + idx * 0.05}s` } as CSSProperties}>
                     <span className="qi-display-answer-key">{opt.key}</span>
-                    <span className="qi-display-answer-text">{opt.text}</span>
+                    <FitBlockText className="qi-display-answer-text" maxViewportHeight={0.12} minFontSize={20}>{opt.text || ""}</FitBlockText>
                     {isCorrect && <span className="qi-display-answer-check" aria-label="Correct">✓</span>}
                   </div>
                 );
@@ -2178,7 +2178,7 @@ function DisplayScreenInner() {
             <div className="qi-display-answer-hero-wrap">
               <div className="qi-display-answer-hero">
                 <div className="qi-display-answer-hero-label">CORRECT ANSWER</div>
-                <FitBlockText className="qi-display-answer-hero-text" maxViewportHeight={0.3} minFontSize={28}>{correctText}</FitBlockText>
+                <FitBlockText className="qi-display-answer-hero-text" maxViewportHeight={0.24} minFontSize={28}>{correctText}</FitBlockText>
               </div>
             </div>
           )}
@@ -2302,7 +2302,7 @@ function DisplayScreenInner() {
           : "none" }} />
         <div className={"qd" + (isCompact ? " qd--compact" : "")}>
           <div className="qd-top">
-            <span><span className="qd-kick">QUESTION {questionIndex + 1}</span> · {(roundName || "GENERAL KNOWLEDGE").toUpperCase()}</span>
+            <span><span className="qd-kick">QUESTION {questionIndex + 1}</span> · {(roundName || "REGULAR ROUND").toUpperCase()}</span>
             {tLeft > 0 && <div className={"qi-display-picture-timer" + (tLeft <= 5 ? " is-urgent" : "")}>{tLeft}</div>}
           </div>
           <FitQuestionText className="qd-q" text={question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")} />

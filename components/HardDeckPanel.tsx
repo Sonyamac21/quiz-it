@@ -176,19 +176,20 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
     pushState({ hard_deck_status: "wheel", hard_deck_team: null, hard_deck_cards: [], hard_deck_guess: null, hard_deck_potential: 0, hard_deck_has_swapped: false, hard_deck_wheel_target: targetIdx, hard_deck_wheel_spinning: false, hard_deck_steal_guesses: {}, hard_deck_steal_winners: [], hard_deck_steal_points: 0, hard_deck_play_id: nextPlayId, phase: "hard_deck" });
   }
 
+  // Previously this only picked the team and left the base card face-down
+  // behind an extra "Reveal Base Card" Next-Action screen, costing the host
+  // a second spacebar press for no real pacing benefit (host asked for this
+  // to be one press, not two). The base card now flips as part of the same
+  // wheel-result step, going straight to the Keep/Swap choice.
   function onWheelResult(seg: { label: string }) {
-    setTeam(seg.label);
-    setShowWheel(false);
-    pushState({ hard_deck_team: seg.label });
-  }
-
-  function revealBaseCard() {
     const newDeck = [...deck];
     const card = newDeck.pop()!;
+    setTeam(seg.label);
+    setShowWheel(false);
     setDeck(newDeck);
     setCards([card]);
     setStatus("base_revealed");
-    pushState({ hard_deck_cards: [card], hard_deck_status: "base_revealed" });
+    pushState({ hard_deck_team: seg.label, hard_deck_cards: [card], hard_deck_status: "base_revealed" });
   }
 
   function keepBase() {
@@ -312,21 +313,18 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
     onRoundComplete?.();
   }
 
-  const showRevealBaseButton = !showWheel && team && cards.length === 0;
-
   // Single "next action" the host takes to advance the hand - surfaced in
   // the same fixed Next-Action bar every other round type (and Pursuit's own
   // host console) uses, instead of a button buried in the middle of a
   // centered column. Two-choice moments (Keep/Swap, the player's own
   // Stick/Gamble) stay as in-desk buttons since there's no single "next"
   // step to name; everything else that's genuinely one action gets promoted
-  // here so the host's eye goes to the same place it always does.
-  const nextLabel = showRevealBaseButton ? "Reveal Base Card"
-    : status === "awaiting_guess" ? "Reveal Next Card"
+  // here so the host's eye goes to the same place it always does. The base
+  // card itself is no longer a separate Next-Action step - see onWheelResult.
+  const nextLabel = status === "awaiting_guess" ? "Reveal Next Card"
     : (status === "won" || status === "lost") ? "Spin Again"
     : null;
-  const nextHandler = showRevealBaseButton ? revealBaseCard
-    : status === "awaiting_guess" ? revealNextCard
+  const nextHandler = status === "awaiting_guess" ? revealNextCard
     : (status === "won" || status === "lost") ? startHardDeck
     : undefined;
   const nextDisabled = status === "awaiting_guess" && !guess;
@@ -418,18 +416,7 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
                   safety net for an unusually long one. */}
               <div className="qi-host-harddeck-cards" style={{ padding: "20px 24px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)", maxWidth: "92vw", maxHeight: "min(50vh, 400px)", overflow: "auto" }}>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", maxWidth: "min(88vw, 900px)" }}>
-                  {cards.length === 0 ? (
-                    // Waiting on the host to reveal the base card - previously
-                    // this whole panel was just an empty bordered box until
-                    // the first card appeared, reading as broken ("no base
-                    // card at all"). A face-down placeholder fills the same
-                    // slot the real card will occupy so the panel never looks
-                    // empty while the host reads out the "Reveal Base Card"
-                    // Next-Action prompt above.
-                    <div style={{ width: "clamp(82px,8vw,120px)", height: "clamp(118px,11.5vw,172px)", borderRadius: 14, background: "linear-gradient(160deg, #3a1740 0%, #1c0a20 100%)", border: "1px solid rgba(190,38,193,0.4)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -6px 10px rgba(0,0,0,0.3), 0 6px 16px rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <span style={{ fontSize: "clamp(22px,2.4vw,32px)", color: "rgba(190,38,193,0.6)", fontFamily: "'Bruno Ace SC', sans-serif" }}>?</span>
-                    </div>
-                  ) : cards.map((c, i) => (
+                  {cards.map((c, i) => (
                     <div key={i} style={{ width: "clamp(82px,8vw,120px)", height: "clamp(118px,11.5vw,172px)", borderRadius: 14, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: "clamp(28px,3vw,44px)", fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
                       <div>{rankLabel(c.rank)}</div>
                       <div style={{ fontSize: 28 }}>{c.suit}</div>

@@ -2,11 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // Without this, Vercel can kill the function before the Claude API call
-// finishes (default timeout is short), which terminates the process mid-flight
-// with NO chance to return a response - that's what an empty 500 with no body
-// looks like from the browser, and no try/catch inside the function can catch
-// a platform-level kill. 30s gives the Anthropic call plenty of room.
-export const maxDuration = 30;
+// finishes, which terminates the process mid-flight with NO chance to
+// return a response - that's what a "Failed to fetch" with no body looks
+// like from the browser, and no try/catch inside the function can catch a
+// platform-level kill. Confirmed live: "Generate All" (several rounds'
+// pipelines running concurrently, each with its own combined-validation
+// Sonnet call) pushed real requests past the previous 30s ceiling under
+// that contention - the request still reaches and is billed by Anthropic,
+// but the function is killed before the response can be returned, so the
+// host pays for a generation attempt that then reports total failure.
+// Raised to 55s, just under this Vercel plan's 60s Hobby-tier ceiling for
+// serverless functions (confirmed against current Vercel limits, not the
+// older 10s figure), to give slow/contended calls the room they actually
+// need instead of guessing lower.
+export const maxDuration = 55;
 
 // --- very simple in-memory rate limiter ---
 // Resets on cold start and is per-instance only — a basic speed bump on

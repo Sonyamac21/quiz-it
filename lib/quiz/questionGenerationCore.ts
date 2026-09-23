@@ -487,20 +487,24 @@ export const FACT_CHECK_MODEL = "claude-sonnet-5";
 // quality gates remain responsible for rejecting any weaker candidate.
 export const GENERATION_MODEL = VALIDATION_MODEL;
 
-// The server route already caps itself at 30s (maxDuration) so Vercel can't
-// silently kill the function with no response, but nothing on the CLIENT
-// side ever gave up on a request that hangs somewhere between here and
-// there (a stalled connection, a proxy that swallows the close signal,
-// etc). Without this, one stuck fetch holds its AI concurrency slot
+// The server route now caps itself at 55s (maxDuration, see route.ts) so
+// Vercel can't silently kill the function with no response, but nothing on
+// the CLIENT side ever gave up on a request that hangs somewhere between
+// here and there (a stalled connection, a proxy that swallows the close
+// signal, etc). Without this, one stuck fetch holds its AI concurrency slot
 // (MAX_AI_CONCURRENCY above) forever, and everything queued behind it -
 // every other round, every other question - waits with it indefinitely.
 // Observed directly as "Checking question 4 of 5..." sitting frozen for
-// 5+ minutes with no error and no progress. 35s gives the server's own 30s
-// ceiling a little headroom before the client gives up on it too.
+// 5+ minutes with no error and no progress. 60s gives the server's own 55s
+// ceiling a little headroom before the client gives up on it too - kept in
+// step with route.ts's maxDuration when that was raised (confirmed live:
+// concurrent "Generate All" load was pushing real requests past the old
+// 30s/35s pair, which billed the Anthropic call but killed the function
+// before the client ever saw a response).
 // (page.tsx's own callAPI never had this timeout - moving it here adds this
 // protection to the standalone Generate Questions page too, intentionally
 // and safely, since it can only ever cause a stuck request to fail faster.)
-export const CLIENT_REQUEST_TIMEOUT_MS = 35_000;
+export const CLIENT_REQUEST_TIMEOUT_MS = 60_000;
 
 // Same protection as callAPI's own AbortController above, but factored out
 // for the two plain `fetch` calls in the Match Made image pipeline
@@ -534,7 +538,7 @@ export async function callAPI(prompt: string, maxTokens: number = 8000, structur
       body: JSON.stringify({ prompt, maxTokens, structuredOutput, webSearch, model, combinedValidation, imageUrl }),
       signal: controller.signal,
     }).catch(e => {
-      if (e instanceof Error && e.name === "AbortError") throw new Error("Request to Anthropic timed out after 35s (no response) - retrying.");
+      if (e instanceof Error && e.name === "AbortError") throw new Error("Request to Anthropic timed out after 60s (no response) - retrying.");
       throw e;
     }).finally(() => clearTimeout(timer));
   });

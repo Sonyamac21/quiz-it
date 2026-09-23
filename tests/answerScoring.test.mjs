@@ -191,10 +191,18 @@ test("A4: Nearest Wins breaks equal-distance ties by submission time", () => {
   assert.deepEqual(ranked.map(entry => entry.teamName), ["Earlier", "Later"]);
 });
 
-test("Nearest Wins awards points only to the closest ranked team", () => {
+test("Nearest Wins awards points only to team(s) tied at the closest distance, split evenly on a tie", () => {
+  // Host-reported bug: two teams guessed the identical closest number and
+  // only whoever submitted first got the points, the other got 0 - "in
+  // this instance each team should share the points". A real tie on
+  // distance should split the round's points, not go entirely to the
+  // faster typist.
   const host = readFileSync(new URL("../app/host/quiz/page.tsx", import.meta.url), "utf8");
-  assert.match(host, /const nwDelta = rank === 0 \? pointsPerQ/);
-  assert.doesNotMatch(host, /nwPointShares/);
+  assert.match(host, /const nwWinningDistance = nwEntries\[0\]\?\.distance/);
+  assert.match(host, /const nwWinners = nwWinningDistance === undefined \? \[\] : nwEntries\.filter\(e => e\.distance === nwWinningDistance\)/);
+  assert.match(host, /const nwDelta = Math\.round\(\(pointsPerQ \/ nwWinners\.length\)/);
+  // The old submission-time-decides-the-tie behaviour must be gone.
+  assert.doesNotMatch(host, /const nwDelta = rank === 0 \? pointsPerQ/);
 });
 
 test("Nearest Wins parses a comma-formatted target with explanatory text", () => {

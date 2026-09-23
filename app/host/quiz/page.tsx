@@ -944,11 +944,17 @@ function QuizControllerInner() {
     // team's latest answer, so every team in the loop below is judged by the
     // same single determination.
     // Nearest Wins: no fixed right/wrong, every team's numeric guess is ranked
-    // against every other team's, by distance from the correct number.
-    // Only the closest valid guess scores; ties on distance go to whoever
-    // submitted first, same convention as the speed bonus.
-    // Ties on distance go to whoever submitted first, same convention as the
-    // speed bonus above.
+    // against every other team's, by distance from the correct number. Only
+    // the closest valid guess(es) score.
+    //
+    // Host-reported bug: two teams guessed the identical closest number
+    // (same distance from the correct answer) and only the one who happened
+    // to submit first was awarded the points, with the other getting 0 -
+    // "in this instance each team should share the points". A genuine tie
+    // on distance is a tie, full stop; whoever typed faster isn't a more
+    // correct guess. So every team tied at the minimum distance now shares
+    // the round's points evenly between them, instead of the old
+    // submission-time tiebreak awarding the lot to just one.
     const teamNames = new Set(teamList.map(team => team.team_name.trim().toLowerCase()));
     const nwEntries = q.question_type === "nearest_wins"
       ? rankNearestWins(currentAnswers.filter(answer => teamNames.has(answer.team_name.trim().toLowerCase())), q)
@@ -957,9 +963,14 @@ function QuizControllerInner() {
             teamName: teamList.find(team => sameTeam(team.team_name, entry.teamName))?.team_name ?? entry.teamName,
           }))
       : [];
+    const nwWinningDistance = nwEntries[0]?.distance;
+    const nwWinners = nwWinningDistance === undefined ? [] : nwEntries.filter(e => e.distance === nwWinningDistance);
     if (q.question_type === "nearest_wins") {
       // The closest guess is this question's "winner" - reuse the same
       // celebration/badge slot the speed bonus uses for every other type.
+      // On a tie, credit the one who actually submitted first for the
+      // badge/song (nwEntries is still sorted submittedAt-first within a
+      // tied distance) - only the points are shared, not the celebration.
       scoredFastestTeamRef.current = nwEntries[0]?.teamName || null;
     }
 
@@ -975,12 +986,18 @@ function QuizControllerInner() {
       const ans = getLatestAnswer(team.team_name);
       if (!ans) continue;
       if (q.question_type === "nearest_wins") {
-        const rank = nwEntries.findIndex(e => e.teamName === team.team_name);
-        if (rank === -1) continue; // no numeric guess submitted - scores nothing
-        const nwDelta = rank === 0 ? pointsPerQ * (hasBoost(team.team_name) ? 2 : 1) : 0;
+        const isWinner = nwWinners.some(e => e.teamName === team.team_name);
+        if (!isWinner) {
+          if (nwEntries.some(e => e.teamName === team.team_name)) lastDeltasRef.current[team.team_name] = 0;
+          continue; // no numeric guess submitted, or not tied for closest - scores nothing
+        }
+        // Shared evenly across every team tied at the winning distance - see
+        // the comment above nwWinners for why a genuine distance-tie splits
+        // the points instead of going entirely to whoever typed fastest.
+        const nwDelta = Math.round((pointsPerQ / nwWinners.length) * (hasBoost(team.team_name) ? 2 : 1));
         lastDeltasRef.current[team.team_name] = nwDelta;
         if (nwDelta === 0) continue;
-        const nwResult = await applyScoreDelta(supabase, sessionPin, team.team_name, nwDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:nearestwins`, isFastest: rank === 0, syncScoreboard: false });
+        const nwResult = await applyScoreDelta(supabase, sessionPin, team.team_name, nwDelta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:nearestwins`, isFastest: team.team_name === scoredFastestTeamRef.current, syncScoreboard: false });
         if (nwResult.error) failedTeams.push(team.team_name);
         if (nwResult.scoreboardSyncError) scoreboardSyncFailed = true;
         if (nwResult.scoreboardSyncError) console.error(`autoScore (nearest wins, ${team.team_name}): score updated but scoreboard_data sync failed:`, nwResult.scoreboardSyncError);

@@ -2336,6 +2336,15 @@ function QuizControllerInner() {
         const statTeamRow = teams.find(t => t.team_name === statsTeam);
         const statScore = scores.find(s => s.team_name === statsTeam);
         const song = statTeamRow?.victory_song ? statTeamRow.victory_song.replace(/\s*SQS\s*$/i, "").replace(/[-_]+$/, "").replace(/[-_]/g, " ").trim() : "";
+        // "Where they're sitting" - overall standings position, always by
+        // running total regardless of the rail's own SHOW ROUND LEADERS
+        // toggle, since that's what a team actually wants to know when they
+        // ask a host "what place are we in?".
+        const rankedByTotal = [...scores].sort((a, b) => b.total_points - a.total_points);
+        const statRankIdx = rankedByTotal.findIndex(sc => sc.team_name === statsTeam);
+        const statRank = statRankIdx === -1 ? null : statRankIdx + 1;
+        const statIsBlocked = blockedTeams.includes(statsTeam);
+        const statIsScrambled = scrambledTeams.includes(statsTeam);
         return (
           <div
             onClick={() => setStatsTeam(null)}
@@ -2348,8 +2357,16 @@ function QuizControllerInner() {
                 <button onClick={() => renameTeam(statsTeam)} title="Rename team" style={{ background: "transparent", border: "1px solid #2E1A52", borderRadius: 8, color: "#B9A8D9", fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px" }}>RENAME</button>
                 <button onClick={() => setStatsTeam(null)} style={{ background: "transparent", border: "none", color: "#6B5A8E", fontSize: 20, cursor: "pointer", padding: 4 }}>×</button>
               </div>
-              {song && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 14 }}>♪ {song}</div>}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+                {statRank !== null && (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#B9A8D9" }}>
+                    {statRank === 1 ? "1st place" : statRank === 2 ? "2nd place" : statRank === 3 ? "3rd place" : `${statRank}th place`}
+                    <span style={{ color: "#6B5A8E", fontWeight: 500 }}> of {rankedByTotal.length}</span>
+                  </span>
+                )}
+                {song && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>♪ {song}</span>}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
                 <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 10, padding: "10px 12px" }}>
                   <div style={{ fontSize: 22, fontWeight: 800, color: "#BE26C1" }}>{statScore?.total_points ?? 0}</div>
                   <div style={{ fontSize: 10, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>Total points</div>
@@ -2367,6 +2384,36 @@ function QuizControllerInner() {
                   <div style={{ fontSize: 10, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>Times fastest</div>
                 </div>
               </div>
+              {/* Block, shuffle and the score correction control used to sit
+                  inline on every team card whether you needed them or not -
+                  the actual reason 3-4 column mode ate so much screen width.
+                  They live here now, one tap into the team you actually want
+                  to act on, matching how SpeedQuizzing keeps its row down to
+                  name/score/answer and puts every other action behind a tap. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <PowerCardDots teamName={statsTeam} />
+              </div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                <button
+                  onClick={() => toggleTeamBlocked(statsTeam)}
+                  title={statIsBlocked ? "Unblock - let them answer this question" : "Block this team from answering the current question"}
+                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 10, background: statIsBlocked ? "rgba(255,59,78,0.25)" : "#0A0118", border: "1px solid " + (statIsBlocked ? "#FF3B4E" : "#2E1A52"), color: statIsBlocked ? "#fff" : "#B9A8D9", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                ><IconBlock />{statIsBlocked ? "Unblock" : "Block"}</button>
+                <button
+                  onClick={() => toggleTeamScrambled(statsTeam)}
+                  title={statIsScrambled ? "Unscramble their keypad" : "Scramble this team's keypad for the current question"}
+                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 10, background: statIsScrambled ? "rgba(217,79,220,0.25)" : "#0A0118", border: "1px solid " + (statIsScrambled ? "#D94FDC" : "#2E1A52"), color: statIsScrambled ? "#fff" : "#B9A8D9", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                ><IconShuffle />{statIsScrambled ? "Unshuffle" : "Shuffle keypad"}</button>
+              </div>
+              {adjustTeam === statsTeam ? (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input type="number" value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="+/-" style={{ flex: 1, padding: "8px", borderRadius: 8, background: "rgba(255,255,255,0.1)", color: "#fff", border: "1px solid rgba(190,38,193,0.4)", fontSize: 13, textAlign: "center" as const }} />
+                  <button onClick={() => adjustScore(statsTeam, Number(adjustAmount))} style={{ padding: "0 16px", borderRadius: 8, background: "#BE26C1", border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>OK</button>
+                  <button onClick={() => { setAdjustTeam(null); setAdjustAmount(""); }} aria-label="Cancel score adjustment" style={{ padding: "0 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "none", color: "#aaa", fontSize: 12, cursor: "pointer" }}>X</button>
+                </div>
+              ) : (
+                <button onClick={() => setAdjustTeam(statsTeam)} style={{ width: "100%", padding: "9px 0", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Adjust score (+/-)</button>
+              )}
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 10 }}>Counts every question scored this session, live from the start of the quiz.</div>
             </div>
           </div>
@@ -2956,8 +3003,8 @@ function QuizControllerInner() {
                   <div
                     className="qi-mc-team-card__summary"
                     onClick={() => setStatsTeam(s.team_name)}
-                    title="Tap for this team's stats"
-                    style={{ display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) 8px auto 26px 26px", gap: 8, cursor: "pointer" }}
+                    title="Tap for this team's stats, block/shuffle and score controls"
+                    style={{ display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) 8px auto", gap: 8, cursor: "pointer" }}
                   >
                     <span style={{ fontSize:16, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
                     <TeamBadge name={s.team_name} size={20} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:7, flexShrink:0 }} />
@@ -2976,19 +3023,14 @@ function QuizControllerInner() {
                     ) : (
                       <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const, fontVariantNumeric:"tabular-nums" }}>{s.total_points}</span>
                     )}
-                    <button
-                      className="qi-mc-team-tool"
-                      onClick={e => { e.stopPropagation(); toggleTeamBlocked(s.team_name); }}
-                      title={isBlocked ? "Unblock - let them answer this question" : "Block this team from answering the current question"}
-                      style={{ width:26, height:26, borderRadius:8, background:isBlocked?"rgba(255,59,78,0.25)":"#150A2E", border:"1px solid "+(isBlocked?"#FF3B4E":"#2E1A52"), color:isBlocked?"#fff":"#6B5A8E", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
-                    ><IconBlock /></button>
-                    <button
-                      className="qi-mc-team-tool"
-                      onClick={e => { e.stopPropagation(); toggleTeamScrambled(s.team_name); }}
-                      title={isScrambled ? "Unscramble their keyboard" : "Scramble this team's keyboard for the current question"}
-                      style={{ width:26, height:26, borderRadius:8, background:isScrambled?"rgba(217,79,220,0.25)":"#150A2E", border:"1px solid "+(isScrambled?"#D94FDC":"#2E1A52"), color:isScrambled?"#fff":"#6B5A8E", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
-                    ><IconShuffle /></button>
                   </div>
+                  {/* Row kept to just name/score/live-answer/points-just-scored -
+                      block, shuffle, power cards and the +/- score control used
+                      to live inline here too, which is exactly why 3-4 auto
+                      columns needed roughly half the screen width. Those now
+                      live one tap away in the stats popup (see statsTeam below),
+                      matching how SpeedQuizzing keeps its row minimal and puts
+                      everything else behind tapping the team name. */}
                   <div className="qi-mc-team-card__answer">
                     {answered ? (() => {
                       // Submission order + reveal-gated correctness. Green/red only
@@ -3014,16 +3056,6 @@ function QuizControllerInner() {
                       <span style={{ fontSize:12, color:"rgba(255,255,255,0.3)", fontStyle:"italic", flex:1 }}>waiting…</span>
                     )}
                     {questionAward !== undefined && <strong title="Points earned on this question" style={{ color: questionAward < 0 ? "#FF7D87" : "#2EE06E", fontSize: 14, whiteSpace: "nowrap" }}>{questionAward >= 0 ? "+" : ""}{questionAward} pts</strong>}
-                    <PowerCardDots teamName={s.team_name} />
-                    {adjustTeam === s.team_name ? (
-                      <div style={{ display:"flex", gap:4, marginLeft:"auto" }}>
-                        <input type="number" value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="+/-" style={{ width:52, padding:"2px 4px", borderRadius:6, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1px solid rgba(190,38,193,0.4)", fontSize:12, textAlign:"center" as const }} />
-                        <button onClick={() => adjustScore(s.team_name, Number(adjustAmount))} style={{ padding:"2px 8px", borderRadius:6, background:"#BE26C1", border:"none", color:"#fff", fontSize:11, cursor:"pointer" }}>OK</button>
-                        <button onClick={() => { setAdjustTeam(null); setAdjustAmount(""); }} aria-label="Cancel score adjustment" style={{ padding:"2px 6px", borderRadius:6, background:"rgba(255,255,255,0.08)", border:"none", color:"#aaa", fontSize:11, cursor:"pointer" }}>X</button>
-                      </div>
-                    ) : (
-                      <button className="qi-mc-team-adjust" onClick={() => setAdjustTeam(s.team_name)} style={{ marginLeft:"auto", fontSize:10, padding:"2px 6px", borderRadius:6, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.45)", cursor:"pointer" }}>+/- pts</button>
-                    )}
                   </div>
                 </div>
               );

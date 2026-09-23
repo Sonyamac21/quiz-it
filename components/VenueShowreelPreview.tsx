@@ -124,7 +124,12 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
           <div className="lb-pin"><small>ENTER PIN</small>0000</div>
           <div className="lb-how">
             {(() => {
-              const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent("https://quiz-it.app/join");
+              // Same real-domain fix as app/host/display/page.tsx - see the
+              // joinUrl/displayHost comment there. "quiz-it.app" was never
+              // an owned/pointed domain; the confirmed live one is
+              // quiz-it.macentertainmentuae.com.
+              const displayHost = typeof window !== "undefined" && window.location.host ? window.location.host : "quiz-it.macentertainmentuae.com";
+              const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent("https://" + displayHost + "/join");
               return !brokenImageUrls.has(joinQrSrc) ? (
                 <img className="lb-qr" src={joinQrSrc} alt="Scan to join" onError={() => markImageBroken(joinQrSrc)} />
               ) : (
@@ -132,7 +137,7 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
               );
             })()}
             <div className="lb-steps">
-              <b>1.</b> Go to quiz-it.app or scan<br />
+              <b>1.</b> Go to {typeof window !== "undefined" && window.location.host ? window.location.host : "quiz-it.macentertainmentuae.com"} or scan<br />
               <b>2.</b> Enter the PIN<br />
               <b>3.</b> Name your team
             </div>

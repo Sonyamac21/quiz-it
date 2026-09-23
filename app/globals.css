@@ -649,7 +649,12 @@ button, input, select, textarea { font: inherit; }
 .fbl .lb-pin{font:800 clamp(40px,8.6vw,118px)/0.95 'Inter';letter-spacing:.06em;font-variant-numeric:tabular-nums;text-shadow:0 0 46px rgba(190,38,193,.55);}
 .fbl .lb-pin small{display:block;font:600 clamp(9px,1.2vw,15px) 'Inter';letter-spacing:.24em;color:var(--purple-b);margin-bottom:2%;}
 .fbl .lb-how{display:flex;gap:4%;align-items:center;}
-.fbl .lb-qr{width:19%;aspect-ratio:1;background:repeating-conic-gradient(#fff 0 25%,transparent 0 50%) 0 0/26% 26%;border-radius:10px;border:5px solid #fff;opacity:.92;flex:none;}
+/* Widened from 19% - once this actually became a real, scannable QR code
+   (see the joinQrSrc fix in app/host/display/page.tsx), 19% of this panel's
+   width was too small to scan reliably from normal seating distance on a
+   venue TV - confirmed live: "scanned it, server not found" was the wrong-
+   domain bug, but the size complaint was separate and real too. */
+.fbl .lb-qr{width:27%;aspect-ratio:1;background:repeating-conic-gradient(#fff 0 25%,transparent 0 50%) 0 0/26% 26%;border-radius:10px;border:5px solid #fff;opacity:.92;flex:none;object-fit:contain;}
 .fbl .lb-steps{font:600 clamp(8px,1.15vw,14.5px)/1.9 'Inter';color:var(--text2);}
 .fbl .lb-steps b{color:var(--text);}
 .fbl .lb-wall{border-left:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;padding:0 4%;gap:4%;}

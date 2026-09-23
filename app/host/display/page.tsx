@@ -570,6 +570,17 @@ function DisplayScreenInner() {
   const [connected, setConnected] = useState(false);
   const [sessionPin, setSessionPin] = useState("");
   useDisplayResponder(sessionPin, connected, acknowledgedSnapshot);
+  // Bug: the join QR/instructions were hardcoded to "quiz-it.app", a domain
+  // that was never actually purchased/pointed - anyone who scanned it hit
+  // "server not found". Confirmed live production domain (also visible in
+  // Vercel's assigned-domains list, and already the SSR fallback used
+  // elsewhere in this codebase - see app/host/session/page.tsx's own
+  // `const host = ...` line): quiz-it.macentertainmentuae.com. Using
+  // window.location.host instead of a second hardcoded guess means this
+  // self-corrects if the domain ever changes again, rather than silently
+  // going stale the same way "quiz-it.app" did.
+  const displayHost = typeof window !== "undefined" && window.location.host ? window.location.host : "quiz-it.macentertainmentuae.com";
+  const joinUrl = "https://" + displayHost + "/join";
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState("");
   // Whether the realtime channel is currently down (CHANNEL_ERROR/TIMED_OUT/
@@ -1906,8 +1917,8 @@ function DisplayScreenInner() {
                 // says "or scan". Confirmed live: nothing here ever worked
                 // as a QR code. Same api.qrserver.com approach already
                 // proven for the WhatsApp QR below in this file, encoding
-                // the join URL that step 1's own text already promises.
-                const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent("https://quiz-it.app/join");
+                // the real join URL (joinUrl, derived above).
+                const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent(joinUrl);
                 return !brokenImageUrls.has(joinQrSrc) ? (
                   <img className="lb-qr" src={joinQrSrc} alt="Scan to join" onError={() => markImageBroken(joinQrSrc)} />
                 ) : (
@@ -1915,7 +1926,7 @@ function DisplayScreenInner() {
                 );
               })()}
               <div className="lb-steps">
-                <b>1.</b> Go to quiz-it.app or scan<br />
+                <b>1.</b> Go to {displayHost} or scan<br />
                 <b>2.</b> Enter the PIN<br />
                 <b>3.</b> Name your team
               </div>
@@ -1972,7 +1983,7 @@ function DisplayScreenInner() {
               <div className="lb-pin"><small>ENTER PIN</small>{sessionPin}</div>
               <div className="lb-how">
                 {(() => {
-                  const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent("https://quiz-it.app/join");
+                  const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent(joinUrl);
                   return !brokenImageUrls.has(joinQrSrc) ? (
                     <img className="lb-qr" src={joinQrSrc} alt="Scan to join" onError={() => markImageBroken(joinQrSrc)} />
                   ) : (
@@ -1980,7 +1991,7 @@ function DisplayScreenInner() {
                   );
                 })()}
                 <div className="lb-steps">
-                  <b>1.</b> Go to quiz-it.app or scan<br />
+                  <b>1.</b> Go to {displayHost} or scan<br />
                   <b>2.</b> Enter the PIN<br />
                   <b>3.</b> Name your team
                 </div>

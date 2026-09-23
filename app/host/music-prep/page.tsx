@@ -244,6 +244,14 @@ export default function MusicPrepPage() {
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [showReady, setShowReady] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  // Deezer cover art rarely 404s, but when it does, an <img> with no
+  // onError leaves the browser's broken-image glyph sitting in these small
+  // fixed-size thumbnail boxes. Same fix as the venue/display screens.
+  const [brokenCoverUrls, setBrokenCoverUrls] = useState<Set<string>>(new Set());
+  function markCoverBroken(url: string | null | undefined) {
+    if (!url) return;
+    setBrokenCoverUrls(prev => (prev.has(url) ? prev : new Set(prev).add(url)));
+  }
 
   useEffect(() => {
     (async () => {
@@ -694,7 +702,7 @@ export default function MusicPrepPage() {
                   {qs.candidates.map((c) => (
                     <button key={c.id} type="button" onClick={() => selectCandidate(openRound, i, c)}
                       style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 14, background: "#150A2E", border: "1px solid #2E1A52", cursor: "pointer", textAlign: "left", width: "100%" }}>
-                      {c.cover && <img src={c.cover} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />}
+                      {c.cover && !brokenCoverUrls.has(c.cover) && <img src={c.cover} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} onError={() => markCoverBroken(c.cover)} />}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ font: "600 13px 'Inter'", color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title}</div>
                         <div style={{ font: "400 11px 'Inter'", color: "#6B5A8E" }}>{c.artist} · {c.album} · {c.duration_formatted}</div>
@@ -733,7 +741,7 @@ export default function MusicPrepPage() {
                 <div>
                   {qs.selectedCandidate && (
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, padding: "8px 12px", borderRadius: 12, background: "#150A2E", border: "1px solid #2E1A52" }}>
-                      {qs.selectedCandidate.cover && <img src={qs.selectedCandidate.cover} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} />}
+                      {qs.selectedCandidate.cover && !brokenCoverUrls.has(qs.selectedCandidate.cover) && <img src={qs.selectedCandidate.cover} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} onError={() => markCoverBroken(qs.selectedCandidate!.cover)} />}
                       <div>
                         <div style={{ font: "600 13px 'Inter'", color: "#fff" }}>{qs.selectedCandidate.title}</div>
                         <div style={{ font: "400 11px 'Inter'", color: "#6B5A8E" }}>{qs.selectedCandidate.artist}</div>

@@ -30,6 +30,14 @@ type Props = {
   sessionId: string;
   sessionPin: string;
   teams: { team_name: string }[];
+  // Host request: Hard Deck's full-screen overlay had NO team rail at all
+  // (its .qi-mc-workspace was a single grid-template-columns: minmax(0,1fr)
+  // column, unlike every other round's two-column layout) - the scoreboard
+  // genuinely disappeared for the entire time Hard Deck was running, not
+  // just visually cramped. Passed in so the rail added below can show every
+  // team's live total without this component needing its own separate
+  // score-fetching logic.
+  scores?: { team_name: string; total_points: number }[];
   onScoreChange?: () => void;
   // Tells the host page when this overlay is up so its global spacebar
   // handler stands down (mirrors PursuitPanel's onActiveChange).
@@ -45,7 +53,7 @@ type Props = {
   autoStartRoundId?: string | null;
 };
 
-export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onActiveChange, onRoundComplete, autoStartRoundId }: Props) {
+export function HardDeckPanel({ sessionId, sessionPin, teams, scores = [], onScoreChange, onActiveChange, onRoundComplete, autoStartRoundId }: Props) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
   const [scoreWarnings, setScoreWarnings] = useState<string[]>([]);
@@ -400,10 +408,19 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
         <button onClick={closePanel} style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
       </div>
 
-      <div className="qi-mc-workspace" style={{ gridTemplateColumns: "minmax(0, 1fr)" }}>
-        <main className="qi-mc-desk" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, textAlign: "center" as const }}>
+      {/* Host request: this overlay had no team rail at all - every other
+          round type keeps the scoreboard visible on the right via this same
+          .qi-mc-workspace two-column grid; Hard Deck was the one round type
+          where it fully disappeared for as long as the mini-game ran.
+          Wheel/card sizing below is also enlarged - it was a small, fixed-
+          size centerpiece floating in a mostly-empty viewport on every
+          screen size (phone, iPad, host laptop, venue TV), the "too small
+          for every display" report. Sized relative to the actual space
+          available in .qi-mc-desk instead of small fixed/capped values. */}
+      <div className="qi-mc-workspace">
+        <main className="qi-mc-desk" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, textAlign: "center" as const }}>
           {showWheel && (
-            <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={300} forceResultIndex={wheelTarget ?? undefined} onSpinStart={() => pushState({ hard_deck_wheel_spinning: true })} />
+            <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={Math.min(560, typeof window !== "undefined" ? Math.min(window.innerWidth * 0.42, window.innerHeight * 0.72) : 480)} forceResultIndex={wheelTarget ?? undefined} onSpinStart={() => pushState({ hard_deck_wheel_spinning: true })} />
           )}
 
           {!showWheel && team && (
@@ -414,12 +431,12 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
                   it reads as a normal multi-row hand instead of needing to
                   scroll at all in the common case; maxWidth+overflow is a
                   safety net for an unusually long one. */}
-              <div className="qi-host-harddeck-cards" style={{ padding: "20px 24px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)", maxWidth: "92vw", maxHeight: "min(50vh, 400px)", overflow: "auto" }}>
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", maxWidth: "min(88vw, 900px)" }}>
+              <div className="qi-host-harddeck-cards" style={{ padding: "28px 32px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)", maxWidth: "min(90vw, 66vw)", maxHeight: "68vh", overflow: "auto" }}>
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center" }}>
                   {cards.map((c, i) => (
-                    <div key={i} style={{ width: "clamp(82px,8vw,120px)", height: "clamp(118px,11.5vw,172px)", borderRadius: 14, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: "clamp(28px,3vw,44px)", fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
+                    <div key={i} style={{ width: "clamp(110px,11vw,170px)", height: "clamp(158px,16vw,244px)", borderRadius: 16, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: "clamp(38px,4.2vw,62px)", fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
                       <div>{rankLabel(c.rank)}</div>
-                      <div style={{ fontSize: 28 }}>{c.suit}</div>
+                      <div style={{ fontSize: "clamp(24px,2.6vw,38px)" }}>{c.suit}</div>
                     </div>
                   ))}
                 </div>
@@ -481,6 +498,21 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, onScoreChange, onA
             </>
           )}
         </main>
+        <aside className="qi-mc-rail">
+          <div className="qi-mc-teams">
+            {[...scores].sort((a, b) => b.total_points - a.total_points).map((s, i) => (
+              <div key={s.team_name} className="qi-mc-team-card" style={{ gridTemplateColumns: "26px 28px minmax(0, 1fr) auto" }}>
+                <span style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", fontWeight: 700 }}>{i + 1}</span>
+                <span />
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>{s.team_name}</span>
+                <span style={{ fontSize: 19, fontWeight: 800 }}>{s.total_points}</span>
+              </div>
+            ))}
+            {scores.length === 0 && (
+              <div style={{ padding: "12px 4px", color: "rgba(255,255,255,0.5)", fontSize: 13 }}>Scores will appear here once teams have points.</div>
+            )}
+          </div>
+        </aside>
       </div>
     </div>
   );

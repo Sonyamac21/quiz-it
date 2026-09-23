@@ -19,6 +19,20 @@ export function FitBlockText({ as = "div", children, className, maxViewportHeigh
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
+    // Bug: fontSize state from the PREVIOUS question stayed applied to the
+    // new question's (possibly much longer) text for one paint, because the
+    // actual re-measure only happens inside the requestAnimationFrame below,
+    // one frame after this effect (and therefore the new `children` text)
+    // has already committed to the DOM. On the host console specifically,
+    // "Next Q" can jump from a short question to a long Sequence question
+    // whose full unshrunk text is tall enough to visibly push up into/behind
+    // the meta pill row above it for that one frame - confirmed live as
+    // exactly this "question text overlapping the Q7/Sequence/HOST PREVIEW
+    // pills" report. Clearing to null HERE, synchronously inside
+    // useLayoutEffect (which commits before the browser paints), means the
+    // new text's first-ever paint uses the authored CSS clamp() size, never
+    // a stale pixel value left over from a different, shorter question.
+    setFontSize(null);
     let frame = 0;
     const fit = () => {
       cancelAnimationFrame(frame);

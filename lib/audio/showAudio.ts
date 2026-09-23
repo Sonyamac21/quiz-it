@@ -117,7 +117,24 @@ export function playShowAudio(
   // "some team audio didn't play" until enough time passed for a later one
   // to clear the window. 600ms comfortably covers the realtime/poll echo
   // case while letting back-to-back distinct events through.
-  if (now - lastStarted < 600) return active.get(channel) || null;
+  //
+  // Bug: celebration/victory-song audio ("music" channel) is triggered
+  // independently from BOTH app/host/quiz/page.tsx and app/host/display/
+  // page.tsx - normal, since a host commonly runs both as separate tabs
+  // (the host console's own "A display tab is hidden / Open Display"
+  // control assumes exactly that). Both tabs detect the same real-world
+  // moment (a team winning, a round celebration) through their own
+  // independent phase-watching/polling, which does NOT guarantee they land
+  // within 600ms of each other - confirmed live as "all of it duplicated -
+  // celebration, team song etc" mid-quiz, i.e. two tabs each audibly
+  // playing their own copy of the same long-running track a beat apart.
+  // A victory song is a rare, one-off, several-seconds-long event -
+  // there's no legitimate case (unlike per-team correct chimes) where the
+  // SAME file on the SAME channel needs to restart within a few seconds of
+  // itself, so "music" gets a much longer window with no real risk of
+  // ever swallowing a genuinely new, distinct trigger.
+  const dedupeWindowMs = channel === "music" ? 4000 : 600;
+  if (now - lastStarted < dedupeWindowMs) return active.get(channel) || null;
   recentlyStarted.set(dedupeKey, now);
   if (typeof window !== "undefined") {
     try { window.localStorage.setItem(`qi-audio:${dedupeKey}`, String(now)); } catch { /* storage may be blocked */ }

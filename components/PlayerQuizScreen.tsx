@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
-import { fetchActiveVenueOffers } from "@/lib/venueOffers";
+import { fetchActiveVenueOffers, normalizeWhatsappLink } from "@/lib/venueOffers";
 import { UnoPlayerCards } from "@/components/UnoCards";
 import { AnswerKeypad } from "@/components/AnswerKeypad";
 import { SlotReels } from "@/components/SlotReels";
@@ -1581,6 +1581,30 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         {!hasContent && (
           <img src="/me-logo.jpg" alt="ME" style={{ width: 70, height: 70, borderRadius: "50%", border: "2px solid " + purple, marginTop: 12 }} />
         )}
+        {/* The host's most-wanted intermission action - shown ahead of the
+            venue offer photos rather than buried below them. A QR code makes
+            sense on the big Display screen (guests scan it with a DIFFERENT
+            device, their phone) but showing the same QR here, on the very
+            phone someone would use to scan it, is unusable - so this is a
+            real tappable link instead, opening the WhatsApp group's own
+            "request to join" screen directly. */}
+        {intermissionWhatsapp && normalizeWhatsappLink(intermissionWhatsapp) && (
+          <a
+            href={normalizeWhatsappLink(intermissionWhatsapp)!}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+              width: "100%", maxWidth: 340, padding: "18px 20px", borderRadius: 16,
+              background: "linear-gradient(135deg, rgba(190,38,193,0.28), rgba(217,79,220,0.14))",
+              border: "1.5px solid " + purple, boxShadow: "0 0 22px rgba(190,38,193,0.35)",
+              textDecoration: "none", cursor: "pointer",
+            }}
+          >
+            <div style={{ fontSize: 11, color: "#D9CCF2", letterSpacing: 2 }}>JOIN OUR WHATSAPP</div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: "#fff", letterSpacing: 0.5 }}>REQUEST TO JOIN →</div>
+          </a>
+        )}
         {visibleOfferPhotos.length > 0 && (
           <div className="qi-player-venue-ad" style={{ width: "100%", maxWidth: 340, aspectRatio: "1", borderRadius: 14, overflow: "hidden", border: "1.5px solid rgba(190,38,193,0.4)", position: "relative", background: "rgba(0,0,0,0.35)" }}>
             <img
@@ -1616,12 +1640,6 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           <div style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1.5px solid rgba(190,38,193,0.4)", width: "100%", maxWidth: 340 }}>
             <div style={{ fontSize: 11, color: purple, letterSpacing: 2, marginBottom: 6 }}>TONIGHT'S OFFERS</div>
             <div style={{ fontSize: 15, color: "#fff", lineHeight: 1.4 }}>{intermissionOffers}</div>
-          </div>
-        )}
-        {intermissionWhatsapp && (
-          <div style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1.5px solid rgba(190,38,193,0.4)", width: "100%", maxWidth: 340 }}>
-            <div style={{ fontSize: 11, color: purple, letterSpacing: 2, marginBottom: 10 }}>JOIN OUR WHATSAPP</div>
-            <img src={"https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + encodeURIComponent(intermissionWhatsapp)} alt="WhatsApp QR" style={{ width: 140, height: 140, borderRadius: 10, background: "#fff", padding: 6 }} />
           </div>
         )}
         {intermissionOtherQuizzes && (

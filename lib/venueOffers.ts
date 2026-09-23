@@ -42,3 +42,20 @@ export async function fetchActiveVenueOffers(venueId: string | null, includeAllV
     .filter(row => !!row.image_url && row.image_url.trim().length > 0)
     .map(row => getMediaUrl(row.image_url) || row.image_url);
 }
+
+// Turns whatever a host pasted into "WhatsApp Group Invite Link" into a URL
+// that actually opens WhatsApp - used both for the Display screen's QR code
+// (scanned by a guest's phone) and the handset's own tap-to-join button.
+// Hosts are expected to paste a real chat.whatsapp.com/… group invite link
+// (WhatsApp's own "Invite via Link" share sheet), so any http(s) link is
+// passed through unchanged. A bare phone number is also accepted as a
+// fallback (some hosts may paste a number instead of a link) and turned into
+// a wa.me deep link, which opens a direct chat rather than a group.
+export function normalizeWhatsappLink(raw: string | null | undefined): string | null {
+  const value = (raw || "").trim();
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value)) return value;
+  const digits = value.replace(/[^0-9]/g, "");
+  if (!digits) return null;
+  return `https://wa.me/${digits}`;
+}

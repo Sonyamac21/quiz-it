@@ -49,6 +49,7 @@ export type EventVenue = {
   drink_offers?: string | null;
   happy_hour?: string | null;
   prize_information?: string | null;
+  other_quizzes_text?: string | null;
 };
 
 export type EventStatus = "draft" | "scheduled" | "live" | "completed" | "cancelled";

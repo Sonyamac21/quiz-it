@@ -17,7 +17,7 @@ type Team = {
 };
 
 type QuizOption = { id: string; name: string; quiz_rounds: { id: string; name: string; round_type: string; questions: unknown[] }[] };
-type PreparedEvent = { id: string; event_name: string; event_date: string; start_time: string; end_time: string | null; venue_record_id: string | null; quiz_definition_id: string; brand_kit: string | null; music_pack: string | null; sponsors: string[]; prizes: string | null; notes: string | null; special_offers: string | null; overrides: Record<string, unknown>; venue: { venue_name: string; venue_logo_url: string | null; address: string | null; hero_image_url?: string | null; hero_video_url?: string | null; gallery_images?: string[]; google_maps_url?: string | null; contact_name?: string | null; contact_email?: string | null; contact_phone?: string | null; website?: string | null; social_links?: Record<string,string>; food_offers?: string | null; drink_offers?: string | null; happy_hour?: string | null; prize_information?: string | null; sponsors?: string[]; brand_colours?: Record<string,string>; display_slides?: string[]; display_adverts?: string[]; default_brand_kit?: string | null; default_music_pack?: string | null } | null };
+type PreparedEvent = { id: string; event_name: string; event_date: string; start_time: string; end_time: string | null; venue_record_id: string | null; quiz_definition_id: string; brand_kit: string | null; music_pack: string | null; sponsors: string[]; prizes: string | null; notes: string | null; special_offers: string | null; overrides: Record<string, unknown>; venue: { venue_name: string; venue_logo_url: string | null; address: string | null; hero_image_url?: string | null; hero_video_url?: string | null; gallery_images?: string[]; google_maps_url?: string | null; contact_name?: string | null; contact_email?: string | null; contact_phone?: string | null; website?: string | null; social_links?: Record<string,string>; food_offers?: string | null; drink_offers?: string | null; happy_hour?: string | null; prize_information?: string | null; whatsapp_link?: string | null; other_quizzes_text?: string | null; sponsors?: string[]; brand_colours?: Record<string,string>; display_slides?: string[]; display_adverts?: string[]; default_brand_kit?: string | null; default_music_pack?: string | null } | null };
 
 function generatePin(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
@@ -193,7 +193,7 @@ export default function SessionPage() {
     // here - it used to be fetched AFTER the session insert below (which it
     // doesn't depend on at all), adding a fully serialized extra round-trip
     // to every session start. Folded into this same parallel batch instead.
-    const [{ data: venueData }, { data: upcomingEvents }, { data: quizRounds, error: roundsError }] = await Promise.all([
+    const [{ data: venueData }, { data: upcomingEvents }, { data: quizRounds, error: roundsError }, { data: hostSettings }] = await Promise.all([
       preparedEvent
         ? Promise.resolve({ data: preparedEvent.venue })
         : selectedVenueId
@@ -214,6 +214,11 @@ export default function SessionPage() {
         .order("start_time", { ascending: true })
         .limit(5),
       supabase.from("quiz_rounds").select("*").eq("quiz_id", selectedQuizId).order("position"),
+      // One WhatsApp group link per HOST ACCOUNT, not per venue (see
+      // 202609230002_venue_whatsapp_and_other_quizzes.sql) - RLS on
+      // host_settings already scopes this to the signed-in host's own row,
+      // so no explicit owner filter is needed here.
+      supabase.from("host_settings").select("whatsapp_link").maybeSingle(),
     ]);
     if (roundsError || !quizRounds?.length) {
       setCreateError(roundsError?.message || "This quiz has no rounds. Add rounds in Quiz Builder first.");
@@ -221,7 +226,7 @@ export default function SessionPage() {
       return;
     }
     const quizName = quizzes.find(quiz => quiz.id === selectedQuizId)?.name || "";
-    const offersVenue = preparedEvent?.venue || (venueData as { food_offers?: string | null; drink_offers?: string | null; happy_hour?: string | null } | null);
+    const offersVenue = preparedEvent?.venue || (venueData as { food_offers?: string | null; drink_offers?: string | null; happy_hour?: string | null; other_quizzes_text?: string | null } | null);
     const inheritedOffers = preparedEvent?.special_offers || [offersVenue?.food_offers, offersVenue?.drink_offers, offersVenue?.happy_hour].filter(Boolean).join("\n");
     const upcomingQuizzes = (upcomingEvents || [])
       .map(row => ({ venue_name: (Array.isArray(row.venue) ? row.venue[0] : row.venue)?.venue_name as string | undefined, event_date: row.event_date, start_time: row.start_time }))
@@ -261,6 +266,17 @@ export default function SessionPage() {
         venue_name: venueData?.venue_name || null,
         venue_logo_url: venueData?.venue_logo_url || null,
         intermission_offers: inheritedOffers || null,
+        // whatsapp_link is one setting per host account (host_settings,
+        // fetched above), not per venue - the same community group is used
+        // at every venue this host runs. intermission_other_quizzes still
+        // follows the venue's own inheritance path, same as
+        // intermission_offers just above. Both columns were already read and
+        // rendered on the Display screen and player handset (the WhatsApp
+        // QR/tap-link and "more quiz nights" cards), but nothing ever wrote
+        // them until their source fields existed, so both cards were
+        // permanently dead.
+        intermission_whatsapp: hostSettings?.whatsapp_link || null,
+        intermission_other_quizzes: offersVenue?.other_quizzes_text || null,
         intermission_photos: venueData?.gallery_images || [],
         upcoming_quizzes: upcomingQuizzes,
       })

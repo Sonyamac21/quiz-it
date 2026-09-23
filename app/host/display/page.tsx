@@ -8,7 +8,7 @@ import { useSearchParams } from "next/navigation";
 import { BrandLockup } from "@/components/ui/quiz-it-ui";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
-import { fetchActiveVenueOffers } from "@/lib/venueOffers";
+import { fetchActiveVenueOffers, normalizeWhatsappLink } from "@/lib/venueOffers";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { SlotReels } from "@/components/SlotReels";
 import { PursuitPhase, PursuitRace, readPursuitState, readRace, readQIndex, pursuitCorrectAnswerText, PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
@@ -2018,12 +2018,15 @@ function DisplayScreenInner() {
                 </div>
               )}
             </div>
-            {intermissionWhatsapp && (
-              <div className="qi-display-promo-card qi-display-promo-qr">
-                <div className="qi-display-promo-label">JOIN OUR WHATSAPP</div>
-                <img src={"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(intermissionWhatsapp)} alt="WhatsApp QR code" />
-              </div>
-            )}
+            {intermissionWhatsapp && normalizeWhatsappLink(intermissionWhatsapp) && (() => {
+              const whatsappQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(normalizeWhatsappLink(intermissionWhatsapp)!);
+              return !brokenImageUrls.has(whatsappQrSrc) ? (
+                <div className="qi-display-promo-card qi-display-promo-qr">
+                  <div className="qi-display-promo-label">JOIN OUR WHATSAPP</div>
+                  <img src={whatsappQrSrc} alt="WhatsApp QR code" onError={() => markImageBroken(whatsappQrSrc)} />
+                </div>
+              ) : null;
+            })()}
           </div>
         )}
         <IntermissionGallery photos={galleryPhotos} />

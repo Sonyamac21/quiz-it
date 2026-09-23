@@ -1617,6 +1617,16 @@ function QuizControllerInner() {
     // "Rd: +X" figure could carry over and keep accumulating across the whole game
     // instead of reflecting just the round in progress.
     if (sessionPin) await resetRoundPoints();
+    // Round Settings (points/timer/danger zone/wipeout) lives at the top of
+    // the team rail, above the team cards. Reported directly: team names
+    // "don't start until at least 1/3 or 1/2 down the screen" - a host
+    // opening this panel once mid-show (e.g. to flip Danger Zone on for one
+    // round) and not remembering to collapse it again is exactly how that
+    // happens; expanded, it's several hundred pixels of point/timer/bonus
+    // inputs sitting above every team card. Force it closed at the start of
+    // every round so it can never silently eat rail space through a whole
+    // round of live play - the host can still reopen it with one tap.
+    setRoundSettingsOpen(false);
   }
 
   async function doPreviewQuestion(idx: number) {
@@ -1644,6 +1654,11 @@ function QuizControllerInner() {
   async function doSendQuestion() {
     if (!selectedRound || !sessionId) return;
     clearHostPreviewRecovery(window.sessionStorage);
+    // Same reasoning as doStartRound: if the host reopened Round Settings
+    // between questions (checking the timer, say), collapse it again the
+    // moment the next question goes live so it never sits open through a
+    // whole question while teams are actively answering.
+    setRoundSettingsOpen(false);
     const q = selectedRound.questions[qIdx];
     const isHotSeat = selectedRound.round_type === "hot_seat";
     hostPhaseRef.current = isHotSeat ? "hot_seat" : "question";

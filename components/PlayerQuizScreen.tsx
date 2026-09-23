@@ -1899,7 +1899,17 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             <PlayerResultBanner tone="correct" title="CORRECT">{correctText}</PlayerResultBanner>
           </div>
         ) : (
-          <>
+          // Host-reported bug: unlike the "correct" branch above (which
+          // centers its single banner with margin:"auto 0"), this branch
+          // was a plain top-aligned Fragment - a short reveal (just the
+          // question, the correct-answer box, and "Your answer: ...", no
+          // Multi Tap breakdown) left a large empty gap between it and the
+          // power cards pinned at the bottom, while OTHER question types
+          // with more content (Multi Tap's per-option breakdown) filled the
+          // screen fine. Wrapping this branch the same way centers it
+          // vertically in the available space so every reveal screen fills
+          // the device the same amount regardless of how much content it has.
+          <div style={{ margin: "auto 0", width: "100%" }}>
             <div role="status" aria-live="polite" style={{ position: "relative", zIndex: 2, fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 14, letterSpacing: ".14em", color: "#B9A8D9", marginBottom: 12 }}>
               {/* Multi Tap almost never lands on a flat "wrong" - a team
                   usually gets several taps right even without a perfect
@@ -1959,7 +1969,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
                 )}
               </>
             )}
-          </>
+          </div>
         )}
         </div>
         <PowerCards />

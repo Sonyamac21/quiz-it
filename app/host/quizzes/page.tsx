@@ -151,6 +151,15 @@ export default function QuizBuilderPage() {
   const [photoSearching, setPhotoSearching] = useState(false);
   const [photoCandidates, setPhotoCandidates] = useState<{ id: number; thumb: string; full: string; tags: string }[]>([]);
   const [photoSearchError, setPhotoSearchError] = useState("");
+  // Same broken-image guard as the venue/display/Music Prep screens - a
+  // stale Pixabay hotlink or dead uploaded-photo URL left an unstyled
+  // broken-image glyph in these editor preview boxes instead of hiding
+  // gracefully.
+  const [brokenImageUrls, setBrokenImageUrls] = useState<Set<string>>(new Set());
+  function markImageBroken(url: string | null | undefined) {
+    if (!url) return;
+    setBrokenImageUrls(prev => (prev.has(url) ? prev : new Set(prev).add(url)));
+  }
   async function searchPhotos(query: string) {
     if (!query.trim()) return;
     setPhotoSearching(true);
@@ -1760,7 +1769,7 @@ export default function QuizBuilderPage() {
                               </div>
                             ) : isPicture ? (
                               <div>
-                                {editDraft.option_b && <img src={getMediaUrl(editDraft.option_b) ?? undefined} alt={editDraft.option_a || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 140, objectFit: "cover", borderRadius: 6, marginBottom: 6 }} />}
+                                {editDraft.option_b && !brokenImageUrls.has(editDraft.option_b) && <img src={getMediaUrl(editDraft.option_b) ?? undefined} alt={editDraft.option_a || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 140, objectFit: "cover", borderRadius: 6, marginBottom: 6 }} onError={() => markImageBroken(editDraft.option_b)} />}
                                 <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Image search query</div>
                                 <div style={{ display: "flex", gap: 6 }}>
                                   <input
@@ -1789,7 +1798,7 @@ export default function QuizBuilderPage() {
                                           borderRadius: 6, overflow: "hidden", cursor: "pointer", background: "none", height: 64,
                                         }}
                                       >
-                                        <img src={c.thumb} alt={c.tags} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                                        {!brokenImageUrls.has(c.thumb) && <img src={c.thumb} alt={c.tags} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={() => markImageBroken(c.thumb)} />}
                                       </button>
                                     ))}
                                   </div>
@@ -1874,7 +1883,8 @@ export default function QuizBuilderPage() {
                               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
                                 {tilesForTeam(readPairs([qr]), "builder-preview").map((rawItem, itemIndex) => {
                                   const item = rawItem as { label: string; image_url: string };
-                                  return <div key={itemIndex} style={{ borderRadius: 8, overflow: "hidden", background: "#0A0118", position: "relative", aspectRatio: "1" }}><img src={getMediaUrl(item.image_url) ?? item.image_url} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><strong style={{ position: "absolute", inset: "auto 0 0", padding: "12px 5px 5px", background: "linear-gradient(transparent,rgba(0,0,0,.9))", color: "white", textAlign: "center", fontSize: 11 }}>{item.label}</strong></div>;
+                                  const tileImgUrl = getMediaUrl(item.image_url) ?? item.image_url;
+                                  return <div key={itemIndex} style={{ borderRadius: 8, overflow: "hidden", background: "#0A0118", position: "relative", aspectRatio: "1" }}>{tileImgUrl && !brokenImageUrls.has(tileImgUrl) && <img src={tileImgUrl} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => markImageBroken(tileImgUrl)} />}<strong style={{ position: "absolute", inset: "auto 0 0", padding: "12px 5px 5px", background: "linear-gradient(transparent,rgba(0,0,0,.9))", color: "white", textAlign: "center", fontSize: 11 }}>{item.label}</strong></div>;
                                 })}
                               </div>
                             </>
@@ -1892,8 +1902,8 @@ export default function QuizBuilderPage() {
                             {isPicture && (
                               <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 8, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
                                 <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Photo shown to players</div>
-                                {photoUrl ? (
-                                  <img src={getMediaUrl(photoUrl) ?? undefined} alt={photoQuery || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 6, marginTop: 6 }} />
+                                {photoUrl && !brokenImageUrls.has(photoUrl) ? (
+                                  <img src={getMediaUrl(photoUrl) ?? undefined} alt={photoQuery || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 6, marginTop: 6 }} onError={() => markImageBroken(photoUrl)} />
                                 ) : (
                                   <div style={{ color: "#B9A8D9", font: "400 12px 'Inter'", marginTop: 4 }}>No image found for this question yet.</div>
                                 )}

@@ -1899,7 +1899,21 @@ function DisplayScreenInner() {
             <div className="lb-kicker">JOIN TONIGHT&rsquo;S SHOW</div>
             <div className="lb-pin"><small>ENTER PIN</small>{sessionPin}</div>
             <div className="lb-how">
-              <div className="lb-qr" />
+              {(() => {
+                // Bug: this was a bare styled div with no actual QR data
+                // encoded in it - a decorative checkerboard pattern, not a
+                // scannable code, even though the copy right next to it
+                // says "or scan". Confirmed live: nothing here ever worked
+                // as a QR code. Same api.qrserver.com approach already
+                // proven for the WhatsApp QR below in this file, encoding
+                // the join URL that step 1's own text already promises.
+                const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent("https://quiz-it.app/join");
+                return !brokenImageUrls.has(joinQrSrc) ? (
+                  <img className="lb-qr" src={joinQrSrc} alt="Scan to join" onError={() => markImageBroken(joinQrSrc)} />
+                ) : (
+                  <div className="lb-qr" />
+                );
+              })()}
               <div className="lb-steps">
                 <b>1.</b> Go to quiz-it.app or scan<br />
                 <b>2.</b> Enter the PIN<br />
@@ -1957,7 +1971,14 @@ function DisplayScreenInner() {
               <div className="lb-kicker">JOIN TONIGHT&rsquo;S SHOW</div>
               <div className="lb-pin"><small>ENTER PIN</small>{sessionPin}</div>
               <div className="lb-how">
-                <div className="lb-qr" />
+                {(() => {
+                  const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent("https://quiz-it.app/join");
+                  return !brokenImageUrls.has(joinQrSrc) ? (
+                    <img className="lb-qr" src={joinQrSrc} alt="Scan to join" onError={() => markImageBroken(joinQrSrc)} />
+                  ) : (
+                    <div className="lb-qr" />
+                  );
+                })()}
                 <div className="lb-steps">
                   <b>1.</b> Go to quiz-it.app or scan<br />
                   <b>2.</b> Enter the PIN<br />

@@ -123,7 +123,14 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
           <div className="lb-kicker">JOIN TONIGHT&rsquo;S SHOW</div>
           <div className="lb-pin"><small>ENTER PIN</small>0000</div>
           <div className="lb-how">
-            <div className="lb-qr" />
+            {(() => {
+              const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent("https://quiz-it.app/join");
+              return !brokenImageUrls.has(joinQrSrc) ? (
+                <img className="lb-qr" src={joinQrSrc} alt="Scan to join" onError={() => markImageBroken(joinQrSrc)} />
+              ) : (
+                <div className="lb-qr" />
+              );
+            })()}
             <div className="lb-steps">
               <b>1.</b> Go to quiz-it.app or scan<br />
               <b>2.</b> Enter the PIN<br />

@@ -395,8 +395,23 @@ export async function generateValidatedRound(
           // fall through to the persistent-failure path below
         }
       }
+      // Only genuinely unrecoverable errors should kill the whole round here.
+      // Every ordinary content-quality miss this branch sees (off-theme,
+      // suitability, multi-tap/text-answer format, partial-name - see
+      // questionGenerationCore.ts) sets context.error ending in "- retrying",
+      // i.e. the code that raised it already intends for this to be retried,
+      // not treated as fatal. consecutiveFailures >= 6 used to be OR'd in
+      // here too, so a run of ordinary bad luck (very plausible on a narrow
+      // theme like "kids", where most candidate topics legitimately don't
+      // belong) killed the round outright after just 6 misses - confirmed
+      // live: a correctly-reasoned "off-theme" rejection on attempt 6 ended
+      // generation entirely instead of just trying another candidate. The
+      // wall-clock budget and maxAttempts checks already elsewhere in this
+      // loop are the intended backstop for "this theme is genuinely too
+      // hard to satisfy" - same pattern the validateCandidate path below
+      // already uses (its own stall detector is 45 attempts, not 6).
       const isPersistent = err.includes("api_key") || err.includes("api key") || err.includes("rate limit")
-        || err.includes("too many requests") || err.includes("prompt too long") || consecutiveFailures >= 6
+        || err.includes("too many requests") || err.includes("prompt too long")
         || (isAuthError && authRefreshAttempted);
       if (isPersistent) {
         const finalStatus = "Generation failed after " + consecutiveFailures + " attempts: " + (context.error || "unknown error") + degradedSuffix();

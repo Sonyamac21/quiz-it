@@ -767,7 +767,14 @@ button, input, select, textarea { font: inherit; }
 .fbl .lb-reel-title{position:absolute;top:4%;left:50%;transform:translateX(-50%);font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:clamp(14px,1.6vw,22px);letter-spacing:.18em;color:var(--purple-b);text-align:center;white-space:nowrap;}
 .fbl .lb-reel-scene{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3%;animation:lbCardIn .6s var(--settle);}
 .fbl .lb-reel-venue{width:100%;height:100%;position:relative;}
-.fbl .lb-reel-media{width:88%;height:80%;object-fit:cover;border-radius:20px;border:2px solid var(--purple);box-shadow:0 0 60px rgba(190,38,193,.25);}
+/* .lb-reel-media's actual sizing/border/shadow is defined once, below at its
+   later, fuller declaration (search for "display:block" near lb-reel-media) - this
+   used to also be declared here with different, smaller values (88%/80%,
+   object-fit:cover) that the later rule silently overrode for every real
+   property, which is exactly the kind of duplicate-rule trap that made a
+   past fix here look like it had no effect. Removed rather than left as
+   dead weight so a future edit to venue image sizing can't target this
+   version by mistake and wonder why nothing changed. */
 .fbl .lb-reel-fallback{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;padding:0 8%;}
 /* Animated venue intro - a code-driven title-card treatment (logo pop,
    name sweep, tagline fade) that plays over the "venue" reel scene
@@ -788,7 +795,7 @@ button, input, select, textarea { font: inherit; }
    ceilings - so a wide logo fills the width, a tall one fills the height,
    and every venue's logo reads as "as large as it can be" rather than all
    being boxed to one arbitrary rectangle. */
-.fbl .lb-venue-intro-logo{max-width:min(420px,34vw);max-height:min(340px,28vw);width:auto;height:auto;object-fit:contain;border-radius:20px;background:rgba(10,1,24,.4);padding:12px;box-shadow:0 0 60px rgba(190,38,193,.45);animation:lbVenueLogoPop 1s var(--settle) both;}
+.fbl .lb-venue-intro-logo{max-width:min(420px,34vw);max-height:min(340px,28vw);width:auto;height:auto;object-fit:contain;border-radius:20px;background:rgba(10,1,24,.4);padding:12px;box-shadow:0 0 60px rgba(190,38,193,.45);animation:lbVenueLogoPop 1s var(--settle) both;filter:drop-shadow(0 14px 28px rgba(0,0,0,.5));}
 .fbl .lb-venue-intro-name{font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:clamp(30px,5.4vw,64px);letter-spacing:.03em;color:#fff;text-shadow:0 12px 50px rgba(190,38,193,.55);animation:lbVenueNameSweep 1s var(--settle) .25s both;}
 .fbl .lb-venue-intro-tagline{font:700 clamp(13px,1.7vw,20px) 'Inter';letter-spacing:.28em;text-transform:uppercase;color:var(--purple-b);animation:lbVenueTaglineFade .8s var(--settle) .6s both;}
 .fbl .lb-venue-intro-bg{position:absolute;inset:0;border-radius:20px;overflow:hidden;background:radial-gradient(ellipse 70% 60% at 50% 40%,rgba(190,38,193,.28),transparent 70%),#150A2E;}
@@ -805,7 +812,18 @@ button, input, select, textarea { font: inherit; }
    from alternating sides so the rotation doesn't feel identical to the
    plain fade the other scenes use. */
 .fbl .lb-reel-brand{text-align:center;padding:0 8%;gap:18px;}
-.fbl .lb-reel-brand-logo{max-width:min(300px,38vw);max-height:min(230px,29vw);width:auto;height:auto;object-fit:contain;border-radius:16px;margin-bottom:4px;}
+/* .lb-reel-brand-logo's real sizing is the later, more carefully-tuned
+   declaration below (search for "max-width:clamp" near lb-reel-brand-logo) - same
+   dead-duplicate situation as .lb-reel-media above. This one mattered more
+   than most: a THIRD copy further down the file (search "object-fit:contain;
+   max-width:42%") was added later still and, because it came after this
+   clamp()-based version in source order, silently won the cascade and
+   replaced the deliberately-tuned px-floor/ceiling sizing with a plain
+   percentage that had no minimum/maximum safety at all - on an unusually
+   large or small venue TV, that's a real, independent reason a logo could
+   render far bigger or smaller than intended. Removed the regressing copy
+   (not this one) so the clamp()-based sizing is what actually applies. */
+
 .fbl .lb-reel-brand-headline{font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:clamp(24px,4vw,44px);color:#fff;letter-spacing:.04em;text-shadow:0 0 40px rgba(190,38,193,.5);animation:lbBrandSlide .7s var(--settle);}
 .fbl .lb-reel-brand-body{font:600 clamp(14px,1.8vw,22px) 'Inter';color:var(--text2);max-width:560px;line-height:1.5;white-space:pre-line;animation:lbBrandSlide .7s var(--settle) .1s both;}
 .fbl .lb-reel-host-photo{width:min(72%,560px);height:min(58%,430px);object-fit:contain;border-radius:12px;box-shadow:0 18px 55px rgba(0,0,0,.4);}
@@ -824,7 +842,7 @@ button, input, select, textarea { font: inherit; }
 .fbl .lb-venue-intro.has-media .lb-venue-intro-tagline{font-size:clamp(12px,1.2vw,18px);}
 .fbl .lb-reel-brand::before{content:"";position:absolute;inset:10% 7% 7%;border:1px solid rgba(217,79,220,.22);border-radius:clamp(18px,2vw,30px);background:linear-gradient(145deg,rgba(31,15,62,.88),rgba(10,1,24,.72));box-shadow:0 26px 80px rgba(0,0,0,.3);}
 .fbl .lb-reel-brand-panel{position:relative;z-index:1;width:min(90%,760px);height:min(75%,560px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(14px,2.2vh,28px);padding:clamp(22px,3vw,48px);overflow:hidden;}
-.fbl .lb-reel-brand-logo{max-width:clamp(150px,22%,260px);max-height:clamp(110px,22vh,210px);width:auto;height:auto;object-fit:contain;border-radius:14px;margin:0;filter:drop-shadow(0 14px 28px rgba(0,0,0,.35));}
+.fbl .lb-reel-brand-logo{max-width:clamp(150px,22%,260px);max-height:clamp(110px,22vh,210px);width:auto;height:auto;object-fit:contain;border-radius:14px;margin:0;filter:drop-shadow(0 14px 28px rgba(0,0,0,.5));}
 .fbl .lb-reel-brand-headline{max-width:100%;font-size:clamp(28px,3.2vw,54px);line-height:1.16;overflow-wrap:anywhere;text-wrap:balance;}
 .fbl .lb-reel-brand-body{max-width:680px;font-size:clamp(18px,1.7vw,29px);line-height:1.42;text-wrap:balance;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:6;overflow:hidden;}
 /* The Instagram-handle scenes (@handle, single unbroken word/no spaces)
@@ -2331,9 +2349,15 @@ button, input, select, textarea { font: inherit; }
 .qi-display-fastest-photo img,
 .qi-display-winner img { object-fit:contain !important; background:#0b0318; }
 .fbl .lb-float-photo img { aspect-ratio:1/1; }
-.fbl .lb-venue-intro-logo,
-.fbl .lb-reel-brand-logo { object-fit:contain; max-width:42%; max-height:24vh; width:auto; height:auto; }
-.fbl .lb-venue-intro.has-media .lb-venue-intro-logo { max-width:min(30%,clamp(110px,15vw,190px)); max-height:clamp(82px,11vw,140px); width:auto; height:auto; }
+/* .lb-venue-intro-logo and .lb-reel-brand-logo's real max-width/max-height
+   are the clamp()-based versions declared where each class is first
+   introduced further up this file - this rule used to also set them, to a
+   plain max-width:42%/max-height:24vh with no px floor or ceiling, and
+   because it came later in the file it silently won and replaced the
+   deliberately-tuned clamp() sizing everywhere. That's a real, independent
+   explanation for logos rendering far larger or smaller than intended on
+   an unusually sized venue TV - not just the missing onError handling
+   fixed alongside this. Removed rather than left in place. */
 
 .qi-display-intermission { justify-content:flex-start; gap:0; }
 .qi-display-intermission-title { font-size:clamp(34px,7vh,82px); margin:clamp(7px,1.4vh,14px) 0 5px; }
@@ -2351,7 +2375,9 @@ button, input, select, textarea { font: inherit; }
 .fbl .lb-reel-scene { overflow:hidden; isolation:isolate; animation:qiVenueSceneIn .8s cubic-bezier(.2,.8,.2,1) both; }
 .fbl .lb-reel-scene::after { content:""; position:absolute; inset:-30%; pointer-events:none; z-index:3; background:linear-gradient(112deg,transparent 38%,rgba(255,255,255,.13) 49%,transparent 60%); transform:translateX(-70%); animation:qiVenueLightSweep 1.35s ease-out .25s both; }
 .fbl .lb-reel-media { object-fit:contain !important; animation:qiVenueMediaDrift 7s ease-in-out both; }
-.fbl .lb-venue-intro-logo,.fbl .lb-reel-brand-logo { filter:drop-shadow(0 14px 28px rgba(0,0,0,.5)); }
+/* Both logo classes' drop-shadow now lives on their own base rule further
+   up this file, at the same 0.5 alpha this used to override to - this was
+   a fully redundant re-declaration of the exact value already winning. */
 .fbl .lb-reel-host-frame { min-height:0; }
 .fbl .lb-reel-host-photo { object-fit:contain !important; }
 @keyframes qiVenueSceneIn { from { opacity:0; transform:scale(.97); clip-path:inset(4% 4% 4% 4% round 28px); } to { opacity:1; transform:none; clip-path:inset(0 round 0); } }

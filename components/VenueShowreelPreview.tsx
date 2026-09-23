@@ -86,6 +86,17 @@ export type PreviewVenue = {
 export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
   const [reelSceneIdx, setReelSceneIdx] = useState(0);
   const [videoFailed, setVideoFailed] = useState(false);
+  // Same fix as the live Display's pre-show reel (see the comment on
+  // brokenImageUrls in app/host/display/page.tsx) - this preview exists
+  // specifically so a host can sanity-check venue branding before a real
+  // session starts, so it needs the same broken-image handling or a host
+  // checking their setup here would see the exact glyph this preview is
+  // meant to help them avoid on the night.
+  const [brokenImageUrls, setBrokenImageUrls] = useState<Set<string>>(new Set());
+  function markImageBroken(url: string | null | undefined) {
+    if (!url) return;
+    setBrokenImageUrls(prev => (prev.has(url) ? prev : new Set(prev).add(url)));
+  }
 
   const reelScenes = [
     "venue",
@@ -128,13 +139,13 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
             <div className="lb-reel-scene lb-reel-venue">
               {venue.hero_video_url && !videoFailed ? (
                 <video key={venue.hero_video_url} className="lb-reel-media" src={getMediaUrl(venue.hero_video_url) || undefined} autoPlay muted loop playsInline onError={() => setVideoFailed(true)} onLoadedData={() => setVideoFailed(false)} />
-              ) : venue.hero_image_url ? (
-                <img className="lb-reel-media" src={getMediaUrl(venue.hero_image_url) || undefined} alt={venue.venue_name} />
+              ) : venue.hero_image_url && !brokenImageUrls.has(venue.hero_image_url) ? (
+                <img className="lb-reel-media" src={getMediaUrl(venue.hero_image_url) || undefined} alt={venue.venue_name} onError={() => markImageBroken(venue.hero_image_url)} />
               ) : (
                 <div className="lb-venue-intro-bg" />
               )}
-              <div className={"lb-venue-intro" + ((venue.hero_video_url && !videoFailed) || venue.hero_image_url ? " has-media" : "")}>
-                {venue.venue_logo_url && <img className="lb-venue-intro-logo" src={getMediaUrl(venue.venue_logo_url) || undefined} alt="" />}
+              <div className={"lb-venue-intro" + ((venue.hero_video_url && !videoFailed) || (venue.hero_image_url && !brokenImageUrls.has(venue.hero_image_url)) ? " has-media" : "")}>
+                {venue.venue_logo_url && !brokenImageUrls.has(venue.venue_logo_url) && <img className="lb-venue-intro-logo" src={getMediaUrl(venue.venue_logo_url) || undefined} alt="" onError={() => markImageBroken(venue.venue_logo_url)} />}
                 <div className="lb-venue-intro-copy">
                   <div className="lb-venue-intro-name">{venue.venue_name || "TONIGHT'S QUIZ"}</div>
                   {venue.schedule_text && <div className="lb-venue-intro-time">QUIZ NIGHT · {venue.schedule_text}</div>}
@@ -142,7 +153,7 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
                 </div>
                 {(venue.host_photo_url || safeHostName) && (
                   <div className="lb-venue-intro-host">
-                    {venue.host_photo_url && <img src={getMediaUrl(venue.host_photo_url) || undefined} alt={safeHostName || "Quiz host"} />}
+                    {venue.host_photo_url && !brokenImageUrls.has(venue.host_photo_url) && <img src={getMediaUrl(venue.host_photo_url) || undefined} alt={safeHostName || "Quiz host"} onError={() => markImageBroken(venue.host_photo_url)} />}
                     <div><small>YOUR HOST</small><strong>{safeHostName || "Mac Entertainment"}</strong></div>
                   </div>
                 )}
@@ -153,7 +164,7 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
           {currentReelScene === "offers" && (
             <div className="lb-reel-scene lb-reel-brand lb-reel-brand-offers">
               <div className="lb-reel-brand-panel">
-                {venue.venue_logo_url && <img className="lb-reel-brand-logo" src={getMediaUrl(venue.venue_logo_url) || undefined} alt="" />}
+                {venue.venue_logo_url && !brokenImageUrls.has(venue.venue_logo_url) && <img className="lb-reel-brand-logo" src={getMediaUrl(venue.venue_logo_url) || undefined} alt="" onError={() => markImageBroken(venue.venue_logo_url)} />}
                 <div className="lb-cardkicker">TONIGHT AT {venue.venue_name?.toUpperCase() || "THE VENUE"}</div>
                 <div className="lb-reel-brand-body">{venue.intermission_offers}</div>
               </div>
@@ -163,7 +174,7 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
           {currentReelScene === "prizes" && (
             <div className="lb-reel-scene lb-reel-brand lb-reel-brand-prizes">
               <div className="lb-reel-brand-panel">
-                {venue.venue_logo_url && <img className="lb-reel-brand-logo" src={getMediaUrl(venue.venue_logo_url) || undefined} alt={`${venue.venue_name} logo`} />}
+                {venue.venue_logo_url && !brokenImageUrls.has(venue.venue_logo_url) && <img className="lb-reel-brand-logo" src={getMediaUrl(venue.venue_logo_url) || undefined} alt={`${venue.venue_name} logo`} onError={() => markImageBroken(venue.venue_logo_url)} />}
                 <div className="lb-cardkicker">TONIGHT&rsquo;S PRIZES</div>
                 <div className="lb-reel-brand-body">{venue.prize_information}</div>
               </div>
@@ -173,7 +184,7 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
           {currentReelScene === "social" && (
             <div className="lb-reel-scene lb-reel-brand lb-reel-brand-social">
               <div className="lb-reel-brand-panel">
-                {venue.venue_logo_url && <img className="lb-reel-brand-logo" src={getMediaUrl(venue.venue_logo_url) || undefined} alt="" />}
+                {venue.venue_logo_url && !brokenImageUrls.has(venue.venue_logo_url) && <img className="lb-reel-brand-logo" src={getMediaUrl(venue.venue_logo_url) || undefined} alt="" onError={() => markImageBroken(venue.venue_logo_url)} />}
                 <div className="lb-cardkicker">FOLLOW THE VENUE</div>
                 <FitText className="lb-reel-brand-headline"><InstagramGlyph />{venue.instagram_tag}</FitText>
               </div>

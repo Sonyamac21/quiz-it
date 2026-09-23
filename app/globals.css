@@ -471,28 +471,31 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-manual__label { width: 100%; color: var(--qi-text-muted); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
 .qi-mc-manual__button { min-height: 40px; padding-inline: var(--qi-space-3); font-size: var(--qi-type-sm); }
 .qi-mc-manual__last { min-height: 40px; margin-left: auto; }
-.qi-mc-team-card { margin-bottom: var(--qi-space-3); padding: var(--qi-space-3) var(--qi-space-4); border: 1px solid var(--qi-border); border-radius: var(--qi-radius-md); background: rgb(255 255 255 / 0.045); box-shadow: var(--qi-shadow-sm); }
+/* Host request: every team visible with zero scrolling for a realistic
+   room size (up to 25), at the SAME name/score font sizes as before - the
+   2-COL button in the header remains the manual option for genuinely
+   bigger rooms. .qi-mc-team-card is no longer two stacked rows (a
+   __summary line plus a separate __answer line) - see the JSX in
+   app/host/quiz/page.tsx, which now renders one grid row per team with
+   name, live-answer preview and score all side by side. Margin/padding
+   tightened to the minimum that still comfortably fits this font size,
+   since THAT stacking - not the font size - was what made a realistic
+   team count need scrolling before. */
+.qi-mc-team-card { margin-bottom: 4px; padding: 4px 10px; border: 1px solid var(--qi-border); border-radius: 8px; background: rgb(255 255 255 / 0.045); box-shadow: var(--qi-shadow-sm); min-width: 0; min-height: 30px; }
 .qi-mc-team-card--fastest { background: rgb(190 38 193 / 0.14); box-shadow: var(--qi-shadow-glow); }
-.qi-mc-team-card__summary { display: flex; align-items: center; gap: var(--qi-space-3); min-height: 34px; }
-.qi-mc-team-card__summary > span:nth-child(3) { font-size: 1rem !important; min-width: 0; overflow-wrap: anywhere; }
-.qi-mc-team-card__summary > span:last-child { color: var(--qi-accent-bright) !important; font-size: 1.35rem !important; }
-.qi-mc-team-card__answer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--qi-space-2); min-height: 34px; margin-top: var(--qi-space-2); padding-left: 0; }
-.qi-mc-team-card { min-width: 0; }
-.qi-mc-team-card__answer > button { flex-shrink: 0; white-space: nowrap; }
-.qi-mc-team-card__answer > span { font-size: var(--qi-type-sm) !important; }
+.qi-mc-team-card > span:nth-child(3) { font-size: 1rem !important; min-width: 0; overflow-wrap: anywhere; }
+.qi-mc-team-card > span:last-child { color: var(--qi-accent-bright) !important; font-size: 1.35rem !important; }
 .qi-mc-teams--capacity { overflow:hidden; padding:7px 8px; align-content:start; }
 .qi-mc-teams--capacity .qi-mc-teams__header { top:-7px; margin:-7px -8px 5px; padding:6px 8px; }
-.qi-mc-teams--capacity .qi-mc-team-card { min-width:0; margin:0 0 4px; padding:3px 5px; border-radius:7px; box-shadow:none; }
-.qi-mc-teams--capacity .qi-mc-team-card__summary { min-height:18px; grid-template-columns:18px 18px minmax(0,1fr) 6px auto!important; gap:4px!important; }
-.qi-mc-teams--capacity .qi-mc-team-card__summary>span:first-child { min-width:18px!important; font-size:11px!important; }
-.qi-mc-teams--capacity .qi-mc-team-card__summary .fbh-crest { width:17px!important; height:17px!important; font-size:6px!important; }
-.qi-mc-teams--capacity .qi-mc-team-card__summary>span:nth-child(3) { display:block!important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px!important; }
-.qi-mc-teams--capacity .qi-mc-team-card__summary>span:nth-child(5) { min-width:28px!important; font-size:14px!important; }
+/* Past this point (teamColumnCount >= 3, i.e. genuinely many teams spread
+   across several columns) there's less width per card to work with, so
+   this tier still shrinks further - same one-row structure, smaller. */
+.qi-mc-teams--capacity .qi-mc-team-card { min-width:0; margin:0 0 4px; padding:3px 5px; border-radius:7px; box-shadow:none; min-height:18px; grid-template-columns:18px 18px minmax(0,1fr) auto 6px auto!important; gap:4px!important; }
+.qi-mc-teams--capacity .qi-mc-team-card>span:first-child { min-width:18px!important; font-size:11px!important; }
+.qi-mc-teams--capacity .qi-mc-team-card .fbh-crest { width:17px!important; height:17px!important; font-size:6px!important; }
+.qi-mc-teams--capacity .qi-mc-team-card>span:nth-child(3) { font-size:11px!important; }
+.qi-mc-teams--capacity .qi-mc-team-card>span:last-child { min-width:28px!important; font-size:14px!important; }
 .qi-mc-teams--capacity .qi-mc-team-tool { display:none!important; }
-.qi-mc-teams--capacity .qi-mc-team-card__answer { min-height:13px; margin-top:1px; gap:3px; overflow:hidden; }
-.qi-mc-teams--capacity .qi-mc-team-card__answer>span { min-width:0!important; font-size:11px!important; line-height:1.1; }
-.qi-mc-teams--capacity .qi-mc-team-card__answer>div { flex:none; gap:2px!important; }
-.qi-mc-teams--capacity .qi-mc-team-card__answer>div>span { width:6px!important; height:6px!important; }
 .qi-mc-teams--capacity .qi-mc-team-adjust { display:none!important; }
 
 /* Keep the live host console inside a laptop/venue-control viewport. Width-only

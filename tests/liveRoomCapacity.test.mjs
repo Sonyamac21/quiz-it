@@ -31,7 +31,19 @@ test("large host rooms automatically use a non-scrolling compact roster", () => 
   assert.match(host, /qi-mc-teams--capacity/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /\.qi-mc-teams--capacity \{ overflow:hidden;/);
-  assert.match(css, /\.qi-mc-teams--capacity \.qi-mc-team-card__answer/);
-  assert.doesNotMatch(css, /\.qi-mc-teams--capacity \.qi-mc-team-card__answer>span[^}]*font-size:9px/);
-  assert.match(css, /\.qi-mc-teams--capacity \.qi-mc-team-card__answer>span[^}]*font-size:11px/);
+  // The per-team roster row was restructured from two stacked lines
+  // (a __summary line plus a separate __answer line) into one merged grid
+  // row per team (see the JSX above the scores.map in app/host/quiz/
+  // page.tsx), specifically so a realistic team count (up to 25) fits with
+  // zero scrolling at the SAME font size as before, instead of needing to
+  // shrink text to fit. The live-answer preview's font size is now fixed
+  // inline in the JSX rather than switched by a capacity-mode CSS class, so
+  // this regression check now asserts that directly: it must stay
+  // comfortably readable (>=11px), never shrunk back down to the old
+  // illegible 9px.
+  const liveAnswerFontSize = host.match(/color:ansColor, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const \}\}>\{ans\}<\/span>/);
+  assert.ok(liveAnswerFontSize, "live-answer preview span still renders the team's answer text");
+  const fontSizeMatch = host.match(/fontSize:(\d+), color:ansColor/);
+  assert.ok(fontSizeMatch, "live-answer preview has an explicit font size");
+  assert.ok(Number(fontSizeMatch[1]) >= 11, `live-answer font size ${fontSizeMatch[1]}px must stay readable (>=11px)`);
 });

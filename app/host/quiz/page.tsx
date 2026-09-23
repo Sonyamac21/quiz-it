@@ -2998,65 +2998,64 @@ function QuizControllerInner() {
               const isBlocked = blockedTeams.includes(s.team_name);
               const isScrambled = scrambledTeams.includes(s.team_name);
               const questionAward = answersRevealed ? Object.entries(lastDeltasRef.current).find(([name]) => name.trim().toLowerCase() === s.team_name.trim().toLowerCase())?.[1] : undefined;
+              // Host request: fit up to 25 teams in one column with zero
+              // scrolling, at the SAME font sizes as before (the existing
+              // 2-COL button in the header above remains the manual option
+              // for genuinely larger rooms). The old layout stacked a full
+              // second line under every team purely for the live-answer
+              // preview/points-just-scored badge, doubling each team's
+              // height - the single biggest thing standing between "a
+              // handful visible" and "25 visible at once." Folded onto one
+              // row: nothing removed, same text at the same sizes, just
+              // packed side by side instead of stacked. Live-answer text
+              // still shows (ellipsis-truncated if long) whenever a team
+              // has actually answered; otherwise that space is simply empty.
+              const liveAnswer = answered ? (() => {
+                const ord = submissionOrder(s.team_name);
+                const ansObj = teamAnswerObj(s.team_name);
+                const isNearestWins = currentQ?.question_type === "nearest_wins";
+                const nwIsClosest = isNearestWins && answersRevealed && s.team_name === fastestTeam;
+                const correct = !isNearestWins && answersRevealed && ansObj && currentQ ? isAnswerCorrect(ansObj, currentQ) : null;
+                const ansColor = nwIsClosest ? "#2EE06E" : correct === true ? "#2EE06E" : correct === false ? "#FF3B4E" : "rgba(255,255,255,0.72)";
+                return (
+                  <span style={{ display:"inline-flex", alignItems:"center", gap:5, minWidth:0, maxWidth:150, overflow:"hidden" }}>
+                    {ord !== null && <span style={{ fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.4)", flexShrink:0 }}>#{ord}</span>}
+                    <span style={{ fontSize:13, color:ansColor, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>
+                    {questionAward !== undefined && <strong title="Points earned on this question" style={{ color: questionAward < 0 ? "#FF7D87" : "#2EE06E", fontSize: 13, whiteSpace: "nowrap", flexShrink:0 }}>{questionAward >= 0 ? "+" : ""}{questionAward}</strong>}
+                  </span>
+                );
+              })() : null;
               return (
-                <div key={s.team_name} className={`qi-mc-team-card${isFastest ? " qi-mc-team-card--fastest" : ""}`} style={{ width: "100%", boxSizing: "border-box", borderColor:isBlocked?"#FF3B4E":isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}>
-                  <div
-                    className="qi-mc-team-card__summary"
-                    onClick={() => setStatsTeam(s.team_name)}
-                    title="Tap for this team's stats, block/shuffle and score controls"
-                    style={{ display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) 8px auto", gap: 8, cursor: "pointer" }}
-                  >
-                    <span style={{ fontSize:16, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
-                    <TeamBadge name={s.team_name} size={20} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:7, flexShrink:0 }} />
-                    <span style={{ fontWeight:700, fontSize:14, flex:1, color:"#fff", display:"inline-flex", alignItems:"center", gap:5 }}>
-                      {s.team_name}
-                      {isFastest && <IconBolt style={{ color:"#FFC533" }} />}
-                      {isBlocked && <IconBlock style={{ color:"#FF3B4E" }} />}
-                      {isScrambled && <IconShuffle style={{ color:"#D94FDC" }} />}
+                <div
+                  key={s.team_name}
+                  className={`qi-mc-team-card${isFastest ? " qi-mc-team-card--fastest" : ""}`}
+                  onClick={() => setStatsTeam(s.team_name)}
+                  title="Tap for this team's stats, block/shuffle and score controls"
+                  style={{ width: "100%", boxSizing: "border-box", cursor: "pointer", display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) auto 8px auto", alignItems: "center", gap: 8, borderColor:isBlocked?"#FF3B4E":isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}
+                >
+                  <span style={{ fontSize:16, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
+                  <TeamBadge name={s.team_name} size={20} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:7, flexShrink:0 }} />
+                  <span style={{ fontWeight:700, fontSize:14, minWidth:0, color:"#fff", display:"inline-flex", alignItems:"center", gap:5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>
+                    {s.team_name}
+                    {isFastest && <IconBolt style={{ color:"#FFC533" }} />}
+                    {isBlocked && <IconBlock style={{ color:"#FF3B4E" }} />}
+                    {isScrambled && <IconShuffle style={{ color:"#D94FDC" }} />}
+                  </span>
+                  {/* Always render this grid cell, even with nothing in it -
+                      grid-template-columns has a fixed slot count, and a
+                      conditionally-SKIPPED child (not just an empty one)
+                      shifts every column after it over by one instead of
+                      leaving a gap. */}
+                  <span style={{ minWidth: 0 }}>{liveAnswer}</span>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#D94FDC":"rgba(185,168,217,0.2)", flexShrink:0 }} />
+                  {showRoundLeaders ? (
+                    <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: 42 }}>
+                      <span style={{ fontSize:19, fontWeight:800, color:"#2EE06E", textAlign:"right" as const, fontVariantNumeric:"tabular-nums", lineHeight: 1 }}>+{s.round_points}</span>
+                      <span style={{ fontSize:9, fontWeight:600, color:"rgba(255,255,255,0.35)", lineHeight: 1.3 }}>{s.total_points} total</span>
                     </span>
-                    <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#D94FDC":"rgba(185,168,217,0.2)", flexShrink:0 }} />
-                    {showRoundLeaders ? (
-                      <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: 42 }}>
-                        <span style={{ fontSize:19, fontWeight:800, color:"#2EE06E", textAlign:"right" as const, fontVariantNumeric:"tabular-nums", lineHeight: 1 }}>+{s.round_points}</span>
-                        <span style={{ fontSize:9, fontWeight:600, color:"rgba(255,255,255,0.35)", lineHeight: 1.3 }}>{s.total_points} total</span>
-                      </span>
-                    ) : (
-                      <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const, fontVariantNumeric:"tabular-nums" }}>{s.total_points}</span>
-                    )}
-                  </div>
-                  {/* Row kept to just name/score/live-answer/points-just-scored -
-                      block, shuffle, power cards and the +/- score control used
-                      to live inline here too, which is exactly why 3-4 auto
-                      columns needed roughly half the screen width. Those now
-                      live one tap away in the stats popup (see statsTeam below),
-                      matching how SpeedQuizzing keeps its row minimal and puts
-                      everything else behind tapping the team name. */}
-                  <div className="qi-mc-team-card__answer">
-                    {answered ? (() => {
-                      // Submission order + reveal-gated correctness. Green/red only
-                      // AFTER reveal (design law: green = correct only). Before
-                      // reveal the answer shows neutral, never green.
-                      const ord = submissionOrder(s.team_name);
-                      const ansObj = teamAnswerObj(s.team_name);
-                      // Nearest Wins has no right/wrong - only closer/farther - so
-                      // it gets its own coloring: closest guess in the room is
-                      // green, everyone else stays neutral (never red; a guess
-                      // that's merely further away isn't "wrong").
-                      const isNearestWins = currentQ?.question_type === "nearest_wins";
-                      const nwIsClosest = isNearestWins && answersRevealed && s.team_name === fastestTeam;
-                      const correct = !isNearestWins && answersRevealed && ansObj && currentQ ? isAnswerCorrect(ansObj, currentQ) : null;
-                      const ansColor = nwIsClosest ? "#2EE06E" : correct === true ? "#2EE06E" : correct === false ? "#FF3B4E" : "rgba(255,255,255,0.72)";
-                      return (
-                        <>
-                          {ord !== null && <span style={{ fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.4)", flexShrink:0, minWidth:22 }}>#{ord}</span>}
-                          <span style={{ fontSize:13, color:ansColor, fontWeight:600, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>
-                        </>
-                      );
-                    })() : (
-                      <span style={{ fontSize:12, color:"rgba(255,255,255,0.3)", fontStyle:"italic", flex:1 }}>waiting…</span>
-                    )}
-                    {questionAward !== undefined && <strong title="Points earned on this question" style={{ color: questionAward < 0 ? "#FF7D87" : "#2EE06E", fontSize: 14, whiteSpace: "nowrap" }}>{questionAward >= 0 ? "+" : ""}{questionAward} pts</strong>}
-                  </div>
+                  ) : (
+                    <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const, fontVariantNumeric:"tabular-nums" }}>{s.total_points}</span>
+                  )}
                 </div>
               );
             })}

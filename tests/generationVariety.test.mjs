@@ -21,11 +21,26 @@ test("mixed generation has broad geography, sport and recent-news coverage", () 
   assert.match(core, /Asia, Africa or Middle East angle/);
 });
 
-test("pairs image matching requires the visible label in Pixabay tags", () => {
+test("pairs image matching prefers, but does not require, the visible label in Pixabay tags", () => {
+  // A hard requirement here used to zero out every candidate silently
+  // whenever Pixabay's own tagging didn't happen to include the literal
+  // label word (see generatePairs.ts's own comment on the "raincoat" live
+  // failure) - it's a ranking preference now, not an exclusionary filter.
   const match = readFileSync(new URL("../lib/quiz/pixabayMatch.ts", import.meta.url), "utf8");
   assert.match(match, /requiredLabel\?: string/);
   assert.match(match, /requiredLabelTerms/);
+  assert.doesNotMatch(match, /filter\(result => !requiredLabelTerms\.length \|\| result\.labelMatches > 0\)/);
   assert.match(readFileSync(new URL("../lib/quiz/generatePairs.ts", import.meta.url), "utf8"), /selectMatchingPixabayHit\(candidates, query, label\)/);
+});
+
+test("Match Made reuses a verified image instead of re-gambling on the same label forever", () => {
+  const source = readFileSync(new URL("../lib/quiz/generatePairs.ts", import.meta.url), "utf8");
+  assert.match(source, /lookupCachedImage\(label\)/);
+  assert.match(source, /pairs_image_cache/);
+  // Only a durably re-hosted image is remembered - a raw Pixabay hotlink
+  // fallback is known to go dead over time and must never be cached, or a
+  // single transient failure would resurrect a broken image indefinitely.
+  assert.match(source, /if \(saved\.persisted\) void cacheVerifiedImage/);
 });
 
 test("both generator screens use the shared pool and stronger duplicate threshold", () => {

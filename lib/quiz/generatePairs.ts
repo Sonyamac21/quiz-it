@@ -1,9 +1,58 @@
 import { PairRecord } from "@/lib/quiz/pairs";
 import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pixabayMatch";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
-import { callAPI, checkPictureIdentity, ExclusionState, fetchWithTimeout, GENERATION_MODEL, VALIDATION_MODEL } from "@/lib/quiz/questionGenerationCore";
+import { callAPI, checkPictureIdentity, ExclusionState, fetchWithTimeout, GENERATION_MODEL } from "@/lib/quiz/questionGenerationCore";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type DraftPair = { pair_id?: string; a?: { label?: string; image_query?: string }; b?: { label?: string; image_query?: string } };
+
+// Generation always runs client-side in the host's browser (see the
+// existing note on persistPixabayImage), so a plain browser client is safe
+// to hold here - same pattern every host-side component already uses.
+let cachedSupabase: ReturnType<typeof createSupabaseBrowserClient> | null = null;
+function getSupabase() {
+  if (!cachedSupabase) cachedSupabase = createSupabaseBrowserClient();
+  return cachedSupabase;
+}
+
+function normalizeLabelKey(label: string): string {
+  return label.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// The verified-image cache (supabase/migrations/202609230001_pairs_image_cache.sql):
+// once a label's picture has cleared the identity check once, it's reused
+// for free and instantly every time the same label comes up again, instead
+// of re-running the full live search-and-verify gamble from scratch on
+// every single generation forever. Coverage - and therefore both cost and
+// reliability - improves automatically the more Match Made gets used.
+// Best-effort throughout: a cache read/write failure (network blip, the
+// migration not yet applied in some environment) must never block or fail
+// generation - it just falls through to the existing live path.
+async function lookupCachedImage(label: string): Promise<string | null> {
+  try {
+    const supabase = getSupabase();
+    const { data } = await supabase.from("pairs_image_cache").select("id,image_url").eq("label_key", normalizeLabelKey(label)).limit(10);
+    if (!data || !data.length) return null;
+    // Multiple verified images can accumulate for the same label over time
+    // (different past generations, different Pixabay results) - pick among
+    // them at random rather than always the same row, for the same photo
+    // variety reason selectMatchingPixabayHit already randomizes live picks.
+    const pick = data[Math.floor(Math.random() * data.length)] as { id: string; image_url: string };
+    void supabase.from("pairs_image_cache").update({ last_used_at: new Date().toISOString() }).eq("id", pick.id);
+    return pick.image_url;
+  } catch {
+    return null;
+  }
+}
+
+async function cacheVerifiedImage(label: string, imageUrl: string): Promise<void> {
+  try {
+    await getSupabase().from("pairs_image_cache").insert({ label_key: normalizeLabelKey(label), label: label.trim(), image_url: imageUrl });
+  } catch {
+    // A cache-write failure just means this success isn't remembered for
+    // next time - the question itself already succeeded and is unaffected.
+  }
+}
 
 // Bug: this used to grab from the FIRST "[" to the LAST "]" in the whole
 // response text. That works only when the array is the entire response -
@@ -42,6 +91,11 @@ function parseArray(text: string): DraftPair[] {
 }
 
 async function sourceImage(query: string, label: string): Promise<string> {
+  // Check the verified-image cache before spending anything - a label that
+  // has already succeeded once (this quiz, or any past one) returns
+  // instantly here with zero API calls and zero chance of failing.
+  const cached = await lookupCachedImage(label);
+  if (cached) return cached;
   const key = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
   if (!key) throw new Error("Pixabay is not configured");
   const search = buildPixabaySearchQuery(query);
@@ -70,14 +124,18 @@ async function sourceImage(query: string, label: string): Promise<string> {
     const source = hit?.webformatURL || hit?.largeImageURL;
     if (!hit || !source) break;
     candidates = candidates.filter((candidate: { webformatURL?: string; largeImageURL?: string }) => (candidate.webformatURL || candidate.largeImageURL) !== source);
+    // Reverted from VALIDATION_MODEL (Haiku) back to the default (Sonnet).
     // Match Made needs 6 verified images per question (3 pairs x 2), so this
     // vision call happens far more often per question than for a normal
-    // picture question - it was the single biggest cost driver in host
-    // reports of ~10-20c per Match Made question. Haiku (VALIDATION_MODEL,
-    // already used for the text-generation step) is a fraction of Sonnet's
-    // cost for the same yes/no visual check; picture questions elsewhere in
-    // the app are unaffected and keep the pricier default.
-    const verdict = await checkPictureIdentity({ question_text: `Identify the ${label} in this picture.`, question_type: "picture", option_a: label, option_b: null, option_c: null, option_d: null, option_e: null, option_f: null, correct_answer: label, explanation: "", difficulty: "mixed", round_type: "pairs" }, source, VALIDATION_MODEL);
+    // picture question, and switching it to Haiku did meaningfully cut cost -
+    // but the host kept hitting genuine-content misses even generating just
+    // 1-2 questions at a time, well beyond what the prompt-quality fixes
+    // alone should produce, and there's no way to verify from here whether
+    // Haiku is a weaker judge on this specific "does this photo clearly show
+    // X" task than Sonnet was. Reliability matters more than the saved cost
+    // for a round that fails outright often enough to be unusable, so this
+    // goes back to Sonnet until there's real evidence either way.
+    const verdict = await checkPictureIdentity({ question_text: `Identify the ${label} in this picture.`, question_type: "picture", option_a: label, option_b: null, option_c: null, option_d: null, option_e: null, option_f: null, correct_answer: label, explanation: "", difficulty: "mixed", round_type: "pairs" }, source);
     if (!verdict.ok) { reason = verdict.note; continue; }
     // Bug: persistPixabayImage's own design (see its file comment) is to
     // fall back to the original Pixabay URL when the re-host step fails,
@@ -88,6 +146,11 @@ async function sourceImage(query: string, label: string): Promise<string> {
     // entire verified-good candidate and one more expensive retry for no
     // reason. Accept saved.url either way; it is always a usable image.
     const saved = await persistPixabayImage(source);
+    // Only cache a genuinely durable, permanently-rehosted URL - never the
+    // raw-Pixabay-hotlink fallback, since that's known to go dead over time
+    // (see persistPixabayImage's own comment); caching a URL that can rot
+    // would resurrect a broken image indefinitely instead of just once.
+    if (saved.persisted) void cacheVerifiedImage(label, saved.url);
     return saved.url;
   }
   throw new Error(reason);

@@ -22,6 +22,14 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Quiz-It",
   },
+  // iOS reads its home-screen icon from an apple-touch-icon link tag, not
+  // from manifest.json (that's an Android/Chrome thing) - without this,
+  // "Add to Home Screen" on an iPhone/iPad falls back to a screenshot of
+  // whatever page was open as the icon instead of the actual Quiz-It logo.
+  icons: {
+    icon: "/me-logo.jpg",
+    apple: "/me-logo.jpg",
+  },
 };
 
 export const viewport: Viewport = {

@@ -595,6 +595,23 @@ function DisplayScreenInner() {
   const [hdCelebration, setHdCelebration] = useState<{ type: "correct" | "won"; amount: number; key: number } | null>(null);
   const hdCelebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [venueRecordId, setVenueRecordId] = useState<string | null>(null);
+  // Every image on this screen except the quiz-question pictures (which
+  // already learned this lesson - see checkPictureIdentity/the retry
+  // affordance) rendered as a bare <img> with no error handling: a dead
+  // venue hero photo, a broken venue logo, a corrupted team join photo, a
+  // promo image whose upload failed partway - any of these showed the
+  // browser's own tiny broken-image glyph sitting inside whatever box the
+  // CSS had sized for a real photo, on the venue's own TV. Reported
+  // directly as images "not fitting into the box" and "a blank uploaded
+  // photo floating onto the screen" - both are the same root cause. This
+  // set tracks which URLs have already failed so every affected <img>
+  // below can hide itself (or fall back to initials) instead of ever
+  // showing that glyph.
+  const [brokenImageUrls, setBrokenImageUrls] = useState<Set<string>>(new Set());
+  function markImageBroken(url: string | null | undefined) {
+    if (!url) return;
+    setBrokenImageUrls(prev => (prev.has(url) ? prev : new Set(prev).add(url)));
+  }
   const [approvedCustomerPhotos, setApprovedCustomerPhotos] = useState<string[]>([]);
   // Poll approved customer photos only while actually on the intermission
   // screen - approvals can land at any moment, so this can't be a one-shot
@@ -605,7 +622,11 @@ function DisplayScreenInner() {
     const supabase = createSupabaseBrowserClient();
     async function loadApprovedPhotos() {
       const { data } = await supabase.from("session_photos").select("photo_url").eq("session_pin", sessionPin).eq("approved", true).order("created_at", { ascending: true });
-      if (!cancelled) setApprovedCustomerPhotos((data || []).map(row => row.photo_url as string));
+      // A row with approved:true but a null/blank photo_url shouldn't be
+      // possible by the normal upload flow, but nothing in the schema
+      // actually prevents it - filtering here is the difference between
+      // silently skipping that row and floating an empty Polaroid frame.
+      if (!cancelled) setApprovedCustomerPhotos((data || []).map(row => row.photo_url as string).filter(url => !!url && url.trim().length > 0));
     }
     loadApprovedPhotos();
     const interval = window.setInterval(loadApprovedPhotos, 5000);
@@ -1728,13 +1749,13 @@ function DisplayScreenInner() {
           <div className="lb-reel-scene lb-reel-venue">
             {venueHeroVideoUrl && !venueHeroVideoFailed ? (
               <video key={venueHeroVideoUrl} className="lb-reel-media" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline onError={() => setVenueHeroVideoFailed(true)} onLoadedData={() => setVenueHeroVideoFailed(false)} />
-            ) : venueHeroImageUrl ? (
-              <img className="lb-reel-media" src={getMediaUrl(venueHeroImageUrl) || undefined} alt={venueName || "Venue"} />
+            ) : venueHeroImageUrl && !brokenImageUrls.has(getMediaUrl(venueHeroImageUrl) || "") ? (
+              <img className="lb-reel-media" src={getMediaUrl(venueHeroImageUrl) || undefined} alt={venueName || "Venue"} onError={() => markImageBroken(getMediaUrl(venueHeroImageUrl))} />
             ) : (
               <div className="lb-venue-intro-bg" />
             )}
             <div className={"lb-venue-intro" + ((venueHeroVideoUrl && !venueHeroVideoFailed) || venueHeroImageUrl ? " has-media" : "")}>
-              {venueLogoUrl && <img className="lb-venue-intro-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
+              {venueLogoUrl && !brokenImageUrls.has(getMediaUrl(venueLogoUrl) || "") && <img className="lb-venue-intro-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" onError={() => markImageBroken(getMediaUrl(venueLogoUrl))} />}
               <div className="lb-venue-intro-copy">
                 <div className="lb-venue-intro-name">{venueName || "TONIGHT'S QUIZ"}</div>
                 {venueScheduleText && <div className="lb-venue-intro-time">QUIZ NIGHT · {venueScheduleText}</div>}
@@ -1742,10 +1763,12 @@ function DisplayScreenInner() {
               </div>
               {(() => {
                 const safeHostName = venueHostName && !venueHostName.includes("@") ? venueHostName : null;
-                if (!venueHostPhotoUrl && !safeHostName) return null;
+                const hostPhotoUrl = getMediaUrl(venueHostPhotoUrl);
+                const hostPhotoOk = !!hostPhotoUrl && !brokenImageUrls.has(hostPhotoUrl);
+                if (!hostPhotoOk && !safeHostName) return null;
                 return (
                   <div className="lb-venue-intro-host">
-                    {venueHostPhotoUrl && <img src={getMediaUrl(venueHostPhotoUrl) || undefined} alt={safeHostName || "Quiz host"} />}
+                    {hostPhotoOk && <img src={hostPhotoUrl || undefined} alt={safeHostName || "Quiz host"} onError={() => markImageBroken(hostPhotoUrl)} />}
                     <div><small>YOUR HOST</small><strong>{safeHostName || "Mac Entertainment"}</strong></div>
                   </div>
                 );
@@ -1757,7 +1780,7 @@ function DisplayScreenInner() {
         {currentReelScene === "offers" && intermissionOffers.trim() && (
           <div className="lb-reel-scene lb-reel-brand lb-reel-brand-offers">
             <div className="lb-reel-brand-panel">
-              {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
+              {venueLogoUrl && !brokenImageUrls.has(getMediaUrl(venueLogoUrl) || "") && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" onError={() => markImageBroken(getMediaUrl(venueLogoUrl))} />}
               <div className="lb-cardkicker">TONIGHT AT {venueName?.toUpperCase() || "THE VENUE"}</div>
               <div className="lb-reel-brand-body">{intermissionOffers}</div>
             </div>
@@ -1767,7 +1790,7 @@ function DisplayScreenInner() {
         {currentReelScene === "prizes" && (
           <div className="lb-reel-scene lb-reel-brand lb-reel-brand-prizes">
             <div className="lb-reel-brand-panel">
-              {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt={venueName ? `${venueName} logo` : "Venue logo"} />}
+              {venueLogoUrl && !brokenImageUrls.has(getMediaUrl(venueLogoUrl) || "") && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt={venueName ? `${venueName} logo` : "Venue logo"} onError={() => markImageBroken(getMediaUrl(venueLogoUrl))} />}
               <div className="lb-cardkicker">TONIGHT&rsquo;S PRIZES</div>
               <div className="lb-reel-brand-body">{venuePrizeInfo}</div>
             </div>
@@ -1777,7 +1800,7 @@ function DisplayScreenInner() {
         {currentReelScene === "social" && (
           <div className="lb-reel-scene lb-reel-brand lb-reel-brand-social">
             <div className="lb-reel-brand-panel">
-              {venueLogoUrl && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" />}
+              {venueLogoUrl && !brokenImageUrls.has(getMediaUrl(venueLogoUrl) || "") && <img className="lb-reel-brand-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" onError={() => markImageBroken(getMediaUrl(venueLogoUrl))} />}
               <div className="lb-cardkicker">FOLLOW THE VENUE</div>
               <FitText className="lb-reel-brand-headline"><InstagramGlyph />{venueInstagramTag}</FitText>
             </div>
@@ -1829,19 +1852,24 @@ function DisplayScreenInner() {
           <div className="lb-reel-scene lb-reel-photos">
             {[0, 1, 2].map(slot => {
               const photo = approvedCustomerPhotos[(floatingPhotoIdx + slot) % approvedCustomerPhotos.length];
-              if (!photo) return null;
+              // A dead/corrupt photo URL used to still float the white
+              // Polaroid frame up onto the screen with nothing inside it -
+              // that empty frame IS the "blank uploaded photo floating
+              // onto the screen" that was reported. Skip the whole frame,
+              // not just the image, once a URL is known broken.
+              if (!photo || brokenImageUrls.has(photo)) return null;
               return (
                 <div key={slot} className={`lb-float-photo lb-float-photo-${slot}`} style={{ animationDelay: `${slot * 1.3}s` }}>
-                  <img src={photo} alt="Team photo" />
+                  <img src={photo} alt="Team photo" onError={() => markImageBroken(photo)} />
                 </div>
               );
             })}
           </div>
         )}
 
-        {currentReelScene === "promo" && promoImagePhotos.length > 0 && (
+        {currentReelScene === "promo" && promoImagePhotos.length > 0 && !brokenImageUrls.has(promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]) && (
           <div className="lb-reel-scene lb-reel-venue">
-            <img key={promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]} className="lb-reel-media" src={promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]} alt="Promo" />
+            <img key={promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]} className="lb-reel-media" src={promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]} alt="Promo" onError={() => markImageBroken(promoImagePhotos[promoPhotoIdx % promoImagePhotos.length])} />
           </div>
         )}
       </div>
@@ -2096,7 +2124,7 @@ function DisplayScreenInner() {
             ))}
             <div className="wc-kicker">TONIGHT&rsquo;S WINNERS</div>
             <div className="wc-crest crest">
-              {winnerPhoto ? <img src={winnerPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : (winner ? teamInitials(winner.team_name) : "?")}
+              {winnerPhoto && !brokenImageUrls.has(winnerPhoto) ? <img src={winnerPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={() => markImageBroken(winnerPhoto)} /> : (winner ? teamInitials(winner.team_name) : "?")}
               <div className="wc-crown">👑</div>
             </div>
             <div className="wc-name">{(winner?.team_name || "").toUpperCase()}</div>
@@ -2171,10 +2199,10 @@ function DisplayScreenInner() {
             </FitBlockText>
             {/* Never shown until a host has approved this team's photo - see
                 the 202607230002_photo_approval migration. */}
-            {showWinnerPhoto && winnerTeam?.photo_url && winnerTeam?.photo_approved && (
+            {showWinnerPhoto && winnerTeam?.photo_url && winnerTeam?.photo_approved && !brokenImageUrls.has(winnerTeam.photo_url) && (
               <div className="qi-display-fastest-photo">
                 <div className="qi-display-fastest-shockwave" />
-                <img src={winnerTeam.photo_url} alt={fastestTeam} />
+                <img src={winnerTeam.photo_url} alt={fastestTeam} onError={() => markImageBroken(winnerTeam.photo_url)} />
               </div>
             )}
           </div>

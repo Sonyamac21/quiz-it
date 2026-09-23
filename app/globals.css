@@ -2017,6 +2017,19 @@ button, input, select, textarea { font: inherit; }
 .qi-player-card-rail { justify-content: flex-start; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x proximity; padding: 4px 2px 8px; scrollbar-width: thin; }
 .qi-player-card-rail > button { scroll-snap-align: start; }
 .qi-player-reconnect { width: 100%; min-height: 58px; margin-top: 20px; border: 1px solid #d94fdc; border-radius: 16px; background: #a41da7; color: #fff; font: 800 17px var(--font-body),Inter,sans-serif; letter-spacing: .12em; }
+
+/* Add to Home Screen prompt - see components/InstallAppPrompt.tsx. Sits
+   below the join form rather than above it, so it never delays someone
+   who just wants to type a PIN and get in, but is still seen before they
+   leave the page. */
+.qi-install-prompt { width: 100%; max-width: 420px; margin-top: 18px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid rgba(217,79,220,.4); border-radius: 14px; background: rgba(190,38,193,.1); }
+.qi-install-prompt__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.qi-install-prompt__text strong { font-size: 13px; color: #fff; font-weight: 800; }
+.qi-install-prompt__text span { font-size: 12px; line-height: 1.4; color: var(--qi-player-muted); }
+.qi-install-prompt__actions { flex: none; display: flex; align-items: center; gap: 6px; }
+.qi-install-prompt__install { min-height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid #d94fdc; background: #be26c1; color: #fff; font-size: 12px; font-weight: 800; letter-spacing: .04em; cursor: pointer; }
+.qi-install-prompt__install:disabled { opacity: .7; cursor: progress; }
+.qi-install-prompt__dismiss { width: 30px; height: 30px; flex: none; border: none; background: transparent; color: #8a7ab0; font-size: 18px; cursor: pointer; }
 .qi-player-pursuit-observer { display: flex; flex-direction: column; text-align: center; }
 .qi-player-pursuit-observer h1 { margin: auto 0 16px; color: #ff596a; font-size: clamp(38px,12vw,58px); }
 .qi-player-observer-label { margin-top: auto; color: #b9a8d9; font-weight: 800; letter-spacing: .2em; }

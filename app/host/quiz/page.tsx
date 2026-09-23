@@ -2599,7 +2599,45 @@ function QuizControllerInner() {
         }
       >
         <main className="qi-mc-desk">
-          {!selectedRound ? (
+          {/* Host-reported bug: this ternary used to check `!selectedRound`
+              FIRST, before any hostPhase check - so if selectedRound was
+              null for any reason (e.g. a refresh restored the session's
+              phase as "quiz_end" but didn't repopulate a current-round
+              pointer) while the leaderboard reveal was already live, the
+              host saw this Running Order picker INSTEAD of the reveal
+              screen. Its "Finish Quiz · Start Leaderboard" button then
+              called doEndOfQuiz() again - which, since hostPhase was
+              already "quiz_end", took the OTHER branch of that function
+              (permanently closing the session and redirecting away) rather
+              than starting anything. That's exactly "no leaderboard
+              sequence and you cannot go back". The leaderboard-reveal
+              phase must always win over the round picker regardless of
+              selectedRound, so the real reveal screen (with Reveal Next
+              Team / Show Full Leaderboard) is what's shown once the quiz
+              has actually ended. */}
+          {hostPhase === "quiz_end" ? (
+            <div style={{ textAlign:"center", marginTop:60 }}>
+              <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#E8C36A", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 34px rgba(232,195,106,0.5)" }}>Quiz Complete</div>
+              <div style={{ font:"600 16px 'Inter'", color:"#B9A8D9", marginBottom:24 }}>Leaderboard reveal is live on the display screen</div>
+              <button onClick={doRevealNextTeam} style={{ padding:"16px 40px", borderRadius:14, background:"#BE26C1", border:"none", color:"#fff", font:"700 18px 'Inter'", letterSpacing:".08em", cursor:"pointer", marginBottom:12, boxShadow:"0 0 24px rgba(190,38,193,0.5)" }}>Reveal Next Team</button>
+              <button onClick={revealAllFinalResults} style={{ display:"block", margin:"0 auto 12px", padding:"11px 24px", borderRadius:12, background:"rgba(232,195,106,.14)", border:"1px solid #E8C36A", color:"#E8C36A", font:"700 14px 'Inter'", cursor:"pointer" }}>Show Full Leaderboard &amp; Winner Now</button>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2, marginBottom:24 }}>or press SPACE</div>
+              <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" as const, marginBottom: 12 }}>
+                <button onClick={() => downloadWinnerCard(scores, teams, venueName, "vertical")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Story)</button>
+                <button onClick={() => downloadWinnerCard(scores, teams, venueName, "square")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Post)</button>
+                <button onClick={doBuildReel} disabled={buildingReel} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(217,79,220,0.25)", border:"1px solid #D94FDC", color:"#fff", fontSize:13, cursor: buildingReel ? "default" : "pointer", opacity: buildingReel ? 0.7 : 1 }}>
+                  {buildingReel ? `Building reel… ${Math.round(reelProgress * 100)}%` : "Download Instagram Reel"}
+                </button>
+              </div>
+              {reelError && <div style={{ fontSize:12, color:"#ff8290", maxWidth:420, margin:"0 auto 12px" }}>{reelError}</div>}
+              {!reelError && reelTip && !buildingReel && (
+                <div style={{ fontSize:12, color:"#d9b3ff", maxWidth:420, margin:"0 auto 8px" }}>{reelTip}</div>
+              )}
+              {!reelError && !buildingReel && (
+                <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", maxWidth:420, margin:"0 auto" }}>Built from tonight&apos;s approved photos. No music included - add a track in Instagram before posting.</div>
+              )}
+            </div>
+          ) : !selectedRound ? (
             <div className="qi-mc-round-picker">
               <div className="qi-mc-round-picker__title">Tonight&rsquo;s Running Order</div>
               <div className="qi-mc-round-picker__description">Only rounds prepared in this quiz are available. Completed rounds remain visible.</div>
@@ -2651,28 +2689,6 @@ function QuizControllerInner() {
               <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#fff", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 30px rgba(190,38,193,0.5)" }}>Round Complete</div>
               <div style={{ font:"600 16px 'Inter'", color:"#B9A8D9", marginBottom:24 }}>SPACE to start the next round</div>
               <button onClick={doEndOfQuiz} style={{ padding:"16px 32px", borderRadius:14, background:"#BE26C1", border:"1px solid #D94FDC", color:"#fff", font:"800 16px 'Inter'", cursor:"pointer", boxShadow:"0 0 22px rgba(190,38,193,.4)" }}>Finish Quiz · Start Leaderboard &amp; Winners</button>
-            </div>
-          ) : hostPhase === "quiz_end" ? (
-            <div style={{ textAlign:"center", marginTop:60 }}>
-              <div style={{ fontFamily:"'Bruno Ace SC',var(--font-logo),cursive", fontSize:32, color:"#E8C36A", letterSpacing:".08em", marginBottom:8, textShadow:"0 0 34px rgba(232,195,106,0.5)" }}>Quiz Complete</div>
-              <div style={{ font:"600 16px 'Inter'", color:"#B9A8D9", marginBottom:24 }}>Leaderboard reveal is live on the display screen</div>
-              <button onClick={doRevealNextTeam} style={{ padding:"16px 40px", borderRadius:14, background:"#BE26C1", border:"none", color:"#fff", font:"700 18px 'Inter'", letterSpacing:".08em", cursor:"pointer", marginBottom:12, boxShadow:"0 0 24px rgba(190,38,193,0.5)" }}>Reveal Next Team</button>
-              <button onClick={revealAllFinalResults} style={{ display:"block", margin:"0 auto 12px", padding:"11px 24px", borderRadius:12, background:"rgba(232,195,106,.14)", border:"1px solid #E8C36A", color:"#E8C36A", font:"700 14px 'Inter'", cursor:"pointer" }}>Show Full Leaderboard &amp; Winner Now</button>
-              <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:2, marginBottom:24 }}>or press SPACE</div>
-              <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" as const, marginBottom: 12 }}>
-                <button onClick={() => downloadWinnerCard(scores, teams, venueName, "vertical")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Story)</button>
-                <button onClick={() => downloadWinnerCard(scores, teams, venueName, "square")} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.25)", border:"1px solid #BE26C1", color:"#fff", fontSize:13, cursor:"pointer" }}>Download Share Card (Post)</button>
-                <button onClick={doBuildReel} disabled={buildingReel} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(217,79,220,0.25)", border:"1px solid #D94FDC", color:"#fff", fontSize:13, cursor: buildingReel ? "default" : "pointer", opacity: buildingReel ? 0.7 : 1 }}>
-                  {buildingReel ? `Building reel… ${Math.round(reelProgress * 100)}%` : "Download Instagram Reel"}
-                </button>
-              </div>
-              {reelError && <div style={{ fontSize:12, color:"#ff8290", maxWidth:420, margin:"0 auto 12px" }}>{reelError}</div>}
-              {!reelError && reelTip && !buildingReel && (
-                <div style={{ fontSize:12, color:"#d9b3ff", maxWidth:420, margin:"0 auto 8px" }}>{reelTip}</div>
-              )}
-              {!reelError && !buildingReel && (
-                <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", maxWidth:420, margin:"0 auto" }}>Built from tonight&apos;s approved photos. No music included - add a track in Instagram before posting.</div>
-              )}
             </div>
           ) : hostPhase === "celebration" ? (
             <div className="qi-mc-celebration">

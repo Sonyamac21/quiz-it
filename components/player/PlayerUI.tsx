@@ -40,8 +40,14 @@ export function PlayerStatusBar({ teamName, roundName, powerCardsEnabled = true,
         <span className="qi-player-status__crest" aria-hidden="true">{teamInitials(teamName)}</span>
       )}
       {typeof points === "number" && (
-        <span style={{ marginLeft: "auto", padding: "4px 10px", borderRadius: 999, background: "rgba(190,38,193,0.18)", border: "1px solid rgba(190,38,193,0.45)", color: "#fff", fontSize: 13, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-          {points} pts
+        // Reported directly: "the teams score on their handset is tiny" -
+        // this was 13px, the smallest text in the whole status bar, despite
+        // being the single number a team checks most often through a live
+        // game. Sized up well past the identity text next to it and given
+        // real weight/contrast so it reads at a glance across a wide range
+        // of ages, not just for players with sharp close-up vision.
+        <span style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 999, background: "rgba(190,38,193,0.28)", border: "1.5px solid #D94FDC", color: "#fff", fontSize: "clamp(17px, 4.6vw, 22px)", fontWeight: 850, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
+          {points}<span style={{ fontSize: "0.55em", fontWeight: 700, marginLeft: 3 }}>pts</span>
         </span>
       )}
       <span className="qi-player-status__identity"><strong>{teamName}</strong>{roundName ? <small>{roundName}</small> : null}</span>

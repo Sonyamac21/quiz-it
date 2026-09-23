@@ -2024,10 +2024,17 @@ button, input, select, textarea { font: inherit; }
 .qi-player-observer-score span,.qi-player-observer-progress,.qi-player-pursuit-observer p { color: #b9a8d9; }
 .qi-player-observer-score strong { color: #fff; font-size: 48px; }
 .qi-player-observer-progress { margin-top: 16px; font-weight: 700; }
-.qi-player-status__identity strong { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.qi-player-status__identity small { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--qi-player-muted); font-size: 11px; }
-.qi-player-status__cards { margin-left: auto; color: #e5c86f; font-size: 9px; font-weight: 850; letter-spacing: .12em; }
-.qi-player-status__connection { display: flex; align-items: center; gap: 5px; color: #b9a8d9; font-size: 9px; font-weight: 850; letter-spacing: .1em; }
+/* Team name, round name, CARDS and connection status were 14/11/9/9px -
+   readable enough for sharp close-up vision, but this handset is used by
+   whoever's on the team, not just the person who set it up, and a live
+   venue is rarely quiet, well-lit or held steady. Bumped a step across the
+   board (still smallest-to-largest in the same order, so the visual
+   hierarchy - your name > round > secondary status - is unchanged) as part
+   of the accessibility pass for wide player age ranges. */
+.qi-player-status__identity strong { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+.qi-player-status__identity small { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--qi-player-muted); font-size: 12px; }
+.qi-player-status__cards { margin-left: auto; color: #e5c86f; font-size: 10px; font-weight: 850; letter-spacing: .1em; }
+.qi-player-status__connection { display: flex; align-items: center; gap: 5px; color: #b9a8d9; font-size: 10px; font-weight: 850; letter-spacing: .08em; }
 .qi-player-status__connection i { width: 7px; height: 7px; border-radius: 50%; background: #ff5365; }
 .qi-player-status__connection.is-online i { background: #2ee06e; box-shadow: 0 0 8px rgba(46,224,110,.55); }
 .qi-player-question-scroll { overflow:hidden; padding:2px; }

@@ -122,8 +122,22 @@ export function partialNameAnswerError(q: Pick<Question, "question_text" | "corr
   const answer = (q.correct_answer || "").trim();
   const stem = (q.question_text || "").trim();
   if (!/^[A-Z][a-zÀ-ÖØ-öø-ÿ'’.-]{2,}$/.test(answer)) return null;
-  if (/(?:surname|last name|family name|first name|given name|forename)/i.test(stem)) return null;
-  const mononyms = new Set(["Adele", "Beyoncé", "Beyonce", "Cher", "Drake", "Madonna", "Monet", "Neymar", "Pelé", "Pele", "Plato", "Prince", "Rihanna", "Shakira", "Sting", "Voltaire"]);
+  const mononyms = new Set(["Adele", "Beyoncé", "Beyonce", "Cher", "Drake", "Madonna", "Monet", "Neymar", "Pelé", "Pele", "Plato", "Prince", "Rihanna", "Rosé", "Rose", "Shakira", "Sting", "Voltaire"]);
+  const hasSurnameCue = /(?:surname|last name|family name|first name|given name|forename)/i.test(stem);
+  // A mononym/stage name is a person's complete public identity, not a
+  // fragment of their legal name - it can never correctly BE "the surname"
+  // or "the first name" of anyone. Confirmed live: a generated question
+  // asked "Which SURNAME of the artist features on... 'APT.'...?" with
+  // correct_answer "Rosé" - Rosé is her stage name (real surname: Park),
+  // not a surname at all, so the question is factually self-contradictory.
+  // The old code treated any surname/first-name cue in the stem as proof
+  // the answer was deliberately a fragment, and waved it through
+  // unconditionally. Now that contradiction is caught explicitly instead.
+  if (hasSurnameCue) {
+    return mononyms.has(answer)
+      ? `"${answer}" is a stage name/mononym, not a genuine surname or first name - do not use SURNAME/FIRST NAME framing for someone known only by a stage name`
+      : null;
+  }
   if (mononyms.has(answer)) return null;
   const personCue = /\b(?:who|whose|which)\b|\b(?:actor|actress|artist|author|band|biologist|composer|director|drummer|guitarist|musician|naturalist|painter|player|poet|scientist|singer|writer|played|wrote|directed|performed|starred|frontman|vocalist)\b/i;
   return personCue.test(stem) ? "Person answers must request the full name, surname, or first name explicitly" : null;
@@ -775,7 +789,7 @@ STRICT QUALITY RULES (every question must pass all of these):
     ? " This question is for the \"" + topic + "\" topic - you have a web_search tool available and MUST use it before writing the question. Search for a genuinely well-known breaking or trending entertainment, showbiz, music, sport, technology or culture headline from roughly the last 1-12 months. Use only a completed, stable fact confirmed by reliable search results; never ask about a developing story, prediction, rumour or detail likely to change. If sources are unclear or conflicting, choose a different story. Never use politics, elections, war, crime, tragedy or disaster."
     : " For current or trending topics only, use well-known, completed entertainment, showbiz, music, sport, technology or culture events confirmed by live search - never politics, developing stories, rumours or facts likely to change."}
 8. Wording must allow exactly one defensible, natural answer-not an abbreviation, fragment, trick or technicality.
-9. HARD RULE, check this for every single question, not just ones that obviously look like name questions: if correct_answer is a real person and only PART of their full name (surname only, or first name only) is stored as the answer, question_text MUST explicitly say which part is wanted, using the words "SURNAME" or "FIRST NAME" (capitalised, in the question itself). This applies to EVERY phrasing that identifies someone by description and expects a name back - "Which [naturalist/guitarist/author/scientist/actor/footballer/chef/comedian/...] ...?", "Who ...?", "Name the person who...?" - not only "the actress who played X" style wording. Correct: "What is the SURNAME of the British naturalist who wrote 'On the Origin of Species'?" -> "Darwin". Correct: "What is the SURNAME of the guitarist who played the US national anthem at Woodstock in 1969?" -> "Hendrix". WRONG and must never be written this way: "Which British naturalist wrote 'On the Origin of Species'?" -> "Darwin" (doesn't say surname only - reads like it wants "Charles Darwin"). WRONG: "Which legendary guitarist played the national anthem at Woodstock?" -> "Hendrix" (same problem). The one exception is a person universally known by a single stage name/mononym with no commonly-used surname in that context (Madonna, Beyoncé, Adele, Pele) - a normal full first+last name is never exempt just because only one part feels "well-known enough."
+9. HARD RULE, check this for every single question, not just ones that obviously look like name questions: if correct_answer is a real person and only PART of their full name (surname only, or first name only) is stored as the answer, question_text MUST explicitly say which part is wanted, using the words "SURNAME" or "FIRST NAME" (capitalised, in the question itself). This applies to EVERY phrasing that identifies someone by description and expects a name back - "Which [naturalist/guitarist/author/scientist/actor/footballer/chef/comedian/...] ...?", "Who ...?", "Name the person who...?" - not only "the actress who played X" style wording. Correct: "What is the SURNAME of the British naturalist who wrote 'On the Origin of Species'?" -> "Darwin". Correct: "What is the SURNAME of the guitarist who played the US national anthem at Woodstock in 1969?" -> "Hendrix". WRONG and must never be written this way: "Which British naturalist wrote 'On the Origin of Species'?" -> "Darwin" (doesn't say surname only - reads like it wants "Charles Darwin"). WRONG: "Which legendary guitarist played the national anthem at Woodstock?" -> "Hendrix" (same problem). The one exception is a person universally known by a single stage name/mononym with no commonly-used surname in that context (Madonna, Beyoncé, Adele, Pele) - a normal full first+last name is never exempt just because only one part feels "well-known enough." Also never do the reverse mistake: a stage name/mononym (Rosé, Adele, Beyoncé, Drake, Cher, Sting, Madonna, Pele, etc.) is that person's complete public identity, NOT a fragment of their legal name, so it must never be labelled "SURNAME" or "FIRST NAME" in the question text or treated as if it were part of a longer name - if the person is known only by a stage name, ask for it directly with no SURNAME/FIRST NAME framing at all, or write a different question.
 10. The question must stand alone without its explanation and test one satisfying piece of knowledge.
 11. Stay on TOPIC but use a genuinely different entity and narrow subtopic from the exclusions.
 ${varietyNote}${sessionExclusionNote}${permanentExclusionNote}

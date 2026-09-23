@@ -264,6 +264,23 @@ export async function generateValidatedRound(
   let consecutiveFailures = 0;
   let consecutiveCheckFailures = 0;
   let consecutiveMemoryFailures = 0;
+  // Separate from consecutiveCheckFailures (which resets to 0 on every
+  // accepted question - see below): that reset means a round that succeeds
+  // every so often, interspersed with long-but-not-quite-45 losing streaks,
+  // could rack up validateCandidate() calls (the expensive combined
+  // moderation+balance+quality check, one real billed AI call each,
+  // regardless of outcome) far past 45 in total before either the
+  // wall-clock or maxAttempts ceiling ever kicked in - confirmed live: a
+  // 6-question round cost $2 and only delivered 4, meaning a real number of
+  // billed validation calls were spent on candidates that were ultimately
+  // discarded. Removing the old consecutiveFailures>=6 kill switch (see the
+  // isPersistent comment below) fixed rounds dying too early on ordinary
+  // content misses, but it also removed the thing that had been keeping a
+  // lid on this by accident. This is the deliberate lid: a running, never-
+  // resetting total across the whole round, so a genuinely struggling round
+  // has a real, predictable ceiling on billed validation spend, independent
+  // of whether its failures happen to be consecutive or spread out.
+  let totalCheckFailures = 0;
   // A "not logged in" 401 mid-batch was previously treated as an immediately
   // persistent failure (no retry at all) - correct if the host's session is
   // genuinely dead, but during a long Generate All run this was actually a
@@ -460,11 +477,28 @@ export async function generateValidatedRound(
       blacklistRejected(exclusions, q);
       addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       consecutiveCheckFailures++;
+      totalCheckFailures++;
       consecutiveMemoryFailures = (validation.category === "Duplicate" || validation.category === "Permanent memory") ? consecutiveMemoryFailures + 1 : 0;
       const failReason = (validation.reason || "Unknown reason").substring(0, 40);
       onProgress?.("Question " + (good.length + 1) + " failed check (" + failReason + ") - retrying..." + (consecutiveMemoryFailures >= 4 ? " (widening search for a fresh angle)" : ""));
       if (consecutiveCheckFailures >= 45) {
         const finalStatus = "Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + (validation.reason || "Unknown reason").substring(0, 60) + "). Got " + good.length + " of " + count + ". This topic/theme may be close to exhausted in your saved question history - try a different or more specific theme. See Generation Report for details." + degradedSuffix();
+        onProgress?.(finalStatus);
+        return { spec, questions: good, report, finalStatus, stoppedEarly: true };
+      }
+      // A hard ceiling on total billed validation spend for this round, not
+      // just on losing streaks. consecutiveCheckFailures resets to 0 on
+      // every accepted question, so a round that succeeds occasionally
+      // between long-but-under-45 losing streaks could otherwise keep
+      // paying for validateCandidate() calls (one real Anthropic charge
+      // each, win or lose) all the way out to maxAttempts/the wall clock -
+      // confirmed live as the direct cause of a $2 charge for a round that
+      // still only delivered 4 of 6 questions. count * 10 gives real themes
+      // plenty of room (a normal round rarely sees more than 1-2 rejections
+      // per accepted question) while keeping a genuinely bad run's cost
+      // predictable and bounded.
+      if (totalCheckFailures >= Math.max(45, count * 10)) {
+        const finalStatus = "Generation stopped after " + totalCheckFailures + " failed validation checks to keep cost bounded. Got " + good.length + " of " + count + " - use Generate More to top up the rest, or try a different/more specific theme." + degradedSuffix();
         onProgress?.(finalStatus);
         return { spec, questions: good, report, finalStatus, stoppedEarly: true };
       }

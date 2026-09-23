@@ -1184,7 +1184,6 @@ button, input, select, textarea { font: inherit; }
 .pursuit-board .pu-qtext { font: 800 clamp(24px,3.2vw,44px)/1.22 'Inter', sans-serif; }
 .pursuit-board .pu-qstate { margin-top: 10px; font: 700 clamp(16px,1.9vw,28px) 'Inter', sans-serif; color: var(--text-secondary); letter-spacing: 0.06em; }
 .pursuit-board .pu-qstate.correct { color: var(--feature-correct); }
-.qi-pursuit-host-board { width:100%; max-width:900px; height:clamp(150px,28vh,280px); flex:0 1 280px; min-height:130px; margin:0 auto clamp(8px,1.2vh,14px); position:relative; border-radius:var(--qi-radius-lg,20px); overflow:hidden; border:1px solid var(--qi-border,rgba(255,255,255,.14)); box-shadow:var(--qi-shadow-sm,0 4px 20px rgba(0,0,0,.3)); }
 .qi-pursuit-host-question { flex:1 1 auto; height:auto; }
 .qi-pursuit-host-question .qi-mc-question__meta { margin-bottom:clamp(5px,.8vh,10px); }
 .qi-pursuit-host-question .qi-mc-question__title { margin-bottom:clamp(6px,1vh,12px); }

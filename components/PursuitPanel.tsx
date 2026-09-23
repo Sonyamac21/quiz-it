@@ -6,7 +6,6 @@ import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { applyScoreDelta } from "@/lib/quiz/scoreService";
 import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
 import { teamInitials } from "@/components/TeamBadge";
-import { PursuitBoard } from "@/components/PursuitBoard";
 import { FitBlockText } from "@/components/FitBlockText";
 import {
   PursuitPhase,
@@ -523,34 +522,20 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
 
       <div className="qi-mc-workspace" style={{ flex: 1, minHeight: 0 }}>
         <main className="qi-mc-desk">
-          {/* THE RUNNING GRAPHIC — the exact same PursuitBoard the Display
-              shows, so the host sees the live race without a second screen
-              in view. PursuitBoard measures its own container via
-              ResizeObserver, so it scales to fit whatever height it's given. */}
-          {qIndex >= 0 && status !== "idle" && status !== "waiting" && status !== "intro" && (
-            <div className="qi-pursuit-host-board">
-              <PursuitBoard
-                status={status}
-                race={race}
-                teamNames={teamNames}
-                qIndex={qIndex}
-                timeLeft={timeLeft}
-                questionText={currentQuestion?.question_text ?? null}
-                questionCategory={currentQuestion?.question_type ?? null}
-                correctAnswer={currentQuestion ? pursuitCorrectAnswerText(currentQuestion) : null}
-                style={{ height: "100%", maxHeight: "100%" }}
-                // The board's own title zone + question panel are sized with
-                // vh/vw units tuned for the Display's full-viewport hero -
-                // squeezed into this small fixed-height card they overlapped
-                // themselves (live testing: "PURSUIT" and "CORRECT WINS"
-                // rendering on top of each other). This console already shows
-                // its own header above and its own full question block
-                // (.qi-mc-question) below, so hide the board's redundant
-                // copies here rather than fight viewport units in a small box.
-                hideHeader
-              />
-            </div>
-          )}
+          {/* Host-reported bug: the running-track graphic embedded here was
+              capped at a small fixed height (.qi-pursuit-host-board, max
+              280px) - with more than 3-4 teams the lanes below that height
+              were clipped by overflow:hidden even though every team's data
+              was present (confirmed live: sidebar showed all teams' scores,
+              board showed only the first few lanes, cutting the "Question 1
+              of 7" badge as well). The host's own explicit call: "all I
+              need are the questions and team scores really" - both of
+              which already exist elsewhere in this console (the question
+              block below, and the Teams & scores rail) without the running
+              graphic at all. The full animated race board remains exactly
+              as-is on the Display screen (the venue's actual "show" surface
+              for this round) - only this small, clipped, redundant host
+              copy is removed. */}
 
           {/* No rules/round-picker screen here anymore. The host already saw
               the Pursuit rules and question count on the shared round

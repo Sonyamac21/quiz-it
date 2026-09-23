@@ -23,10 +23,38 @@ test("host and handset use measured fitting for complete question text", () => {
 test("Pursuit shares the standard timer treatment and host questions keep a bounded workspace", () => {
   assert.match(pursuitBoard, /qi-display-picture-timer pu-timer/);
   assert.match(css, /\.pursuit-board \.pu-timer\s*\{[^}]*position:absolute/s);
-  assert.match(pursuitPanel, /className="qi-pursuit-host-board"/);
   assert.match(pursuitPanel, /FitBlockText as="h1" className="qi-mc-question__title"/);
-  assert.match(css, /\.qi-pursuit-host-board\s*\{[^}]*height:clamp\(/s);
+  // Host-reported bug: the running-track graphic used to be embedded in the
+  // host console too, inside a small fixed-height card (.qi-pursuit-host-
+  // board, capped ~280px) that clipped lanes once there were more than a
+  // handful of teams, even though every team's data was present. The host's
+  // explicit ask was "all I need are the questions and team scores really" -
+  // both already exist elsewhere in this console - so the embed and its
+  // now-dead CSS were removed rather than trying to shrink it further; the
+  // full board remains untouched on the Display screen. Lock in that it
+  // stays gone from the host panel/CSS, and that PursuitBoard is no longer
+  // imported there.
+  assert.doesNotMatch(pursuitPanel, /className="qi-pursuit-host-board"/);
+  assert.doesNotMatch(pursuitPanel, /import \{ PursuitBoard \}/);
+  assert.doesNotMatch(css, /\.qi-pursuit-host-board\s*\{/);
   assert.match(css, /\.qi-mc-option\s*\{[^}]*min-height:clamp\(/s);
+});
+
+test("Pursuit's Display board scales its live-race grid to fit large team counts (up to 60) without scrolling", () => {
+  // The venue TV is the one screen that must show every team's runner and
+  // the question at once, however many teams are playing - "on the display
+  // screen I do need to see all of the teams running and the question -
+  // make it fit! even if 50 teams". PELOTON is the top tier (up to 60
+  // teams, 2 columns) and computePursuitLayout must still resolve a real
+  // layout beyond that rather than crashing/returning undefined; the board
+  // additionally shrinks lane height further at render time if the actual
+  // measured grid height is still too short (see heightShrink in
+  // PursuitBoard.tsx), so this is a genuine no-scroll guarantee, not just a
+  // tier lookup.
+  const pursuit = readFileSync(new URL("../lib/quiz/pursuit.ts", import.meta.url), "utf8");
+  assert.match(pursuit, /maxTeams:\s*60,\s*layout:\s*\{\s*label:\s*"PELOTON"/);
+  assert.match(pursuitBoard, /heightShrink/);
+  assert.match(css, /\.pursuit-board\s*\{[^}]*height:\s*100dvh/s);
 });
 
 test("TV question, picture and reveal copy all remain inside fixed stages", () => {

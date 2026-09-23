@@ -2153,13 +2153,24 @@ function QuizControllerInner() {
       </div>
     );
   };
-  // A normal card rail is intentionally spacious, but a live room of 25-50
-  // teams needs a control-room overview rather than an independently scrolling
-  // feed. Switch automatically to three/four compact columns so every team,
-  // score, answer and card state remains visible at once on a laptop display.
-  const automaticTeamColumns = teams.length > 36 ? 4 : teams.length > 20 ? 3 : null;
+  // A normal card rail is intentionally spacious, but the old thresholds here
+  // (3 columns only past 20 teams, 4 only past 36) meant every realistic venue
+  // team count - 6, 10, 15 teams, not just stress-test scale - stayed locked
+  // to a single column unless the host remembered to click 2-COL mid-game.
+  // Reported directly: "I only see up to 4 teams in the rows also... with
+  // more this will be difficult." Column count now grows automatically well
+  // before that, starting at a realistic pub-quiz size. The further
+  // "capacity" compaction (shrinks card padding/fonts and hides the per-team
+  // block/scramble/adjust controls) is kept on its own, later threshold below -
+  // those controls stay genuinely useful through 2-3 columns' worth of teams,
+  // and shouldn't disappear just because column count grew.
+  const automaticTeamColumns = teams.length > 32 ? 4 : teams.length > 18 ? 3 : teams.length > 8 ? 2 : null;
   const teamColumnCount = automaticTeamColumns ?? (showTwoColumns ? 2 : 1);
-  const highCapacityTeams = automaticTeamColumns !== null;
+  // Manual 1/2-col toggle only makes sense while column count isn't already
+  // being decided automatically - once it is, the pill becomes a read-only
+  // "AUTO N-COL" indicator instead (see the button below).
+  const autoColumnsActive = automaticTeamColumns !== null;
+  const highCapacityTeams = teamColumnCount >= 3;
 
   // Single place to choose tonight's round (used by the header dropdown and the
   // big desk picker). Behaviour identical to the original inline handler.
@@ -2501,9 +2512,9 @@ function QuizControllerInner() {
         style={
           railWidthPx != null
             ? { gridTemplateColumns: `minmax(0, 1fr) ${railWidthPx}px` }
-            : highCapacityTeams
+            : teamColumnCount >= 3
             ? { gridTemplateColumns: `minmax(0, 1fr) minmax(${teamColumnCount === 4 ? 760 : 620}px, ${teamColumnCount === 4 ? 62 : 52}vw)` }
-            : showTwoColumns
+            : teamColumnCount === 2
             ? { gridTemplateColumns: "minmax(0, 1fr) minmax(640px, 46vw)" }
             : undefined
         }
@@ -2888,10 +2899,10 @@ function QuizControllerInner() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", minWidth: 0, maxWidth: "100%" }}>
                 <button
                   onClick={() => setShowTwoColumns(v => !v)}
-                  disabled={highCapacityTeams}
+                  disabled={autoColumnsActive}
                   title="Switch the team list between one and two columns, widening the panel to fit more teams on screen"
-                  style={{ padding: "5px 10px", borderRadius: 8, background: teamColumnCount > 1 ? "rgba(190,38,193,0.25)" : "#150A2E", border: "1px solid " + (teamColumnCount > 1 ? "#D94FDC" : "#2E1A52"), color: teamColumnCount > 1 ? "#fff" : "#6B5A8E", font: "700 11px 'Inter'", letterSpacing: ".04em", cursor: highCapacityTeams ? "default" : "pointer", whiteSpace: "nowrap", opacity: highCapacityTeams ? .82 : 1 }}
-                >{highCapacityTeams ? `AUTO ${teamColumnCount}-COL` : showTwoColumns ? "2-COL" : "1-COL"}</button>
+                  style={{ padding: "5px 10px", borderRadius: 8, background: teamColumnCount > 1 ? "rgba(190,38,193,0.25)" : "#150A2E", border: "1px solid " + (teamColumnCount > 1 ? "#D94FDC" : "#2E1A52"), color: teamColumnCount > 1 ? "#fff" : "#6B5A8E", font: "700 11px 'Inter'", letterSpacing: ".04em", cursor: autoColumnsActive ? "default" : "pointer", whiteSpace: "nowrap", opacity: autoColumnsActive ? .82 : 1 }}
+                >{autoColumnsActive ? `AUTO ${teamColumnCount}-COL` : showTwoColumns ? "2-COL" : "1-COL"}</button>
                 <button
                   onClick={() => setShowRoundLeaders(v => !v)}
                   title="Sort and highlight by points scored in THIS round instead of the running total"

@@ -321,8 +321,23 @@ button, input, select, textarea { font: inherit; }
 
 /* Mission Control — operational host workspace. Presentation only. */
 .qi-mc-shell {
-  min-height: 100vh;
-  min-height: 100dvh;
+  /* Bug: `min-height` on a flex column doesn't cap it - it only sets a
+     floor, so once header + toolbar + next-action bar + the question panel's
+     natural content height added up to more than the viewport, the shell
+     itself grew taller than the screen and the BROWSER added a whole-page
+     scrollbar, rather than the internal panels (.qi-mc-desk/.qi-mc-teams,
+     both already built with their own overflow-y:auto, and the question
+     panel's own vh-based fluid clamp() sizing meant to shrink-to-fit
+     instead of scroll) ever getting the chance to do their job. Reported
+     directly: the host console "doesn't fit comfortably on my screen
+     without scrolling during live game play." A hard `height` cap forces
+     flexbox to actually compute .qi-mc-workspace's flex:1 as "whatever's
+     left after the fixed chrome", which is what makes every already-built
+     internal fit-to-viewport mechanism below finally take over instead of
+     the page silently overflowing.
+  */
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;

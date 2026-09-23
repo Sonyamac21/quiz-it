@@ -24,7 +24,10 @@ test("50-team handset fallback polling stays below 40 session reads per second",
 });
 
 test("large host rooms automatically use a non-scrolling compact roster", () => {
-  assert.match(host, /teams\.length > 36 \? 4 : teams\.length > 20 \? 3/);
+  // Column count now scales up starting at a realistic venue size (9+ teams
+  // auto-goes to 2 columns), not just at stress-test scale - see the comment
+  // on automaticTeamColumns in app/host/quiz/page.tsx for the full reasoning.
+  assert.match(host, /teams\.length > 32 \? 4 : teams\.length > 18 \? 3 : teams\.length > 8 \? 2/);
   assert.match(host, /qi-mc-teams--capacity/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /\.qi-mc-teams--capacity \{ overflow:hidden;/);

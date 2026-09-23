@@ -2374,7 +2374,17 @@ button, input, select, textarea { font: inherit; }
    contained while a soft light sweep and depth movement keep the TV alive. */
 .fbl .lb-reel-scene { overflow:hidden; isolation:isolate; animation:qiVenueSceneIn .8s cubic-bezier(.2,.8,.2,1) both; }
 .fbl .lb-reel-scene::after { content:""; position:absolute; inset:-30%; pointer-events:none; z-index:3; background:linear-gradient(112deg,transparent 38%,rgba(255,255,255,.13) 49%,transparent 60%); transform:translateX(-70%); animation:qiVenueLightSweep 1.35s ease-out .25s both; }
-.fbl .lb-reel-media { object-fit:contain !important; animation:qiVenueMediaDrift 7s ease-in-out both; }
+/* Bug: this ran for 7s, exactly matching the live Display's own 7s scene
+   dwell time (see the setInterval(...,7000) driving reelSceneIdx in
+   app/host/display/page.tsx) - so the venue photo was mid-zoom/mid-darken
+   for its ENTIRE time on screen and got swapped out for the next scene at
+   almost exactly the moment it would have finished settling to its correct,
+   fully-contained size. Confirmed live: the photo always looked too big/
+   zoomed and slightly dim, never its real size - not a crop or object-fit
+   bug (contain was already correct), a timing bug. Shortened well below the
+   7s dwell so it settles early and then just sits still, correctly sized,
+   for the rest of its time on screen. */
+.fbl .lb-reel-media { object-fit:contain !important; animation:qiVenueMediaDrift 2.2s ease-out both; }
 /* Both logo classes' drop-shadow now lives on their own base rule further
    up this file, at the same 0.5 alpha this used to override to - this was
    a fully redundant re-declaration of the exact value already winning. */

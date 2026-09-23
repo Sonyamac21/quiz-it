@@ -1,5 +1,5 @@
 "use client";
-import { CSSProperties } from "react";
+import { CSSProperties, useState } from "react";
 
 // Quiz-It Team Badge — a reusable team crest usable anywhere in the app.
 //
@@ -46,9 +46,16 @@ export function TeamBadge({ name, size, avatarUrl, icon, color = "#BE26C1", clas
     ...style,
   };
 
+  // Same rationale as the handset Crest component: a team's approved photo
+  // can 404 (deleted from storage, a stale link) and this badge is used
+  // throughout the host console's team rail/stats, so a broken photo would
+  // otherwise show the browser's glyph in every one of those spots instead
+  // of falling back to initials.
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
   let content: React.ReactNode;
-  if (avatarUrl) {
-    content = <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />;
+  if (avatarUrl && !avatarFailed) {
+    content = <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setAvatarFailed(true)} />;
   } else if (icon) {
     content = icon;
   } else {

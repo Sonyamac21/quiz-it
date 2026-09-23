@@ -14,7 +14,7 @@
  * body copy → Inter. Nothing below 14px.
  */
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 export function Crest({
   initials,
@@ -31,6 +31,13 @@ export function Crest({
   // hexagon - same crest shape/border/glow, just a photo instead of text.
   photoUrl?: string | null;
 }) {
+  // A team's approved photo can still 404 (deleted from storage, a stale
+  // link) - without this, every crest showing that team (handset header,
+  // waiting screen, celebration, podium) would show the browser's
+  // broken-image glyph inside this hexagon instead of falling back to
+  // their initials, for the rest of the show.
+  const [failed, setFailed] = useState(false);
+  const showPhoto = !!photoUrl && !failed;
   return (
     <span
       className="crest"
@@ -46,9 +53,9 @@ export function Crest({
         ...(dim ? { opacity: 0.5 } : {}),
       }}
     >
-      {photoUrl ? (
+      {showPhoto ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={photoUrl} alt={initials} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        <img src={photoUrl} alt={initials} onError={() => setFailed(true)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
       ) : (
         initials
       )}

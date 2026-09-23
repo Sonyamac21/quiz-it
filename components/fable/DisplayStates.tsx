@@ -233,6 +233,12 @@ function GalleryPhotoSlot({ slotIndex, photos, cellRegistryRef, startDelayMs, st
   const [phase, setPhase] = useState<"pending" | "in" | "out">("pending");
   const [nonce, setNonce] = useState(0);
   const ownedCellRef = useRef<number | null>(null);
+  // A photo URL that 404s (deleted from storage, a stale link) left the
+  // browser's broken-image glyph fluttering onto the screen inside this
+  // Polaroid frame for its full 11s hold - the exact "blank uploaded photo
+  // floating onto the screen" bug reported live. Skip a failed URL for the
+  // rest of this slot's rotation rather than showing it.
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     if (photos.length === 0) return;
@@ -280,7 +286,8 @@ function GalleryPhotoSlot({ slotIndex, photos, cellRegistryRef, startDelayMs, st
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photos.length, startDelayMs, step]);
 
-  if (phase === "pending" || !placement || photos.length === 0) return null;
+  const currentPhoto = photos[photoIdx % photos.length];
+  if (phase === "pending" || !placement || photos.length === 0 || currentPhoto === failedPhoto) return null;
   return (
     // Keyed on nonce so each new photo/placement is a fresh DOM node -
     // that's what makes the flutter-in keyframe actually replay every
@@ -299,7 +306,7 @@ function GalleryPhotoSlot({ slotIndex, photos, cellRegistryRef, startDelayMs, st
       } as CSSProperties}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={photos[photoIdx % photos.length]} alt="" />
+      <img src={currentPhoto} alt="" onError={() => setFailedPhoto(currentPhoto)} />
     </div>
   );
 }

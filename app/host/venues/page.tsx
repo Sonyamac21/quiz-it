@@ -45,7 +45,17 @@ export default function VenueManagerPage(){
   // there's no longer a second step to forget.
   function setImage<K extends keyof FormState>(key:K,url:string){
     set(key,url as FormState[K]);
-    if(!editing)return;
+    if(!editing){
+      // Nothing to attach this image to yet - this is a brand-new,
+      // never-saved venue, so there's no database row for it to persist
+      // to. Surface that plainly (instead of silently doing nothing) so
+      // an upload here doesn't read as "broken" when the real issue is
+      // that the venue itself still needs a name and a first save -
+      // exactly the trap behind repeated "I uploaded it 3 times" reports.
+      setError("");
+      setSavedMessage("Logo added - now enter a Venue Name above and click “Create venue” below, or this upload won't be saved.");
+      return;
+    }
     const supabase=createSupabaseBrowserClient();
     supabase.from("venues").update({[key]:url,updated_at:new Date().toISOString()}).eq("id",editing).then(({error:updateErr})=>{
       if(updateErr){setError(`Image uploaded but failed to save: ${updateErr.message}`);return;}

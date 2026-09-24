@@ -1420,8 +1420,17 @@ export default function QuizBuilderPage() {
                     }}
                     onDragEnd={() => { setDraggedRoundIndex(null); setDragOverRoundId(null); }}
                     style={{
-                      position: "relative", padding: "6px 8px", height: 42, borderRadius: 8, cursor: "grab", textAlign: "left",
-                      border: dragOverRoundId === round.id ? "2px dashed #2EE06E" : round.id === activeRound.id ? "2px solid #BE26C1" : "1px solid #2E1A52",
+                      // Border width used to switch between 1px (idle) and
+                      // 2px (active/drop-target) - on a fixed-height,
+                      // overflow:hidden box-sizing:border-box tile, that
+                      // extra 1px each side ate into the content area on
+                      // whichever tile was active, clipping the top of its
+                      // title line (only ever visible on the selected
+                      // tile). Border is now always 2px (transparent when
+                      // idle) so every tile's content box is identical
+                      // regardless of state.
+                      position: "relative", boxSizing: "border-box", padding: "6px 8px", height: 44, borderRadius: 8, cursor: "grab", textAlign: "left",
+                      border: dragOverRoundId === round.id ? "2px dashed #2EE06E" : round.id === activeRound.id ? "2px solid #BE26C1" : "2px solid #2E1A52",
                       background: dragOverRoundId === round.id ? "rgba(46,224,110,0.12)" : round.id === activeRound.id ? "rgba(190,38,193,0.15)" : "#150A2E",
                       opacity: draggedRoundIndex === index ? 0.4 : 1,
                       color: "#fff", display: "flex", flexDirection: "column", justifyContent: "center", gap: 2, overflow: "hidden",

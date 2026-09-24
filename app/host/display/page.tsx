@@ -1758,22 +1758,20 @@ function DisplayScreenInner() {
       <div className="lb-cardstage lb-reel">
         <div className="lb-reel-title">{venueName ? `TONIGHT AT ${venueName.toUpperCase()}` : "TONIGHT'S SHOW"}</div>
 
-        {currentReelScene === "venue" && (
-          <div className="lb-reel-scene lb-reel-venue">
-            {venueHeroVideoUrl && !venueHeroVideoFailed ? (
-              <div className="lb-reel-media-frame">
-                <video aria-hidden="true" className="lb-reel-media-bg" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline />
-                <video key={venueHeroVideoUrl} className="lb-reel-media" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline onError={() => setVenueHeroVideoFailed(true)} onLoadedData={() => setVenueHeroVideoFailed(false)} />
-              </div>
-            ) : venueHeroImageUrl && !brokenImageUrls.has(getMediaUrl(venueHeroImageUrl) || "") ? (
-              <div className="lb-reel-media-frame">
-                <img aria-hidden="true" className="lb-reel-media-bg" src={getMediaUrl(venueHeroImageUrl) || undefined} alt="" />
-                <img className="lb-reel-media" src={getMediaUrl(venueHeroImageUrl) || undefined} alt={venueName || "Venue"} onError={() => markImageBroken(getMediaUrl(venueHeroImageUrl))} />
-              </div>
-            ) : (
-              <div className="lb-venue-intro-bg" />
-            )}
-            <div className={"lb-venue-intro" + ((venueHeroVideoUrl && !venueHeroVideoFailed) || venueHeroImageUrl ? " has-media" : "")}>
+        {currentReelScene === "venue" && (() => {
+          const heroVideoOk = venueHeroVideoUrl && !venueHeroVideoFailed;
+          const hasMedia = !!(heroVideoOk || venueHeroImageUrl);
+          // Same fix as VenueShowreelPreview's matching "venue" scene (see
+          // its comment) - this overlay used to be a sibling of the hero
+          // photo, both filling the WHOLE reel area, so the host card and
+          // logo always sat on the photo no matter how big it was. Once
+          // the photo was capped to a smaller lb-reel-media-frame, the
+          // overlay - still full-area - stopped lining up with it,
+          // landing the host card in empty space near the true screen
+          // edge ("host pic barely on the screen"). Nesting this overlay
+          // inside the frame re-anchors it to the actual photo's box.
+          const intro = (
+            <div className={"lb-venue-intro" + (hasMedia ? " has-media" : "")}>
               {venueLogoUrl && !brokenImageUrls.has(getMediaUrl(venueLogoUrl) || "") && <img className="lb-venue-intro-logo" src={getMediaUrl(venueLogoUrl) || undefined} alt="" onError={() => markImageBroken(getMediaUrl(venueLogoUrl))} />}
               <div className="lb-venue-intro-copy">
                 <div className="lb-venue-intro-name">{venueName || "TONIGHT'S QUIZ"}</div>
@@ -1793,8 +1791,30 @@ function DisplayScreenInner() {
                 );
               })()}
             </div>
-          </div>
-        )}
+          );
+          return (
+            <div className="lb-reel-scene lb-reel-venue">
+              {heroVideoOk ? (
+                <div className="lb-reel-media-frame">
+                  <video aria-hidden="true" className="lb-reel-media-bg" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline />
+                  <video key={venueHeroVideoUrl} className="lb-reel-media" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline onError={() => setVenueHeroVideoFailed(true)} onLoadedData={() => setVenueHeroVideoFailed(false)} />
+                  {intro}
+                </div>
+              ) : venueHeroImageUrl && !brokenImageUrls.has(getMediaUrl(venueHeroImageUrl) || "") ? (
+                <div className="lb-reel-media-frame">
+                  <img aria-hidden="true" className="lb-reel-media-bg" src={getMediaUrl(venueHeroImageUrl) || undefined} alt="" />
+                  <img className="lb-reel-media" src={getMediaUrl(venueHeroImageUrl) || undefined} alt={venueName || "Venue"} onError={() => markImageBroken(getMediaUrl(venueHeroImageUrl))} />
+                  {intro}
+                </div>
+              ) : (
+                <>
+                  <div className="lb-venue-intro-bg" />
+                  {intro}
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {currentReelScene === "offers" && intermissionOffers.trim() && (
           <div className="lb-reel-scene lb-reel-brand lb-reel-brand-offers">

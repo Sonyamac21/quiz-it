@@ -148,22 +148,25 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
         <div className="lb-cardstage lb-reel">
           <div className="lb-reel-title">{venue.venue_name ? `TONIGHT AT ${venue.venue_name.toUpperCase()}` : "TONIGHT'S SHOW"}</div>
 
-          {currentReelScene === "venue" && (
-            <div className="lb-reel-scene lb-reel-venue">
-              {venue.hero_video_url && !videoFailed ? (
-                <div className="lb-reel-media-frame">
-                  <video aria-hidden="true" className="lb-reel-media-bg" src={getMediaUrl(venue.hero_video_url) || undefined} autoPlay muted loop playsInline />
-                  <video key={venue.hero_video_url} className="lb-reel-media" src={getMediaUrl(venue.hero_video_url) || undefined} autoPlay muted loop playsInline onError={() => setVideoFailed(true)} onLoadedData={() => setVideoFailed(false)} />
-                </div>
-              ) : venue.hero_image_url && !brokenImageUrls.has(venue.hero_image_url) ? (
-                <div className="lb-reel-media-frame">
-                  <img aria-hidden="true" className="lb-reel-media-bg" src={getMediaUrl(venue.hero_image_url) || undefined} alt="" />
-                  <img className="lb-reel-media" src={getMediaUrl(venue.hero_image_url) || undefined} alt={venue.venue_name} onError={() => markImageBroken(venue.hero_image_url)} />
-                </div>
-              ) : (
-                <div className="lb-venue-intro-bg" />
-              )}
-              <div className={"lb-venue-intro" + ((venue.hero_video_url && !videoFailed) || (venue.hero_image_url && !brokenImageUrls.has(venue.hero_image_url)) ? " has-media" : "")}>
+          {currentReelScene === "venue" && (() => {
+            const hasMedia = !!((venue.hero_video_url && !videoFailed) || (venue.hero_image_url && !brokenImageUrls.has(venue.hero_image_url)));
+            // Host report: "pic still off the bottom the screen" / "my host
+            // pic barely on the screen." Root cause: this intro overlay
+            // (venue name, logo, host card) is position:absolute;inset:0 -
+            // it used to be a sibling of the hero photo, both filling the
+            // WHOLE reel area, so it always visually sat on top of the
+            // photo no matter how big that photo was. Once the photo was
+            // capped to a smaller, fixed lb-reel-media-frame (the "set an
+            // area" fix), the overlay was still sized to the FULL area, so
+            // it stopped lining up with the now-smaller photo entirely -
+            // the host card's "bottom:6%" was 6% from the true bottom of
+            // the screen, not 6% from the bottom of the actual photo,
+            // landing it off in empty space near the screen edge. Moving
+            // this overlay INSIDE the frame (only when there's real media
+            // to frame) re-anchors it to the photo's own box instead of
+            // the whole screen. */
+            const intro = (
+              <div className={"lb-venue-intro" + (hasMedia ? " has-media" : "")}>
                 {venue.venue_logo_url && !brokenImageUrls.has(venue.venue_logo_url) && <img className="lb-venue-intro-logo" src={getMediaUrl(venue.venue_logo_url) || undefined} alt="" onError={() => markImageBroken(venue.venue_logo_url)} />}
                 <div className="lb-venue-intro-copy">
                   <div className="lb-venue-intro-name">{venue.venue_name || "TONIGHT'S QUIZ"}</div>
@@ -177,8 +180,30 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
                   </div>
                 )}
               </div>
-            </div>
-          )}
+            );
+            return (
+              <div className="lb-reel-scene lb-reel-venue">
+                {venue.hero_video_url && !videoFailed ? (
+                  <div className="lb-reel-media-frame">
+                    <video aria-hidden="true" className="lb-reel-media-bg" src={getMediaUrl(venue.hero_video_url) || undefined} autoPlay muted loop playsInline />
+                    <video key={venue.hero_video_url} className="lb-reel-media" src={getMediaUrl(venue.hero_video_url) || undefined} autoPlay muted loop playsInline onError={() => setVideoFailed(true)} onLoadedData={() => setVideoFailed(false)} />
+                    {intro}
+                  </div>
+                ) : venue.hero_image_url && !brokenImageUrls.has(venue.hero_image_url) ? (
+                  <div className="lb-reel-media-frame">
+                    <img aria-hidden="true" className="lb-reel-media-bg" src={getMediaUrl(venue.hero_image_url) || undefined} alt="" />
+                    <img className="lb-reel-media" src={getMediaUrl(venue.hero_image_url) || undefined} alt={venue.venue_name} onError={() => markImageBroken(venue.hero_image_url)} />
+                    {intro}
+                  </div>
+                ) : (
+                  <>
+                    <div className="lb-venue-intro-bg" />
+                    {intro}
+                  </>
+                )}
+              </div>
+            );
+          })()}
 
           {currentReelScene === "offers" && (
             <div className="lb-reel-scene lb-reel-brand lb-reel-brand-offers">

@@ -278,7 +278,15 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
             );
           })}
         </div>
-        <div style={{ marginTop: 8, textAlign: "center", font: "600 10px 'Inter'", color: "#6B5A8E", letterSpacing: "0.14em" }}>
+        {/* Host-reported bug (live screenshots): this caption is the one
+            place the "N cards remaining" status renders - unlike the
+            disabled/"unavailable" caption elsewhere (.qi-player-cards-paused
+            in globals.css), which already reserves right-hand clearance for
+            the fixed bottom-right brand pill (app/join/join-form.tsx), this
+            one never did. On a short screen its centered text sat directly
+            under the pill, letters superimposed. Same clearance treatment
+            here. */}
+        <div style={{ marginTop: 8, textAlign: "center", font: "600 10px 'Inter'", color: "#6B5A8E", letterSpacing: "0.14em", padding: "0 clamp(90px,26vw,140px) 0 14px" }}>
           {feedback ? <span role="status" style={{ color: feedback.ok ? "#2EE06E" : "#FF7280", letterSpacing: ".04em" }}>{feedback.text}</span> : enabled ? `${remaining} CARD${remaining === 1 ? "" : "S"} REMAINING · EACH ONCE PER QUIZ` : "POWER CARDS ARE NOT AVAILABLE THIS ROUND"}
         </div>
       </div>

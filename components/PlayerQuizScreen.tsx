@@ -1918,7 +1918,17 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
                   would immediately contradict. */}
               {verdict === false ? (question.question_type === "multi_tap" ? "NOT A PERFECT MATCH" : "INCORRECT") : "ANSWER REVEALED"}
             </div>
-            <div style={{ position: "relative", zIndex: 2, font: "700 clamp(15px,4.2vw,17px) 'Inter'", lineHeight: 1.4, marginBottom: 16, color: "rgba(255,255,255,0.6)" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</div>
+            {/* Host-reported bug: a long Sequence answer's arrow-joined chain
+                ("A → B → C → D") could push this screen's total content
+                taller than the viewport - the middle section scrolls
+                (overflowY:auto above), but nothing signalled that, so it
+                looked like the correct-answer box was simply cut off rather
+                than needing a scroll. FitBlockText (already used for the
+                live question screen and host console) measures and shrinks
+                text to fit instead, so the whole reveal - question, correct
+                answer, your answer - fits without scrolling, matching "auto
+                adjust to show all that is needed" rather than clipping. */}
+            <FitBlockText className="qi-player-reveal-question" maxViewportHeight={0.12} minFontSize={13} style={{ position: "relative", zIndex: 2, font: "700 clamp(15px,4.2vw,17px) 'Inter'", lineHeight: 1.4, marginBottom: 16, color: "rgba(255,255,255,0.6)" }}>{question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}</FitBlockText>
             {question.question_type === "multi_tap" ? (() => {
               // Multi Tap is never a flat right/wrong: a team almost always
               // taps SOME options correctly even when they don't get a
@@ -1960,12 +1970,16 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               <>
                 <div style={{ position: "relative", zIndex: 2, padding: "18px 20px", borderRadius: 16, background: "rgba(46,224,110,0.15)", border: "1px solid rgba(46,224,110,0.5)", marginBottom: 14 }}>
                   <div style={{ font: "700 13px 'Inter'", color: "#2EE06E", letterSpacing: ".18em", marginBottom: 6 }}>CORRECT ANSWER</div>
-                  <div style={{ font: "800 clamp(24px,7vw,32px) 'Inter'", color: "#2EE06E" }}>{correctText}</div>
+                  {/* A Sequence/Multi Tap-style joined answer (long, multi-item
+                      arrow chain) at the old fixed clamp(24px,7vw,32px) size
+                      could need more vertical room than this screen had left,
+                      with nothing to shrink it - the live report was this box
+                      looking cut off mid-chain. FitBlockText shrinks it to
+                      actually fit instead. */}
+                  <FitBlockText className="qi-player-reveal-answer" maxViewportHeight={0.18} minFontSize={15} style={{ font: "800 clamp(24px,7vw,32px) 'Inter'", color: "#2EE06E" }}>{correctText}</FitBlockText>
                 </div>
                 {submitted && (
-                  <div style={{ position: "relative", zIndex: 2, font: "600 14px 'Inter'", color: verdict === false ? "#FF3B4E" : "#B9A8D9", marginBottom: 12 }}>
-                    Your answer: {mySubmittedDisplay || "(no answer submitted)"}
-                  </div>
+                  <FitBlockText className="qi-player-reveal-yours" maxViewportHeight={0.12} minFontSize={12} style={{ position: "relative", zIndex: 2, font: "600 14px 'Inter'", color: verdict === false ? "#FF3B4E" : "#B9A8D9", marginBottom: 12 }}>{"Your answer: " + (mySubmittedDisplay || "(no answer submitted)")}</FitBlockText>
                 )}
               </>
             )}

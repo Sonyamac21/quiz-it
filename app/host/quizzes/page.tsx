@@ -1553,7 +1553,7 @@ export default function QuizBuilderPage() {
                     each button flex:1 - that always divides the full row
                     width evenly across however many buttons exist, with no
                     empty tracks and no dead space, guaranteed. */}
-                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
                   <HostButton style={{ flex: 1 }} onClick={() => setSettingsOpenRoundId(id => id === activeRound.id ? null : activeRound.id)}>{settingsOpen ? "HIDE SETTINGS" : "SETTINGS"}</HostButton>
                   <HostButton style={{ flex: 1 }} onClick={() => moveRound(activeIndex, -1)} disabled={activeIndex === 0}>UP</HostButton>
                   <HostButton style={{ flex: 1 }} onClick={() => moveRound(activeIndex, 1)} disabled={activeIndex === selected.quiz_rounds.length - 1}>DOWN</HostButton>
@@ -1667,7 +1667,7 @@ export default function QuizBuilderPage() {
                   </>
                 )}
 
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 0, marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
                   <div className="fbh-lbl" style={{ margin: 0 }}>{activeRound.round_type === "pairs" ? "Match Made · 6 tiles per question" : "Questions"}</div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     {generatingMoreId === activeRound.id && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{generatingMoreStatus}</span>}

@@ -1437,9 +1437,9 @@ export default function QuizBuilderPage() {
                         <input type="checkbox" checked={roundCfg?.selected ?? false} onChange={e => updateBulkConfig(round.id, { selected: e.target.checked })} style={{ margin: 0 }} />
                       </label>
                     )}
-                    <span style={{ font: "700 11px 'Inter'", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", paddingRight: isRoundGeneratable ? 16 : 0 }}>{index + 1}. {round.name}</span>
+                    <span className="qi-text-sm" style={{ fontFamily: "'Inter'", fontWeight: 700, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", paddingRight: isRoundGeneratable ? 16 : 0 }}>{index + 1}. {round.name}</span>
                     <span style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-                      <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "0 1 auto" }}>{round.round_type === "pairs" ? `${readPairsQuestions(round.questions).length} Q · 6 tiles each` : `${round.questions.length} Q - ${round.round_type}`}</span>
+                      <span className="qi-text-xs" style={{ color: "#6B5A8E", fontFamily: "'Inter'", fontWeight: 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "0 1 auto" }}>{round.round_type === "pairs" ? `${readPairsQuestions(round.questions).length} Q · 6 tiles each` : `${round.questions.length} Q - ${round.round_type}`}</span>
                       {/* Both of these used to be their own full text line(s)
                           (a 2-line generation-progress message, a "MUSIC NOT
                           PREPPED" warning line) - collapsed to a small
@@ -1460,7 +1460,7 @@ export default function QuizBuilderPage() {
                         );
                       })()}
                       {round.questions.some(q => (q as Record<string, unknown>).question_type === "audio") && !roundMusicIsPrepped(round) && (
-                        <span title="One or more audio questions in this round have no saved clip yet - open Music Prep before this quiz can go live" style={{ flex: "none", color: "#FFC533", font: "700 10px 'Inter'" }}>⚠</span>
+                        <span className="qi-text-xs" title="One or more audio questions in this round have no saved clip yet - open Music Prep before this quiz can go live" style={{ flex: "none", color: "#FFC533", fontFamily: "'Inter'", fontWeight: 700 }}>⚠</span>
                       )}
                     </span>
                   </div>

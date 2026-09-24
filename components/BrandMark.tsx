@@ -46,14 +46,17 @@ export function BrandMark({
         style={{
           marginTop: `${2 * s}px`,
           fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
-          fontSize: `${10 * s}px`,
           letterSpacing: ".01em",
           color,
           opacity: 0.6,
           whiteSpace: "nowrap",
         }}
       >
-        Powered by Mac Entertainment
+        {/* "Powered by" is the lead-in, kept smaller than "Mac Entertainment"
+            (the part of this line that's actually the brand) - same line,
+            two sizes. */}
+        <span style={{ fontSize: `${8 * s}px` }}>Powered by </span>
+        <span style={{ fontSize: `${10 * s}px` }}>Mac Entertainment</span>
       </div>
       <div
         style={{

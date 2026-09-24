@@ -791,7 +791,15 @@ button, input, select, textarea { font: inherit; }
    on the waiting/lobby screen, so there's no other layout this generic rule
    needs to serve - removing it makes .qi-display-lobby the one unambiguous
    owner of this ratio. */
-.fbl .lb-cardstage{border-left:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3%;padding:0 5%;}
+/* Host report: the venue photo frame was rendering close enough to the
+   bottom of the screen to visually collide with "SHOW STARTS SOON" -
+   .lb-foot is a separate position:absolute bar pinned to the true bottom
+   of the whole .lb-split grid, so it overlays on top of whatever this
+   panel renders there rather than pushing it up; this panel had zero
+   vertical padding of its own, so nothing reserved room for that overlay.
+   Top/bottom padding here now leaves real clearance for .lb-reel-title
+   (pinned near the top) and .lb-foot (pinned at the bottom) respectively. */
+.fbl .lb-cardstage{border-left:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3%;padding:6% 5% 7%;}
 .fbl .lb-cardkicker{font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:clamp(13px,1.7vw,24px);letter-spacing:.24em;color:var(--purple-b);}
 .fbl .lb-pcard{width:min(78%,480px);border:2px solid var(--purple);border-radius:24px;background:linear-gradient(160deg,var(--stage-raised),var(--stage-deep));display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:3.5%;padding:7% 6%;animation:lbCardIn .5s var(--settle);}
 .fbl .lb-pcard-sigil{font-size:clamp(48px,7vw,110px);line-height:1;}
@@ -897,16 +905,27 @@ button, input, select, textarea { font: inherit; }
    the real, uncropped photo/video still sits centred and complete on top
    via object-fit:contain, but the empty bars either side are now a soft
    blurred echo of the same image instead of bare background. */
-/* Host request: "looks nice animation - but its too low on the screen.
-   move all away from the edge slightly." Trimmed the frame's own max size
-   a little (leaves more clearance above/below within .lb-reel-venue's
-   padding) and pushed the has-media band/host-card insets out a touch
-   further from the frame's own edges, so nothing (the photo, the venue
-   name band, or the host card) sits flush against a corner. */
-.fbl .lb-reel-media-frame{position:relative;width:100%;height:100%;max-width:min(74%,780px);max-height:min(58%,470px);margin:auto;overflow:hidden;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
+/* Host request: "all too close to the edges...use the damn space
+   available!" - the previous cap (74%/470px) was too conservative given
+   how much clear panel space actually surrounds it on a real screen.
+   Sized up notably while .lb-reel-venue's own padding (below) still
+   guarantees real clearance on every side - "bigger" and "not touching
+   the edges" aren't in tension as long as the padding budget accounts
+   for it, which the .lb-cardstage/.lb-foot fix below now does. */
+.fbl .lb-reel-media-frame{position:relative;width:100%;height:100%;max-width:min(86%,980px);max-height:min(70%,600px);margin:auto;overflow:hidden;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
 .fbl .lb-reel-media-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(32px) brightness(.55) saturate(1.15);transform:scale(1.15);}
 .fbl .lb-reel-media{position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:contain;}
-.fbl .lb-venue-intro.has-media{inset:auto 6% 6%;min-height:34%;padding:5% 6% 4%;border-radius:0 0 clamp(18px,2vw,30px) clamp(18px,2vw,30px);background:linear-gradient(180deg,transparent,rgba(10,1,24,.94) 58%);gap:clamp(7px,1vh,14px);overflow:hidden;}
+/* Host report: "the overlap in text" - the venue logo sits position:
+   absolute at bottom-left of this band, but the copy block (name/time/
+   tagline) inherited align-items:center from the base .lb-venue-intro
+   rule, centering it across the band's FULL width - which put its text
+   directly on top of the logo's box whenever the logo was wide enough to
+   reach the middle. align-items:flex-end shifts the copy block (the only
+   normal-flow child here - the logo and host card are both
+   position:absolute and unaffected by this) to the right side of the
+   band instead, clearing the bottom-left logo automatically at any
+   screen size rather than needing hand-tuned padding math per breakpoint. */
+.fbl .lb-venue-intro.has-media{inset:auto 6% 6%;min-height:34%;padding:5% 6% 4%;align-items:flex-end;border-radius:0 0 clamp(18px,2vw,30px) clamp(18px,2vw,30px);background:linear-gradient(180deg,transparent,rgba(10,1,24,.94) 58%);gap:clamp(7px,1vh,14px);overflow:hidden;}
 .fbl .lb-venue-intro.has-media .lb-venue-intro-logo{position:absolute;left:3%;bottom:14%;max-width:clamp(100px,15vw,190px);max-height:clamp(80px,11vw,145px);width:auto;height:auto;padding:8px;border-radius:14px;}
 .fbl .lb-venue-intro.has-media .lb-venue-intro-name{max-width:72%;font-size:clamp(28px,3.8vw,58px);line-height:1.08;text-wrap:balance;}
 .fbl .lb-venue-intro.has-media .lb-venue-intro-tagline{font-size:clamp(12px,1.2vw,18px);}

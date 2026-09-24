@@ -1322,6 +1322,13 @@ export default function QuizBuilderPage() {
           const progress = bulkProgress[activeRound.id];
           const settingsOpen = settingsOpenRoundId === activeRound.id;
           const addQuestionOpen = addQuestionOpenId === activeRound.id;
+          // Host request: "+ FROM LIBRARY" / "+ RANDOM FROM LIBRARY" / "+ ADD
+          // QUESTION" used to be three separate buttons that could each open
+          // their own bordered accordion, so a host could end up with two or
+          // three stacked boxes at once. Folded into one "+ ADD QUESTIONS"
+          // entry point below with a segmented switch inside - exactly one
+          // panel is ever open, in one shared box.
+          const anyAddPanelOpen = libraryOpenId === activeRound.id || randomOpenId === activeRound.id || addQuestionOpen;
           return (
             <>
               {/* One tab per round - the whole quiz at a glance, click a tab to work on just that round's questions.
@@ -1331,7 +1338,11 @@ export default function QuizBuilderPage() {
                   strip was wrapping to 3+ rows and, being sticky, permanently
                   occupying most of the viewport while scrolling, leaving no
                   room to see (or scroll to) the Questions panel below it. */}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, position: "sticky", top: 96, zIndex: 20, padding: "8px 8px", margin: "-8px -8px 6px", background: "rgba(10,1,24,0.92)", backdropFilter: "blur(10px)", borderRadius: 12, maxHeight: 158, overflowY: "auto" }}>
+              {/* Host request: this strip took a lot of vertical space -
+                  shrunk the tile padding/fonts and its own max-height below
+                  so more rounds are visible at once before it needs to
+                  scroll internally. */}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10, position: "sticky", top: 96, zIndex: 20, padding: "6px 6px", margin: "-6px -6px 6px", background: "rgba(10,1,24,0.92)", backdropFilter: "blur(10px)", borderRadius: 10, maxHeight: 110, overflowY: "auto" }}>
                 {selected.quiz_rounds.map((round, index) => {
                   const isRoundGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
                   const roundCfg = bulkConfig[round.id];
@@ -1369,19 +1380,19 @@ export default function QuizBuilderPage() {
                     }}
                     onDragEnd={() => { setDraggedRoundIndex(null); setDragOverRoundId(null); }}
                     style={{
-                      padding: "6px 10px", borderRadius: 10, cursor: "grab", textAlign: "left",
+                      padding: "4px 8px", borderRadius: 8, cursor: "grab", textAlign: "left",
                       border: dragOverRoundId === round.id ? "2px dashed #2EE06E" : round.id === activeRound.id ? "2px solid #BE26C1" : "1px solid #2E1A52",
                       background: dragOverRoundId === round.id ? "rgba(46,224,110,0.12)" : round.id === activeRound.id ? "rgba(190,38,193,0.15)" : "#150A2E",
                       opacity: draggedRoundIndex === index ? 0.4 : 1,
                       color: "#fff", display: "flex", flexDirection: "column", gap: 1,
                       // Grows to fill the row (so 5 rounds span the full width
                       // instead of leaving a dead gap after the last one) but
-                      // never shrinks below 150px. The name/status lines below
+                      // never shrinks below 130px. The name/status lines below
                       // wrap onto a second line (line-clamp: 2) instead of a
                       // hard single-line ellipsis, so the sticky bar stays
                       // compact and out of the way while still letting a host
                       // actually read what's on a tile without clicking it.
-                      flex: "1 1 150px", minWidth: 150,
+                      flex: "1 1 130px", minWidth: 130,
                     }}
                   >
                     {isRoundGeneratable && (
@@ -1390,7 +1401,7 @@ export default function QuizBuilderPage() {
                         Include in Generate All
                       </label>
                     )}
-                    <span style={{ font: "700 12px 'Inter'", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{index + 1}. {round.name}</span>
+                    <span style={{ font: "700 11px 'Inter'", lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{index + 1}. {round.name}</span>
                     {/* A native `title` tooltip only appears on hover-and-wait and
                         never on click/tap, so a host clicking straight at this
                         truncated text (as reported) saw nothing happen - no
@@ -1613,85 +1624,117 @@ export default function QuizBuilderPage() {
                         </HostButton>
                       </div>
                     )}
-                    {activeRound.round_type !== "pairs" && <><HostButton onClick={() => { setLibraryOpenId(id => { const next = id === activeRound.id ? null : activeRound.id; if (next) { setLibrarySearch(""); const allowed = allowedLibraryTypesForRound(activeRound.round_type); const defaultType = allowed.length === 1 ? allowed[0] : ""; setLibraryTypeFilter(defaultType); loadLibraryQuestions("", defaultType); } return next; }); setAddQuestionOpenId(null); setRandomOpenId(null); }}>{libraryOpenId === activeRound.id ? "CLOSE" : "+ FROM LIBRARY"}</HostButton>
-                    <HostButton onClick={() => { setRandomOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); setAddQuestionOpenId(null); }}>{randomOpenId === activeRound.id ? "CLOSE" : "+ RANDOM FROM LIBRARY"}</HostButton>
-                    <HostButton onClick={() => { setAddQuestionOpenId(id => id === activeRound.id ? null : activeRound.id); setLibraryOpenId(null); setRandomOpenId(null); }}>{addQuestionOpen ? "CLOSE" : "+ ADD QUESTION"}</HostButton></>}
+                    {activeRound.round_type !== "pairs" && (
+                      <HostButton onClick={() => {
+                        if (anyAddPanelOpen) { setLibraryOpenId(null); setRandomOpenId(null); setAddQuestionOpenId(null); return; }
+                        setLibrarySearch("");
+                        const allowed = allowedLibraryTypesForRound(activeRound.round_type);
+                        const defaultType = allowed.length === 1 ? allowed[0] : "";
+                        setLibraryTypeFilter(defaultType);
+                        loadLibraryQuestions("", defaultType);
+                        setLibraryOpenId(activeRound.id); setRandomOpenId(null); setAddQuestionOpenId(null);
+                      }}>{anyAddPanelOpen ? "CLOSE" : "+ ADD QUESTIONS"}</HostButton>
+                    )}
                   </div>
                 </div>
-                {randomOpenId === activeRound.id && (
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
-                    <select value={randomTopic} onChange={e => setRandomTopic(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}>
-                      <option value="">Any topic</option>
-                      {["Sport", "Geography", "History", "Science & Nature", "Music", "Film & TV", "Literature & Language", "Food & Drink", "General Knowledge", "Current Affairs", "Art & Culture"].map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                    <input type="number" min={1} max={50} value={randomCount} onChange={e => setRandomCount(Math.max(1, Math.min(50, Math.floor(Number(e.target.value)) || 1)))} style={{ width: 56, padding: "8px 6px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff", textAlign: "center" }} />
-                    <HostButton variant="pri" disabled={randomBusy} onClick={() => addRandomFromLibrary(activeRound, randomCount, randomTopic)}>{randomBusy ? (randomStatus || "PICKING…") : "ADD RANDOM QUESTIONS"}</HostButton>
-                    <span style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>Only pulls approved, never-used library questions.</span>
-                  </div>
-                )}
-                {libraryOpenId === activeRound.id && (
-                  <div style={{ display: "grid", gap: 8, padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <input
-                        value={librarySearch}
-                        onChange={e => { setLibrarySearch(e.target.value); loadLibraryQuestions(e.target.value); }}
-                        placeholder="Search all saved questions and answers..."
-                        className="fbh-input"
-                        style={{ flex: "1 1 220px" }}
-                      />
-                      <select
-                        value={libraryTypeFilter}
-                        onChange={e => { setLibraryTypeFilter(e.target.value); loadLibraryQuestions(librarySearch, e.target.value); }}
-                        style={{ padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}
-                      >
-                        <option value="">All types</option>
-                        <option value="multiple_choice">Multiple Choice</option>
-                        <option value="text_answer">Text Answer</option>
-                        <option value="number">Number</option>
-                        <option value="sequence">Sequence</option>
-                        <option value="picture">Picture</option>
-                        <option value="audio">Music</option>
-                        <option value="multi_tap">Multi Tap</option>
-                        <option value="nearest_wins">Nearest Wins</option>
-                      </select>
+                {anyAddPanelOpen && (
+                  <div style={{ padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
+                    {/* One shared box instead of three separate accordions
+                        that used to be able to stack on top of each other -
+                        a segmented switch below picks which single add-method
+                        is showing. */}
+                    <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+                      {([
+                        ["SEARCH LIBRARY", libraryOpenId === activeRound.id, () => {
+                          setLibrarySearch("");
+                          const allowed = allowedLibraryTypesForRound(activeRound.round_type);
+                          const defaultType = allowed.length === 1 ? allowed[0] : "";
+                          setLibraryTypeFilter(defaultType);
+                          loadLibraryQuestions("", defaultType);
+                          setLibraryOpenId(activeRound.id); setRandomOpenId(null); setAddQuestionOpenId(null);
+                        }],
+                        ["RANDOM", randomOpenId === activeRound.id, () => { setRandomOpenId(activeRound.id); setLibraryOpenId(null); setAddQuestionOpenId(null); }],
+                        ["TYPE YOUR OWN", addQuestionOpen, () => { setAddQuestionOpenId(activeRound.id); setLibraryOpenId(null); setRandomOpenId(null); }],
+                      ] as const).map(([label, active, onClick]) => (
+                        <button key={label} type="button" onClick={onClick} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #2E1A52", cursor: "pointer", font: "700 10px 'Inter'", letterSpacing: ".04em", background: active ? "rgba(190,38,193,0.2)" : "transparent", color: active ? "#fff" : "#B9A8D9" }}>{label}</button>
+                      ))}
                     </div>
-                    {libraryLoading && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>Searching...</div>}
-                    {!libraryLoading && libraryResults.length === 0 && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>No saved questions found in the Question Library{libraryTypeFilter ? " for this question type" : ""}.</div>}
-                    <div style={{ display: "grid", gap: 6, maxHeight: 260, overflowY: "auto" }}>
-                      {libraryResults.map(bq => {
-                        const alreadyAdded = activeRound.questions.some(question => questionKey(question) === questionKey(bq));
-                        return (
-                        <div
-                          key={bq.id}
-                          draggable
-                          // Host request: drag a search result straight onto any
-                          // round's tab in the sticky strip above, instead of only
-                          // being able to click ADD into whichever round's panel
-                          // happens to be open (matches SpeedQuizzing's Question
-                          // Manager - search, then drag into a round).
-                          onDragStart={() => setDraggedLibraryQuestion(bq)}
-                          onDragEnd={() => setDraggedLibraryQuestion(null)}
-                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", cursor: "grab" }}
-                        >
-                          <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2" }}>
-                            {!!bq.times_used && <span style={{ color: "#FFC533", fontWeight: 700, marginRight: 6 }}>USED {bq.times_used}×</span>}
-                            {!libraryTypeFilter && <span style={{ color: "#B9A8D9", fontWeight: 700, marginRight: 6, textTransform: "uppercase", fontSize: 10 }}>{bq.question_type.replace("_", " ")}</span>}
-                            {bq.question_text} <span style={{ color: "#2EE06E" }}>{"-> " + bq.correct_answer}</span>
-                          </div>
-                          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                            <HostButton disabled={alreadyAdded || libraryAddingId !== null} onClick={() => addLibraryQuestion(activeRound, bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12 }}>{alreadyAdded ? "ADDED" : libraryAddingId === bq.id ? "ADDING…" : "ADD"}</HostButton>
-                            <HostButton onClick={() => deleteLibraryQuestion(bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12, color: "#ff8f9a" }}>DELETE</HostButton>
-                          </div>
+                    {randomOpenId === activeRound.id && (
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                        <select value={randomTopic} onChange={e => setRandomTopic(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}>
+                          <option value="">Any topic</option>
+                          {["Sport", "Geography", "History", "Science & Nature", "Music", "Film & TV", "Literature & Language", "Food & Drink", "General Knowledge", "Current Affairs", "Art & Culture"].map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                        <input type="number" min={1} max={50} value={randomCount} onChange={e => setRandomCount(Math.max(1, Math.min(50, Math.floor(Number(e.target.value)) || 1)))} style={{ width: 56, padding: "8px 6px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff", textAlign: "center" }} />
+                        <HostButton variant="pri" disabled={randomBusy} onClick={() => addRandomFromLibrary(activeRound, randomCount, randomTopic)}>{randomBusy ? (randomStatus || "PICKING…") : "ADD RANDOM QUESTIONS"}</HostButton>
+                        <span style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>Only pulls approved, never-used library questions.</span>
+                      </div>
+                    )}
+                    {libraryOpenId === activeRound.id && (
+                      <div style={{ display: "grid", gap: 8 }}>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <input
+                            value={librarySearch}
+                            onChange={e => { setLibrarySearch(e.target.value); loadLibraryQuestions(e.target.value); }}
+                            placeholder="Search all saved questions and answers..."
+                            className="fbh-input"
+                            style={{ flex: "1 1 220px" }}
+                          />
+                          <select
+                            value={libraryTypeFilter}
+                            onChange={e => { setLibraryTypeFilter(e.target.value); loadLibraryQuestions(librarySearch, e.target.value); }}
+                            style={{ padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}
+                          >
+                            <option value="">All types</option>
+                            <option value="multiple_choice">Multiple Choice</option>
+                            <option value="text_answer">Text Answer</option>
+                            <option value="number">Number</option>
+                            <option value="sequence">Sequence</option>
+                            <option value="picture">Picture</option>
+                            <option value="audio">Music</option>
+                            <option value="multi_tap">Multi Tap</option>
+                            <option value="nearest_wins">Nearest Wins</option>
+                          </select>
                         </div>
-                      );})}
-                    </div>
-                  </div>
-                )}
-                {addQuestionOpen && (
-                  <div style={{ display: "grid", gap: 8, padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
-                    <input value={manualQText} onChange={e => setManualQText(e.target.value)} placeholder="Question" className="fbh-input" style={{ width: "100%" }} />
-                    <input value={manualAText} onChange={e => setManualAText(e.target.value)} placeholder="Answer" className="fbh-input" style={{ width: "100%" }} />
-                    <HostButton variant="pri" onClick={() => addManualQuestion(activeRound, manualQText, manualAText)} disabled={!manualQText.trim() || !manualAText.trim()}>ADD QUESTION</HostButton>
+                        {libraryLoading && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>Searching...</div>}
+                        {!libraryLoading && libraryResults.length === 0 && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>No saved questions found in the Question Library{libraryTypeFilter ? " for this question type" : ""}.</div>}
+                        <div style={{ display: "grid", gap: 6, maxHeight: 260, overflowY: "auto" }}>
+                          {libraryResults.map(bq => {
+                            const alreadyAdded = activeRound.questions.some(question => questionKey(question) === questionKey(bq));
+                            return (
+                            <div
+                              key={bq.id}
+                              draggable
+                              // Host request: drag a search result straight onto any
+                              // round's tab in the sticky strip above, instead of only
+                              // being able to click ADD into whichever round's panel
+                              // happens to be open (matches SpeedQuizzing's Question
+                              // Manager - search, then drag into a round).
+                              onDragStart={() => setDraggedLibraryQuestion(bq)}
+                              onDragEnd={() => setDraggedLibraryQuestion(null)}
+                              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", cursor: "grab" }}
+                            >
+                              <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2" }}>
+                                {!!bq.times_used && <span style={{ color: "#FFC533", fontWeight: 700, marginRight: 6 }}>USED {bq.times_used}×</span>}
+                                {!libraryTypeFilter && <span style={{ color: "#B9A8D9", fontWeight: 700, marginRight: 6, textTransform: "uppercase", fontSize: 10 }}>{bq.question_type.replace("_", " ")}</span>}
+                                {bq.question_text} <span style={{ color: "#2EE06E" }}>{"-> " + bq.correct_answer}</span>
+                              </div>
+                              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                                <HostButton disabled={alreadyAdded || libraryAddingId !== null} onClick={() => addLibraryQuestion(activeRound, bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12 }}>{alreadyAdded ? "ADDED" : libraryAddingId === bq.id ? "ADDING…" : "ADD"}</HostButton>
+                                <HostButton onClick={() => deleteLibraryQuestion(bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12, color: "#ff8f9a" }}>DELETE</HostButton>
+                              </div>
+                            </div>
+                          );})}
+                        </div>
+                      </div>
+                    )}
+                    {addQuestionOpen && (
+                      <div style={{ display: "grid", gap: 8 }}>
+                        <input value={manualQText} onChange={e => setManualQText(e.target.value)} placeholder="Question" className="fbh-input" style={{ width: "100%" }} />
+                        <input value={manualAText} onChange={e => setManualAText(e.target.value)} placeholder="Answer" className="fbh-input" style={{ width: "100%" }} />
+                        <HostButton variant="pri" onClick={() => addManualQuestion(activeRound, manualQText, manualAText)} disabled={!manualQText.trim() || !manualAText.trim()}>ADD QUESTION</HostButton>
+                      </div>
+                    )}
                   </div>
                 )}
 

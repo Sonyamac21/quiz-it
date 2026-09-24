@@ -1242,7 +1242,7 @@ export default function QuizBuilderPage() {
       <span style={{color:"#B9A8D9",fontSize:13}}>It may have been deleted or the link may be out of date. You can still create or manage Quiz Plans below, but nothing will be attached automatically.</span>
       <div style={{marginTop:8}}><Link href="/host/events" className="fbh-btn">BACK TO CALENDAR</Link></div>
     </section>}
-    {loading ? <HostLoading title="Quiz Library" note="Loading Quiz Plans and rounds…" /> : error && !quizzes.length ? <section className="qi-bo-setup-state" role="alert"><span>Setup required</span><h2>Quiz Library is not available yet</h2><p>The existing Quiz Builder database migration must be applied before Quiz Plans can be created. No data has been changed.</p><details><summary>Technical detail</summary><code>{error}</code></details></section> : <div className="qi-quiz-builder-grid" style={{ display: "block", maxWidth: "none" }}>
+    {loading ? <HostLoading title="Quiz Library" note="Loading Quiz Plans and rounds…" /> : error && !quizzes.length ? <section className="qi-bo-setup-state" role="alert"><span>Setup required</span><h2>Quiz Library is not available yet</h2><p>The existing Quiz Builder database migration must be applied before Quiz Plans can be created. No data has been changed.</p><details><summary>Technical detail</summary><code>{error}</code></details></section> : <div className="qi-quiz-builder-grid" style={{ display: "block", maxWidth: "none", marginTop: 8 }}>
 
       <section className="fbh-panel" style={{ width: "100%" }}>{!selected ? (
         <div style={{ maxWidth: 480 }}>
@@ -1332,17 +1332,16 @@ export default function QuizBuilderPage() {
           return (
             <>
               {/* One tab per round - the whole quiz at a glance, click a tab to work on just that round's questions.
-                  Sticks below the site header so it stays reachable as a drag-and-drop target while scrolling
-                  through a long list of questions, instead of scrolling out of view. */}
-              {/* Capped height + its own scrollbar - with enough rounds this
-                  strip was wrapping to 3+ rows and, being sticky, permanently
-                  occupying most of the viewport while scrolling, leaving no
-                  room to see (or scroll to) the Questions panel below it. */}
-              {/* Host request: this strip took a lot of vertical space -
-                  shrunk the tile padding/fonts and its own max-height below
-                  so more rounds are visible at once before it needs to
-                  scroll internally. */}
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10, position: "sticky", top: 96, zIndex: 20, padding: "6px 6px", margin: "-6px -6px 6px", background: "rgba(10,1,24,0.92)", backdropFilter: "blur(10px)", borderRadius: 10, maxHeight: 110, overflowY: "auto" }}>
+                  Used to be sticky with its own capped-height internal
+                  scrollbar so it stayed reachable as a drag target while
+                  scrolling the questions below - but host feedback was that
+                  the clipped, part-visible second row inside that little
+                  scrolling box looked broken ("this little letterbox").
+                  Dropped the sticky positioning and the internal scroll
+                  entirely - the strip now just wraps to however many rows
+                  it needs and scrolls away with the rest of the page like
+                  any other block, so nothing is ever half-cut-off. */}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10, padding: 6, borderRadius: 10, background: "rgba(10,1,24,0.6)" }}>
                 {selected.quiz_rounds.map((round, index) => {
                   const isRoundGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
                   const roundCfg = bulkConfig[round.id];
@@ -1396,9 +1395,13 @@ export default function QuizBuilderPage() {
                     }}
                   >
                     {isRoundGeneratable && (
-                      <label style={{ display: "flex", alignItems: "center", gap: 5, font: "600 10px 'Inter'", color: "#B9A8D9" }} onClick={e => e.stopPropagation()}>
+                      // Host request: "Include in Generate All" wrapped onto
+                      // two lines on most tiles, adding real height to every
+                      // generatable tab in this already-space-conscious
+                      // strip. Shortened text + nowrap keeps it one line.
+                      <label title="Include in Generate All" style={{ display: "flex", alignItems: "center", gap: 4, font: "600 10px 'Inter'", color: "#B9A8D9", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={roundCfg?.selected ?? false} onChange={e => updateBulkConfig(round.id, { selected: e.target.checked })} />
-                        Include in Generate All
+                        Generate All
                       </label>
                     )}
                     <span style={{ font: "700 11px 'Inter'", lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{index + 1}. {round.name}</span>

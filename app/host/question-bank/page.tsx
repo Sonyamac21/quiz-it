@@ -303,6 +303,19 @@ export default function QuestionBankPage() {
     setStatus(`Created “${data.name}” with ${selectedList.length} question${selectedList.length === 1 ? "" : "s"}.`);
   }
 
+  // Host request: this page used to always fetch and render a full grid of
+  // large, 380px-tall cards for whatever the current filter/review mode
+  // matched - by default that's every one of the ~30k "approved" questions,
+  // 20 huge cards per page, before the host had typed anything. That's not
+  // useful for browsing (nobody scans 1,500 pages of trivia) and the actual
+  // "find one question and add it to a round" job is now handled better by
+  // the Quiz Plan builder's own inline library search. This page keeps that
+  // job available (for round-building/curation outside a specific quiz) but
+  // only shows results once the host has actually asked for them - typed a
+  // search, chosen a type/topic filter, or switched to Needs Review to do a
+  // bulk-approval pass. Loading blank by default cuts the page from "a wall
+  // of question cards" down to just the controls above and an empty state.
+  const hasActiveQuery = search.trim().length >= 2 || filter !== "all" || topicFilter !== "" || reviewMode === "needs_review";
   const pageCount = Math.max(1, Math.ceil(matchingCount / PAGE_SIZE));
   const roundUnavailableReason = (round: RoundTarget, question: BankQuestion): string => {
     if (round.questions.some(existing => questionKey(existing) === questionKey(question))) return "already added";
@@ -396,15 +409,28 @@ export default function QuestionBankPage() {
           {selectedList.length > 0 && <details style={{ width: "100%" }}><summary style={{ cursor: "pointer", color: "#D94FDC" }}>Preview selected questions</summary><ol style={{ maxHeight: 220, overflowY: "auto", paddingLeft: 24 }}>{selectedList.map(q => <li key={q.id} style={{ margin: "8px 0", fontSize: 12 }}>{q.question_text}<div><button onClick={() => setSelectedQuestions(prev => { const next = new Map(prev); next.delete(q.id); return next; })}>Remove</button></div></li>)}</ol></details>}
         </section>
 
-        {(loading || listLoading) && <HostLoading title="Question Bank" note="Loading saved questions…" />}
-        {!loading && !listLoading && questions.length === 0 && (
+        {!hasActiveQuery && (
+          <p style={{ textAlign: "center", color: "#6B5A8E", font: "400 13px 'Inter'", padding: "30px 0" }}>
+            Search above, or choose a question type / topic, to see matching questions here. Switch to &ldquo;Needs review&rdquo; to bulk-approve flagged questions.
+          </p>
+        )}
+        {hasActiveQuery && (loading || listLoading) && <HostLoading title="Question Bank" note="Loading saved questions…" />}
+        {hasActiveQuery && !loading && !listLoading && questions.length === 0 && (
           <p style={{ textAlign: "center", color: "#6B5A8E", font: "400 13px 'Inter'" }}>
             {search.trim().length >= 2 ? "No questions match your search." : reviewMode === "needs_review" ? "Nothing waiting for review." : "No questions in the bank yet."}
           </p>
         )}
 
-        {!loading && !listLoading && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))", gap: 12, alignItems: "start" }}>
+        {/* Host request: this used to be a grid of large, fixed-height
+            (380px) cards - one full-detail card per question, 20 per page -
+            which felt unreadable at a glance. Swapped for a compact,
+            single-line-per-question list (same density as the round
+            builder's own library search rows) - hovering still expands the
+            full detail (including a picture's actual thumbnail) in a
+            popover, so nothing that used to be visible is gone, it's just
+            not the DEFAULT view of every row. */}
+        {hasActiveQuery && !loading && !listLoading && (
+        <div style={{ display: "grid", gap: 6 }}>
         {questions.map(q => {
           const optionLetters = q.question_type === "multi_tap" ? ["a", "b", "c", "d", "e", "f"] : ["a", "b", "c", "d"];
           const correctLetters = q.correct_answer.toLowerCase().split(",").map(value => value.trim());
@@ -413,10 +439,9 @@ export default function QuestionBankPage() {
           const isHovered = hoveredId === q.id;
           const isUnhostedImage = isPicture && !!q.option_b && !q.option_b.includes("blob.vercel-storage.com");
           const isBrokenImage = isPicture && brokenImageIds.has(q.id);
-          const body = (
+          const fullBody = (
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-                <label style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", color: selectedQuestions.has(q.id) ? "#2EE06E" : "#B9A8D9", font: "600 11px 'Inter'" }}><input type="checkbox" checked={selectedQuestions.has(q.id)} onChange={event => setSelectedQuestions(prev => { const next = new Map(prev); if (event.target.checked) next.set(q.id, q); else next.delete(q.id); return next; })} /> Select</label>
                 <span className="fbh-chip">{typeLabel[q.question_type] || q.question_type}</span>
                 <span style={{ color: "#B9A8D9", font: "500 11px 'Inter'" }}>{q.difficulty}</span>
                 {q.topic && <span style={{ color: "#6B5A8E", font: "500 11px 'Inter'" }}>{q.topic}</span>}
@@ -469,32 +494,40 @@ export default function QuestionBankPage() {
             </>
           );
           return (
-          <article
+          <div
             key={q.id}
-            className="fbh-panel"
             onMouseEnter={() => setHoveredId(q.id)}
             onMouseLeave={() => setHoveredId(prev => prev === q.id ? null : prev)}
-            style={{ margin: 0, padding: 14, minWidth: 0, position: "relative", border: q.needs_review ? "1px solid rgba(250,204,21,0.35)" : undefined, display: "flex", flexDirection: "column", height: 380 }}
+            style={{ position: "relative", display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, background: "#150A2E", border: q.needs_review ? "1px solid rgba(250,204,21,0.35)" : "1px solid #2E1A52" }}
           >
-            {/* Uniform-height collapsed view - clipped so every card lines up the same */}
-            <div style={{ flex: 1, overflow: "hidden" }}>{body}</div>
-            {/* Hover expands the full, untruncated content in a popover above everything else */}
+            <label style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", flexShrink: 0 }}>
+              <input type="checkbox" checked={selectedQuestions.has(q.id)} onChange={event => setSelectedQuestions(prev => { const next = new Map(prev); if (event.target.checked) next.set(q.id, q); else next.delete(q.id); return next; })} />
+            </label>
+            <div style={{ flex: 1, minWidth: 0, font: "400 12px 'Inter'", color: "#D9CCF2", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {!!q.times_used && <span style={{ color: "#FFC533", fontWeight: 700, marginRight: 6 }}>USED {q.times_used}×</span>}
+              {q.needs_review && <span style={{ color: "#facc15", fontWeight: 700, marginRight: 6 }}>NEEDS REVIEW</span>}
+              <span style={{ color: "#B9A8D9", fontWeight: 700, marginRight: 6, textTransform: "uppercase", fontSize: 10 }}>{typeLabel[q.question_type] || q.question_type}</span>
+              {q.question_text} <span style={{ color: "#2EE06E" }}>{"→ " + q.correct_answer}</span>
+            </div>
+            {/* Hover expands the full, untruncated detail (incl. a picture's
+                real thumbnail) in a popover, same mechanic the compact row
+                relies on instead of showing everything inline by default. */}
             {isHovered && (
-              <div style={{ position: "absolute", top: -1, left: -1, right: -1, zIndex: 40, background: "#150A2E", border: "1px solid #BE26C1", borderRadius: 12, padding: 14, boxShadow: "0 12px 32px rgba(0,0,0,0.55)", maxHeight: 480, overflowY: "auto" }}>
-                {body}
+              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, zIndex: 40, background: "#150A2E", border: "1px solid #BE26C1", borderRadius: 12, padding: 14, boxShadow: "0 12px 32px rgba(0,0,0,0.55)", maxHeight: 480, overflowY: "auto" }}>
+                {fullBody}
               </div>
             )}
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-              {q.needs_review && <HostButton onClick={() => approveQuestion(q.id)} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Approve</HostButton>}
-              {!q.needs_review && <HostButton onClick={() => { setPickerQuestion(q); setRoundSearch(""); }} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Add to round…</HostButton>}
-              <HostButton onClick={() => openEdit(q)} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Edit</HostButton>
-              <HostButton onClick={() => deleteQuestion(q.id)} style={{ height: 32, padding: "0 10px", fontSize: 11 }}>Delete</HostButton>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              {q.needs_review && <HostButton onClick={() => approveQuestion(q.id)} style={{ height: 28, padding: "0 10px", fontSize: 11 }}>Approve</HostButton>}
+              {!q.needs_review && <HostButton onClick={() => { setPickerQuestion(q); setRoundSearch(""); }} style={{ height: 28, padding: "0 10px", fontSize: 11 }}>Add to round…</HostButton>}
+              <HostButton onClick={() => openEdit(q)} style={{ height: 28, padding: "0 10px", fontSize: 11 }}>Edit</HostButton>
+              <HostButton onClick={() => deleteQuestion(q.id)} style={{ height: 28, padding: "0 10px", fontSize: 11 }}>Delete</HostButton>
             </div>
-          </article>
+          </div>
         );})}
         </div>
         )}
-        {!loading && !listLoading && matchingCount > PAGE_SIZE && <nav className="qi-bo-pagination" aria-label="Question pages"><HostButton disabled={page === 1} onClick={() => setPage(value => Math.max(1, value - 1))}>Previous</HostButton><span>Page {page} of {pageCount}</span><HostButton disabled={page === pageCount} onClick={() => setPage(value => Math.min(pageCount, value + 1))}>Next</HostButton></nav>}
+        {hasActiveQuery && !loading && !listLoading && matchingCount > PAGE_SIZE && <nav className="qi-bo-pagination" aria-label="Question pages"><HostButton disabled={page === 1} onClick={() => setPage(value => Math.max(1, value - 1))}>Previous</HostButton><span>Page {page} of {pageCount}</span><HostButton disabled={page === pageCount} onClick={() => setPage(value => Math.min(pageCount, value + 1))}>Next</HostButton></nav>}
       </main>
       {confirmDialogEl}
       {promptDialogEl}

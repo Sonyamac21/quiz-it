@@ -353,7 +353,12 @@ export default function QuestionBankPage() {
         {reviewMode === "needs_review" && matchingCount > 0 && (
           <div className="fbh-panel" style={{ marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
             <span style={{ color: "#B9A8D9", font: "400 13px 'Inter'" }}>These questions won't appear anywhere else - not in round-building, not in Random From Library, not in AI generation - until approved.</span>
-            <HostButton onClick={approveAllInView} disabled={bulkBusy} style={{ height: 34, padding: "0 14px" }}>{bulkBusy ? "APPROVING…" : `APPROVE ALL ${matchingCount.toLocaleString()} IN THIS VIEW`}</HostButton>
+            {/* Root cause of these rendering huge next to the question rows:
+                same global host-console accessibility CSS (min-height/font-size
+                !important) that was silently overriding inline size overrides
+                everywhere else in the app - see app/globals.css's qi-btn-*
+                classes, which opt specific secondary actions out of it. */}
+            <HostButton className="qi-btn-md" onClick={approveAllInView} disabled={bulkBusy}>{bulkBusy ? "APPROVING…" : `APPROVE ALL ${matchingCount.toLocaleString()} IN THIS VIEW`}</HostButton>
           </div>
         )}
 
@@ -372,7 +377,7 @@ export default function QuestionBankPage() {
                       <div style={{ font: "600 13px 'Inter'", color: "#fff" }}>{m.question_text}</div>
                       <div style={{ font: "400 11px 'Inter'", color: "#6B5A8E" }}>{m.roundName} - Answer: {m.correct_answer}</div>
                     </div>
-                    <HostButton onClick={() => fixToNumberType(m.roundId, m.index)} style={{ height: 32, padding: "0 12px" }}>Fix to Number</HostButton>
+                    <HostButton className="qi-btn-md" onClick={() => fixToNumberType(m.roundId, m.index)}>Fix to Number</HostButton>
                   </div>
                 ))}
               </div>
@@ -404,8 +409,8 @@ export default function QuestionBankPage() {
           <select value={buildRoundType} onChange={event => setBuildRoundType(event.target.value)} aria-label="New round type" style={selectStyle}>
             <option value="regular">General Knowledge</option><option value="bonus">Bonus / Themed</option><option value="music">Music</option><option value="multi_tap">Multi Tap</option><option value="nearest_wins">Nearest Wins</option><option value="pursuit">The Pursuit</option><option value="hot_seat">Hot Seat</option>
           </select>
-          <HostButton onClick={async () => { setSaving(true); try { await buildRoundFromSelection(); } finally { setSaving(false); } }} disabled={saving || !selectedList.length} style={{ height: 34, padding: "0 12px", fontSize: 11 }}>{saving ? "SAVING…" : "CREATE ROUND"}</HostButton>
-          {selectedList.length > 0 && <HostButton onClick={() => setSelectedQuestions(new Map())} style={{ height: 34, padding: "0 10px", fontSize: 11 }}>Clear</HostButton>}
+          <HostButton className="qi-btn-md" onClick={async () => { setSaving(true); try { await buildRoundFromSelection(); } finally { setSaving(false); } }} disabled={saving || !selectedList.length}>{saving ? "SAVING…" : "CREATE ROUND"}</HostButton>
+          {selectedList.length > 0 && <HostButton className="qi-btn-md" onClick={() => setSelectedQuestions(new Map())}>Clear</HostButton>}
           {selectedList.length > 0 && <details style={{ width: "100%" }}><summary style={{ cursor: "pointer", color: "#D94FDC" }}>Preview selected questions</summary><ol style={{ maxHeight: 220, overflowY: "auto", paddingLeft: 24 }}>{selectedList.map(q => <li key={q.id} style={{ margin: "8px 0", fontSize: 12 }}>{q.question_text}<div><button onClick={() => setSelectedQuestions(prev => { const next = new Map(prev); next.delete(q.id); return next; })}>Remove</button></div></li>)}</ol></details>}
         </section>
 
@@ -518,10 +523,10 @@ export default function QuestionBankPage() {
               </div>
             )}
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-              {q.needs_review && <HostButton onClick={() => approveQuestion(q.id)} style={{ height: 28, padding: "0 10px", fontSize: 11 }}>Approve</HostButton>}
-              {!q.needs_review && <HostButton onClick={() => { setPickerQuestion(q); setRoundSearch(""); }} style={{ height: 28, padding: "0 10px", fontSize: 11 }}>Add to round…</HostButton>}
-              <HostButton onClick={() => openEdit(q)} style={{ height: 28, padding: "0 10px", fontSize: 11 }}>Edit</HostButton>
-              <HostButton onClick={() => deleteQuestion(q.id)} style={{ height: 28, padding: "0 10px", fontSize: 11 }}>Delete</HostButton>
+              {q.needs_review && <HostButton className="qi-btn-sm" onClick={() => approveQuestion(q.id)}>Approve</HostButton>}
+              {!q.needs_review && <HostButton className="qi-btn-sm" onClick={() => { setPickerQuestion(q); setRoundSearch(""); }}>Add to round…</HostButton>}
+              <HostButton className="qi-btn-sm" onClick={() => openEdit(q)}>Edit</HostButton>
+              <HostButton className="qi-btn-sm" onClick={() => deleteQuestion(q.id)}>Delete</HostButton>
             </div>
           </div>
         );})}

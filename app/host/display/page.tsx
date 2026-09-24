@@ -1761,9 +1761,15 @@ function DisplayScreenInner() {
         {currentReelScene === "venue" && (
           <div className="lb-reel-scene lb-reel-venue">
             {venueHeroVideoUrl && !venueHeroVideoFailed ? (
-              <video key={venueHeroVideoUrl} className="lb-reel-media" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline onError={() => setVenueHeroVideoFailed(true)} onLoadedData={() => setVenueHeroVideoFailed(false)} />
+              <div className="lb-reel-media-frame">
+                <video aria-hidden="true" className="lb-reel-media-bg" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline />
+                <video key={venueHeroVideoUrl} className="lb-reel-media" src={getMediaUrl(venueHeroVideoUrl) || undefined} autoPlay muted loop playsInline onError={() => setVenueHeroVideoFailed(true)} onLoadedData={() => setVenueHeroVideoFailed(false)} />
+              </div>
             ) : venueHeroImageUrl && !brokenImageUrls.has(getMediaUrl(venueHeroImageUrl) || "") ? (
-              <img className="lb-reel-media" src={getMediaUrl(venueHeroImageUrl) || undefined} alt={venueName || "Venue"} onError={() => markImageBroken(getMediaUrl(venueHeroImageUrl))} />
+              <div className="lb-reel-media-frame">
+                <img aria-hidden="true" className="lb-reel-media-bg" src={getMediaUrl(venueHeroImageUrl) || undefined} alt="" />
+                <img className="lb-reel-media" src={getMediaUrl(venueHeroImageUrl) || undefined} alt={venueName || "Venue"} onError={() => markImageBroken(getMediaUrl(venueHeroImageUrl))} />
+              </div>
             ) : (
               <div className="lb-venue-intro-bg" />
             )}
@@ -1882,7 +1888,10 @@ function DisplayScreenInner() {
 
         {currentReelScene === "promo" && promoImagePhotos.length > 0 && !brokenImageUrls.has(promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]) && (
           <div className="lb-reel-scene lb-reel-venue">
-            <img key={promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]} className="lb-reel-media" src={promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]} alt="Promo" onError={() => markImageBroken(promoImagePhotos[promoPhotoIdx % promoImagePhotos.length])} />
+            <div className="lb-reel-media-frame">
+              <img aria-hidden="true" className="lb-reel-media-bg" src={promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]} alt="" />
+              <img key={promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]} className="lb-reel-media" src={promoImagePhotos[promoPhotoIdx % promoImagePhotos.length]} alt="Promo" onError={() => markImageBroken(promoImagePhotos[promoPhotoIdx % promoImagePhotos.length])} />
+            </div>
           </div>
         )}
       </div>

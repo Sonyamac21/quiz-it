@@ -151,9 +151,15 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
           {currentReelScene === "venue" && (
             <div className="lb-reel-scene lb-reel-venue">
               {venue.hero_video_url && !videoFailed ? (
-                <video key={venue.hero_video_url} className="lb-reel-media" src={getMediaUrl(venue.hero_video_url) || undefined} autoPlay muted loop playsInline onError={() => setVideoFailed(true)} onLoadedData={() => setVideoFailed(false)} />
+                <div className="lb-reel-media-frame">
+                  <video aria-hidden="true" className="lb-reel-media-bg" src={getMediaUrl(venue.hero_video_url) || undefined} autoPlay muted loop playsInline />
+                  <video key={venue.hero_video_url} className="lb-reel-media" src={getMediaUrl(venue.hero_video_url) || undefined} autoPlay muted loop playsInline onError={() => setVideoFailed(true)} onLoadedData={() => setVideoFailed(false)} />
+                </div>
               ) : venue.hero_image_url && !brokenImageUrls.has(venue.hero_image_url) ? (
-                <img className="lb-reel-media" src={getMediaUrl(venue.hero_image_url) || undefined} alt={venue.venue_name} onError={() => markImageBroken(venue.hero_image_url)} />
+                <div className="lb-reel-media-frame">
+                  <img aria-hidden="true" className="lb-reel-media-bg" src={getMediaUrl(venue.hero_image_url) || undefined} alt="" />
+                  <img className="lb-reel-media" src={getMediaUrl(venue.hero_image_url) || undefined} alt={venue.venue_name} onError={() => markImageBroken(venue.hero_image_url)} />
+                </div>
               ) : (
                 <div className="lb-venue-intro-bg" />
               )}

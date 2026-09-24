@@ -205,7 +205,12 @@ function QuizControllerInner() {
   const [dangerZone, setDangerZone] = useState(false);
   const [dangerPenalty, setDangerPenalty] = useState(5);
   const [wipeoutMode, setWipeoutMode] = useState(false);
-  const [roundSettingsOpen, setRoundSettingsOpen] = useState(false);
+  // Round settings + the team-list display toggles used to live permanently
+  // in the rail, above the team list itself - eating into the one thing
+  // that panel exists to show live: team names and scores. Both now live
+  // behind this single "Controls" drawer instead (see the qi-mc-rail JSX),
+  // so the team section gets the rail's full height.
+  const [controlsOpen, setControlsOpen] = useState(false);
   // Toggle for the team list: normally sorted/shown by TOTAL points (the
   // running game score), but a host running a live show often wants "who's
   // winning THIS round" at a glance instead - e.g. to call out a round
@@ -1637,13 +1642,12 @@ function QuizControllerInner() {
     // Round Settings (points/timer/danger zone/wipeout) lives at the top of
     // the team rail, above the team cards. Reported directly: team names
     // "don't start until at least 1/3 or 1/2 down the screen" - a host
-    // opening this panel once mid-show (e.g. to flip Danger Zone on for one
-    // round) and not remembering to collapse it again is exactly how that
-    // happens; expanded, it's several hundred pixels of point/timer/bonus
-    // inputs sitting above every team card. Force it closed at the start of
-    // every round so it can never silently eat rail space through a whole
+    // opening the Controls drawer once mid-show (e.g. to flip Danger Zone on
+    // for one round) and not remembering to close it again would otherwise
+    // leave it sitting over the team list. Force it closed at the start of
+    // every round so it can never silently cover the rail through a whole
     // round of live play - the host can still reopen it with one tap.
-    setRoundSettingsOpen(false);
+    setControlsOpen(false);
   }
 
   async function doPreviewQuestion(idx: number) {
@@ -1671,11 +1675,11 @@ function QuizControllerInner() {
   async function doSendQuestion() {
     if (!selectedRound || !sessionId) return;
     clearHostPreviewRecovery(window.sessionStorage);
-    // Same reasoning as doStartRound: if the host reopened Round Settings
-    // between questions (checking the timer, say), collapse it again the
-    // moment the next question goes live so it never sits open through a
-    // whole question while teams are actively answering.
-    setRoundSettingsOpen(false);
+    // Same reasoning as doStartRound: if the host reopened the Controls
+    // drawer between questions (checking the timer, say), close it again
+    // the moment the next question goes live so it never sits open over
+    // the team list while teams are actively answering.
+    setControlsOpen(false);
     const q = selectedRound.questions[qIdx];
     const isHotSeat = selectedRound.round_type === "hot_seat";
     hostPhaseRef.current = isHotSeat ? "hot_seat" : "question";
@@ -2921,12 +2925,45 @@ function QuizControllerInner() {
           >
             <div style={{ position: "absolute", left: 5, top: "50%", transform: "translateY(-50%)", width: 2, height: 40, borderRadius: 2, background: "rgba(255,255,255,0.18)" }} />
           </div>
-          <section className="qi-mc-settings">
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-              <div className="fbh-lbl" style={{ margin:0 }}>Round Settings</div>
-              <button className="fbh-btn" style={{ height:28, padding:"0 12px", fontSize:11 }} onClick={() => setRoundSettingsOpen((p: boolean) => !p)}>{roundSettingsOpen ? "Hide" : "Edit"}</button>
-            </div>
-            {roundSettingsOpen && (
+          {/* Host request: "use the full RHS for team names, move the rest
+              of the function buttons etc that were placed there." Round
+              Settings used to be a permanently-expanded block sitting above
+              the team list, and the 1-COL/SHOW ROUND LEADERS toggles lived
+              in the team list's own sticky header - both ate real vertical
+              space from the one thing the rail exists to show during a
+              live round: team names and scores. Everything host-config
+              (round settings + the two toggles) now lives behind a single
+              "Controls" button and opens as a floating drawer that overlays
+              the rail instead of pushing the team list down, so the team
+              section's own header is back to just a title and the answered
+              count, and the list itself gets the entire remaining height. */}
+          {controlsOpen && (
+            <div
+              role="dialog"
+              aria-label="Round settings and team list controls"
+              style={{ position: "absolute", inset: 0, zIndex: 70, background: "rgba(10,1,24,0.94)", overflowY: "auto", padding: "var(--qi-space-4) var(--qi-space-5)" }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <div className="fbh-lbl" style={{ margin: 0 }}>Controls</div>
+                <button className="fbh-btn" style={{ height: 30, padding: "0 14px", fontSize: 12 }} onClick={() => setControlsOpen(false)}>Done</button>
+              </div>
+
+              <div className="fbh-lbl" style={{ margin: "0 0 10px" }}>Team list</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
+                <button
+                  onClick={() => setShowTwoColumns(v => !v)}
+                  disabled={autoColumnsActive}
+                  title="Switch the team list between one and two columns, widening the panel to fit more teams on screen"
+                  style={{ padding: "5px 10px", borderRadius: 8, background: teamColumnCount > 1 ? "rgba(190,38,193,0.25)" : "#150A2E", border: "1px solid " + (teamColumnCount > 1 ? "#D94FDC" : "#2E1A52"), color: teamColumnCount > 1 ? "#fff" : "#6B5A8E", font: "700 11px 'Inter'", letterSpacing: ".04em", cursor: autoColumnsActive ? "default" : "pointer", whiteSpace: "nowrap", opacity: autoColumnsActive ? .82 : 1 }}
+                >{autoColumnsActive ? `AUTO ${teamColumnCount}-COL` : showTwoColumns ? "2-COL" : "1-COL"}</button>
+                <button
+                  onClick={() => setShowRoundLeaders(v => !v)}
+                  title="Sort and highlight by points scored in THIS round instead of the running total"
+                  style={{ padding: "5px 10px", borderRadius: 8, background: showRoundLeaders ? "rgba(190,38,193,0.25)" : "#150A2E", border: "1px solid " + (showRoundLeaders ? "#D94FDC" : "#2E1A52"), color: showRoundLeaders ? "#fff" : "#6B5A8E", font: "700 11px 'Inter'", letterSpacing: ".04em", cursor: "pointer", whiteSpace: "nowrap" }}
+                >{showRoundLeaders ? "SHOWING: THIS ROUND" : "SHOW ROUND LEADERS"}</button>
+              </div>
+
+              <div className="fbh-lbl" style={{ margin: "0 0 10px" }}>Round settings</div>
               <div style={{ display:"flex", flexDirection:"column" as const, gap:10 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <label style={{ font:"600 12px 'Inter'", color:"#B9A8D9", minWidth:110 }}>Points/question</label>
@@ -2975,34 +3012,19 @@ function QuizControllerInner() {
                 )}
                 <button className="fbh-btn" style={{ height:34, marginTop:4 }} onClick={resetRoundPoints}>Reset Round Points</button>
               </div>
-            )}
-            {!roundSettingsOpen && (
-              <div style={{ font:"400 12px 'Inter'", color:"#6B5A8E" }}>{currentQ?.question_type === "multi_tap" ? "2pts/correct choice" : `${pointsPerQ}pts/q`} · {getTimerForQuestion(currentQ, timerDuration)}s · +{timeBonus} bonus{rounds.length > 0 && selectedRound?.position === rounds[rounds.length - 1]?.position ? finalBonusMode === "winner_only" ? " (winner only)" : " (all correct)" : ""} · {dangerZone ? "Danger Zone -"+dangerPenalty+"pts" : "Normal"}</div>
-            )}
-          </section>
+            </div>
+          )}
 
           <section className={`qi-mc-teams${highCapacityTeams ? " qi-mc-teams--capacity" : ""}`} aria-label="Team standings list" style={teamColumnCount > 1 ? { display: "grid", gridTemplateColumns: `repeat(${teamColumnCount}, minmax(0, 1fr))`, gap: highCapacityTeams ? "0 5px" : "0 12px", minWidth: 0 } : { display: "block", minWidth: 0 }}>
             <div className="qi-mc-teams__header" style={{ flexWrap: "wrap", rowGap: 8, gridColumn: teamColumnCount > 1 ? "1 / -1" : undefined }}>
               <div><span>Live answers</span><strong>Teams & scores</strong></div>
-              {/* This row (2-COL toggle, SHOW ROUND LEADERS toggle, X/Y
-                  answered pill) had no wrap and no width limit, so at
-                  narrower rail widths it forced the sticky header - and with
-                  it the whole rail - wider than the viewport instead of
-                  clipping or wrapping, pushing "Teams & scores" and the
-                  answered count off the right edge of the screen entirely. */}
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", minWidth: 0, maxWidth: "100%" }}>
-                <button
-                  onClick={() => setShowTwoColumns(v => !v)}
-                  disabled={autoColumnsActive}
-                  title="Switch the team list between one and two columns, widening the panel to fit more teams on screen"
-                  style={{ padding: "5px 10px", borderRadius: 8, background: teamColumnCount > 1 ? "rgba(190,38,193,0.25)" : "#150A2E", border: "1px solid " + (teamColumnCount > 1 ? "#D94FDC" : "#2E1A52"), color: teamColumnCount > 1 ? "#fff" : "#6B5A8E", font: "700 11px 'Inter'", letterSpacing: ".04em", cursor: autoColumnsActive ? "default" : "pointer", whiteSpace: "nowrap", opacity: autoColumnsActive ? .82 : 1 }}
-                >{autoColumnsActive ? `AUTO ${teamColumnCount}-COL` : showTwoColumns ? "2-COL" : "1-COL"}</button>
-                <button
-                  onClick={() => setShowRoundLeaders(v => !v)}
-                  title="Sort and highlight by points scored in THIS round instead of the running total"
-                  style={{ padding: "5px 10px", borderRadius: 8, background: showRoundLeaders ? "rgba(190,38,193,0.25)" : "#150A2E", border: "1px solid " + (showRoundLeaders ? "#D94FDC" : "#2E1A52"), color: showRoundLeaders ? "#fff" : "#6B5A8E", font: "700 11px 'Inter'", letterSpacing: ".04em", cursor: "pointer", whiteSpace: "nowrap" }}
-                >{showRoundLeaders ? "SHOWING: THIS ROUND" : "SHOW ROUND LEADERS"}</button>
                 <StatusPill tone="live">{new Set(answers.map(a => a.team_name)).size}/{teams.length} answered</StatusPill>
+                <button
+                  onClick={() => setControlsOpen(true)}
+                  title="Round settings, columns, and sort"
+                  style={{ padding: "5px 10px", borderRadius: 8, background: "#150A2E", border: "1px solid #2E1A52", color: "#B9A8D9", font: "700 11px 'Inter'", letterSpacing: ".04em", cursor: "pointer", whiteSpace: "nowrap" }}
+                >⚙ Controls</button>
               </div>
             </div>
             {scores.length === 0 && teams.length > 0 && (

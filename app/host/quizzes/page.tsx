@@ -1529,40 +1529,33 @@ export default function QuizBuilderPage() {
               )}
 
               <div className="fbh-panel" style={{ padding: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                {/* Host request: the action buttons used to sit on their own
+                    row below the title/subtitle - moved up onto the same
+                    row as the round name and number, so they read as one
+                    header band instead of the title just floating alone
+                    above a row of buttons. The name input keeps a sane max
+                    width instead of flex:1 now that it's sharing the row,
+                    so it doesn't eat the space the buttons need. */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
                   <span className="ord">{activeIndex + 1}</span>
-                  {/* Host request: this title sat noticeably lower than the
-                      "N" badge beside it - the input's own padding-top was
-                      pushing the text down inside its box. Tightened padding
-                      and marginBottom above so the whole title row sits
-                      higher/tighter. */}
                   <input
                     key={activeRound.id}
                     defaultValue={activeRound.name}
                     onBlur={e => renameRound(activeRound, e.target.value)}
-                    style={{ flex: 1, minWidth: 0, background: "transparent", border: "1px solid transparent", borderBottom: "1px solid #2E1A52", color: "#fff", font: "700 16px 'Inter'", padding: "1px 2px" }}
+                    style={{ flex: "0 1 260px", minWidth: 140, background: "transparent", border: "1px solid transparent", borderBottom: "1px solid #2E1A52", color: "#fff", font: "700 16px 'Inter'", padding: "1px 2px" }}
                   />
+                  <div style={{ display: "flex", gap: 8, flex: "1 1 480px" }}>
+                    <HostButton style={{ flex: 1 }} onClick={() => setSettingsOpenRoundId(id => id === activeRound.id ? null : activeRound.id)}>{settingsOpen ? "HIDE SETTINGS" : "SETTINGS"}</HostButton>
+                    <HostButton style={{ flex: 1 }} onClick={() => moveRound(activeIndex, -1)} disabled={activeIndex === 0}>UP</HostButton>
+                    <HostButton style={{ flex: 1 }} onClick={() => moveRound(activeIndex, 1)} disabled={activeIndex === selected.quiz_rounds.length - 1}>DOWN</HostButton>
+                    <HostButton style={{ flex: 1 }} onClick={() => duplicateRound(activeRound)}>COPY</HostButton>
+                    <HostButton style={{ flex: 1 }} onClick={() => removeRound(activeRound)}>REMOVE</HostButton>
+                    {activeRound.questions.some(q => (q as Record<string, unknown>).question_type === "audio") && (
+                      <a className="fbh-btn" style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center" }} href={`/host/music-prep?round=${activeRound.id}`} title="Search, trim and save the actual audio clips for this round's music questions">PREP MUSIC</a>
+                    )}
+                  </div>
                 </div>
                 <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 10 }}>{activeRound.round_type === "pairs" ? `${readPairsQuestions(activeRound.questions).length} questions · 3 pairs / 6 tiles each` : `${activeRound.questions.length} questions - ${activeRound.round_type}`}</div>
-
-                {/* Host request: these were hugging the left edge with a
-                    huge dead strip to the right on a wide screen - a CSS
-                    grid with auto-fit/minmax was tried here before, but
-                    with only 6 short buttons in a very wide panel it still
-                    left uneven, unpredictable gaps. Switched to flexbox with
-                    each button flex:1 - that always divides the full row
-                    width evenly across however many buttons exist, with no
-                    empty tracks and no dead space, guaranteed. */}
-                <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
-                  <HostButton style={{ flex: 1 }} onClick={() => setSettingsOpenRoundId(id => id === activeRound.id ? null : activeRound.id)}>{settingsOpen ? "HIDE SETTINGS" : "SETTINGS"}</HostButton>
-                  <HostButton style={{ flex: 1 }} onClick={() => moveRound(activeIndex, -1)} disabled={activeIndex === 0}>UP</HostButton>
-                  <HostButton style={{ flex: 1 }} onClick={() => moveRound(activeIndex, 1)} disabled={activeIndex === selected.quiz_rounds.length - 1}>DOWN</HostButton>
-                  <HostButton style={{ flex: 1 }} onClick={() => duplicateRound(activeRound)}>COPY</HostButton>
-                  <HostButton style={{ flex: 1 }} onClick={() => removeRound(activeRound)}>REMOVE</HostButton>
-                  {activeRound.questions.some(q => (q as Record<string, unknown>).question_type === "audio") && (
-                    <a className="fbh-btn" style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center" }} href={`/host/music-prep?round=${activeRound.id}`} title="Search, trim and save the actual audio clips for this round's music questions">PREP MUSIC</a>
-                  )}
-                </div>
 
                 {settingsOpen && (
                   <>

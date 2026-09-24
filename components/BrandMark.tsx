@@ -1,3 +1,4 @@
+"use client";
 // Shared "QUIZ-IT / Powered by / Mac Entertainment / by Sonya Mac" credit -
 // a fixed four-line block, treated as a single recurring logo lockup rather
 // than a caption: every line is its own row (not wrapped or paired onto a
@@ -14,6 +15,18 @@
 // bigger absolute size than a mobile corner badge) and, optionally, text
 // alignment; every size keeps the same four-line order and the same ratio
 // between lines.
+//
+// Host request: centering each line wasn't enough to read as a "rectangle"
+// logo - the lines are naturally different widths ("Mac Entertainment" is
+// much wider than "Powered by"), so centered text still has a ragged left
+// and right edge. Rather than distorting the letters with a horizontal
+// CSS scale (which stretches the glyphs themselves and looks warped), each
+// line's letter-spacing is measured and adjusted after mount so every line
+// stretches, via natural spacing between its own letters, to exactly the
+// width of the widest line - the same effect a designer gets manually
+// kerning a logo lockup to a fixed width.
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+
 const SCALE: Record<"xs" | "sm" | "md" | "lg" | "xl", number> = {
   xs: 0.6,
   sm: 0.8,
@@ -21,6 +34,62 @@ const SCALE: Record<"xs" | "sm" | "md" | "lg" | "xl", number> = {
   lg: 1.6,
   xl: 2.4,
 };
+
+function JustifiedLine({
+  children,
+  style,
+  targetWidth,
+  onMeasured,
+  justify,
+}: {
+  children: ReactNode;
+  style: CSSProperties;
+  targetWidth: number | null;
+  onMeasured: (width: number) => void;
+  justify: "flex-start" | "center" | "flex-end";
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [letterSpacing, setLetterSpacing] = useState(0);
+  const [ready, setReady] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Measure at this line's own natural (unadjusted) letter-spacing first,
+    // then report that width up so the widest line among the four can be
+    // found before any line applies its own stretch.
+    el.style.letterSpacing = "0.01em";
+    const natural = el.getBoundingClientRect().width;
+    onMeasured(natural);
+    if (targetWidth && natural > 0) {
+      const chars = (el.textContent || "").length;
+      // Distributing the shortfall across the character count (rather than
+      // gaps = chars-1) is a close-enough approximation - letter-spacing
+      // visually adds trailing space after the final character too in most
+      // browsers, so this doesn't overshoot the target width.
+      const extraPerChar = chars > 0 ? (targetWidth - natural) / chars : 0;
+      setLetterSpacing(extraPerChar);
+    }
+    setReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetWidth]);
+
+  return (
+    <div style={{ display: "flex", justifyContent: justify }}>
+      <span
+        ref={ref}
+        style={{
+          ...style,
+          letterSpacing: ready ? `calc(0.01em + ${letterSpacing}px)` : "0.01em",
+          visibility: ready || !targetWidth ? "visible" : "hidden",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {children}
+      </span>
+    </div>
+  );
+}
 
 export function BrandMark({
   size = "md",
@@ -32,56 +101,58 @@ export function BrandMark({
   color?: string;
 }) {
   const s = SCALE[size];
+  const measured = useRef<number[]>([]);
+  const [targetWidth, setTargetWidth] = useState<number | null>(null);
+  const justify = align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center";
+
+  function handleMeasured(index: number, width: number) {
+    measured.current[index] = width;
+    if (measured.current.filter(w => w > 0).length === 4) {
+      const widest = Math.max(...measured.current);
+      if (widest !== targetWidth) setTargetWidth(widest);
+    }
+  }
+
+  const nameStyle: CSSProperties = {
+    fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
+    fontSize: `${17 * s}px`,
+  };
+  const poweredByStyle: CSSProperties = {
+    fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
+    fontSize: `${6.5 * s}px`,
+    color,
+    opacity: 0.6,
+  };
+  const macStyle: CSSProperties = {
+    fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
+    fontSize: `${10 * s}px`,
+    color,
+    opacity: 0.6,
+  };
+  const bySonyaStyle: CSSProperties = {
+    fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
+    fontSize: `${8.5 * s}px`,
+    color,
+    opacity: 0.5,
+  };
+
   return (
-    <div style={{ textAlign: align, lineHeight: 1.25 }}>
-      <div
-        style={{
-          fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
-          fontSize: `${17 * s}px`,
-          letterSpacing: ".01em",
-          whiteSpace: "nowrap",
-        }}
-      >
+    <div style={{ lineHeight: 1.25 }}>
+      <JustifiedLine style={nameStyle} targetWidth={targetWidth} onMeasured={w => handleMeasured(0, w)} justify={justify}>
         <span style={{ color: "#BE26C1" }}>QUIZ-</span>
         <span style={{ color }}>IT</span>
+      </JustifiedLine>
+      <div style={{ marginTop: `${2 * s}px` }}>
+        <JustifiedLine style={poweredByStyle} targetWidth={targetWidth} onMeasured={w => handleMeasured(1, w)} justify={justify}>
+          Powered by
+        </JustifiedLine>
       </div>
-      <div
-        style={{
-          marginTop: `${2 * s}px`,
-          fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
-          fontSize: `${8 * s}px`,
-          letterSpacing: ".01em",
-          color,
-          opacity: 0.6,
-          whiteSpace: "nowrap",
-        }}
-      >
-        Powered by
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
-          fontSize: `${10 * s}px`,
-          letterSpacing: ".01em",
-          color,
-          opacity: 0.6,
-          whiteSpace: "nowrap",
-        }}
-      >
+      <JustifiedLine style={macStyle} targetWidth={targetWidth} onMeasured={w => handleMeasured(2, w)} justify={justify}>
         Mac Entertainment
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
-          fontSize: `${8.5 * s}px`,
-          letterSpacing: ".01em",
-          color,
-          opacity: 0.5,
-          whiteSpace: "nowrap",
-        }}
-      >
+      </JustifiedLine>
+      <JustifiedLine style={bySonyaStyle} targetWidth={targetWidth} onMeasured={w => handleMeasured(3, w)} justify={justify}>
         by Sonya Mac
-      </div>
+      </JustifiedLine>
     </div>
   );
 }

@@ -145,7 +145,11 @@ export default function EventCalendarPage() {
       {draft.venueId && (() => {
         const venue = venues.find(v => v.id === draft.venueId);
         if (!venue) return null;
-        const hasOffers = venue.food_offers || venue.drink_offers || venue.happy_hour;
+        // Food/Drink Offers and Happy Hour previews removed along with the
+        // Venue Manager fields that fed them - free text was feeding a
+        // single banner that overflowed its box on a real venue TV, and the
+        // host's own call was that uploaded images (Media & Music -> Promo
+        // Images) read better than text here anyway.
         return (
           <div className="fbh-panel" style={{ margin: "10px 0", padding: 14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -153,14 +157,7 @@ export default function EventCalendarPage() {
               <Link href={`/host/venues?id=${venue.id}`} style={{ font: "600 12px 'Inter'", color: "#D94FDC", textDecoration: "underline" }}>Edit venue</Link>
             </div>
             {venue.address && <div style={{ color: "#D9CCF2", font: "400 13px 'Inter'", marginBottom: 6 }}>{venue.address}</div>}
-            {hasOffers && (
-              <div style={{ color: "#B9A8D9", font: "400 12px 'Inter'", lineHeight: 1.6 }}>
-                {venue.food_offers && <div>Food: {venue.food_offers}</div>}
-                {venue.drink_offers && <div>Drink: {venue.drink_offers}</div>}
-                {venue.happy_hour && <div>Happy hour: {venue.happy_hour}</div>}
-              </div>
-            )}
-            {!venue.address && !hasOffers && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>No venue details on file yet.</div>}
+            {!venue.address && <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'" }}>No venue details on file yet.</div>}
           </div>
         );
       })()}
@@ -218,7 +215,13 @@ export default function EventCalendarPage() {
       : !draft.quizId && <p style={{fontSize:12,color:"#8E7AAA",marginTop:6}}>Pick an existing Quiz Plan above and save - or save this event first if you want to create a brand new plan for it.</p>}
       {/* Date/Start/End/Host moved up to the always-visible summary above -
           only Status and the rarer per-night overrides stay collapsed here. */}
-      <details className="qi-bo-event-options"><summary>Event overrides</summary><p>Only open this when tonight differs from the venue defaults.</p><label className="fbh-lbl">Status</label><select style={field} value={draft.status} onChange={e=>setDraft({...draft,status:e.target.value as EventStatus})}>{["draft","scheduled","live","completed","cancelled"].map(s=><option key={s}>{s}</option>)}</select><label className="fbh-lbl">Special Offers</label><textarea style={field} rows={3} value={draft.offers} onChange={e=>setDraft({...draft,offers:e.target.value})} placeholder="Leave empty to inherit venue offers"/><label className="fbh-lbl">Sponsors</label><input style={field} value={draft.sponsors} onChange={e=>setDraft({...draft,sponsors:e.target.value})} placeholder="Leave empty to inherit venue sponsors"/><label className="fbh-lbl">Internal Notes</label><textarea style={field} rows={4} value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})}/></details>
+      {/* "Special Offers" free-text override removed along with the venue-
+          level Food/Drink Offers & Happy Hour fields it inherited from -
+          same broken-banner-on-a-real-TV problem, same "images work better"
+          call. draft.offers is kept in the draft type/save payload (always
+          empty now) so this remains a small UI removal, not a data-model
+          change. */}
+      <details className="qi-bo-event-options"><summary>Event overrides</summary><p>Only open this when tonight differs from the venue defaults.</p><label className="fbh-lbl">Status</label><select style={field} value={draft.status} onChange={e=>setDraft({...draft,status:e.target.value as EventStatus})}>{["draft","scheduled","live","completed","cancelled"].map(s=><option key={s}>{s}</option>)}</select><label className="fbh-lbl">Sponsors</label><input style={field} value={draft.sponsors} onChange={e=>setDraft({...draft,sponsors:e.target.value})} placeholder="Leave empty to inherit venue sponsors"/><label className="fbh-lbl">Internal Notes</label><textarea style={field} rows={4} value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})}/></details>
       {!draft.id&&<div className="fbh-panel" style={{marginTop:16}}><div className="fbh-lbl">Recurrence</div><select style={field} value={draft.recurrence.frequency} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,frequency:e.target.value as RecurrenceRule["frequency"]}})}><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="custom_weeks">Every X weeks</option></select>{draft.recurrence.frequency!=="none"&&<><label className="fbh-lbl" style={{marginTop:10}}>Interval</label><input style={field} type="number" min={1} max={52} value={draft.recurrence.interval} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,interval:Number(e.target.value)||1}})}/><label className="fbh-lbl" style={{marginTop:10}}>Ends</label><select style={field} value={draft.recurrence.end} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,end:e.target.value as RecurrenceRule["end"]}})}><option value="never">Never (create next 52)</option><option value="date">Specific date</option><option value="occurrences">Number of occurrences</option></select>{draft.recurrence.end==="date"&&<input style={{...field,marginTop:8}} type="date" value={draft.recurrence.endDate||draft.date} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,endDate:e.target.value}})}/>} {draft.recurrence.end==="occurrences"&&<input style={{...field,marginTop:8}} type="number" min={1} max={104} value={draft.recurrence.occurrences||1} onChange={e=>setDraft({...draft,recurrence:{...draft.recurrence,occurrences:Number(e.target.value)||1}})}/>}</>}</div>}
       <button className={`fbh-btn ${draft.id&&draft.quizId?"":"pri "}big`} disabled={saving||!draft.venueId||!draft.hostId} onClick={saveDraft} style={{width:"100%",marginTop:18}}>{saving?"SAVING…":draft.id?"SAVE CHANGES":"CREATE EVENT"}</button>
       {draft.id&&draft.quizId&&(()=>{

@@ -1155,7 +1155,15 @@ button, input, select, textarea { font: inherit; }
    rendered directly under, and overlapping, the corner mark's own branding.
    Pursuit is a bespoke component rather than the shared .qi-display-* header
    classes, which is how it was missed in that earlier pass. */
-.pursuit-board .pu-tz { display: flex; justify-content: space-between; align-items: center; padding: clamp(120px,15vh,164px) 32px 12px; position: relative; z-index: 2; }
+/* Host-reported live overlap (venue TV photo): the previous clamp(120px,
+   15vh,164px) floor still wasn't enough clearance below the fixed
+   .qi-display-corner-mark on that device (a bigger logo/text render, or a
+   viewport-height quirk on that TV's browser, ate into the margin this was
+   tuned against) - "THE PURSUIT" title and the gate/question badges were
+   visibly sitting on top of the corner mark's logo and wordmark. Raised
+   the floor and ceiling with real margin to spare instead of nudging by a
+   few px, since this exact rule has already needed one prior increase. */
+.pursuit-board .pu-tz { display: flex; justify-content: space-between; align-items: center; padding: clamp(150px,17vh,196px) 32px 12px; position: relative; z-index: 2; }
 .pursuit-board .pu-title { font-family: 'Bruno Ace SC', var(--font-logo), cursive; font-size: 26px; letter-spacing: 0.06em; color: var(--text-primary); text-shadow: 0 0 24px rgba(190, 38, 193, 0.5); }
 .pursuit-board .pu-title .accent { color: var(--brand-purple); }
 .pursuit-board .pu-gatebar { display: flex; align-items: center; gap: 14px; }
@@ -1177,7 +1185,13 @@ button, input, select, textarea { font: inherit; }
 /* question panel */
 .pursuit-board .pu-qpanel { margin: 0 32px; background: linear-gradient(160deg, var(--stage-overlay), var(--stage-raised)); border: 1px solid rgba(217,79,220,0.35); border-radius: var(--r-l); padding: 22px 28px; position: relative; z-index: 4; display: none; animation: puDealIn var(--m-standard) var(--ease-settle); box-shadow: 0 0 30px rgba(190,38,193,0.12), inset 0 1px 0 rgba(255,255,255,0.05); }
 .pursuit-board .pu-qpanel.on { display: block; }
-.pursuit-board .pu-qpanel:has(.pu-timer) { padding-right:clamp(160px,15vw,230px); min-height:clamp(118px,18vh,190px); }
+/* Was `:has(.pu-timer)` - unsupported on some Smart TV/set-top browsers
+   (the actual hardware this screen runs on at venues), where it silently
+   no-ops rather than erroring, so the panel never got its timer clearance
+   or reserved min-height and visually collapsed there. PursuitBoard.tsx
+   now adds .has-timer directly from the same condition that renders
+   .pu-timer, so this no longer depends on :has() support at all. */
+.pursuit-board .pu-qpanel.has-timer { padding-right:clamp(160px,15vw,230px); min-height:clamp(118px,18vh,190px); }
 .pursuit-board .pu-timer { position:absolute; top:50%; right:clamp(22px,2.5vw,40px); transform:translateY(-50%); margin-left:0; }
 @keyframes puDealIn { from { transform: translateY(16px); opacity: 0 } to { transform: none; opacity: 1 } }
 .pursuit-board .pu-qcat { display: inline-block; font: 400 11px 'Inter', sans-serif; color: var(--text-secondary); border: 1px solid var(--line-structural); border-radius: 999px; padding: 4px 12px; letter-spacing: 0.14em; margin-bottom: 10px; }

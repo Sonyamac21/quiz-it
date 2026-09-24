@@ -232,7 +232,17 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
       )}
 
       {!hideHeader && showQPanel && (
-        <div className="pu-qpanel on">
+        // Host-reported bug (venue TV, live photo): the panel's timer-clearance
+        // padding and min-height were keyed off a `:has(.pu-timer)` CSS
+        // selector - a feature many Smart TV/set-top browsers (the actual
+        // hardware this screen runs on at the venue) don't support, since
+        // :has() only landed in most engines' TV firmware builds recently.
+        // Without it silently no-op'ing there, the panel collapsed to its
+        // unpadded content height and the gate tracker/title above it
+        // visually collided with the fixed corner brand mark. Setting the
+        // class directly from the same condition that renders .pu-timer
+        // means this never depends on :has() support at all.
+        <div className={"pu-qpanel on" + (status === "question" && typeof timeLeft === "number" ? " has-timer" : "")}>
           <span className="pu-qcat">GATE {Math.max(1, gate)}{questionCategory ? " · " + questionCategory.toUpperCase() : ""}</span>
           {status === "question" && typeof timeLeft === "number" && (
             <div className={`qi-display-picture-timer pu-timer${timeLeft <= 5 ? " is-urgent" : ""}`} aria-label={`${timeLeft} seconds remaining`}>

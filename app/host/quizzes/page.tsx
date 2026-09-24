@@ -1707,7 +1707,12 @@ export default function QuizBuilderPage() {
                     void addLibraryQuestion(activeRound, draggedLibraryQuestion);
                     setDraggedLibraryQuestion(null);
                   }}
-                  style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}
+                  // Host request: cards were noticeably bigger/lower-density
+                  // than SpeedQuizzing's Question Manager - shrunk the min
+                  // card width, height and fonts throughout this grid to
+                  // match that denser feel while keeping the hover-popover
+                  // expansion (below) showing the full, untruncated content.
+                  style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 8 }}
                 >
                   {activeRound.questions.map((q, qi) => {
                     const swapKey = activeRound.id + "-" + qi;
@@ -1759,13 +1764,15 @@ export default function QuizBuilderPage() {
                         onMouseEnter={() => setHoveredQuestionKey(editKey)}
                         onMouseLeave={() => setHoveredQuestionKey(prev => prev === editKey ? null : prev)}
                         style={{
-                          position: "relative", padding: "12px 34px 12px 14px", borderRadius: 12, background: "#150A2E",
+                          position: "relative", padding: "9px 28px 9px 12px", borderRadius: 10, background: "#150A2E",
                           border: dragOverQuestionIndex === qi && draggedQuestionIndex !== qi ? "1px dashed #BE26C1" : "1px solid #2E1A52",
                           opacity: draggedQuestionIndex === qi ? 0.4 : 1,
                           cursor: "grab",
                           // Only clamp to a uniform height while just viewing (not
                           // mid-edit, where the full form needs to stay visible).
-                          height: isEditing || isPairs ? undefined : 260,
+                          // Shrunk from 260 to match SpeedQuizzing's denser card
+                          // size - hovering still pops the full untruncated text.
+                          height: isEditing || isPairs ? undefined : 190,
                           display: isEditing ? undefined : "flex",
                           flexDirection: isEditing ? undefined : "column",
                         }}
@@ -1783,7 +1790,7 @@ export default function QuizBuilderPage() {
                           // the card's own drag gesture starting instead of a
                           // click landing on the button underneath, making it
                           // effectively unclickable.
-                          style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", fontSize: 14, lineHeight: "22px", padding: 0, zIndex: 41 }}
+                          style={{ position: "absolute", top: 6, right: 6, width: 18, height: 18, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: "18px", padding: 0, zIndex: 41 }}
                         >×</button>
                         {isEditing ? (
                           <div style={{ display: "grid", gap: 6 }}>
@@ -1928,24 +1935,24 @@ export default function QuizBuilderPage() {
                             </>
                           ) : (
                             <>
-                            <div style={{ font: "400 13px 'Inter'", color: "#D9CCF2", lineHeight: 1.5 }}>
+                            <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2", lineHeight: 1.4 }}>
                               <strong style={{ color: "#6B5A8E" }}>{"⠿ "}{qi + 1}.</strong> {String(qr.question_text ?? "")}
                             </div>
                             {isAudio && musicLookup && (
-                              <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 8, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
-                                <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Search to find this track</div>
-                                <div style={{ color: "#fff", font: "600 12px 'Inter'", marginTop: 2 }}>{musicLookup}</div>
+                              <div style={{ marginTop: 5, padding: "5px 7px", borderRadius: 7, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
+                                <div style={{ color: "#D94FDC", font: "700 9px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Search to find this track</div>
+                                <div style={{ color: "#fff", font: "600 11px 'Inter'", marginTop: 2 }}>{musicLookup}</div>
                               </div>
                             )}
                             {isPicture && (
-                              <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 8, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
-                                <div style={{ color: "#D94FDC", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Photo shown to players</div>
+                              <div style={{ marginTop: 5, padding: "5px 7px", borderRadius: 7, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
+                                <div style={{ color: "#D94FDC", font: "700 9px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Photo shown to players</div>
                                 {photoUrl && !brokenImageUrls.has(photoUrl) ? (
-                                  <img src={getMediaUrl(photoUrl) ?? undefined} alt={photoQuery || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 6, marginTop: 6 }} onError={() => markImageBroken(photoUrl)} />
+                                  <img src={getMediaUrl(photoUrl) ?? undefined} alt={photoQuery || "Question photo"} style={{ display: "block", width: "100%", maxHeight: 70, objectFit: "cover", borderRadius: 6, marginTop: 5 }} onError={() => markImageBroken(photoUrl)} />
                                 ) : (
-                                  <div style={{ color: "#B9A8D9", font: "400 12px 'Inter'", marginTop: 4 }}>No image found for this question yet.</div>
+                                  <div style={{ color: "#B9A8D9", font: "400 11px 'Inter'", marginTop: 4 }}>No image found for this question yet.</div>
                                 )}
-                                {photoQuery && <div style={{ color: "#6B5A8E", font: "400 11px 'Inter'", marginTop: 4 }}>{"Search: " + photoQuery}</div>}
+                                {photoQuery && <div style={{ color: "#6B5A8E", font: "400 10px 'Inter'", marginTop: 4 }}>{"Search: " + photoQuery}</div>}
                               </div>
                             )}
                             {/* Only multiple_choice/sequence/multi_tap actually use their
@@ -1958,9 +1965,9 @@ export default function QuizBuilderPage() {
                             {(() => {
                               const usesLetterOptionsAsAnswers = qType === "multiple_choice" || qType === "sequence" || qType === "multi_tap";
                               return usesLetterOptionsAsAnswers && options.length > 0 ? (
-                                <div style={{ marginTop: 6, display: "grid", gap: 3 }}>
+                                <div style={{ marginTop: 5, display: "grid", gap: 2 }}>
                                   {options.map(o => (
-                                    <div key={o.letter} style={{ font: "400 12px 'Inter'", color: correctAnswer.toLowerCase().includes(o.letter) || correctAnswer === o.value ? "#2EE06E" : "#B9A8D9" }}>
+                                    <div key={o.letter} style={{ font: "400 11px 'Inter'", color: correctAnswer.toLowerCase().includes(o.letter) || correctAnswer === o.value ? "#2EE06E" : "#B9A8D9" }}>
                                       {o.letter.toUpperCase()}. {o.value}
                                     </div>
                                   ))}
@@ -1968,9 +1975,9 @@ export default function QuizBuilderPage() {
                               ) : (
                                 <>
                                   {qType === "number" && options[0]?.value && (
-                                    <div style={{ color: "#6B5A8E", font: "400 11px 'Inter'", marginTop: 6 }}>{"Hint: " + options[0].value}</div>
+                                    <div style={{ color: "#6B5A8E", font: "400 10px 'Inter'", marginTop: 5 }}>{"Hint: " + options[0].value}</div>
                                   )}
-                                  <div style={{ color: "#2EE06E", font: "600 12px 'Inter'", marginTop: 4 }}>{"-> "}{correctAnswer}</div>
+                                  <div style={{ color: "#2EE06E", font: "600 11px 'Inter'", marginTop: 3 }}>{"-> "}{correctAnswer}</div>
                                 </>
                               );
                             })()}
@@ -1978,10 +1985,10 @@ export default function QuizBuilderPage() {
                           );
                           const isCardHovered = !isPairs && hoveredQuestionKey === editKey;
                           const questionActions = (
-                            <div className="qi-prep-question-actions" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                              {!isPairs && <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>EDIT</HostButton>}
-                              <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace this question" style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
-                              <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Drag to reorder</span>
+                            <div className="qi-prep-question-actions" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              {!isPairs && <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "3px 8px", height: 22, fontSize: 10 }}>EDIT</HostButton>}
+                              <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace this question" style={{ padding: "3px 8px", height: 22, fontSize: 10 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
+                              <span style={{ color: "#6B5A8E", font: "400 9px 'Inter'" }}>Drag to reorder</span>
                             </div>
                           );
                           return (

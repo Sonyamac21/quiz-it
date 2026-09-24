@@ -31,7 +31,7 @@ export function BackOfficeShell({ children }: { children: ReactNode }) {
           source for that content and hierarchy; only the size prop varies
           per screen's own scale. This Back Office header was previously
           missing the "by Sonya Mac" line entirely. */}
-      <Link href="/host" style={{ textDecoration: "none" }}><BrandMark size="sm" /></Link>
+      <Link href="/host" style={{ textDecoration: "none" }}><BrandMark size="lg" /></Link>
       <nav aria-label="Main host navigation">{groups.map(group => <Link key={group.href} href={group.href} aria-current={currentGroup === group ? "page" : undefined}>{group.label}</Link>)}</nav>
       <Link href="/host/session" className="qi-bo-live">Run a quiz →</Link>
     </header>

@@ -14,7 +14,15 @@ const groups = [
   { label: "Manage", href: "/host/settings", links: [["Settings", "/host/settings"], ["Reports", "/host/reports"], ["Hosts", "/host/hosts"], ["Sponsors", "/host/sponsors"]], help: "Manage your host settings and review completed sessions." },
 ];
 
-const livePrefixes = ["/host/quiz", "/host/display", "/host/session", "/host/spin", "/host/wheel"];
+// "/host/venues/preview" is a fixed, full-screen (inset:0) mirror of the
+// live Display's pre-show reel - the Back Office header/nav (rendered by
+// this shell) was sitting on top of it, silently shrinking its usable
+// canvas to "viewport minus header" instead of the true full screen the
+// live Display gets. That mismatch was the real cause of the venue hero
+// image reading as "too big"/badly cropped in this preview - the image
+// itself was fine, it just had noticeably less room to breathe in than
+// showtime, on top of the header baked into every screenshot.
+const livePrefixes = ["/host/quiz", "/host/display", "/host/session", "/host/spin", "/host/wheel", "/host/venues/preview"];
 
 export function BackOfficeShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();

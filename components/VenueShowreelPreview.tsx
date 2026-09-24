@@ -15,17 +15,14 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { getMediaUrl } from "@/lib/getMediaUrl";
-import { BrandMark } from "@/components/BrandMark";
 
 function QuizItBadge() {
-  // Host request: the brand mark must look identical everywhere - shared
-  // BrandMark component (components/BrandMark.tsx) is the single source
-  // for its content/hierarchy now, not a one-off string per screen.
-  return (
-    <div className="badge">
-      <BrandMark size="xs" color="#fff" />
-    </div>
-  );
+  // Host request: "that stupid little Quiz-It logo bubble is on all venue
+  // screens at the bottom right - remove it!!" - matches the same removal
+  // in app/host/display/page.tsx. This preview mirrors the live Display
+  // exactly, so it needs to drop the badge too or the preview would show a
+  // corner bubble the real show no longer has.
+  return null;
 }
 
 function InstagramGlyph() {

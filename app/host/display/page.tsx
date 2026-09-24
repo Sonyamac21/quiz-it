@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useState, useRef, Suspense, ty
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { BrandLockup } from "@/components/ui/quiz-it-ui";
+import { BrandMark } from "@/components/BrandMark";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { fetchActiveVenueOffers, normalizeWhatsappLink } from "@/lib/venueOffers";
@@ -53,11 +53,13 @@ type Phase = "waiting" | "round_start" | "question" | "hot_seat" | "answer" | "c
 // pointless blob rather than a recognisable photo, so it's been dropped in
 // favour of just the (now larger/clearer) wordmark text.
 function QuizItBadge() {
-  return (
-    <div className="badge">
-      <span className="badge-text">QUIZ-IT · Powered by Mac Entertainment</span>
-    </div>
-  );
+  // Host request: "that stupid little Quiz-It logo bubble is on all venue
+  // screens at the bottom right - remove it!!" - this bottom-right badge is
+  // redundant with the top-left DisplayCornerMark (the real, finalized
+  // brand lockup) and reads as an illegible smudge at the size it renders
+  // on a real venue TV. Removed rather than resized again - the corner
+  // mark alone is the brand presence on these screens now.
+  return null;
 }
 
 // Simple inline Instagram glyph so the venue's handle reads instantly as
@@ -2194,7 +2196,7 @@ function DisplayScreenInner() {
             <div className="qi-display-final-wait">Results incoming…</div>
           )}
         </div>
-        <div className="qi-display-powered">QUIZ-IT · Powered by Mac Entertainment</div>
+        <div className="qi-display-powered"><BrandMark size="xs" align="center" /></div>
       </div>
     );
   }
@@ -2317,7 +2319,7 @@ function DisplayScreenInner() {
           <div className="qi-display-answer-explanation">
             {question.explanation || ""}
           </div>
-          <div className="qi-display-answer-brand">QUIZ-IT · Powered by Mac Entertainment</div>
+          <div className="qi-display-answer-brand"><BrandMark size="xs" align="center" /></div>
         </div>
         <div style={{ position:"absolute", bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,rgba(34,197,94,0.6),transparent)` }} />
       </div>
@@ -2493,7 +2495,7 @@ function DisplayCornerMark() {
     // two different layouts depending which screen you were on.
     <div className="qi-display-corner-mark">
       <Image src="/me-logo.jpg" alt="Mac Entertainment" width={58} height={58} className="qi-display-corner-mark__logo" />
-      <BrandLockup compact />
+      <BrandMark size="sm" align="center" />
     </div>
   );
 }

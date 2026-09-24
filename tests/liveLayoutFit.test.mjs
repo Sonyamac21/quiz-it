@@ -81,7 +81,7 @@ test("Hot Seat and celebration copy shrink to fit instead of being clipped", () 
 });
 
 test("TV reveal and celebration use readable standard branding", () => {
-  assert.match(display, /className="qi-display-answer-brand">QUIZ-IT · Powered by Mac Entertainment/);
+  assert.match(display, /className="qi-display-answer-brand"><BrandMark size="xs" align="center" \/>/);
   assert.match(css, /\.qi-display-answer-brand[^}]*font:750 clamp\(13px/);
   assert.doesNotMatch(display, /fontSize:8, color:"rgba\(255,255,255,0\.14\)"/);
 });

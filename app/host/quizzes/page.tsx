@@ -17,6 +17,22 @@ import { eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSe
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const HOT_SEAT_TOTAL_QUESTIONS = 5;
 
+// Host request: a small SpeedQuizzing-style letter "key" in the corner of
+// each question card, so a host can tell a round's question mix apart at a
+// glance instead of reading each card's full type chip. Colors match the
+// existing typeColor palette used on the live host console (app/host/quiz/page.tsx)
+// for the same visual language across the app.
+const QUESTION_TYPE_BADGE: Record<string, { code: string; label: string; color: string }> = {
+  multiple_choice: { code: "L", label: "Multiple Choice (lettered)", color: "#D94FDC" },
+  multi_tap: { code: "X", label: "Multi Tap", color: "#38A8FF" },
+  text_answer: { code: "T", label: "Text Answer", color: "#22c55e" },
+  number: { code: "N", label: "Number", color: "#FFC533" },
+  sequence: { code: "S", label: "Sequence", color: "#a78bfa" },
+  picture: { code: "P", label: "Picture", color: "#fb923c" },
+  audio: { code: "M", label: "Music", color: "#2dd4bf" },
+  nearest_wins: { code: "W", label: "Nearest Wins", color: "#FF3B4E" },
+};
+
 function targetQuestionCount(roundType: string, savedTarget?: number | null): number {
   if (roundType === "pairs") return savedTarget && savedTarget > 0 ? savedTarget : 5;
   if (roundType === "pursuit") return PURSUIT_TOTAL_QUESTIONS;
@@ -1734,8 +1750,8 @@ export default function QuizBuilderPage() {
                                 {bq.question_text} <span style={{ color: "#2EE06E" }}>{"-> " + bq.correct_answer}</span>
                               </div>
                               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                                <HostButton disabled={alreadyAdded || libraryAddingId !== null} onClick={() => addLibraryQuestion(activeRound, bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12 }}>{alreadyAdded ? "ADDED" : libraryAddingId === bq.id ? "ADDING…" : "ADD"}</HostButton>
-                                <HostButton onClick={() => deleteLibraryQuestion(bq)} style={{ padding: "4px 10px", height: 28, fontSize: 12, color: "#ff8f9a" }}>DELETE</HostButton>
+                                <HostButton className="qi-btn-sm" disabled={alreadyAdded || libraryAddingId !== null} onClick={() => addLibraryQuestion(activeRound, bq)}>{alreadyAdded ? "ADDED" : libraryAddingId === bq.id ? "ADDING…" : "ADD"}</HostButton>
+                                <HostButton className="qi-btn-sm" onClick={() => deleteLibraryQuestion(bq)} style={{ color: "#ff8f9a" }}>DELETE</HostButton>
                               </div>
                             </div>
                           );})}
@@ -1821,7 +1837,10 @@ export default function QuizBuilderPage() {
                         onMouseEnter={() => setHoveredQuestionKey(editKey)}
                         onMouseLeave={() => setHoveredQuestionKey(prev => prev === editKey ? null : prev)}
                         style={{
-                          position: "relative", padding: "9px 28px 9px 12px", borderRadius: 10, background: "#150A2E",
+                          // Left padding cleared to make room for the question-type
+                          // corner badge (top:6/left:6, 18px) so it doesn't sit on
+                          // top of the "1." number/question text below it.
+                          position: "relative", padding: isEditing || isPairs ? "9px 28px 9px 12px" : "26px 28px 9px 12px", borderRadius: 10, background: "#150A2E",
                           border: dragOverQuestionIndex === qi && draggedQuestionIndex !== qi ? "1px dashed #BE26C1" : "1px solid #2E1A52",
                           opacity: draggedQuestionIndex === qi ? 0.4 : 1,
                           cursor: "grab",
@@ -1835,6 +1854,7 @@ export default function QuizBuilderPage() {
                         }}
                       >
                         <button
+                          className="qi-btn-icon"
                           onClick={() => removeRoundQuestion(activeRound, qi)}
                           onMouseDown={e => e.stopPropagation()}
                           draggable={false}
@@ -1847,8 +1867,26 @@ export default function QuizBuilderPage() {
                           // the card's own drag gesture starting instead of a
                           // click landing on the button underneath, making it
                           // effectively unclickable.
-                          style={{ position: "absolute", top: 6, right: 6, width: 18, height: 18, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: "18px", padding: 0, zIndex: 41 }}
+                          style={{ position: "absolute", top: 6, right: 6, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", lineHeight: "22px", zIndex: 41 }}
                         >×</button>
+                        {/* Question-type key, like SpeedQuizzing's corner letter - lets a
+                            host tell a card's type (picture, music, multi tap, etc.) at a
+                            glance without opening it. Colour-coded to match the same
+                            per-type palette used for round badges elsewhere in the app. */}
+                        {!isEditing && !isPairs && QUESTION_TYPE_BADGE[qType] && (
+                          <span
+                            title={QUESTION_TYPE_BADGE[qType].label}
+                            style={{
+                              position: "absolute", top: 6, left: 6, zIndex: 41,
+                              width: 18, height: 18, borderRadius: 5,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              background: QUESTION_TYPE_BADGE[qType].color,
+                              color: "#0A0118", font: "800 10px 'Inter'", letterSpacing: 0,
+                            }}
+                          >
+                            {QUESTION_TYPE_BADGE[qType].code}
+                          </span>
+                        )}
                         {isEditing ? (
                           <div style={{ display: "grid", gap: 6 }}>
                             <textarea
@@ -1881,7 +1919,7 @@ export default function QuizBuilderPage() {
                                     style={{ flex: 1, font: "400 12px 'Inter'" }}
                                     placeholder="e.g. Eiffel Tower Paris"
                                   />
-                                  <HostButton type="button" onClick={() => searchPhotos(editDraft.option_a ?? "")} disabled={photoSearching || !(editDraft.option_a ?? "").trim()} style={{ padding: "0 12px", height: 34, fontSize: 11, flexShrink: 0 }}>
+                                  <HostButton className="qi-btn-md" type="button" onClick={() => searchPhotos(editDraft.option_a ?? "")} disabled={photoSearching || !(editDraft.option_a ?? "").trim()} style={{ flexShrink: 0 }}>
                                     {photoSearching ? "SEARCHING..." : "SEARCH"}
                                   </HostButton>
                                 </div>
@@ -1974,8 +2012,8 @@ export default function QuizBuilderPage() {
                               </>
                             )}
                             <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
-                              <HostButton variant="pri" onClick={() => saveEditQuestion(activeRound, qi)} style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>SAVE</HostButton>
-                              <HostButton onClick={() => { setEditingKey(null); setEditDraft({}); setPhotoCandidates([]); }} style={{ padding: "4px 10px", height: 26, fontSize: 11 }}>CANCEL</HostButton>
+                              <HostButton className="qi-btn-sm" variant="pri" onClick={() => saveEditQuestion(activeRound, qi)}>SAVE</HostButton>
+                              <HostButton className="qi-btn-sm" onClick={() => { setEditingKey(null); setEditDraft({}); setPhotoCandidates([]); }}>CANCEL</HostButton>
                             </div>
                           </div>
                         ) : (() => {
@@ -2042,9 +2080,23 @@ export default function QuizBuilderPage() {
                           );
                           const isCardHovered = !isPairs && hoveredQuestionKey === editKey;
                           const questionActions = (
-                            <div className="qi-prep-question-actions" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              {!isPairs && <HostButton onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question" style={{ padding: "3px 8px", height: 22, fontSize: 10 }}>EDIT</HostButton>}
-                              <HostButton onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace this question" style={{ padding: "3px 8px", height: 22, fontSize: 10 }}>{isSwapping ? "REGENERATING..." : "REGENERATE"}</HostButton>
+                            <div className="qi-prep-question-actions" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              {/* Root cause of these looking huge next to the question
+                                  text: the shared host-console accessibility CSS forces
+                                  EVERY button to a ~40px min-height + big padding + 15-16px
+                                  font, all with !important, so the inline size overrides
+                                  below were silently ignored. "qi-btn-xs" (see globals.css)
+                                  opts these two specific, secondary, in-card actions out of
+                                  that with matching !important + higher specificity.
+                                  Kept on their own no-wrap row, side by side, with "Drag to
+                                  reorder" moved beneath instead of sharing the row - at
+                                  card width the full row (EDIT + REGENERATE + the drag
+                                  caption) never fit, so it was wrapping to two stacked
+                                  button rows instead of one. */}
+                              <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "nowrap" }}>
+                                {!isPairs && <HostButton className="qi-btn-xs" onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question">EDIT</HostButton>}
+                                <HostButton className="qi-btn-xs" onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace this question">{isSwapping ? "REGEN..." : "REGEN"}</HostButton>
+                              </div>
                               <span style={{ color: "#6B5A8E", font: "400 9px 'Inter'" }}>Drag to reorder</span>
                             </div>
                           );

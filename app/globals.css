@@ -47,7 +47,7 @@
    button can explicitly ask to be genuinely small - use ONLY for dense,
    secondary actions inside cards/rows, never for a page's main actions,
    which should keep the normal accessible minimum size. */
-.qi-back-office .fbh .qi-btn-xs{min-height:22px!important;height:22px!important;font-size:10px!important;padding:3px 8px!important;}
+.qi-back-office .fbh .qi-btn-xs{min-height:20px!important;height:20px!important;font-size:9px!important;padding:2px 7px!important;}
 .qi-back-office .fbh .qi-btn-sm{min-height:28px!important;height:28px!important;font-size:11px!important;padding:4px 10px!important;}
 .qi-back-office .fbh .qi-btn-md{min-height:34px!important;height:34px!important;font-size:12px!important;padding:0 12px!important;}
 .qi-back-office .fbh .qi-btn-icon{min-height:22px!important;height:22px!important;width:22px!important;font-size:13px!important;padding:0!important;}

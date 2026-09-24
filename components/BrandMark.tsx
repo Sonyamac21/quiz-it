@@ -34,7 +34,7 @@ export function BrandMark({
       <div
         style={{
           fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
-          fontSize: `${16 * s}px`,
+          fontSize: `${17 * s}px`,
           letterSpacing: ".01em",
           whiteSpace: "nowrap",
         }}
@@ -46,7 +46,7 @@ export function BrandMark({
         style={{
           marginTop: `${2 * s}px`,
           fontFamily: "'Inter',sans-serif",
-          fontSize: `${11 * s}px`,
+          fontSize: `${10 * s}px`,
           color,
           opacity: 0.6,
           whiteSpace: "nowrap",
@@ -57,9 +57,9 @@ export function BrandMark({
       <div
         style={{
           fontFamily: "'Inter',sans-serif",
-          fontSize: `${11 * s}px`,
+          fontSize: `${8.5 * s}px`,
           color,
-          opacity: 0.6,
+          opacity: 0.5,
           whiteSpace: "nowrap",
         }}
       >

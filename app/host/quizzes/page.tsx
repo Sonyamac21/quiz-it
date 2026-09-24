@@ -145,6 +145,17 @@ export default function QuizBuilderPage() {
   const [hoveredQuestionKey, setHoveredQuestionKey] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Record<string, string>>({});
   const [draggedQuestionSource, setDraggedQuestionSource] = useState<{ roundId: string; index: number } | null>(null);
+  // Host request: "I want to add a question - I can simply search and drag
+  // it into a round... or drag between them" (comparing to SpeedQuizzing's
+  // Question Manager). The Question Library search results below used to be
+  // click-to-"ADD" only, scoped to whichever single round's library panel
+  // was open. Making a result card itself draggable, dropped on any round's
+  // TAB in the sticky strip below, reuses the exact same tab-drop-target
+  // mechanic already built for dragging a question between two rounds
+  // (isQuestionDropTarget/onDrop below) - so a search result can now be
+  // dragged straight onto ANY round's tab to add it there, without needing
+  // that round's own panel open or even being the active round.
+  const [draggedLibraryQuestion, setDraggedLibraryQuestion] = useState<BankQuestion | null>(null);
   const [dragOverRoundId, setDragOverRoundId] = useState<string | null>(null);
   const [dragOverLibrary, setDragOverLibrary] = useState(false);
   const [draggedRoundIndex, setDraggedRoundIndex] = useState<number | null>(null);
@@ -1330,8 +1341,9 @@ export default function QuizBuilderPage() {
                   // rounds) - the two never happen at the same time, so they share the
                   // same highlight state.
                   const isQuestionDropTarget = Boolean(draggedQuestionSource) && draggedQuestionSource!.roundId !== round.id;
+                  const isLibraryDropTarget = Boolean(draggedLibraryQuestion);
                   const isRoundDropTarget = draggedRoundIndex !== null && draggedRoundIndex !== index;
-                  const isDropTarget = isQuestionDropTarget || isRoundDropTarget;
+                  const isDropTarget = isQuestionDropTarget || isLibraryDropTarget || isRoundDropTarget;
                   return (
                   <div
                     key={round.id}
@@ -1342,13 +1354,16 @@ export default function QuizBuilderPage() {
                     onDragLeave={() => setDragOverRoundId(cur => cur === round.id ? null : cur)}
                     onDrop={e => {
                       e.preventDefault();
-                      if (draggedQuestionSource && isQuestionDropTarget) {
+                      if (draggedLibraryQuestion && isLibraryDropTarget) {
+                        void addLibraryQuestion(round, draggedLibraryQuestion);
+                      } else if (draggedQuestionSource && isQuestionDropTarget) {
                         const fromRound = selected.quiz_rounds.find(r => r.id === draggedQuestionSource.roundId);
                         if (fromRound) void moveQuestionToRound(fromRound, draggedQuestionSource.index, round.id);
                       } else if (draggedRoundIndex !== null && isRoundDropTarget) {
                         void reorderRounds(draggedRoundIndex, index);
                       }
                       setDraggedQuestionSource(null);
+                      setDraggedLibraryQuestion(null);
                       setDraggedRoundIndex(null);
                       setDragOverRoundId(null);
                     }}
@@ -1646,7 +1661,18 @@ export default function QuizBuilderPage() {
                       {libraryResults.map(bq => {
                         const alreadyAdded = activeRound.questions.some(question => questionKey(question) === questionKey(bq));
                         return (
-                        <div key={bq.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52" }}>
+                        <div
+                          key={bq.id}
+                          draggable
+                          // Host request: drag a search result straight onto any
+                          // round's tab in the sticky strip above, instead of only
+                          // being able to click ADD into whichever round's panel
+                          // happens to be open (matches SpeedQuizzing's Question
+                          // Manager - search, then drag into a round).
+                          onDragStart={() => setDraggedLibraryQuestion(bq)}
+                          onDragEnd={() => setDraggedLibraryQuestion(null)}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", cursor: "grab" }}
+                        >
                           <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2" }}>
                             {!!bq.times_used && <span style={{ color: "#FFC533", fontWeight: 700, marginRight: 6 }}>USED {bq.times_used}×</span>}
                             {!libraryTypeFilter && <span style={{ color: "#B9A8D9", fontWeight: 700, marginRight: 6, textTransform: "uppercase", fontSize: 10 }}>{bq.question_type.replace("_", " ")}</span>}
@@ -1670,7 +1696,19 @@ export default function QuizBuilderPage() {
                 )}
 
                 {activeRound.questions.length === 0 && <p style={{ color: "#6B5A8E", font: "400 12px 'Inter'", margin: 0 }}>No questions in this round yet.</p>}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>
+                <div
+                  // Also a drop target for a dragged search result, so it can
+                  // land straight in the round that's actually open on screen,
+                  // not only on its tab up in the sticky strip.
+                  onDragOver={e => { if (draggedLibraryQuestion) e.preventDefault(); }}
+                  onDrop={e => {
+                    if (!draggedLibraryQuestion) return;
+                    e.preventDefault();
+                    void addLibraryQuestion(activeRound, draggedLibraryQuestion);
+                    setDraggedLibraryQuestion(null);
+                  }}
+                  style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}
+                >
                   {activeRound.questions.map((q, qi) => {
                     const swapKey = activeRound.id + "-" + qi;
                     const isSwapping = swappingKey === swapKey;

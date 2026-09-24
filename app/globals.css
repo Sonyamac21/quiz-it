@@ -297,10 +297,13 @@ button, input, select, textarea { font: inherit; }
 .qi-brand--left { align-items: flex-start; text-align: left; }
 .qi-brand__name { color: var(--qi-text-primary); font-family: var(--font-bruno-ace-sc), sans-serif; font-size: clamp(1.65rem, 1.3rem + 1.2vw, 2.75rem); letter-spacing: 0.045em; }
 .qi-brand__name span { color: var(--qi-accent-bright); }
-.qi-brand__producer { margin-top: var(--qi-space-2); color: var(--qi-text-secondary); font-family: var(--font-bruno-ace-sc), sans-serif; font-size: clamp(0.68rem, 0.62rem + 0.2vw, 0.8rem); font-weight: 400; letter-spacing: 0.05em; text-transform: uppercase; }
-/* "Powered by" is the lead-in, kept smaller than "Mac Entertainment" (the
-   part of this line that's actually the brand) - same line, two sizes. */
-.qi-brand__producer-lead { font-size: 0.8em; }
+.qi-brand__producer { color: var(--qi-text-secondary); font-family: var(--font-bruno-ace-sc), sans-serif; font-size: clamp(0.68rem, 0.62rem + 0.2vw, 0.8rem); font-weight: 400; letter-spacing: 0.05em; text-transform: uppercase; }
+/* "Powered by" is its own line now, above "Mac Entertainment" - treated as
+   a single fixed four-line logo lockup (QUIZ-IT / Powered by / Mac
+   Entertainment / by Sonya Mac) rather than a caption, so it reads as one
+   neat rectangle wherever it's dropped in. Kept smaller than the other
+   credit lines since it's just the lead-in, not the brand itself. */
+.qi-brand__producer-lead { margin-top: var(--qi-space-2); color: var(--qi-text-secondary); font-family: var(--font-bruno-ace-sc), sans-serif; font-size: clamp(0.54rem, 0.5rem + 0.16vw, 0.64rem); font-weight: 400; letter-spacing: 0.05em; text-transform: uppercase; }
 /* The "by Sonya Mac" line - lives in the lockup itself now (see BrandLockup
    in components/ui/quiz-it-ui.tsx) rather than being bolted on separately
    by each caller. Same clamp range the Display screen and Mission Control

@@ -324,7 +324,8 @@ export function BrandLockup({ context, compact = false, align = "center" }: { co
   return (
     <div className={classes("qi-brand", compact && "qi-brand--compact", align === "left" && "qi-brand--left")} aria-label={context ? `Quiz-It, powered by Mac Entertainment. Tonight at ${context}. By Sonya Mac.` : "Quiz-It, powered by Mac Entertainment. By Sonya Mac."}>
       <div className="qi-brand__name" aria-hidden="true"><span>QUIZ-</span>IT</div>
-      <div className="qi-brand__producer" aria-hidden="true"><span className="qi-brand__producer-lead">Powered by </span>Mac Entertainment</div>
+      <div className="qi-brand__producer-lead" aria-hidden="true">Powered by</div>
+      <div className="qi-brand__producer" aria-hidden="true">Mac Entertainment</div>
       <div className="qi-brand__by" aria-hidden="true">by Sonya Mac</div>
       {context ? <div className="qi-brand__context" aria-hidden="true">Tonight at {context}</div> : null}
     </div>

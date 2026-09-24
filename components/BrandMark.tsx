@@ -1,16 +1,19 @@
-// Shared "QUIZ-IT / Powered by Mac Entertainment / by Sonya Mac" credit,
-// stacked on exactly three lines in that order everywhere it appears -
-// Back Office header, Display screen, Pursuit board, player handset, venue
-// showreel, join page. Before this component existed, every one of those
-// screens had its own hand-rolled copy: some on one line with a "·"
-// separator, some missing "by Sonya Mac" entirely (the Back Office header
-// was one of those), with different fonts/sizes/spacing each time. This is
-// the single source of truth for that content and its relative hierarchy
-// (brand name boldest/brightest, the two credit lines smaller and muted) -
-// callers only choose a `size` for their own scale (a TV overlay needs a
-// much bigger absolute size than a mobile corner badge) and, optionally,
-// text alignment; every size keeps the same three-line order and the same
-// ratio between the brand line and the two credit lines.
+// Shared "QUIZ-IT / Powered by / Mac Entertainment / by Sonya Mac" credit -
+// a fixed four-line block, treated as a single recurring logo lockup rather
+// than a caption: every line is its own row (not wrapped or paired onto a
+// shared line) so the whole thing reads as one neat rectangle wherever it's
+// dropped in - Back Office header, Display screen, Pursuit board, player
+// handset, venue showreel, join page. Before this component existed, every
+// one of those screens had its own hand-rolled copy: some on one line with
+// a "·" separator, some missing "by Sonya Mac" entirely (the Back Office
+// header was one of those), with different fonts/sizes/spacing each time.
+// This is the single source of truth for that content and its relative
+// hierarchy (brand name boldest/brightest, "Powered by" the smallest lead-
+// in, "Mac Entertainment" and "by Sonya Mac" matching each other) - callers
+// only choose a `size` for their own scale (a TV overlay needs a much
+// bigger absolute size than a mobile corner badge) and, optionally, text
+// alignment; every size keeps the same four-line order and the same ratio
+// between lines.
 const SCALE: Record<"xs" | "sm" | "md" | "lg" | "xl", number> = {
   xs: 0.6,
   sm: 0.8,
@@ -46,17 +49,26 @@ export function BrandMark({
         style={{
           marginTop: `${2 * s}px`,
           fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
+          fontSize: `${8 * s}px`,
           letterSpacing: ".01em",
           color,
           opacity: 0.6,
           whiteSpace: "nowrap",
         }}
       >
-        {/* "Powered by" is the lead-in, kept smaller than "Mac Entertainment"
-            (the part of this line that's actually the brand) - same line,
-            two sizes. */}
-        <span style={{ fontSize: `${8 * s}px` }}>Powered by </span>
-        <span style={{ fontSize: `${10 * s}px` }}>Mac Entertainment</span>
+        Powered by
+      </div>
+      <div
+        style={{
+          fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
+          fontSize: `${10 * s}px`,
+          letterSpacing: ".01em",
+          color,
+          opacity: 0.6,
+          whiteSpace: "nowrap",
+        }}
+      >
+        Mac Entertainment
       </div>
       <div
         style={{

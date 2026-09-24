@@ -1442,7 +1442,7 @@ export default function QuizBuilderPage() {
                       // tile). Border is now always 2px (transparent when
                       // idle) so every tile's content box is identical
                       // regardless of state.
-                      position: "relative", boxSizing: "border-box", padding: "10px 12px", height: 64, borderRadius: 10, cursor: "grab", textAlign: "left",
+                      position: "relative", boxSizing: "border-box", padding: "10px 12px", height: 128, borderRadius: 10, cursor: "grab", textAlign: "left",
                       border: dragOverRoundId === round.id ? "2px dashed #2EE06E" : round.id === activeRound.id ? "2px solid #BE26C1" : "2px solid #2E1A52",
                       background: dragOverRoundId === round.id ? "rgba(46,224,110,0.12)" : round.id === activeRound.id ? "rgba(190,38,193,0.15)" : "#150A2E",
                       opacity: draggedRoundIndex === index ? 0.4 : 1,

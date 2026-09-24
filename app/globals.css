@@ -967,7 +967,15 @@ button, input, select, textarea { font: inherit; }
 @media(max-aspect-ratio:4/3){.fbl .lb-reel-host-panel{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto;gap:16px}.fbl .lb-reel-host-copy{align-items:center;text-align:center}.fbl .lb-reel-host-copy .lb-reel-brand-headline{text-align:center}.fbl .lb-reel-brand-panel{height:min(78%,620px)}}
 @keyframes lbBrandSlide{from{opacity:0;transform:translateX(-24px);}to{opacity:1;transform:none;}}
 @media (prefers-reduced-motion: reduce){.fbl .lb-reel-brand-headline,.fbl .lb-reel-brand-body{animation:none;}}
-.fbl .lb-reel-photos{position:relative;width:100%;height:100%;}
+/* Was full-height/full-width of the whole reel panel, so the floating
+   Polaroid photos traveled (and animated) all the way to the literal top/
+   bottom edges of the display - well outside the same framed "safe area"
+   every other reel scene (venue photo, promo image, no-media fallback card)
+   is confined to. Matching .lb-reel-media-frame's own box here means the
+   photos enter/exit and float only within that same centered area, and
+   overflow:hidden clips the animation's off-box travel instead of letting
+   it spill onto the real screen edges. */
+.fbl .lb-reel-photos{position:relative;width:100%;height:100%;max-width:min(86%,980px);max-height:min(70%,600px);margin:auto;overflow:hidden;}
 .fbl .lb-float-photo{position:absolute;left:50%;width:min(34%,260px);background:#fff;padding:10px 10px 34px;border-radius:6px;box-shadow:0 20px 40px rgba(0,0,0,.45);transform:translate(-50%,110%) rotate(-3deg);opacity:0;animation:lbFloatPhoto 9s ease-in-out infinite;}
 .fbl .lb-float-photo img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:2px;}
 .fbl .lb-float-photo-0{top:8%;transform:translate(-70%,110%) rotate(-4deg);}

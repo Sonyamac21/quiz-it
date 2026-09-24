@@ -2543,7 +2543,16 @@ button, input, select, textarea { font: inherit; }
 .fbl .lb-venue-intro-host div { min-width:0; text-align:center; }
 .fbl .lb-venue-intro-host small { display:block; color:var(--purple-b); font:800 clamp(9px,.9vw,13px) 'Inter'; letter-spacing:.18em; }
 .fbl .lb-venue-intro-host strong { display:block; margin-top:4px; color:#fff; font:850 clamp(15px,1.4vw,22px)/1.15 'Inter'; overflow-wrap:anywhere; }
-.fbl .lb-venue-intro.has-media .lb-venue-intro-copy { max-width:62%; }
+/* The copy block (name/time/tagline) is pushed to the right edge of the
+   band by .has-media's own align-items:flex-end, and the host card is
+   ALSO anchored to that same right edge (right:5%, see
+   .lb-venue-intro-host above) - so with no shared awareness of each
+   other's width, the two simply overlapped whenever both were present
+   (the host's report: "the photos and text over each other"). Reserving
+   real right-side clearance on the copy block, sized to comfortably
+   clear the host card's own width (clamp(160px,18vw,240px)) plus a gap,
+   keeps them side by side instead of stacked on top of one another. */
+.fbl .lb-venue-intro.has-media .lb-venue-intro-copy { max-width:52%; margin-right:clamp(180px,20vw,260px); }
 .fbl .lb-venue-intro.has-media .lb-venue-intro-name { max-width:100%; }
 .fbl .lb-venue-intro.has-media .lb-venue-intro-logo { left:3%; bottom:11%; max-width:min(31%,clamp(125px,16vw,220px)); max-height:clamp(92px,12vw,165px); width:auto; height:auto; }
 .fbl .lb-reel-brand-offers .lb-reel-brand-panel { border-color:rgba(232,195,106,.35); }

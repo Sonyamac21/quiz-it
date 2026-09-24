@@ -2081,21 +2081,21 @@ export default function QuizBuilderPage() {
                           const isCardHovered = !isPairs && hoveredQuestionKey === editKey;
                           const questionActions = (
                             <div className="qi-prep-question-actions" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                              {/* Root cause of these looking huge next to the question
-                                  text: the shared host-console accessibility CSS forces
-                                  EVERY button to a ~40px min-height + big padding + 15-16px
-                                  font, all with !important, so the inline size overrides
-                                  below were silently ignored. "qi-btn-xs" (see globals.css)
-                                  opts these two specific, secondary, in-card actions out of
-                                  that with matching !important + higher specificity.
-                                  Kept on their own no-wrap row, side by side, with "Drag to
-                                  reorder" moved beneath instead of sharing the row - at
-                                  card width the full row (EDIT + REGENERATE + the drag
-                                  caption) never fit, so it was wrapping to two stacked
-                                  button rows instead of one. */}
-                              <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "nowrap" }}>
-                                {!isPairs && <HostButton className="qi-btn-xs" onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question">EDIT</HostButton>}
-                                <HostButton className="qi-btn-xs" onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace this question">{isSwapping ? "REGEN..." : "REGEN"}</HostButton>
+                              {/* Root cause of these originally looking huge next to the
+                                  question text: the shared host-console accessibility CSS
+                                  forces EVERY button to a ~40px min-height + big padding +
+                                  15-16px font, all with !important, so inline size overrides
+                                  were silently ignored. "qi-btn-sm" (see globals.css) opts
+                                  these two specific, secondary, in-card actions out of that
+                                  with matching !important + higher specificity. Each button
+                                  is flex:1 so the pair fills the card's full width evenly,
+                                  side by side, instead of shrink-wrapping to two small pills
+                                  with dead space around them - "Drag to reorder" moved
+                                  beneath instead of sharing the row, since it never fit
+                                  alongside a full-width button pair. */}
+                              <div style={{ display: "flex", alignItems: "stretch", gap: 6, flexWrap: "nowrap" }}>
+                                {!isPairs && <HostButton className="qi-btn-sm" style={{ flex: 1 }} onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question">EDIT</HostButton>}
+                                <HostButton className="qi-btn-sm" style={{ flex: 1 }} onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace this question">{isSwapping ? "REGEN..." : "REGEN"}</HostButton>
                               </div>
                               <span style={{ color: "#6B5A8E", font: "400 9px 'Inter'" }}>Drag to reorder</span>
                             </div>

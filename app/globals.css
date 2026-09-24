@@ -912,7 +912,21 @@ button, input, select, textarea { font: inherit; }
    guarantees real clearance on every side - "bigger" and "not touching
    the edges" aren't in tension as long as the padding budget accounts
    for it, which the .lb-cardstage/.lb-foot fix below now does. */
-.fbl .lb-reel-media-frame{position:relative;width:100%;height:100%;max-width:min(86%,980px);max-height:min(70%,600px);margin:auto;overflow:hidden;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
+/* Was width:100%;height:100% with a percentage max-height (min(70%,600px))
+   - percentages only resolve against a containing block with a DEFINITE
+   size, and .lb-reel-venue's own height is itself derived from a flex/grid
+   chain further up (the row track sizes to content, not a hard viewport
+   value), so that "70%" had nothing solid to measure against. The browser
+   fell back to sizing the frame off the raw photo's own intrinsic aspect
+   ratio instead - on a wide/landscape source photo that produced a box
+   far taller than intended, pushing it low and into the footer bar (the
+   host's "image is too low" report) while the no-media fallback card,
+   which never used a percentage height, kept centering correctly. Sizing
+   directly off vh/vw - always resolved against the real viewport,
+   independent of any ancestor's own sizing - removes that whole failure
+   mode; width still also has a hard px ceiling and object-fit:contain
+   still guarantees nothing is ever cropped, only shrunk. */
+.fbl .lb-reel-media-frame{position:relative;width:min(86%,980px);height:min(70vh,600px);margin:auto;overflow:hidden;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
 .fbl .lb-reel-media-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(32px) brightness(.55) saturate(1.15);transform:scale(1.15);}
 .fbl .lb-reel-media{position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:contain;}
 /* Host report: "the overlap in text" - the venue logo sits position:

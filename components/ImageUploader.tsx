@@ -102,6 +102,17 @@ export function ImageUploader({ currentUrl, onUploaded }: Props) {
       const ready = isHeicFile(file) ? await downscaleIfNeeded(file, true) : await downscaleIfNeeded(file);
       setPendingFile(ready);
       setPreviewUrl(URL.createObjectURL(ready));
+      // Host reports (repeated, across several venues/logos: "it's not
+      // saving the logo", "it's not saving media for this venue") traced
+      // back to this exact spot - dropping/selecting a file only staged it
+      // as a local preview; actually uploading it required a SEPARATE
+      // "Save Image" click that wasn't visually distinct from "the upload
+      // already happened," so hosts kept walking away after just the drop,
+      // certain they'd saved something they hadn't. Auto-uploading the
+      // moment a file is ready removes that hidden extra step entirely -
+      // dropping/selecting a file IS saving it now, same as every other
+      // upload in the app.
+      await handleUpload(ready);
     } catch {
       setError(isHeicFile(file)
         ? "This browser can't open HEIC photos. In iPhone Settings → Camera → Formats, switch to “Most Compatible” so new photos save as JPEG, or use Safari on the iPhone itself to upload."
@@ -115,15 +126,20 @@ export function ImageUploader({ currentUrl, onUploaded }: Props) {
     setPendingFile(rotated);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(URL.createObjectURL(rotated));
+    // Rotating fixes a sideways photo, but that fix only matters once it's
+    // actually saved - re-upload immediately so a rotate-then-walk-away
+    // doesn't lose the correction the same way a plain drop used to.
+    await handleUpload(rotated);
   }
 
-  async function handleUpload() {
-    if (!pendingFile) return;
+  async function handleUpload(fileToUpload?: File) {
+    const file = fileToUpload || pendingFile;
+    if (!file) return;
     setUploading(true);
     setError("");
     try {
       const formData = new FormData();
-      formData.append("file", pendingFile);
+      formData.append("file", file);
       const res = await fetch("/api/upload-image", { method: "POST", body: formData });
       const raw = await res.text();
       let data: { url?: string; fileName?: string; fileSize?: number; error?: { message?: string } } = {};
@@ -145,21 +161,17 @@ export function ImageUploader({ currentUrl, onUploaded }: Props) {
         file_url: data.url,
         file_size: data.fileSize,
       }).then(({ error: insertErr }) => { if (insertErr) console.error("Failed to log media_asset:", insertErr); });
-      setPendingFile(null);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
+      // pendingFile/previewUrl deliberately stay set after a successful
+      // auto-upload (not cleared to null here anymore) - clearing them
+      // used to hide the Rotate buttons the instant the upload finished,
+      // which made rotating a just-uploaded photo pointless. Leaving them
+      // in place keeps Rotate available, and each rotate now re-uploads
+      // immediately too, so there's never an unsaved intermediate state.
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed - please try again.");
     } finally {
       setUploading(false);
     }
-  }
-
-  function clearPending() {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPendingFile(null);
-    setPreviewUrl(null);
-    setError("");
   }
 
   const displayUrl = previewUrl || getMediaUrl(currentUrl);
@@ -201,12 +213,13 @@ export function ImageUploader({ currentUrl, onUploaded }: Props) {
 
       {pendingFile && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <button type="button" onClick={() => handleRotate(90)} style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, cursor: "pointer" }}>{"Rotate \u21bb"}</button>
-          <button type="button" onClick={() => handleRotate(270)} style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, cursor: "pointer" }}>{"Rotate \u21ba"}</button>
-          <button type="button" onClick={handleUpload} disabled={uploading} style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(34,197,94,0.25)", border: "1px solid #22c55e", color: "#fff", fontSize: 12, fontWeight: 700, cursor: uploading ? "default" : "pointer" }}>
-            {uploading ? "Uploading..." : "Save Image"}
-          </button>
-          <button type="button" onClick={clearPending} style={{ padding: "6px 12px", borderRadius: 8, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.6)", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+          <button type="button" onClick={() => handleRotate(90)} disabled={uploading} style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, cursor: uploading ? "default" : "pointer" }}>{"Rotate \u21bb"}</button>
+          <button type="button" onClick={() => handleRotate(270)} disabled={uploading} style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, cursor: uploading ? "default" : "pointer" }}>{"Rotate \u21ba"}</button>
+          {/* No "Save Image" button anymore - handleFile/handleRotate both
+              upload automatically now. This just reflects that state back,
+              since a silent auto-upload is exactly what "it's not saving"
+              reports kept coming from. */}
+          <span style={{ fontSize: 12, fontWeight: 700, color: uploading ? "#FFC533" : "#2EE06E" }}>{uploading ? "Saving\u2026" : "\u2713 Saved"}</span>
         </div>
       )}
 

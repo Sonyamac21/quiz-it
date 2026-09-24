@@ -10,6 +10,21 @@ type Props = {
 
 const MAX_FILE_BYTES = 40 * 1024 * 1024;
 const ACCEPTED_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+// iPhone Camera Roll videos are .mov (HEVC), and depending on iOS version
+// and how the file reached the browser (Photos picker, Files app, AirDrop,
+// share sheet), Safari/Mobile Safari sometimes reports file.type as an
+// empty string or a generic "application/octet-stream" instead of
+// "video/quicktime" - the exact same class of bug already fixed for HEIC
+// photos in ImageUploader. That made every genuine iPhone hero-video
+// upload get rejected with "Only MP4, WEBM, or MOV videos are supported,"
+// which read as broken support for the most common source of these videos.
+// Falling back to the file extension when the MIME type is missing/generic
+// covers that case without loosening validation for anything else.
+function isLikelyVideoFile(file: File): boolean {
+  if (ACCEPTED_TYPES.includes(file.type)) return true;
+  if (file.type && file.type !== "application/octet-stream") return false;
+  return /\.(mov|mp4|m4v|webm)$/i.test(file.name);
+}
 
 export function VideoUploader({ currentUrl, onUploaded }: Props) {
   const [dragging, setDragging] = useState(false);
@@ -20,26 +35,33 @@ export function VideoUploader({ currentUrl, onUploaded }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   function validate(file: File): string | null {
-    if (!ACCEPTED_TYPES.includes(file.type)) return "Only MP4, WEBM, or MOV videos are supported.";
+    if (!isLikelyVideoFile(file)) return "Only MP4, WEBM, or MOV videos are supported.";
     if (file.size > MAX_FILE_BYTES) return "Video is too large - max 40MB. Keep hero videos short.";
     return null;
   }
 
-  function handleFile(file: File) {
+  // Same trap as ImageUploader (see its handleFile comment) - dropping/
+  // selecting a file only staged a local preview; the actual upload
+  // required a separate "Save Video" click, which is exactly the kind of
+  // hidden extra step behind "it's not saving media for this venue"
+  // reports. Auto-uploading the instant a file is ready removes it here too.
+  async function handleFile(file: File) {
     const err = validate(file);
     if (err) { setError(err); return; }
     setError("");
     setPendingFile(file);
     setPreviewUrl(URL.createObjectURL(file));
+    await handleUpload(file);
   }
 
-  async function handleUpload() {
-    if (!pendingFile) return;
+  async function handleUpload(fileToUpload?: File) {
+    const file = fileToUpload || pendingFile;
+    if (!file) return;
     setUploading(true);
     setError("");
     try {
       const formData = new FormData();
-      formData.append("file", pendingFile);
+      formData.append("file", file);
       const res = await fetch("/api/upload-video", { method: "POST", body: formData });
       const raw = await res.text();
       let data: { url?: string; fileName?: string; fileSize?: number; error?: { message?: string } } = {};
@@ -57,21 +79,11 @@ export function VideoUploader({ currentUrl, onUploaded }: Props) {
         file_url: data.url,
         file_size: data.fileSize,
       }).then(({ error: insertErr }) => { if (insertErr) console.error("Failed to log media_asset:", insertErr); });
-      setPendingFile(null);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed - please try again.");
     } finally {
       setUploading(false);
     }
-  }
-
-  function clearPending() {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPendingFile(null);
-    setPreviewUrl(null);
-    setError("");
   }
 
   const displayUrl = previewUrl || getMediaUrl(currentUrl);
@@ -105,7 +117,7 @@ export function VideoUploader({ currentUrl, onUploaded }: Props) {
         <input
           ref={inputRef}
           type="file"
-          accept="video/mp4,video/webm,video/quicktime"
+          accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v"
           style={{ display: "none" }}
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
         />
@@ -113,10 +125,7 @@ export function VideoUploader({ currentUrl, onUploaded }: Props) {
 
       {pendingFile && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <button type="button" onClick={handleUpload} disabled={uploading} style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(34,197,94,0.25)", border: "1px solid #22c55e", color: "#fff", fontSize: 12, fontWeight: 700, cursor: uploading ? "default" : "pointer" }}>
-            {uploading ? "Uploading..." : "Save Video"}
-          </button>
-          <button type="button" onClick={clearPending} style={{ padding: "6px 12px", borderRadius: 8, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.6)", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+          <span style={{ fontSize: 12, fontWeight: 700, color: uploading ? "#FFC533" : "#2EE06E" }}>{uploading ? "Saving…" : "✓ Saved"}</span>
         </div>
       )}
 

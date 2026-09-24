@@ -1382,7 +1382,20 @@ export default function QuizBuilderPage() {
                   tile is now exactly two lines: the round name, then its
                   question count, both single-line and truncated rather than
                   wrapping. */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 6, marginBottom: 10, padding: 6, borderRadius: 10, background: "rgba(10,1,24,0.6)" }}>
+              {/* Host request: back to the tiles' original (larger) size, but
+                  arranged as a fixed number of columns - computed as half the
+                  round count, rounded up - instead of "auto-fill, minmax()",
+                  which packs as many tiles as fit the container width and
+                  wraps wherever that happens to land (e.g. 8 tiles across
+                  then a stray 3 on their own row, not lined up under
+                  anything). With an explicit column count, an odd tile total
+                  splits into a full row on top and the remainder directly
+                  beneath it, each tile still lined up under the one above -
+                  6 then 5 for 11 rounds, 4 then 4 for 8, etc. */}
+              {(() => {
+                const roundTileCols = Math.max(1, Math.ceil(selected.quiz_rounds.length / 2));
+                return (
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${roundTileCols}, 1fr)`, gap: 8, marginBottom: 10, padding: 8, borderRadius: 10, background: "rgba(10,1,24,0.6)" }}>
                 {selected.quiz_rounds.map((round, index) => {
                   const isRoundGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
                   const roundCfg = bulkConfig[round.id];
@@ -1429,7 +1442,7 @@ export default function QuizBuilderPage() {
                       // tile). Border is now always 2px (transparent when
                       // idle) so every tile's content box is identical
                       // regardless of state.
-                      position: "relative", boxSizing: "border-box", padding: "6px 8px", height: 44, borderRadius: 8, cursor: "grab", textAlign: "left",
+                      position: "relative", boxSizing: "border-box", padding: "10px 12px", height: 64, borderRadius: 10, cursor: "grab", textAlign: "left",
                       border: dragOverRoundId === round.id ? "2px dashed #2EE06E" : round.id === activeRound.id ? "2px solid #BE26C1" : "2px solid #2E1A52",
                       background: dragOverRoundId === round.id ? "rgba(46,224,110,0.12)" : round.id === activeRound.id ? "rgba(190,38,193,0.15)" : "#150A2E",
                       opacity: draggedRoundIndex === index ? 0.4 : 1,
@@ -1497,6 +1510,8 @@ export default function QuizBuilderPage() {
                   </div>
                 )}
               </div>
+                );
+              })()}
 
               {selected.quiz_rounds.some(round => /failed|stopped|only generated|got 0 of/i.test(bulkProgress[round.id] || "")) && (
                 <div role="alert" style={{ display: "grid", gap: 8, marginBottom: 12, padding: 14, borderRadius: 12, border: "1px solid #A92E4B", background: "rgba(169,46,75,0.14)" }}>
@@ -1514,29 +1529,38 @@ export default function QuizBuilderPage() {
               )}
 
               <div className="fbh-panel" style={{ padding: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                   <span className="ord">{activeIndex + 1}</span>
+                  {/* Host request: this title sat noticeably lower than the
+                      "N" badge beside it - the input's own padding-top was
+                      pushing the text down inside its box. Tightened padding
+                      and marginBottom above so the whole title row sits
+                      higher/tighter. */}
                   <input
                     key={activeRound.id}
                     defaultValue={activeRound.name}
                     onBlur={e => renameRound(activeRound, e.target.value)}
-                    style={{ flex: 1, minWidth: 0, background: "transparent", border: "1px solid transparent", borderBottom: "1px solid #2E1A52", color: "#fff", font: "700 16px 'Inter'", padding: "4px 2px" }}
+                    style={{ flex: 1, minWidth: 0, background: "transparent", border: "1px solid transparent", borderBottom: "1px solid #2E1A52", color: "#fff", font: "700 16px 'Inter'", padding: "1px 2px" }}
                   />
                 </div>
-                <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 12 }}>{activeRound.round_type === "pairs" ? `${readPairsQuestions(activeRound.questions).length} questions · 3 pairs / 6 tiles each` : `${activeRound.questions.length} questions - ${activeRound.round_type}`}</div>
+                <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 10 }}>{activeRound.round_type === "pairs" ? `${readPairsQuestions(activeRound.questions).length} questions · 3 pairs / 6 tiles each` : `${activeRound.questions.length} questions - ${activeRound.round_type}`}</div>
 
-                {/* Grid instead of a plain flex row - these buttons used to
-                    hug the left edge and leave a huge dead strip to the
-                    right on a wide screen. auto-fit lets them space out
-                    across the full panel width instead. */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8, marginBottom: 12 }}>
-                  <HostButton onClick={() => setSettingsOpenRoundId(id => id === activeRound.id ? null : activeRound.id)}>{settingsOpen ? "HIDE SETTINGS" : "SETTINGS"}</HostButton>
-                  <HostButton onClick={() => moveRound(activeIndex, -1)} disabled={activeIndex === 0}>UP</HostButton>
-                  <HostButton onClick={() => moveRound(activeIndex, 1)} disabled={activeIndex === selected.quiz_rounds.length - 1}>DOWN</HostButton>
-                  <HostButton onClick={() => duplicateRound(activeRound)}>COPY</HostButton>
-                  <HostButton onClick={() => removeRound(activeRound)}>REMOVE</HostButton>
+                {/* Host request: these were hugging the left edge with a
+                    huge dead strip to the right on a wide screen - a CSS
+                    grid with auto-fit/minmax was tried here before, but
+                    with only 6 short buttons in a very wide panel it still
+                    left uneven, unpredictable gaps. Switched to flexbox with
+                    each button flex:1 - that always divides the full row
+                    width evenly across however many buttons exist, with no
+                    empty tracks and no dead space, guaranteed. */}
+                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                  <HostButton style={{ flex: 1 }} onClick={() => setSettingsOpenRoundId(id => id === activeRound.id ? null : activeRound.id)}>{settingsOpen ? "HIDE SETTINGS" : "SETTINGS"}</HostButton>
+                  <HostButton style={{ flex: 1 }} onClick={() => moveRound(activeIndex, -1)} disabled={activeIndex === 0}>UP</HostButton>
+                  <HostButton style={{ flex: 1 }} onClick={() => moveRound(activeIndex, 1)} disabled={activeIndex === selected.quiz_rounds.length - 1}>DOWN</HostButton>
+                  <HostButton style={{ flex: 1 }} onClick={() => duplicateRound(activeRound)}>COPY</HostButton>
+                  <HostButton style={{ flex: 1 }} onClick={() => removeRound(activeRound)}>REMOVE</HostButton>
                   {activeRound.questions.some(q => (q as Record<string, unknown>).question_type === "audio") && (
-                    <a className="fbh-btn" href={`/host/music-prep?round=${activeRound.id}`} title="Search, trim and save the actual audio clips for this round's music questions">PREP MUSIC</a>
+                    <a className="fbh-btn" style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center" }} href={`/host/music-prep?round=${activeRound.id}`} title="Search, trim and save the actual audio clips for this round's music questions">PREP MUSIC</a>
                   )}
                 </div>
 

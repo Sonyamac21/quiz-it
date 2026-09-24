@@ -22,8 +22,25 @@ const ACCEPTED_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 // covers that case without loosening validation for anything else.
 function isLikelyVideoFile(file: File): boolean {
   if (ACCEPTED_TYPES.includes(file.type)) return true;
-  if (file.type && file.type !== "application/octet-stream") return false;
-  return /\.(mov|mp4|m4v|webm)$/i.test(file.name);
+  // Previous version only fell back to the extension when file.type was
+  // empty or exactly "application/octet-stream" - but real devices report
+  // a wider, messier range of non-standard video MIME types than that (a
+  // codec-qualified type, a vendor-specific string, etc.), and any of
+  // those still got rejected outright without ever checking the
+  // extension. That's almost certainly why the fix "worked" for the HEVC
+  // .mov case tested first but a hero-video upload could still fail with
+  // this exact error afterward. Trusting the file extension whenever the
+  // reported type isn't one of the three we explicitly recognise is far
+  // more reliable than trying to enumerate every device/browser's MIME
+  // quirks - the server already re-derives the real content-type the
+  // same way as a backstop.
+  if (/\.(mov|mp4|m4v|webm|3gp|avi)$/i.test(file.name)) return true;
+  // Last resort: any type the browser itself calls a video (e.g. a
+  // codec-qualified or vendor-specific "video/..." string this app
+  // doesn't explicitly know) is still a video - trust that over
+  // rejecting a file that's clearly not one of the risky cases (an
+  // actual non-video file would never get a "video/..." type at all).
+  return file.type.startsWith("video/");
 }
 
 export function VideoUploader({ currentUrl, onUploaded }: Props) {

@@ -872,13 +872,19 @@ button, input, select, textarea { font: inherit; }
 .fbl .lb-reel-host-photo{width:min(72%,560px);height:min(58%,430px);object-fit:contain;border-radius:12px;box-shadow:0 18px 55px rgba(0,0,0,.4);}
 .fbl .lb-reel-brand{position:relative;padding:8% 7% 5%;overflow:hidden;background:radial-gradient(circle at 50% 42%,rgba(190,38,193,.16),transparent 52%);}
 .fbl .lb-reel-venue{padding:8% 5% 4%;overflow:hidden;}
-/* max-width/max-height used to be hardcoded to 1100px/680px, a fine cap on
-   a laptop preview but far smaller than a real venue TV's actual pixel
-   area - the venue video/image would stop growing at that fixed size and
-   leave visible blank space around it on any larger screen. Capped at 100%
-   of the panel instead, so it scales to fill whatever screen it's on;
-   object-fit:contain still protects the video's own aspect ratio. */
-.fbl .lb-reel-media{display:block;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
+/* Host request: "set an area - same for all venues - that the photo will
+   be shrunk to, not cropped." Letting this grow to fill 100% of whatever
+   panel it's in (the previous rule, before that) meant every venue's
+   photo effectively filled almost the entire reel - fine for a wide venue
+   photo shot to match, but a tighter/close-up source photo (a phone
+   selfie, food shot, etc.) just got blown up to that same full-bleed
+   size, reading as "too big"/badly framed even though nothing was being
+   cropped. max-width/max-height now cap the box itself to one fixed area,
+   identical for every venue regardless of screen size or the uploaded
+   photo's own proportions; object-fit:contain still guarantees the whole
+   photo always fits inside that area and is only ever shrunk, never
+   cropped. */
+.fbl .lb-reel-media{display:block;width:100%;height:100%;max-width:min(76%,820px);max-height:min(64%,520px);margin:auto;object-fit:contain;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
 .fbl .lb-venue-intro.has-media{inset:auto 5% 4%;min-height:34%;padding:5% 6% 4%;border-radius:0 0 clamp(18px,2vw,30px) clamp(18px,2vw,30px);background:linear-gradient(180deg,transparent,rgba(10,1,24,.94) 58%);gap:clamp(7px,1vh,14px);overflow:hidden;}
 .fbl .lb-venue-intro.has-media .lb-venue-intro-logo{position:absolute;left:3%;bottom:14%;max-width:clamp(100px,15vw,190px);max-height:clamp(80px,11vw,145px);width:auto;height:auto;padding:8px;border-radius:14px;}
 .fbl .lb-venue-intro.has-media .lb-venue-intro-name{max-width:72%;font-size:clamp(28px,3.8vw,58px);line-height:1.08;text-wrap:balance;}

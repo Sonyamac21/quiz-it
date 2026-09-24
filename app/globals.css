@@ -288,14 +288,14 @@ button, input, select, textarea { font: inherit; }
 .qi-brand--left { align-items: flex-start; text-align: left; }
 .qi-brand__name { color: var(--qi-text-primary); font-family: var(--font-bruno-ace-sc), sans-serif; font-size: clamp(1.65rem, 1.3rem + 1.2vw, 2.75rem); letter-spacing: 0.045em; }
 .qi-brand__name span { color: var(--qi-accent-bright); }
-.qi-brand__producer { margin-top: var(--qi-space-2); color: var(--qi-text-secondary); font-size: clamp(0.68rem, 0.62rem + 0.2vw, 0.8rem); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.qi-brand__producer { margin-top: var(--qi-space-2); color: var(--qi-text-secondary); font-family: var(--font-bruno-ace-sc), sans-serif; font-size: clamp(0.68rem, 0.62rem + 0.2vw, 0.8rem); font-weight: 400; letter-spacing: 0.05em; text-transform: uppercase; }
 /* The "by Sonya Mac" line - lives in the lockup itself now (see BrandLockup
    in components/ui/quiz-it-ui.tsx) rather than being bolted on separately
    by each caller. Same clamp range the Display screen and Mission Control
    were already using for their own hand-added copies of this line, so
    nothing changes visually where it already existed - it's just no longer
    missing on the screens that forgot to add it. */
-.qi-brand__by { margin-top: 0.15rem; color: var(--qi-text-muted); font: 700 clamp(0.62rem, 0.56rem + 0.15vw, 0.75rem) 'Inter',sans-serif; letter-spacing: 0.02em; }
+.qi-brand__by { margin-top: 0.15rem; color: var(--qi-text-muted); font-family: var(--font-bruno-ace-sc), sans-serif; font-size: clamp(0.62rem, 0.56rem + 0.15vw, 0.75rem); font-weight: 400; letter-spacing: 0.02em; }
 .qi-brand__context { margin-top: var(--qi-space-1); color: var(--qi-text-muted); font-size: var(--qi-type-sm); }
 /* Standardised against the display screen's corner mark (.qi-display-
    corner-mark below) - both were drifting into their own bespoke sizes

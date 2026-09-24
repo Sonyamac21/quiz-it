@@ -1368,7 +1368,21 @@ export default function QuizBuilderPage() {
                   checkbox line on the tall tiles could visually read as
                   spilling past the row above it. flex-start lets each tile
                   size to its own content instead. */}
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 6, flexWrap: "wrap", marginBottom: 10, padding: 6, borderRadius: 10, background: "rgba(10,1,24,0.6)" }}>
+              {/* Host request: these were "some big, some small" - true, since
+                  height varied per tile with the optional "Generate All"
+                  checkbox line, a 2-line progress/failure message and a
+                  music-not-prepped warning line all stacking on top of the
+                  title/subtitle, so a tile with all three was roughly twice
+                  the height of one with none. Switched from a flex row (each
+                  tile sized to its own variable content, growing to fill the
+                  row) to a grid of fixed-size, fixed-height cells, and moved
+                  every optional extra (Generate All checkbox, the
+                  progress/failure indicator, the music warning) off its own
+                  line and onto small corner/inline icons instead - every
+                  tile is now exactly two lines: the round name, then its
+                  question count, both single-line and truncated rather than
+                  wrapping. */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 6, marginBottom: 10, padding: 6, borderRadius: 10, background: "rgba(10,1,24,0.6)" }}>
                 {selected.quiz_rounds.map((round, index) => {
                   const isRoundGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
                   const roundCfg = bulkConfig[round.id];
@@ -1406,62 +1420,49 @@ export default function QuizBuilderPage() {
                     }}
                     onDragEnd={() => { setDraggedRoundIndex(null); setDragOverRoundId(null); }}
                     style={{
-                      padding: "4px 8px", borderRadius: 8, cursor: "grab", textAlign: "left",
+                      position: "relative", padding: "6px 8px", height: 42, borderRadius: 8, cursor: "grab", textAlign: "left",
                       border: dragOverRoundId === round.id ? "2px dashed #2EE06E" : round.id === activeRound.id ? "2px solid #BE26C1" : "1px solid #2E1A52",
                       background: dragOverRoundId === round.id ? "rgba(46,224,110,0.12)" : round.id === activeRound.id ? "rgba(190,38,193,0.15)" : "#150A2E",
                       opacity: draggedRoundIndex === index ? 0.4 : 1,
-                      color: "#fff", display: "flex", flexDirection: "column", gap: 1,
-                      // Grows to fill the row (so 5 rounds span the full width
-                      // instead of leaving a dead gap after the last one) but
-                      // never shrinks below 130px. The name/status lines below
-                      // wrap onto a second line (line-clamp: 2) instead of a
-                      // hard single-line ellipsis, so the sticky bar stays
-                      // compact and out of the way while still letting a host
-                      // actually read what's on a tile without clicking it.
-                      flex: "1 1 130px", minWidth: 130,
+                      color: "#fff", display: "flex", flexDirection: "column", justifyContent: "center", gap: 2, overflow: "hidden",
                     }}
                   >
                     {isRoundGeneratable && (
-                      // Host request: "Include in Generate All" wrapped onto
-                      // two lines on most tiles, adding real height to every
-                      // generatable tab in this already-space-conscious
-                      // strip. Shortened text + nowrap keeps it one line.
-                      <label title="Include in Generate All" style={{ display: "flex", alignItems: "center", gap: 4, font: "600 10px 'Inter'", color: "#B9A8D9", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
-                        <input type="checkbox" checked={roundCfg?.selected ?? false} onChange={e => updateBulkConfig(round.id, { selected: e.target.checked })} />
-                        Generate All
+                      // Was its own "Generate All" text line, adding a whole
+                      // extra row of height to every generatable tile (most
+                      // of them) on top of the title/subtitle - moved to a
+                      // corner checkbox so every tile is the same two lines
+                      // regardless of round type.
+                      <label title="Include in Generate All" onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 4, right: 4, display: "flex" }}>
+                        <input type="checkbox" checked={roundCfg?.selected ?? false} onChange={e => updateBulkConfig(round.id, { selected: e.target.checked })} style={{ margin: 0 }} />
                       </label>
                     )}
-                    <span style={{ font: "700 11px 'Inter'", lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{index + 1}. {round.name}</span>
-                    {/* A native `title` tooltip only appears on hover-and-wait and
-                        never on click/tap, so a host clicking straight at this
-                        truncated text (as reported) saw nothing happen - no
-                        tooltip "window" ever opened. Clicking now shows the full
-                        message via the app's own toast instead of relying on
-                        that unreliable native behavior. */}
-                    {roundProgress && (() => {
-                      const failed = /failed|stopped|only generated|got 0 of/i.test(roundProgress);
-                      return (
-                        <button
-                          type="button"
-                          aria-label={`${round.name}: ${roundProgress}`}
-                          onClick={e => { e.stopPropagation(); showToast(roundProgress, failed ? "error" : "info", 15000); }}
-                          style={{ padding: 0, border: 0, background: "transparent", color: failed ? "#FF667A" : "#2EE06E", font: "700 10px 'Inter'", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden", cursor: "pointer", textAlign: "left", textDecoration: "underline" }}
-                        >
-                          {failed ? "Generation failed — View details" : roundProgress}
-                        </button>
-                      );
-                    })()}
-                    <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>{round.round_type === "pairs" ? `${readPairsQuestions(round.questions).length} Q · 6 tiles each` : `${round.questions.length} Q - ${round.round_type}`}</span>
-                    {/* A round with audio questions still needs each one's
-                        actual clip saved in Music Prep before the quiz can go
-                        live - previously the only way to notice this was to
-                        open every round and check, or find out live on the
-                        night. Surfacing it right on the tab means a host
-                        scanning the round list can see at a glance which
-                        rounds still need attention. */}
-                    {round.questions.some(q => (q as Record<string, unknown>).question_type === "audio") && !roundMusicIsPrepped(round) && (
-                      <span title="One or more audio questions in this round have no saved clip yet - open Music Prep before this quiz can go live" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#FFC533", font: "700 10px 'Inter'", letterSpacing: ".04em" }}>⚠ MUSIC NOT PREPPED</span>
-                    )}
+                    <span style={{ font: "700 11px 'Inter'", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", paddingRight: isRoundGeneratable ? 16 : 0 }}>{index + 1}. {round.name}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+                      <span style={{ color: "#6B5A8E", font: "400 10px 'Inter'", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "0 1 auto" }}>{round.round_type === "pairs" ? `${readPairsQuestions(round.questions).length} Q · 6 tiles each` : `${round.questions.length} Q - ${round.round_type}`}</span>
+                      {/* Both of these used to be their own full text line(s)
+                          (a 2-line generation-progress message, a "MUSIC NOT
+                          PREPPED" warning line) - collapsed to a small
+                          clickable dot / icon next to the question count so
+                          they never add height, while a click on the dot
+                          still surfaces the full message via toast like
+                          before. */}
+                      {roundProgress && (() => {
+                        const failed = /failed|stopped|only generated|got 0 of/i.test(roundProgress);
+                        return (
+                          <button
+                            type="button"
+                            aria-label={`${round.name}: ${roundProgress}`}
+                            onClick={e => { e.stopPropagation(); showToast(roundProgress, failed ? "error" : "info", 15000); }}
+                            title={failed ? "Generation failed - tap for details" : roundProgress}
+                            style={{ flex: "none", padding: 0, border: 0, background: "none", cursor: "pointer", width: 8, height: 8, borderRadius: "50%", backgroundColor: failed ? "#FF667A" : "#2EE06E" }}
+                          />
+                        );
+                      })()}
+                      {round.questions.some(q => (q as Record<string, unknown>).question_type === "audio") && !roundMusicIsPrepped(round) && (
+                        <span title="One or more audio questions in this round have no saved clip yet - open Music Prep before this quiz can go live" style={{ flex: "none", color: "#FFC533", font: "700 10px 'Inter'" }}>⚠</span>
+                      )}
+                    </span>
                   </div>
                   );
                 })}

@@ -45,8 +45,9 @@ export function BrandMark({
       <div
         style={{
           marginTop: `${2 * s}px`,
-          fontFamily: "'Inter',sans-serif",
+          fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
           fontSize: `${10 * s}px`,
+          letterSpacing: ".01em",
           color,
           opacity: 0.6,
           whiteSpace: "nowrap",
@@ -56,8 +57,9 @@ export function BrandMark({
       </div>
       <div
         style={{
-          fontFamily: "'Inter',sans-serif",
+          fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive",
           fontSize: `${8.5 * s}px`,
+          letterSpacing: ".01em",
           color,
           opacity: 0.5,
           whiteSpace: "nowrap",

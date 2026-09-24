@@ -1341,7 +1341,18 @@ export default function QuizBuilderPage() {
                   entirely - the strip now just wraps to however many rows
                   it needs and scrolls away with the rest of the page like
                   any other block, so nothing is ever half-cut-off. */}
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10, padding: 6, borderRadius: 10, background: "rgba(10,1,24,0.6)" }}>
+              {/* Host still saw "dead space" and something that looked like
+                  a scroll artifact after the sticky/maxHeight removal above
+                  - root cause was a second bug: flex's default
+                  align-items:stretch was forcing every tile in a wrapped row
+                  to match the TALLEST tile in that row (the ones with the
+                  "Generate All" checkbox line are one text-line taller than
+                  the ones without it), so shorter tiles sat inside a
+                  stretched box with blank space at the bottom, and the
+                  checkbox line on the tall tiles could visually read as
+                  spilling past the row above it. flex-start lets each tile
+                  size to its own content instead. */}
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 6, flexWrap: "wrap", marginBottom: 10, padding: 6, borderRadius: 10, background: "rgba(10,1,24,0.6)" }}>
                 {selected.quiz_rounds.map((round, index) => {
                   const isRoundGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
                   const roundCfg = bulkConfig[round.id];

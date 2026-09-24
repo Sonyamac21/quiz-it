@@ -2494,7 +2494,6 @@ function DisplayCornerMark() {
     <div className="qi-display-corner-mark">
       <Image src="/me-logo.jpg" alt="Mac Entertainment" width={58} height={58} className="qi-display-corner-mark__logo" />
       <BrandLockup compact />
-      <div className="qi-display-corner-mark__by">by Sonya Mac</div>
     </div>
   );
 }

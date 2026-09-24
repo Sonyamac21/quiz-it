@@ -15,11 +15,15 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { getMediaUrl } from "@/lib/getMediaUrl";
+import { BrandMark } from "@/components/BrandMark";
 
 function QuizItBadge() {
+  // Host request: the brand mark must look identical everywhere - shared
+  // BrandMark component (components/BrandMark.tsx) is the single source
+  // for its content/hierarchy now, not a one-off string per screen.
   return (
     <div className="badge">
-      <span className="badge-text">QUIZ-IT · Powered by Mac Entertainment</span>
+      <BrandMark size="xs" color="#fff" />
     </div>
   );
 }

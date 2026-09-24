@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 import { prepareParticipantPhoto } from "@/lib/images/prepareParticipantPhoto";
+import { BrandMark } from "@/components/BrandMark";
 
 const STORAGE_KEY = "quizit_player_session";
 
@@ -330,10 +331,7 @@ export function JoinForm() {
             pointerEvents: "none" as const,
           }}>
             <img src="/me-logo.jpg" alt="ME" style={{ width: 26, height: 26, borderRadius: "50%" }} />
-            <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
-              <span style={{ fontFamily: "'Bruno Ace SC',sans-serif", fontSize: 13, color: "#fff", letterSpacing: 0.3 }}>Quiz-It</span>
-              <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: 0.3 }}>Powered by Mac Entertainment · by Sonya Mac</span>
-            </span>
+            <BrandMark size="xs" align="left" />
           </div>
         </div>
       );

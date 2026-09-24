@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { BrandMark } from "@/components/BrandMark";
 
 const groups = [
   { label: "Home", href: "/host", links: [["Overview", "/host"]], help: "Start with a Quiz Plan, prepare its media, then open the live session." },
@@ -22,7 +23,15 @@ export function BackOfficeShell({ children }: { children: ReactNode }) {
   const currentGroup = groups.find(group => group.links.some(([, href]) => matches(href))) || groups[0];
   return <div className="qi-back-office">
     <header className="qi-bo-header">
-      <Link href="/host" className="qi-bo-brand"><span>QUIZ-</span>IT<small>Powered by Mac Entertainment</small></Link>
+      {/* Host request: the brand mark ("QUIZ-IT" / "Powered by Mac
+          Entertainment" / "by Sonya Mac", each on its own line) must look
+          identical everywhere it appears - font, relative sizing,
+          positioning, spacing - not a different one-off per screen. Shared
+          BrandMark component (components/BrandMark.tsx) is now the single
+          source for that content and hierarchy; only the size prop varies
+          per screen's own scale. This Back Office header was previously
+          missing the "by Sonya Mac" line entirely. */}
+      <Link href="/host" style={{ textDecoration: "none" }}><BrandMark size="sm" /></Link>
       <nav aria-label="Main host navigation">{groups.map(group => <Link key={group.href} href={group.href} aria-current={currentGroup === group ? "page" : undefined}>{group.label}</Link>)}</nav>
       <Link href="/host/session" className="qi-bo-live">Run a quiz →</Link>
     </header>

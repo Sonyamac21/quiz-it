@@ -2447,7 +2447,6 @@ function QuizControllerInner() {
         <div className="qi-mc-brand">
           <Image src="/me-logo.jpg" alt="Mac Entertainment" width={58} height={58} className="qi-mc-brand__mark" />
           <BrandLockup compact />
-          <div className="qi-mc-brand__by">by Sonya Mac</div>
           <span className="qi-mc-brand__section">Mission Control</span>
         </div>
         <div className="qi-mc-session" aria-label="Live session information">

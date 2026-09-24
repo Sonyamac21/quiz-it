@@ -15,6 +15,7 @@
  */
 
 import { useState, type ReactNode } from "react";
+import { BrandMark } from "@/components/BrandMark";
 
 export function Crest({
   initials,
@@ -358,12 +359,10 @@ export function HandsetSettings({
           </div>
         ))}
       </div>
-      <div className="pstB" style={{ marginTop: "auto", fontSize: "clamp(12px,3.2vw,14px)", display: "flex", alignItems: "baseline", gap: 6, justifyContent: "center" }}>
-        {/* Same purple/white wordmark used on the back office, host console,
-            and venue display - the handset previously just had plain casual
-            text here with no brand styling at all. */}
-        <span className="fbh-wm" style={{ fontSize: 15 }}><span className="q">QUIZ-</span>IT</span>
-        <span>· Powered by Mac Entertainment</span>
+      <div className="pstB" style={{ marginTop: "auto", display: "flex", justifyContent: "center" }}>
+        {/* Host request: this brand mark must match every other screen's -
+            shared BrandMark component, not one-off casual text. */}
+        <BrandMark size="xs" align="center" />
       </div>
     </HStage>
   );

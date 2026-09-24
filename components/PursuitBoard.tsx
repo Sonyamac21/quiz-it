@@ -9,6 +9,7 @@ import {
   scalePursuitLayout,
 } from "@/lib/quiz/pursuit";
 import { PursuitLane } from "@/components/PursuitLane";
+import { BrandMark } from "@/components/BrandMark";
 
 // THE PURSUIT — the Display board (the hero surface). Presentation only: it takes
 // the authoritative race state and renders the prototype's stage — title zone,
@@ -288,7 +289,9 @@ export function PursuitBoard({ status, race, teamNames, qIndex, timeLeft, questi
         {!hideHeader && (
           <div className="pu-brandbadge">
             <span className="pu-brandbadge-avatar" aria-hidden="true"><img src="/sonya-avatar.png" alt="" /></span>
-            <span>QUIZ-IT · Powered by Mac Entertainment · by Sonya Mac</span>
+            {/* Host request: this brand mark must look identical everywhere -
+                shared BrandMark component, not a one-off single-line string. */}
+            <BrandMark size="xs" align="left" />
           </div>
         )}
       </div>

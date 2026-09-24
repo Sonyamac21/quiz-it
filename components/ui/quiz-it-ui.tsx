@@ -310,10 +310,22 @@ export function SectionHeader({ title, description, action }: { title: string; d
 }
 
 export function BrandLockup({ context, compact = false, align = "center" }: { context?: string; compact?: boolean; align?: "left" | "center" }) {
+  // Host request: this three-line mark ("QUIZ-IT" / "Powered by Mac
+  // Entertainment" / "by Sonya Mac") must look identical everywhere it
+  // appears - same font, sizing, positioning, spacing. This is the one
+  // shared lockup used across login/auth, the host console header, Mission
+  // Control, the Display screen's corner mark, Pairs, and reveal-rehearsal
+  // (see components/BrandMark.tsx for the *other* smaller instances, e.g.
+  // handset/player screens, that use inline sizing instead of this CSS-
+  // driven, viewport-responsive one). Previously the "by Sonya Mac" line
+  // was missing here entirely and had to be bolted on separately by each
+  // caller (some did, some forgot) - it now lives in the lockup itself so
+  // every caller gets it automatically and consistently.
   return (
-    <div className={classes("qi-brand", compact && "qi-brand--compact", align === "left" && "qi-brand--left")} aria-label={context ? `Quiz-It, powered by Mac Entertainment. Tonight at ${context}.` : "Quiz-It, powered by Mac Entertainment."}>
+    <div className={classes("qi-brand", compact && "qi-brand--compact", align === "left" && "qi-brand--left")} aria-label={context ? `Quiz-It, powered by Mac Entertainment. Tonight at ${context}. By Sonya Mac.` : "Quiz-It, powered by Mac Entertainment. By Sonya Mac."}>
       <div className="qi-brand__name" aria-hidden="true"><span>QUIZ-</span>IT</div>
       <div className="qi-brand__producer" aria-hidden="true">Powered by Mac Entertainment</div>
+      <div className="qi-brand__by" aria-hidden="true">by Sonya Mac</div>
       {context ? <div className="qi-brand__context" aria-hidden="true">Tonight at {context}</div> : null}
     </div>
   );

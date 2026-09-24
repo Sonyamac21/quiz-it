@@ -14,6 +14,7 @@ import { PairsPlayerBoard } from "@/components/PairsRound";
 import { PairRecord, PairsProgress, readPairs, readPairsProgress } from "@/lib/quiz/pairs";
 import { teamInitials } from "@/components/TeamBadge";
 import { PlayerShell, PlayerStatusBar, PlayerResultBanner } from "@/components/player/PlayerUI";
+import { BrandMark } from "@/components/BrandMark";
 import { TeamPhotoUpload } from "@/components/player/TeamPhotoUpload";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { platformLogger } from "@/lib/platform/logger";
@@ -1317,7 +1318,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   if (sessionStatus === "finished") {
     return (
       <div className="qi-player-state qi-player-session-complete">
-        <div className="qi-finish-brand"><span>QUIZ</span>-IT<small>Powered by Mac Entertainment</small></div>
+        <div className="qi-finish-brand"><BrandMark size="sm" /></div>
         <section className="qi-finish-card" aria-label="Quiz complete">
           <div className="qi-finish-emblem" aria-hidden="true">✦</div>
           <div className="qi-finish-eyebrow">QUIZ COMPLETE</div>

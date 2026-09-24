@@ -31,7 +31,14 @@ export function BackOfficeShell({ children }: { children: ReactNode }) {
           source for that content and hierarchy; only the size prop varies
           per screen's own scale. This Back Office header was previously
           missing the "by Sonya Mac" line entirely. */}
-      <Link href="/host" style={{ textDecoration: "none" }}><BrandMark size="lg" align="center" /></Link>
+      {/* justifySelf:"start" keeps this pinned to its original left corner -
+          without it, this grid cell's default stretch alignment let the
+          (now content-width) BrandMark box grow to fill the whole cell,
+          which visually dragged the logo away from the corner into the
+          middle of the header. align="center" only centers each line
+          *within* the logo's own box (so the block itself reads as a
+          rectangle); it was never meant to re-center the block on the page. */}
+      <Link href="/host" style={{ textDecoration: "none", justifySelf: "start" }}><BrandMark size="lg" align="center" /></Link>
       <nav aria-label="Main host navigation">{groups.map(group => <Link key={group.href} href={group.href} aria-current={currentGroup === group ? "page" : undefined}>{group.label}</Link>)}</nav>
       <Link href="/host/session" className="qi-bo-live">Run a quiz →</Link>
     </header>

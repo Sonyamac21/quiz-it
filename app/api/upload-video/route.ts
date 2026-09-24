@@ -36,7 +36,23 @@ export async function POST(req: NextRequest) {
     if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json({ error: { message: "Video too large - max 40MB. Keep hero videos short (under ~15s)." } }, { status: 400 });
     }
-    const contentType = ACCEPTED_TYPES.includes(file.type) ? file.type : "video/mp4";
+    // iPhone Camera Roll videos (HEVC-encoded .mov) frequently arrive with
+    // file.type empty or "application/octet-stream" instead of
+    // "video/quicktime" - see VideoUploader's matching client-side fix.
+    // Blindly defaulting an unrecognized type to "video/mp4" (the previous
+    // behaviour) stored the file's real .mov/HEVC bytes under an .mp4
+    // extension and a video/mp4 content-type - a container/codec mismatch
+    // that Safari tolerates but Chrome/Firefox/most smart TVs don't, so
+    // the exact iPhone videos this was meant to support would upload fine
+    // and then fail to play on the live Display. Falling back to the
+    // original filename's extension (still available on the File object)
+    // instead keeps the stored file's declared type honest.
+    const originalName = file instanceof File ? file.name : "";
+    const looksLikeMov = /\.mov$/i.test(originalName);
+    const looksLikeWebm = /\.webm$/i.test(originalName);
+    const contentType = ACCEPTED_TYPES.includes(file.type)
+      ? file.type
+      : looksLikeMov ? "video/quicktime" : looksLikeWebm ? "video/webm" : "video/mp4";
     const ext = contentType === "video/webm" ? "webm" : contentType === "video/quicktime" ? "mov" : "mp4";
 
     const buffer = Buffer.from(await file.arrayBuffer());

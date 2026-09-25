@@ -944,7 +944,16 @@ button, input, select, textarea { font: inherit; }
 .fbl .lb-venue-intro.has-media .lb-venue-intro-name{max-width:72%;font-size:clamp(28px,3.8vw,58px);line-height:1.08;text-wrap:balance;}
 .fbl .lb-venue-intro.has-media .lb-venue-intro-tagline{font-size:clamp(12px,1.2vw,18px);}
 .fbl .lb-reel-brand::before{content:"";position:absolute;inset:10% 7% 7%;border:1px solid rgba(217,79,220,.22);border-radius:clamp(18px,2vw,30px);background:linear-gradient(145deg,rgba(31,15,62,.88),rgba(10,1,24,.72));box-shadow:0 26px 80px rgba(0,0,0,.3);}
-.fbl .lb-reel-brand-panel{position:relative;z-index:1;width:min(90%,760px);height:min(75%,560px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(14px,2.2vh,28px);padding:clamp(22px,3vw,48px);overflow:hidden;}
+/* Same percentage-height bug already found and fixed on .lb-reel-media-
+   frame (the venue photo card) - height:min(75%,560px) has no definite
+   ancestor height to resolve that 75% against, so it was silently
+   collapsing to auto/content size instead of the intended cap. This
+   class is what the offers, prizes, follow-the-venue and tag-us reel
+   scenes all share, so the same low/off-centre positioning that showed up
+   on the venue photo was silently present on all four of those scenes
+   too, just not yet reported. vh instead of % resolves against the real
+   viewport regardless of any ancestor's own sizing. */
+.fbl .lb-reel-brand-panel{position:relative;z-index:1;width:min(90%,760px);height:min(75vh,560px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(14px,2.2vh,28px);padding:clamp(22px,3vw,48px);overflow:hidden;}
 .fbl .lb-reel-brand-logo{max-width:clamp(150px,22%,260px);max-height:clamp(110px,22vh,210px);width:auto;height:auto;object-fit:contain;border-radius:14px;margin:0;filter:drop-shadow(0 14px 28px rgba(0,0,0,.5));}
 .fbl .lb-reel-brand-headline{max-width:100%;font-size:clamp(28px,3.2vw,54px);line-height:1.16;overflow-wrap:anywhere;text-wrap:balance;}
 .fbl .lb-reel-brand-body{max-width:680px;font-size:clamp(18px,1.7vw,29px);line-height:1.42;text-wrap:balance;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:6;overflow:hidden;}
@@ -978,7 +987,7 @@ button, input, select, textarea { font: inherit; }
 .fbl .lb-reel-host-photo{display:block;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;border-radius:0;box-shadow:none;}
 .fbl .lb-reel-host-copy{min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:clamp(12px,2vh,24px);text-align:left;}
 .fbl .lb-reel-host-copy .lb-reel-brand-headline{text-align:left;}
-@media(max-aspect-ratio:4/3){.fbl .lb-reel-host-panel{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto;gap:16px}.fbl .lb-reel-host-copy{align-items:center;text-align:center}.fbl .lb-reel-host-copy .lb-reel-brand-headline{text-align:center}.fbl .lb-reel-brand-panel{height:min(78%,620px)}}
+@media(max-aspect-ratio:4/3){.fbl .lb-reel-host-panel{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto;gap:16px}.fbl .lb-reel-host-copy{align-items:center;text-align:center}.fbl .lb-reel-host-copy .lb-reel-brand-headline{text-align:center}.fbl .lb-reel-brand-panel{height:min(78vh,620px)}}
 @keyframes lbBrandSlide{from{opacity:0;transform:translateX(-24px);}to{opacity:1;transform:none;}}
 @media (prefers-reduced-motion: reduce){.fbl .lb-reel-brand-headline,.fbl .lb-reel-brand-body{animation:none;}}
 /* Was full-height/full-width of the whole reel panel, so the floating
@@ -989,7 +998,10 @@ button, input, select, textarea { font: inherit; }
    photos enter/exit and float only within that same centered area, and
    overflow:hidden clips the animation's off-box travel instead of letting
    it spill onto the real screen edges. */
-.fbl .lb-reel-photos{position:relative;width:100%;height:100%;max-width:min(86%,980px);max-height:min(70%,600px);margin:auto;overflow:hidden;}
+/* max-height was a percentage here too - the same unresolved-percentage
+   bug found on .lb-reel-media-frame (see its comment). vh keeps this
+   frame's real size stable regardless of any ancestor's own sizing. */
+.fbl .lb-reel-photos{position:relative;width:100%;height:100%;max-width:min(86%,980px);max-height:min(70vh,600px);margin:auto;overflow:hidden;}
 .fbl .lb-float-photo{position:absolute;left:50%;width:min(34%,260px);background:#fff;padding:10px 10px 34px;border-radius:6px;box-shadow:0 20px 40px rgba(0,0,0,.45);transform:translate(-50%,110%) rotate(-3deg);opacity:0;animation:lbFloatPhoto 9s ease-in-out infinite;}
 .fbl .lb-float-photo img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:2px;}
 .fbl .lb-float-photo-0{top:8%;transform:translate(-70%,110%) rotate(-4deg);}
@@ -2627,7 +2639,7 @@ button, input, select, textarea { font: inherit; }
    proportions while retaining contained, undistorted imagery. */
 @media (min-aspect-ratio: 4/3) and (min-width: 900px) {
   .qi-display-lobby .lb-split { grid-template-columns:minmax(300px,.22fr) minmax(0,.78fr); }
-  .fbl .lb-reel-brand-panel { width:min(94%,1200px); height:min(82%,760px); }
+  .fbl .lb-reel-brand-panel { width:min(94%,1200px); height:min(82vh,760px); }
   .fbl .lb-reel-brand-logo { max-width:min(42%,360px); max-height:min(30vh,280px); width:auto; height:auto; }
   .fbl .lb-venue-intro.has-media .lb-venue-intro-logo { left:3%; bottom:9%; max-width:min(36%,clamp(170px,19vw,320px)); max-height:clamp(120px,16vw,220px); width:auto; height:auto; }
 }

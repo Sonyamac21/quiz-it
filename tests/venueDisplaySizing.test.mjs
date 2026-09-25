@@ -12,7 +12,7 @@ test("venue prize scene includes the uploaded venue logo", () => {
 });
 
 test("widescreen venue stage uses the TV area without laptop-sized caps", () => {
-  assert.match(css, /\.lb-reel-brand-panel \{ width:min\(94%,1200px\); height:min\(82%,760px\); \}/);
+  assert.match(css, /\.lb-reel-brand-panel \{ width:min\(94%,1200px\); height:min\(82vh,760px\); \}/);
   assert.match(css, /\.lb-reel-brand-logo \{ max-width:min\(42%,360px\); max-height:min\(30vh,280px\)/);
   assert.match(css, /grid-template-columns:minmax\(300px,\.22fr\) minmax\(0,\.78fr\)/);
 });

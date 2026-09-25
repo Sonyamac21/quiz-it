@@ -331,24 +331,32 @@ export function JoinForm() {
               spacing hack) to fill roughly half the bar's width, and the
               three supporting lines stacked in the right half, sized so
               their combined stacked height matches QUIZ-IT's own height. */}
-          {/* Host, again: "the depth at the bottom is still too much" -
-              shrunk the bar's own vertical padding and the max clamp
-              ceilings further so the bar itself sits thinner. */}
-          <div style={{
-            position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999,
-            display: "flex", alignItems: "center",
-            padding: "4px 16px", paddingBottom: "max(4px, env(safe-area-inset-bottom))",
-            background: "rgba(13,2,37,0.9)", borderTop: "1px solid rgba(190,38,193,0.3)",
-            pointerEvents: "none" as const, boxSizing: "border-box" as const,
-          }}>
-            <div style={{ flex: "0 0 50%", minWidth: 0, fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive", fontSize: "clamp(18px,9vw,32px)", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden" }}>
-              <span style={{ color: "#BE26C1" }}>QUIZ-</span><span style={{ color: "#fff" }}>IT</span>
+          {/* Host, again: "the QUiz-It bar is tooooooo deep!!!!" - the
+              colored bar and the safe-area buffer (the strip that keeps
+              content clear of an iPhone's home-indicator gesture area)
+              were the SAME background-filled block, so on any notched
+              phone that ~34px safe-area inset visually became part of the
+              "bar" - the text inside was thin, but the colored rectangle
+              behind it wasn't. Split them: a tight colored strip sized to
+              just the text, then a separate, transparent spacer below it
+              (page background, no border/fill) that reserves the safe-area
+              room without reading as bar depth. */}
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999, pointerEvents: "none" as const }}>
+            <div style={{
+              display: "flex", alignItems: "center",
+              padding: "3px 16px", background: "rgba(13,2,37,0.9)", borderTop: "1px solid rgba(190,38,193,0.3)",
+              boxSizing: "border-box" as const,
+            }}>
+              <div style={{ flex: "0 0 50%", minWidth: 0, fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive", fontSize: "clamp(18px,9vw,32px)", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden" }}>
+                <span style={{ color: "#BE26C1" }}>QUIZ-</span><span style={{ color: "#fff" }}>IT</span>
+              </div>
+              <div style={{ flex: "0 0 50%", minWidth: 0, display: "flex", flexDirection: "column", gap: 1, fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive", color: "#fff", overflow: "hidden" }}>
+                <span style={{ fontSize: "clamp(7px,2.3vw,11px)", lineHeight: 1.1, opacity: 0.6, whiteSpace: "nowrap" }}>Powered by</span>
+                <span style={{ fontSize: "clamp(10px,3.5vw,16px)", lineHeight: 1.1, opacity: 0.6, whiteSpace: "nowrap" }}>Mac Entertainment</span>
+                <span style={{ fontSize: "clamp(9px,3vw,14px)", lineHeight: 1.1, opacity: 0.5, whiteSpace: "nowrap" }}>by Sonya Mac</span>
+              </div>
             </div>
-            <div style={{ flex: "0 0 50%", minWidth: 0, display: "flex", flexDirection: "column", gap: 1, fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive", color: "#fff", overflow: "hidden" }}>
-              <span style={{ fontSize: "clamp(7px,2.3vw,11px)", lineHeight: 1.1, opacity: 0.6, whiteSpace: "nowrap" }}>Powered by</span>
-              <span style={{ fontSize: "clamp(10px,3.5vw,16px)", lineHeight: 1.1, opacity: 0.6, whiteSpace: "nowrap" }}>Mac Entertainment</span>
-              <span style={{ fontSize: "clamp(9px,3vw,14px)", lineHeight: 1.1, opacity: 0.5, whiteSpace: "nowrap" }}>by Sonya Mac</span>
-            </div>
+            <div style={{ height: "env(safe-area-inset-bottom)", background: "transparent" }} />
           </div>
         </div>
       );

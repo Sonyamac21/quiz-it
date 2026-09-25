@@ -2422,8 +2422,15 @@ button, input, select, textarea { font: inherit; }
    up hidden behind the bar. Host: "the buttons are being hidden by the
    bottom bar." */
 .qi-player-state,.qi-player-shell { min-height: 100dvh; max-width: 100vw; overflow-x: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(12px,env(safe-area-inset-top)); padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); padding-bottom: calc(44px + env(safe-area-inset-bottom)) !important; padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
-.qi-player-status { width: 100%; min-height: 56px; flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 0 12px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 14px; position: relative; z-index: 5; }
-.qi-player-status__crest { width: 38px; height: 38px; flex: none; display: grid; place-items: center; clip-path: polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); background: linear-gradient(145deg,#8a1b8d,#211044); border: 1px solid #d94fdc; font-size: 12px; font-weight: 900; }
+/* Host: "it's the answer reveal screen that pushes all up the phone
+   screen... too small and pushed up too far." That screen (.qi-player-
+   answer) has no size override of its own - it renders this base row
+   as-is, so it was the smallest, tightest-margined version on the whole
+   handset sitting right above the biggest, boldest CORRECT/INCORRECT
+   moment of the round. Bumped the base row itself (min-height, padding,
+   margin, crest) rather than adding yet another screen-specific override. */
+.qi-player-status { width: 100%; min-height: 68px; flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 0 16px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 20px; position: relative; z-index: 5; }
+.qi-player-status__crest { width: 48px; height: 48px; flex: none; display: grid; place-items: center; clip-path: polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); background: linear-gradient(145deg,#8a1b8d,#211044); border: 1px solid #d94fdc; font-size: 14px; font-weight: 900; }
 .qi-player-status__crest--photo { width: 64px; height: 64px; clip-path: none; border-radius: 16px; object-fit: cover; object-position: center 30%; border: 2px solid #d94fdc; box-shadow: 0 0 0 3px rgba(190,38,193,.12), 0 5px 16px rgba(0,0,0,.3); }
 .qi-player-status__identity { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .qi-player-card-rail { justify-content: flex-start; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x proximity; padding: 4px 2px 8px; scrollbar-width: thin; }
@@ -2456,8 +2463,8 @@ button, input, select, textarea { font: inherit; }
    board (still smallest-to-largest in the same order, so the visual
    hierarchy - your name > round > secondary status - is unchanged) as part
    of the accessibility pass for wide player age ranges. */
-.qi-player-status__identity strong { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
-.qi-player-status__identity small { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--qi-player-muted); font-size: 12px; }
+.qi-player-status__identity strong { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 20px; }
+.qi-player-status__identity small { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--qi-player-muted); font-size: 15px; }
 .qi-player-status__cards { margin-left: auto; color: #e5c86f; font-size: 10px; font-weight: 850; letter-spacing: .1em; }
 .qi-player-status__connection { display: flex; align-items: center; gap: 5px; color: #b9a8d9; font-size: 10px; font-weight: 850; letter-spacing: .08em; }
 .qi-player-status__connection i { width: 7px; height: 7px; border-radius: 50%; background: #ff5365; }
@@ -2905,12 +2912,19 @@ button, input, select, textarea { font: inherit; }
 /* Compact answering mode; waiting/results retain their larger team photo.
    Inner overflow remains available for unusually long text/accessibility zoom. */
 .qi-player-question-screen { padding: max(6px,env(safe-area-inset-top)) 12px max(6px,env(safe-area-inset-bottom)) !important; }
-.qi-player-question-screen .qi-player-status { gap: 6px; min-height: 40px; margin-bottom: 4px; padding: 2px 0 5px; }
-.qi-player-question-screen .qi-player-status__crest { width: 36px; height: 36px; border-radius: 10px; }
+/* Host: "the team, points, regular round info is all too small and pushed
+   up to the top of the screen too far - give it more space." This compact
+   answering-mode override had shrunk every dimension of the status row
+   (min-height, padding, crest, both text sizes) well below the base
+   .qi-player-status rule and even below the >=700px-height restore two
+   rules below - raised all of them back closer to a normal, comfortably
+   readable size instead of the smallest variant on the whole handset. */
+.qi-player-question-screen .qi-player-status { gap: 10px; min-height: 56px; margin-bottom: 10px; padding: 6px 0 10px; }
+.qi-player-question-screen .qi-player-status__crest { width: 46px; height: 46px; border-radius: 12px; }
 .qi-player-question-screen .qi-player-status__cards { display: none; }
 .qi-player-question-screen .qi-player-status__identity { flex: 1; }
-.qi-player-question-screen .qi-player-status__identity strong { font-size: 12px; max-width: 32vw; }
-.qi-player-question-screen .qi-player-status__identity small { font-size: 10px; max-width: 32vw; }
+.qi-player-question-screen .qi-player-status__identity strong { font-size: 18px; max-width: 40vw; }
+.qi-player-question-screen .qi-player-status__identity small { font-size: 14px; max-width: 40vw; }
 .qi-player-question-screen .qi-player-question-text { font-size: clamp(24px,4.6dvh,36px); line-height: 1.2; margin: 2px 0 8px; flex-shrink: 0; }
 .qi-player-question-screen .fbl .opt { min-height: 44px !important; padding: 7px 10px !important; margin-bottom: 5px; font-size: clamp(15px,2.4dvh,19px); border-radius: 12px; }
 .qi-player-question-screen .fbl .opt .chip { width: 30px; height: 30px; font-size: 14px; }
@@ -2962,8 +2976,11 @@ button, input, select, textarea { font: inherit; }
 .qi-player-question-screen[data-answer-type="multi_tap"] .qi-player-multitap-grid { flex:1 1 0; grid-auto-rows:minmax(48px,1fr); }
 .qi-player-question-screen[data-answer-type="multi_tap"] .qi-player-answer-button { height:100%; font-size:clamp(16px,4.4vw,21px)!important; }
 .qi-player-question-screen .qi-player-keypad-wrap .qi-player-keypad { flex:1 1 auto; justify-content:center; }
-.qi-player-question-screen .qi-player-status__identity strong { font-size:clamp(13px,3.7vw,16px); }
-.qi-player-question-screen .qi-player-status__identity small { font-size:clamp(11px,3vw,13px); }
+/* status__identity strong/small sizing lives with the rest of the
+   status-row fix above (near .qi-player-question-screen .qi-player-status)
+   now - this @media(min-height:700px) copy used to set SMALLER clamp()
+   values than that fix, silently winning back on any tall phone (which is
+   most of them) purely by being the later rule at equal specificity. */
 .qi-player-waiting-timer { flex:1 1 auto; min-height:0; font-size:clamp(14px,4vw,18px); }
 .qi-player-answer .qi-player-result { min-height:min(34dvh,300px); display:grid; place-content:center; }
 .qi-player-answer .qi-player-answer-comparison { width:100%!important; max-width:none!important; }

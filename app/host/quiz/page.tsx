@@ -2499,6 +2499,17 @@ function QuizControllerInner() {
             {FEATURE_FLAGS.diagnostics && <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>}
             {FEATURE_FLAGS.diagnostics && connected && <button className={`qi-button qi-button--secondary qi-mc-tv-status${displayHealth.health.level !== "healthy" ? " qi-mc-tv-status--warn" : ""}`} onClick={() => setDiagnosticsOpen(true)} title={displayHealth.health.level === "healthy" ? "TV: up to date" : displayHealth.health.summary} aria-live="polite">TV</button>}
             <a href={sessionPin ? `/host/display?pin=${encodeURIComponent(sessionPin)}` : "/host/display"} target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
+            {/* Host: "the back to spin button is partially hidden. Move the
+                round name into the top row - in the space, then move the
+                buttons along the second line to give the spin-back button
+                more space." The top row's own layout (Session PIN/TV/Open
+                Display flex-shrink:0, packed left, End quiz pushed hard
+                right by margin-left:auto) already leaves a gap in the
+                middle on most screens - the round name now sits in
+                exactly that gap instead of eating width on the bottom row,
+                where Photos/Skip Round/Back-Offer Spin were competing for
+                the same space and losing the rightmost button off-screen. */}
+            <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
             <Button variant="destructive" className="qi-mc-toolbar__end" onClick={endQuizWithConfirm}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
           </div>
           <div className="qi-mc-header__bottom">
@@ -2507,7 +2518,6 @@ function QuizControllerInner() {
               <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handsets hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
               <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
             </div>}
-            <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
             {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
             {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
             <div className="qi-mc-toolbar__group">

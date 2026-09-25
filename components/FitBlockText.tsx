@@ -45,7 +45,25 @@ export function FitBlockText({ as = "div", children, className, maxViewportHeigh
         // overflow:hidden after fonts/kerning settle slightly differently
         // than this measurement pass. Reported as "I cannot read the full
         // question" - the second line was visibly sliced off mid-letter.
-        const limit = Math.max(48, window.innerHeight * maxViewportHeight) * 0.94;
+        //
+        // Bug: this budget used to be maxViewportHeight * window.innerHeight
+        // - a fixed FRACTION OF THE WHOLE SCREEN, regardless of how much
+        // this element's own flex siblings (status bar, timer row, and
+        // especially the answer keypad/options BELOW it) actually leave
+        // available. On a question screen with a tall status bar and a
+        // numeric keypad underneath, that fixed fraction let this text
+        // grow larger than the real remaining space, so it overflowed past
+        // its own box into the keypad below (reported: "the question still
+        // isn't fully visible"). The element's DIRECT PARENT
+        // (.qi-player-question-scroll, a flex:1 column that already
+        // correctly absorbs everything above/below it) is the actual
+        // available-space budget for this text plus whatever answer UI
+        // shares it - measuring THAT instead makes this genuinely adapt to
+        // whatever room is really left, on any device, instead of guessing
+        // a screen-wide percentage.
+        const parent = element.parentElement;
+        const availableHeight = parent ? parent.clientHeight : window.innerHeight;
+        const limit = Math.max(48, availableHeight * maxViewportHeight) * 0.94;
         let next = authored;
         element.style.fontSize = `${next}px`;
         for (let attempt = 0; attempt < 10 && element.scrollHeight > limit && next > minFontSize; attempt += 1) {

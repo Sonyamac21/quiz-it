@@ -3,8 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HostShell, HostButton, HostInput, HostLabel, HostFrame, HostBody, HostPad, HostCrest, HostLoading, TopSpacer, Pill } from "@/components/fable/HostConsole";
-import { BrandMark } from "@/components/BrandMark";
-import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
+import { useConfirmDialog, BrandLockup } from "@/components/ui/quiz-it-ui";
 import { getQuizPreflight } from "@/lib/quiz/planStatus";
 
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -437,14 +436,15 @@ export default function SessionPage() {
       <div style={{ minHeight: "100vh", background: STAGE_BG, color: "#fff", padding: "24px 32px" }}>
         {/* TOP BAR — wordmark · breadcrumb · fixed nav */}
         <div className="fbh-top" style={{ border: "1px solid #2E1A52", borderRadius: 16, marginBottom: 24 }}>
-          {/* Host request: "use the word block, no circular icon, same size
-              everywhere" - this bar used to be its own one-off (a circular
-              /me-logo.jpg icon next to bare "QUIZ-IT" text, missing the
-              "Powered by Mac Entertainment / by Sonya Mac" lines every
-              other screen shows). Swapped for the same shared BrandMark
-              component, at the same size="lg" the Back Office header uses,
-              so this is the identical mark wherever a host sees it. */}
-          <BrandMark size="lg" align="left" />
+          {/* Host request: "this is the logo I want on ALL pages, screens" -
+              pointing at the plain BrandLockup mark (no icon) exactly as it
+              renders in Mission Control's own header. This used to render
+              BrandMark, a different component with its own letter-spacing
+              treatment that never quite matched Mission Control pixel for
+              pixel even at a similar size - switched to BrandLockup
+              compact, the same component/size Mission Control and Back
+              Office use, so this is the literal same mark everywhere. */}
+          <BrandLockup compact align="left" />
           <span className="fbh-bc">Live Preparation</span>
           <TopSpacer />
           <a className="fbh-btn" href="/host/events">Events</a>

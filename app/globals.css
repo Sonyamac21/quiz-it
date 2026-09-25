@@ -457,16 +457,26 @@ button, input, select, textarea { font: inherit; }
    the one genuinely unstyled element in the row. Matched to the same
    font/weight/letter-spacing already used for the Session PIN/Question
    values right next to it, rather than introducing a third treatment. */
-.qi-mc-round-select { width: clamp(10rem, 15vw, 15rem); min-height: 44px; display: flex; align-items: center; font-weight: 750; font-variant-numeric: tabular-nums; }
+.qi-mc-round-select { width: clamp(10rem, 15vw, 15rem); min-height: 44px; display: flex; align-items: center; font-weight: 750; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
-.qi-mc-toolbar { display: flex; align-items: center; gap: var(--qi-space-3); padding: var(--qi-space-3) clamp(1rem, 2vw, 2rem); border-bottom: 1px solid var(--qi-border); background: rgb(21 10 46 / 0.64); }
-.qi-mc-toolbar .qi-button { min-height: 44px; }
+/* Bug: "all is overlapping" - moving Photos and the round label into this
+   row (from the header's own nav, which already wraps) gave the toolbar
+   more children than it had room for at everyday laptop widths, and
+   without flex-wrap the toolbar didn't drop to a second row - instead
+   flexbox squeezed each button/toggle below its natural width, and because
+   none of them had white-space:nowrap, their own TEXT wrapped internally
+   ("Leaderboard controls" / "Skip Round" / "Back — Offer Spin" all broke
+   onto two lines and overlapped each other). Same root cause as the header
+   nav "buttons disappeared" bug - fixed the same way: let the row itself
+   wrap to a second line, and stop individual buttons from squeezing. */
+.qi-mc-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--qi-space-3); padding: var(--qi-space-3) clamp(1rem, 2vw, 2rem); border-bottom: 1px solid var(--qi-border); background: rgb(21 10 46 / 0.64); }
+.qi-mc-toolbar .qi-button { min-height: 44px; flex-shrink: 0; white-space: nowrap; }
 .qi-mc-toolbar__label { min-width: 170px; display: grid; line-height: 1.25; }
 .qi-mc-toolbar__label span, .qi-mc-teams__header span { color: var(--qi-text-muted); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
 .qi-mc-toolbar__label strong, .qi-mc-teams__header strong { font-size: 0.95rem; }
-.qi-mc-toolbar__toggle{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;min-height:44px;padding:7px 14px;border:1px solid var(--qi-border-strong);border-radius:var(--qi-radius-sm);background:rgb(255 255 255 / .04);color:#fff;text-align:left;cursor:pointer}.qi-mc-toolbar__toggle span{color:var(--qi-text-muted);font-size:.68rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase}.qi-mc-toolbar__toggle strong{font-size:.95rem}.qi-mc-toolbar__toggle i{color:var(--qi-accent-bright);font-size:.75rem;font-style:normal;font-weight:800}.qi-mc-toolbar__controls{display:flex;align-items:center;gap:var(--qi-space-2)}
+.qi-mc-toolbar__toggle{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;min-height:44px;padding:7px 14px;border:1px solid var(--qi-border-strong);border-radius:var(--qi-radius-sm);background:rgb(255 255 255 / .04);color:#fff;text-align:left;cursor:pointer;flex-shrink:0}.qi-mc-toolbar__toggle span{color:var(--qi-text-muted);font-size:.68rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;white-space:nowrap}.qi-mc-toolbar__toggle strong{font-size:.95rem;white-space:nowrap}.qi-mc-toolbar__toggle i{color:var(--qi-accent-bright);font-size:.75rem;font-style:normal;font-weight:800}.qi-mc-toolbar__controls{display:flex;align-items:center;gap:var(--qi-space-2);flex-shrink:0}
 .qi-mc-toolbar__hint { margin-left: auto; color: var(--qi-text-muted); font-size: var(--qi-type-sm); font-weight: 700; letter-spacing: 0.06em; }
-.qi-mc-toolbar__end { margin-left: auto; }
+.qi-mc-toolbar__end { margin-left: auto; flex-shrink: 0; }
 .qi-mc-toolbar__hint + .qi-mc-toolbar__end { margin-left: 0; }
 
 .qi-mc-next {
@@ -530,7 +540,17 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-round-card span { color: var(--qi-text-secondary); font-size: var(--qi-type-sm); }
 .qi-mc-question { width: min(100%, 72rem); height:100%; min-height:0; margin-inline:auto; display:flex; flex-direction:column; }
 .qi-mc-question__meta { display: flex; align-items: center; gap: var(--qi-space-2); margin-bottom: var(--qi-space-5); flex-wrap: wrap; }
-.qi-mc-question__title { flex:0 1 auto; max-height:22vh; overflow:hidden; overflow-wrap:anywhere; margin:0 0 var(--qi-space-6); font-size:clamp(2rem,1.4rem + 2.2vw,4rem); font-weight:850; line-height:1.18; text-wrap:balance; text-shadow:0 2px 12px rgb(0 0 0 / .3); }
+/* "I cannot read the full question" - the bottom of a wrapped second line
+   was getting sliced off by this rule's overflow:hidden. Two compounding
+   causes: (1) flex:0 1 auto let this shrink below the height FitBlockText
+   had already fit it to, if the flex column was even slightly tight for
+   space - changed to flex:0 0 auto (matching the hot-seat variant below,
+   which already avoided this same bug) so it never shrinks past its fitted
+   size. (2) text-wrap:balance can shift where the browser breaks lines
+   AFTER FitBlockText measures scrollHeight at a given font-size, so the
+   measurement and the final render didn't always agree - removed in favor
+   of plain wrapping, which is deterministic and matches what gets measured. */
+.qi-mc-question__title { flex:0 0 auto; max-height:22vh; overflow:hidden; overflow-wrap:anywhere; margin:0 0 var(--qi-space-6); font-size:clamp(2rem,1.4rem + 2.2vw,4rem); font-weight:850; line-height:1.18; text-shadow:0 2px 12px rgb(0 0 0 / .3); }
 .qi-mc-options { min-height:0; display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:minmax(0,auto); gap:clamp(5px,1vh,var(--qi-space-3)); margin-bottom:clamp(6px,1.2vh,var(--qi-space-5)); }
 .qi-mc-option { min-width:0; min-height:clamp(38px,6.2vh,64px); display:flex; align-items:center; padding:clamp(6px,1vh,var(--qi-space-3)) var(--qi-space-4); border:2px solid var(--qi-border); border-radius:var(--qi-radius-md); background:rgb(255 255 255 / 0.055); font-size:clamp(.82rem,min(1.45vw,2.15vh),1.15rem); line-height:1.18; overflow-wrap:anywhere; }
 .qi-mc-option--correct { border-color: var(--qi-success); background: rgb(46 224 110 / 0.15); box-shadow: 0 0 18px rgb(46 224 110 / 0.2); }

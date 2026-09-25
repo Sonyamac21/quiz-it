@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { BrandMark } from "@/components/BrandMark";
+import { BrandLockup } from "@/components/ui/quiz-it-ui";
 
 const groups = [
   { label: "Home", href: "/host", links: [["Overview", "/host"]], help: "Start with a Quiz Plan, prepare its media, then open the live session." },
@@ -31,22 +31,21 @@ export function BackOfficeShell({ children }: { children: ReactNode }) {
   const currentGroup = groups.find(group => group.links.some(([, href]) => matches(href))) || groups[0];
   return <div className="qi-back-office">
     <header className="qi-bo-header">
-      {/* Host request: the brand mark ("QUIZ-IT" / "Powered by Mac
-          Entertainment" / "by Sonya Mac", each on its own line) must look
-          identical everywhere it appears - font, relative sizing,
-          positioning, spacing - not a different one-off per screen. Shared
-          BrandMark component (components/BrandMark.tsx) is now the single
-          source for that content and hierarchy; only the size prop varies
-          per screen's own scale. This Back Office header was previously
-          missing the "by Sonya Mac" line entirely. */}
+      {/* Host request: the brand mark must look IDENTICAL everywhere it
+          appears on host-facing screens - same component, same size, not
+          just the same content. This used to render BrandMark size="lg",
+          which is a different component from the one Mission Control
+          (app/host/quiz) uses for its live header (BrandLockup compact) -
+          same words, but a different font-stretching treatment, so the two
+          never actually matched pixel-for-pixel even at a similar size.
+          Switched to BrandLockup compact so Back Office's mark is the exact
+          same component/size as the live host screen's. */}
       {/* justifySelf:"start" keeps this pinned to its original left corner -
-          without it, this grid cell's default stretch alignment let the
-          (now content-width) BrandMark box grow to fill the whole cell,
-          which visually dragged the logo away from the corner into the
-          middle of the header. align="center" only centers each line
-          *within* the logo's own box (so the block itself reads as a
-          rectangle); it was never meant to re-center the block on the page. */}
-      <Link href="/host" style={{ textDecoration: "none", justifySelf: "start" }}><BrandMark size="lg" align="center" /></Link>
+          without it, this grid cell's default stretch alignment would let
+          the (content-width) brand box grow to fill the whole cell, which
+          visually drags the logo away from the corner into the middle of
+          the header. */}
+      <Link href="/host" style={{ textDecoration: "none", justifySelf: "start" }}><BrandLockup compact /></Link>
       <nav aria-label="Main host navigation">{groups.map(group => <Link key={group.href} href={group.href} aria-current={currentGroup === group ? "page" : undefined}>{group.label}</Link>)}</nav>
       <Link href="/host/session" className="qi-bo-live">Run a quiz →</Link>
     </header>

@@ -39,11 +39,17 @@ export function FitBlockText({ as = "div", children, className, maxViewportHeigh
       frame = requestAnimationFrame(() => {
         element.style.fontSize = "";
         const authored = parseFloat(getComputedStyle(element).fontSize) || minFontSize;
-        const limit = Math.max(48, window.innerHeight * maxViewportHeight);
+        // Small safety margin below the CSS max-height this text sits in -
+        // without it, a shrink that lands right at the limit could still
+        // get its last line's descenders clipped by the container's own
+        // overflow:hidden after fonts/kerning settle slightly differently
+        // than this measurement pass. Reported as "I cannot read the full
+        // question" - the second line was visibly sliced off mid-letter.
+        const limit = Math.max(48, window.innerHeight * maxViewportHeight) * 0.94;
         let next = authored;
         element.style.fontSize = `${next}px`;
-        for (let attempt = 0; attempt < 8 && element.scrollHeight > limit && next > minFontSize; attempt += 1) {
-          next = Math.max(minFontSize, next * (limit / element.scrollHeight) * 0.98);
+        for (let attempt = 0; attempt < 10 && element.scrollHeight > limit && next > minFontSize; attempt += 1) {
+          next = Math.max(minFontSize, next * (limit / element.scrollHeight) * 0.92);
           element.style.fontSize = `${next}px`;
         }
         setFontSize(next);

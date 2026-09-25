@@ -486,8 +486,16 @@ button, input, select, textarea { font: inherit; }
    onto two lines and overlapped each other). Same root cause as the header
    nav "buttons disappeared" bug - fixed the same way: let the row itself
    wrap to a second line, and stop individual buttons from squeezing. */
-.qi-mc-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--qi-space-2); padding: 0.4rem clamp(1rem, 2vw, 2rem); border-bottom: 1px solid var(--qi-border); background: rgb(21 10 46 / 0.64); }
-.qi-mc-toolbar .qi-button { min-height: 36px; flex-shrink: 0; white-space: nowrap; }
+/* Host request: "moving all into top bar... would get rid of the block
+   between the logo and the space action bar" - this used to be a whole
+   separate .qi-mc-toolbar element sitting under the header, with its own
+   border-bottom/background/padding (a second full chrome block). It's now
+   a plain second row INSIDE .qi-mc-header itself (grid-column spans the
+   header's full width), sharing the header's one background/blur/padding
+   instead of stacking a second one - just a thin border-top to separate it
+   from the brand/session/nav row above. */
+.qi-mc-header__row2 { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--qi-space-2); margin-top: var(--qi-space-2); padding-top: var(--qi-space-2); border-top: 1px solid var(--qi-border); }
+.qi-mc-header__row2 .qi-button { min-height: 36px; flex-shrink: 0; white-space: nowrap; }
 .qi-mc-toolbar__label { min-width: 170px; display: grid; line-height: 1.25; }
 .qi-mc-toolbar__label span, .qi-mc-teams__header span { color: var(--qi-text-muted); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
 .qi-mc-toolbar__label strong, .qi-mc-teams__header strong { font-size: 0.95rem; }
@@ -644,7 +652,7 @@ button, input, select, textarea { font: inherit; }
    C, B on D). Back to content-sized rows (minmax(0,auto)); flex:1 alone is
    enough for this to grow into slack space above the answer bubble without
    the indeterminate-height row-collapse. */
-.qi-mc-options { flex:1 1 auto; min-height:0; display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:minmax(0,auto); align-content:center; gap:calc(var(--qi-fit-scale,1) * clamp(5px,1vh,var(--qi-space-3))); margin-bottom:calc(var(--qi-fit-scale,1) * clamp(6px,1.2vh,var(--qi-space-5))); }
+.qi-mc-options { flex:1 1 auto; min-height:0; display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:minmax(0,auto); align-content:center; gap:calc(var(--qi-fit-scale,1) * clamp(5px,1vh,var(--qi-space-3))); margin-bottom:8px; }
 .qi-mc-option { min-width:0; min-height:calc(var(--qi-fit-scale,1) * clamp(38px,6.2vh,64px)); display:flex; align-items:center; padding:calc(var(--qi-fit-scale,1) * clamp(6px,1vh,var(--qi-space-3))) calc(var(--qi-fit-scale,1) * var(--qi-space-4)); border:2px solid var(--qi-border); border-radius:var(--qi-radius-md); background:rgb(255 255 255 / 0.055); font-size:calc(var(--qi-fit-scale,1) * clamp(.82rem,min(1.45vw,2.15vh),1.15rem)); line-height:1.18; overflow-wrap:anywhere; }
 .qi-mc-option--correct { border-color: var(--qi-success); background: rgb(46 224 110 / 0.15); box-shadow: 0 0 18px rgb(46 224 110 / 0.2); }
 /* Sequence round options - previously all-inline styles on the host
@@ -664,7 +672,14 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-sequence--triple { grid-template-columns:repeat(3, 1fr); }
 .qi-mc-sequence__option { min-width:0; min-height:calc(var(--qi-fit-scale,1) * clamp(38px,6.2vh,64px)); display:flex; align-items:center; gap:calc(var(--qi-fit-scale,1) * 10px); padding:calc(var(--qi-fit-scale,1) * clamp(6px,1vh,var(--qi-space-3))) calc(var(--qi-fit-scale,1) * var(--qi-space-4)); border-radius:var(--qi-radius-md); background:rgb(255 255 255 / 0.055); border:2px solid var(--qi-border); font-size:calc(var(--qi-fit-scale,1) * clamp(.82rem,min(1.45vw,2.15vh),1.15rem)); line-height:1.18; overflow-wrap:anywhere; }
 .qi-mc-sequence__option > span:first-child { color:#BE26C1; font-weight:800; min-width:calc(var(--qi-fit-scale,1) * 24px); flex-shrink:0; }
-.qi-mc-answer-key { flex:0 0 auto; min-width:0; margin-bottom:calc(var(--qi-fit-scale,1) * clamp(8px,1.4vh,var(--qi-space-4))); padding:calc(var(--qi-fit-scale,1) * var(--qi-space-3)) calc(var(--qi-fit-scale,1) * var(--qi-space-4)); border:1px solid rgb(46 224 110 / 0.4); border-radius:var(--qi-radius-md); background:rgb(46 224 110 / 0.12); overflow:hidden; }
+/* Host request: "this space could also be removed" - the gap between the
+   answer bubble and Manual Recovery Controls below it. That gap was this
+   margin-bottom, multiplied by --qi-fit-scale like everything else in this
+   block - but at the higher end of FitScaleBlock's range (now up to 2.1x)
+   a small base value like 8-20px turns into a real, visible dead strip.
+   Spacing between elements doesn't need to grow with the fit scale the way
+   the text/options themselves do, so this is a small fixed gap instead. */
+.qi-mc-answer-key { flex:0 0 auto; min-width:0; margin-bottom:6px; padding:calc(var(--qi-fit-scale,1) * var(--qi-space-3)) calc(var(--qi-fit-scale,1) * var(--qi-space-4)); border:1px solid rgb(46 224 110 / 0.4); border-radius:var(--qi-radius-md); background:rgb(46 224 110 / 0.12); overflow:hidden; }
 .qi-mc-answer-key > div:first-child { color: var(--qi-success) !important; }
 .qi-mc-answer-key__answer { color:var(--qi-success); font-size:calc(var(--qi-fit-scale,1) * clamp(1.05rem,1rem + .45vw,1.5rem)); font-weight:750; line-height:1.18; overflow-wrap:anywhere; }
 .qi-mc-answer-key__explanation { margin-top:6px; color:rgba(255,255,255,.6); font-size:calc(var(--qi-fit-scale,1) * clamp(.72rem,.68rem + .12vw,.875rem)); line-height:1.35; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }

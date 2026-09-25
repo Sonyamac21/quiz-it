@@ -2572,14 +2572,16 @@ function QuizControllerInner() {
           {sessionId && <PairsPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pairs").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPairsActive(active); if (!active) setPairsAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pairsAutoStartId} />}
           <a href={sessionPin ? `/host/display?pin=${encodeURIComponent(sessionPin)}` : "/host/display"} target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
         </nav>
-      </header>
-
-      {/* SCOREBOARD BUTTONS BAR - host request: "the skip round, back offer
-          spin and end quiz then can go on the same line as regular round 1"
-          - Photos and the Audience/Leaderboard toggle moved up into the
-          header nav (see above), so this row is now just the round name,
-          the recovery-button group and End quiz, all fitting on one line. */}
-      <div className="qi-mc-toolbar">
+        {/* Host request: "moving all into top bar? regular round, skip round,
+            offer back, end quiz. would get rid of the block between the logo
+            and the space action bar." - this used to be its own
+            .qi-mc-toolbar element directly under the header, with its own
+            border/background/padding, i.e. a whole extra chrome block. Now
+            it's just a second row inside the SAME header (spans the full
+            header width via grid-column), so there's one shared
+            background/border/padding instead of two stacked ones - freeing
+            that block's height for the question below. */}
+        <div className="qi-mc-header__row2">
         <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
         {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
         {/* Host request: "move Back - Offer Spin beside Skip Round" - these
@@ -2617,7 +2619,8 @@ function QuizControllerInner() {
           )}
         </div>
         <Button variant="destructive" className="qi-mc-toolbar__end" onClick={async () => { const closing = hostPhase === "quiz_end"; if (await confirmDialog(closing ? "Close this session for good? It'll be marked completed in Reports and cannot be reopened." : "End the quiz for everyone? This closes the live session and cannot be undone.", { tone: "destructive", confirmLabel: closing ? "Close Session" : "End Quiz" })) doEndOfQuiz(); }}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
-      </div>
+        </div>
+      </header>
 
       {/* DOMINANT NEXT-ACTION BAR — the one thing the host acts on next, huge and
           clickable (same as pressing Space). Readable from across the room / at a

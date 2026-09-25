@@ -415,7 +415,7 @@ button, input, select, textarea { font: inherit; }
   top: 0;
   z-index: var(--qi-z-sticky, 30);
   display: grid;
-  grid-template-columns: minmax(230px, auto) minmax(330px, 1fr) auto;
+  grid-template-columns: minmax(230px, auto) minmax(200px, 1fr) minmax(0, auto);
   align-items: center;
   gap: var(--qi-space-5);
   padding: var(--qi-space-4) clamp(1rem, 2vw, 2rem);
@@ -436,9 +436,28 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-session > div { min-width: 82px; display: grid; gap: 0.05rem; padding: var(--qi-space-2) var(--qi-space-3); border: 1px solid var(--qi-border); border-radius: var(--qi-radius-md); background: var(--qi-bg-surface); }
 .qi-mc-session > div span { color: var(--qi-text-muted); font-size: 0.66rem; font-weight: 750; letter-spacing: 0.09em; text-transform: uppercase; }
 .qi-mc-session > div strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
-.qi-mc-nav { display: flex; align-items: center; justify-content: flex-end; gap: var(--qi-space-2); }
+/* Host request: "Photos, live display pink button - all just disappeared."
+   Real cause - this row was gated to only wrap at specific VIEWPORT
+   breakpoints (see the max-width:1360px/860px rules below), which assumed
+   the header always spanned the full page width. Since the team rail now
+   takes a real column of that width (see .qi-mc-shell), the header's
+   actual available width shrank well under 1360px even on a wide monitor,
+   but the viewport itself never crossed that threshold - so the wrap rule
+   never fired, and Photos/Open Display simply overflowed past the header's
+   own box, ending up rendered underneath the rail's opaque background
+   (which paints over it, not literally "gone"). flex-wrap here at every
+   width - not just past a media-query breakpoint - means the row grows
+   downward into its own row's free space instead of overflowing
+   sideways, regardless of how wide the header's own column happens to be. */
+.qi-mc-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--qi-space-2); }
 .qi-mc-nav .qi-button { min-height: 44px; padding-inline: var(--qi-space-4); text-decoration: none; white-space: nowrap; }
-.qi-mc-round-select { width: clamp(10rem, 15vw, 15rem); min-height: 44px; }
+/* Host report: "'1. Regular Round' text ... weird looking font." It had no
+   font-family of its own, so it fell back to the plain body sans-serif
+   next to everything else in this header using the branded display font -
+   the one genuinely unstyled element in the row. Matched to the same
+   font/weight/letter-spacing already used for the Session PIN/Question
+   values right next to it, rather than introducing a third treatment. */
+.qi-mc-round-select { width: clamp(10rem, 15vw, 15rem); min-height: 44px; display: flex; align-items: center; font-weight: 750; font-variant-numeric: tabular-nums; }
 
 .qi-mc-toolbar { display: flex; align-items: center; gap: var(--qi-space-3); padding: var(--qi-space-3) clamp(1rem, 2vw, 2rem); border-bottom: 1px solid var(--qi-border); background: rgb(21 10 46 / 0.64); }
 .qi-mc-toolbar .qi-button { min-height: 44px; }

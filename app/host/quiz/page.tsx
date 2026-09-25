@@ -2465,77 +2465,77 @@ function QuizControllerInner() {
           <BrandLockup compact />
           <span className="qi-mc-brand__section">Mission Control</span>
         </div>
-        <div className="qi-mc-session" aria-label="Live session information">
-          <div><span>Session PIN</span><strong>{sessionPin}</strong></div>
-          {/* Host request: "Question at top bar isn't needed" - this pill just
-              echoed hostPhase ("question"/"timer"/etc), which is already
-              obvious from the Next Action bar and the question card below;
-              removed rather than relocated. Question count was removed the
-              same way in the previous pass (it's already the "Qn of N" badge
-              on the question card). */}
+        {/* Host request: "top - logo (taking 2 lines), session pin, tv, open
+            display, end quiz. Next line - logo, leaderboard, round
+            description, photos, skip round" - the flowing flex-wrap row
+            wrapped wherever width ran out, not in any particular grouping.
+            Now the logo spans both rows on the left (grid-row: 1 / span 2)
+            and the rest is two explicit stacked rows matching exactly what
+            was asked for: top = Session PIN/TV/Open Display/End quiz,
+            bottom = Leaderboard controls/round name/Photos/Skip Round
+            (grouped with its own recovery buttons). */}
+        <div className="qi-mc-header__content">
+          <div className="qi-mc-header__top">
+            <div className="qi-mc-session" aria-label="Live session information">
+              <div><span>Session PIN</span><strong>{sessionPin}</strong></div>
+              {/* Host request: "Question at top bar isn't needed" - this pill
+                  just echoed hostPhase ("question"/"timer"/etc), which is
+                  already obvious from the Next Action bar and the question
+                  card below; removed rather than relocated. */}
+            </div>
+            {FEATURE_FLAGS.diagnostics && <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>}
+            {FEATURE_FLAGS.diagnostics && connected && <button className={`qi-button qi-button--secondary qi-mc-tv-status${displayHealth.health.level !== "healthy" ? " qi-mc-tv-status--warn" : ""}`} onClick={() => setDiagnosticsOpen(true)} title={displayHealth.health.level === "healthy" ? "TV: up to date" : displayHealth.health.summary} aria-live="polite">TV</button>}
+            <a href={sessionPin ? `/host/display?pin=${encodeURIComponent(sessionPin)}` : "/host/display"} target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
+            <Button variant="destructive" className="qi-mc-toolbar__end" onClick={async () => { const closing = hostPhase === "quiz_end"; if (await confirmDialog(closing ? "Close this session for good? It'll be marked completed in Reports and cannot be reopened." : "End the quiz for everyone? This closes the live session and cannot be undone.", { tone: "destructive", confirmLabel: closing ? "Close Session" : "End Quiz" })) doEndOfQuiz(); }}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
+          </div>
+          <div className="qi-mc-header__bottom">
+            <button type="button" className="qi-mc-toolbar__toggle" aria-expanded={audienceControlsOpen} onClick={() => setAudienceControlsOpen(open => !open)}><span>Audience</span><strong>{selectedRound?.hide_leaderboard ? "Leaderboards hidden for this round" : showScoreboard || showScoreboardOnHandsets ? "Leaderboard showing" : "Leaderboard controls"}</strong><i>{audienceControlsOpen ? "Hide" : "Show"}</i></button>
+            {audienceControlsOpen && <div className="qi-mc-toolbar__controls">
+              <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handsets hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
+              <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
+            </div>}
+            <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
+            {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
+            {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
+            <div className="qi-mc-toolbar__group">
+              {/* Escape hatch for a round that's stuck with no question to
+                  reveal - e.g. a Hard Deck/Pursuit placeholder round with 0
+                  questions in the running order, walked into via the normal
+                  question flow instead of its own overlay. doRevealAnswer's
+                  `if (!currentQ) return;` guard then leaves "Reveal
+                  Answer"/Space doing nothing forever with no other way
+                  forward. Always visible during a round (not just when
+                  stuck) so the host never has to hunt for it mid-show. */}
+              {hostPhase !== "waiting" && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
+                <Button variant="secondary" onClick={async () => { if (await confirmDialog("Skip the rest of this round and move on? Use this if the round is stuck (e.g. Space isn't doing anything).")) doEndRound(); }}>Skip Round</Button>
+              )}
+              {/* Escape hatch for "nobody's going to buzz in" - previously the
+                  only way to end a Hot Seat question was to let every
+                  remaining team individually claim it, answer wrong, and get
+                  locked out one by one, which is slow with a full room and
+                  has no quick way out when the room's just stuck on a hard
+                  question. */}
+              {hostPhase === "hot_seat" && hotSeatStatus !== "claimed" && (
+                <Button variant="secondary" onClick={async () => { if (await confirmDialog("Nobody's buzzing in - end this question with no one scoring and reveal the answer?")) doRevealAnswer(); }}>Nobody Knows It — Reveal Answer</Button>
+              )}
+              {/* "I forgot to offer the spin" escape hatch - available on
+                  every normal question screen once there's a previous
+                  question to go back to. Hot Seat/Pursuit/Hard Deck don't
+                  use Spin to Win, so this only needs to appear during the
+                  regular question flow. */}
+              {qIdx > 0 && ["preview", "question", "timer", "answer", "celebration"].includes(hostPhase) && (
+                <Button variant="secondary" onClick={async () => { if (await confirmDialog("Go back and re-offer the spin for the previous question's fastest correct team?")) goBackToOfferSpin(); }}>Back — Offer Spin</Button>
+              )}
+            </div>
+          </div>
         </div>
-        {/* Host request: "move [Regular Round/Skip Round/Back-Offer-Spin/End
-            quiz] into here" (pointing at the empty space beside the Session
-            PIN badge) "then move up the space action bar" - this used to be
-            its own row under the header (and before that, its own separate
-            .qi-mc-toolbar block entirely). Now it's just more children in
-            the header's own flex row, filling the space next to Session PIN
-            instead of taking a whole row/block of its own - which is what
-            lets the Next Action bar sit directly under the header now. */}
-        <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
-        {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
-        <div className="qi-mc-toolbar__group">
-          {/* Escape hatch for a round that's stuck with no question to reveal -
-              e.g. a Hard Deck/Pursuit placeholder round with 0 questions in the
-              running order, walked into via the normal question flow instead of
-              its own overlay. doRevealAnswer's `if (!currentQ) return;` guard
-              then leaves "Reveal Answer"/Space doing nothing forever with no
-              other way forward. Always visible during a round (not just when
-              stuck) so the host never has to hunt for it mid-show. */}
-          {hostPhase !== "waiting" && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
-            <Button variant="secondary" onClick={async () => { if (await confirmDialog("Skip the rest of this round and move on? Use this if the round is stuck (e.g. Space isn't doing anything).")) doEndRound(); }}>Skip Round</Button>
-          )}
-          {/* Escape hatch for "nobody's going to buzz in" - previously the only
-              way to end a Hot Seat question was to let every remaining team
-              individually claim it, answer wrong, and get locked out one by
-              one, which is slow with a full room and has no quick way out when
-              the room's just stuck on a hard question. */}
-          {hostPhase === "hot_seat" && hotSeatStatus !== "claimed" && (
-            <Button variant="secondary" onClick={async () => { if (await confirmDialog("Nobody's buzzing in - end this question with no one scoring and reveal the answer?")) doRevealAnswer(); }}>Nobody Knows It — Reveal Answer</Button>
-          )}
-          {/* "I forgot to offer the spin" escape hatch - available on every
-              normal question screen once there's a previous question to go
-              back to. Hot Seat/Pursuit/Hard Deck don't use Spin to Win, so
-              this only needs to appear during the regular question flow. */}
-          {qIdx > 0 && ["preview", "question", "timer", "answer", "celebration"].includes(hostPhase) && (
-            <Button variant="secondary" onClick={async () => { if (await confirmDialog("Go back and re-offer the spin for the previous question's fastest correct team?")) goBackToOfferSpin(); }}>Back — Offer Spin</Button>
-          )}
-        </div>
-        <nav className="qi-mc-nav" aria-label="Mission Control navigation">
-          {/* Host request: "leaderboard controls and photos could move into
-              that space" - Photos and the Audience/Leaderboard toggle used to
-              sit in the toolbar row below (competing with Skip Round/Back -
-              Offer Spin/End quiz for space); moved up here into the header
-              nav, which has room to spare, freeing the toolbar to fit
-              everything on one line. */}
-          {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
-          <button type="button" className="qi-mc-toolbar__toggle" aria-expanded={audienceControlsOpen} onClick={() => setAudienceControlsOpen(open => !open)}><span>Audience</span><strong>{selectedRound?.hide_leaderboard ? "Leaderboards hidden for this round" : showScoreboard || showScoreboardOnHandsets ? "Leaderboard showing" : "Leaderboard controls"}</strong><i>{audienceControlsOpen ? "Hide" : "Show"}</i></button>
-          {audienceControlsOpen && <div className="qi-mc-toolbar__controls">
-            <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handsets hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
-            <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
-          </div>}
-          {/* Host request (repeated twice): "remove events, rules and question
-              number... and move all up" - Events and Rules ate header width
-              every single question, for something a host needs to check at
-              most once at the top of a round. Rules content is still fully
-              reachable via the round-start briefing screen. */}
-          {FEATURE_FLAGS.diagnostics && <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>}
-          {/* Host request: "'TV' can be shortened to just TV" - the full
-              sentence (e.g. "Waiting for TV reply") was the widest thing in
-              this row and the reason it wrapped to a second line; the detail
-              is still one click away via the title tooltip and the
-              diagnostics panel this opens. */}
-          {FEATURE_FLAGS.diagnostics && connected && <button className={`qi-button qi-button--secondary qi-mc-tv-status${displayHealth.health.level !== "healthy" ? " qi-mc-tv-status--warn" : ""}`} onClick={() => setDiagnosticsOpen(true)} title={displayHealth.health.level === "healthy" ? "TV: up to date" : displayHealth.health.summary} aria-live="polite">TV</button>}
+        {/* Host request (repeated twice): "remove events, rules and question
+            number... and move all up" - Events and Rules ate header width
+            every single question, for something a host needs to check at
+            most once at the top of a round. Rules content is still fully
+            reachable via the round-start briefing screen. These panels
+            render their own overlays/modals when active, so their position
+            here (outside the two visible rows above) doesn't affect layout. */}
         {rulesOpen && typeof document !== "undefined" && createPortal(
           // Rendered as a portal to document.body rather than inline here.
           // The header this button lives in has backdrop-filter:blur() for
@@ -2604,12 +2604,9 @@ function QuizControllerInner() {
           </div>,
           document.body
         )}
-          {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} scores={scores} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setHardDeckActive(active); if (!active) setHardDeckAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={hardDeckAutoStartId} />}
-          {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pursuitAutoStartId} />}
-          {sessionId && <PairsPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pairs").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPairsActive(active); if (!active) setPairsAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pairsAutoStartId} />}
-          <a href={sessionPin ? `/host/display?pin=${encodeURIComponent(sessionPin)}` : "/host/display"} target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
-        </nav>
-        <Button variant="destructive" className="qi-mc-toolbar__end" onClick={async () => { const closing = hostPhase === "quiz_end"; if (await confirmDialog(closing ? "Close this session for good? It'll be marked completed in Reports and cannot be reopened." : "End the quiz for everyone? This closes the live session and cannot be undone.", { tone: "destructive", confirmLabel: closing ? "Close Session" : "End Quiz" })) doEndOfQuiz(); }}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
+        {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} scores={scores} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setHardDeckActive(active); if (!active) setHardDeckAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={hardDeckAutoStartId} />}
+        {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pursuitAutoStartId} />}
+        {sessionId && <PairsPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pairs").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPairsActive(active); if (!active) setPairsAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pairsAutoStartId} />}
       </header>
 
       {/* DOMINANT NEXT-ACTION BAR — the one thing the host acts on next, huge and

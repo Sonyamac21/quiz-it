@@ -1491,7 +1491,34 @@ export default function QuizBuilderPage() {
                     )}
                     <span className="qi-text-sm" style={{ fontFamily: "'Inter'", fontWeight: 700, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", paddingRight: isRoundGeneratable ? 16 : 0 }}>{index + 1}. {round.name}</span>
                     <span style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-                      <span className="qi-text-xs" style={{ color: "#6B5A8E", fontFamily: "'Inter'", fontWeight: 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "0 1 auto" }}>{round.round_type === "pairs" ? `${readPairsQuestions(round.questions).length} Q · 6 tiles each` : `${round.questions.length} Q - ${round.round_type}`}</span>
+                      {(() => {
+                        // The green/red progress dot below only lives in
+                        // this tab's in-memory bulkProgress state, so a host
+                        // who reloads or navigates away loses ANY signal on
+                        // whether a round that came up short of its target
+                        // stopped there permanently or just hasn't been
+                        // topped up yet ("how do I know when it thinks it's
+                        // finished?"). This count label is derived purely
+                        // from saved data (questions on the round vs. its
+                        // saved/effective target), so it survives a reload
+                        // and always tells the host plainly whether a round
+                        // is still short - "8 of 10 Q" - or fully at target -
+                        // just "10 Q" - with no dependence on session state.
+                        const actualCount = round.round_type === "pairs" ? readPairsQuestions(round.questions).length : round.questions.length;
+                        const cfgCount = bulkConfig[round.id]?.count;
+                        const effectiveTarget = !isRoundGeneratable ? null
+                          : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS
+                          : round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS
+                          : Number.isFinite(cfgCount) && (cfgCount as number) > 0 ? (cfgCount as number)
+                          : targetQuestionCount(round.round_type, round.target_count);
+                        const short = effectiveTarget !== null && actualCount > 0 && actualCount < effectiveTarget;
+                        const countText = round.round_type === "pairs"
+                          ? (short ? `${actualCount} of ${effectiveTarget} Q · 6 tiles each` : `${actualCount} Q · 6 tiles each`)
+                          : (short ? `${actualCount} of ${effectiveTarget} Q - ${round.round_type}` : `${actualCount} Q - ${round.round_type}`);
+                        return (
+                          <span className="qi-text-xs" style={{ color: short ? "#FFC533" : "#6B5A8E", fontFamily: "'Inter'", fontWeight: 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "0 1 auto" }} title={short ? "Below its target question count - use Generate More or +GENERATE WITH AI to top it up" : undefined}>{countText}</span>
+                        );
+                      })()}
                       {/* Both of these used to be their own full text line(s)
                           (a 2-line generation-progress message, a "MUSIC NOT
                           PREPPED" warning line) - collapsed to a small

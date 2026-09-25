@@ -562,7 +562,18 @@ export default function MusicPrepPage() {
   return (
     <HostShell>
       {confirmDialogEl}
-      <div style={{ height: "100dvh", overflowY: "auto", WebkitOverflowScrolling: "touch" as const, background: STAGE_BG, color: "#fff", padding: "24px", maxWidth: 980, margin: "0 auto", boxSizing: "border-box" as const }}>
+      {/* Used to be height:100dvh + its own overflowY:auto - a leftover
+          from before the site-wide Back Office header/nav existed above
+          this page. With that global header now present, this div's own
+          full-viewport-height scroll box sat BELOW the header, pushing its
+          bottom edge past the actual viewport - the mouse wheel scrolled
+          this box's internal content instead of the page, so that clipped
+          bottom portion could only be reached by shrinking the browser
+          window enough for the page's own natural scroll to kick in
+          ("it's letting me scroll if my screen isn't at full screen").
+          Dropping the fixed height lets this flow naturally and scroll the
+          normal page way, exactly like every other host screen. */}
+      <div style={{ background: STAGE_BG, color: "#fff", padding: "24px", maxWidth: 980, margin: "0 auto", boxSizing: "border-box" as const }}>
         {/* This page used to render its own separate mini header here (tiny
             wordmark, "Music Prep" breadcrumb, its own Events/Round Library
             links) - a leftover from before the site-wide header (rendered

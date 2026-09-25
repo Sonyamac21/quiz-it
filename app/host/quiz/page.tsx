@@ -2471,24 +2471,18 @@ function QuizControllerInner() {
           {selectedRound ? <div><span>Question</span><strong>{qIdx+1} / {selectedRound.questions.length}</strong></div> : null}
         </div>
         <nav className="qi-mc-nav" aria-label="Mission Control navigation">
-          {/* Host request: "I don't think I need these on screen during the
-              questions....so leaderboard controls and photos could move into
+          {/* Host request: "leaderboard controls and photos could move into
               that space" - Photos and the Audience/Leaderboard toggle used to
               sit in the toolbar row below (competing with Skip Round/Back -
               Offer Spin/End quiz for space); moved up here into the header
-              nav AND now only rendered outside the actual question flow
-              (waiting/round_start/round_end/quiz_end), so they're off-screen
-              entirely - not just relocated - while a question is live. */}
-          {!["preview", "question", "timer", "hot_seat", "pairs", "answer", "celebration"].includes(hostPhase) && (
-            <>
-              {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
-              <button type="button" className="qi-mc-toolbar__toggle" aria-expanded={audienceControlsOpen} onClick={() => setAudienceControlsOpen(open => !open)}><span>Audience</span><strong>{selectedRound?.hide_leaderboard ? "Leaderboards hidden for this round" : showScoreboard || showScoreboardOnHandsets ? "Leaderboard showing" : "Leaderboard controls"}</strong><i>{audienceControlsOpen ? "Hide" : "Show"}</i></button>
-              {audienceControlsOpen && <div className="qi-mc-toolbar__controls">
-                <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handsets hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
-                <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
-              </div>}
-            </>
-          )}
+              nav, which has room to spare, freeing the toolbar to fit
+              everything on one line. */}
+          {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
+          <button type="button" className="qi-mc-toolbar__toggle" aria-expanded={audienceControlsOpen} onClick={() => setAudienceControlsOpen(open => !open)}><span>Audience</span><strong>{selectedRound?.hide_leaderboard ? "Leaderboards hidden for this round" : showScoreboard || showScoreboardOnHandsets ? "Leaderboard showing" : "Leaderboard controls"}</strong><i>{audienceControlsOpen ? "Hide" : "Show"}</i></button>
+          {audienceControlsOpen && <div className="qi-mc-toolbar__controls">
+            <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handsets hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
+            <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
+          </div>}
           <a className="qi-button qi-button--quiet" href="/host/events">Events</a>
           <Button variant="quiet" onClick={() => setRulesOpen(true)}>Rules</Button>
           {FEATURE_FLAGS.diagnostics && <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>}

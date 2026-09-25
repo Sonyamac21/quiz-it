@@ -209,6 +209,8 @@ export const PERMANENT_EXCLUDED_FACTS = [
   "Which movie features a character who can see dead people? (The Sixth Sense)",
   "Which comedian played the character David Brent in the original UK version of The Office? (Ricky Gervais)",
   "What is the surname of the chef who created the 'Naked Chef' TV persona? (Oliver / Jamie Oliver)",
+  "Name this tropical landmark. (Christ the Redeemer, Rio de Janeiro)",
+  "Which waterfall is shown in this landmark photograph? (Niagara Falls, Canada and USA)",
 ];
 // A picture-type candidate's photo query is restricted (see generateOne's
 // picture instructions) to only: a famous landmark/building, an animal or

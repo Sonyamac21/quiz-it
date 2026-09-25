@@ -618,6 +618,33 @@ export default function QuizBuilderPage() {
     });
     await removeRoundQuestion(round, qIndex);
   }
+  // Sends every freshly AI-generated question (not the round's whole
+  // existing list - only genuinely NEW ones, so a repeated save/regenerate
+  // never re-inserts the same question into the library again) into the
+  // standalone Question Library, the same way moveQuestionToLibrary's
+  // manual "send to library" action does. Skips anything without real
+  // question_text - Pairs (Match Made) questions store their content as a
+  // `pairs` array with no question_text/correct_answer of their own, so
+  // mapping them through this same shape would insert a meaningless blank
+  // row rather than anything a host could actually reuse from the library.
+  async function addGeneratedQuestionsToLibrary(questions: Record<string, unknown>[], roundType: string, difficulty: string) {
+    const usable = questions.filter(q => typeof q.question_text === "string" && q.question_text.trim());
+    if (!usable.length) return;
+    const supabase = createSupabaseBrowserClient();
+    await supabase.from("question_bank").insert(usable.map(q => ({
+      question_text: q.question_text ?? "",
+      question_type: q.question_type ?? null,
+      option_a: q.option_a ?? null,
+      option_b: q.option_b ?? null,
+      option_c: q.option_c ?? null,
+      option_d: q.option_d ?? null,
+      option_e: q.option_e ?? null,
+      option_f: q.option_f ?? null,
+      correct_answer: q.correct_answer ?? "",
+      difficulty: q.difficulty ?? difficulty ?? "mixed",
+      round_type: roundType,
+    })));
+  }
   async function syncRoundToLibrary(round: QuizRound, questions: Record<string, unknown>[], quizName: string) {
     const supabase = createSupabaseBrowserClient();
     await supabase.from("rounds").upsert({
@@ -679,6 +706,7 @@ export default function QuizBuilderPage() {
       await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
       setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
       if (selected) void syncRoundToLibrary(round, newQuestions, selected.name);
+      void addGeneratedQuestionsToLibrary(result.questions, round.round_type, difficulty);
     } finally {
       setSwappingKey(null);
     }
@@ -833,6 +861,7 @@ export default function QuizBuilderPage() {
             return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: persistedQuestions } : r) };
           }));
           void syncRoundToLibrary(round, persistedQuestions, selected.name);
+          void addGeneratedQuestionsToLibrary(generatedQuestions, round.round_type, bulkConfig[round.id]?.difficulty || round.difficulty || "mixed");
         },
       );
     } finally {
@@ -915,6 +944,7 @@ export default function QuizBuilderPage() {
       const actualAdded = Math.max(0, persistedQuestions.length - liveQuestions.length);
       setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: persistedQuestions } : r) }));
       if (selected) void syncRoundToLibrary(round, persistedQuestions, selected.name);
+      void addGeneratedQuestionsToLibrary(generatedQuestions, round.round_type, effectiveDifficulty);
       const shortfall = actualAdded < n;
       // This used to only live in generatingMoreStatus, which is rendered
       // ONLY while generatingMoreId === this round's id - and that got
@@ -1482,7 +1512,7 @@ export default function QuizBuilderPage() {
                         );
                       })()}
                       {round.questions.some(q => (q as Record<string, unknown>).question_type === "audio") && !roundMusicIsPrepped(round) && (
-                        <span className="qi-text-xs" title="One or more audio questions in this round have no saved clip yet - open Music Prep before this quiz can go live" style={{ flex: "none", color: "#FFC533", fontFamily: "'Inter'", fontWeight: 700 }}>⚠</span>
+                        <span title="One or more audio questions in this round have no saved clip yet - open Music Prep before this quiz can go live" style={{ flex: "none", color: "#FFC533", fontFamily: "'Inter'", fontWeight: 700, fontSize: "1.4rem", lineHeight: 1 }}>⚠</span>
                       )}
                     </span>
                   </div>

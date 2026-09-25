@@ -461,6 +461,13 @@ button, input, select, textarea { font: inherit; }
    sideways, regardless of how wide the header's own column happens to be. */
 .qi-mc-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--qi-space-2); }
 .qi-mc-nav .qi-button { min-height: 36px; padding-inline: var(--qi-space-4); text-decoration: none; white-space: nowrap; }
+/* Host request: "tidy the very top options up and along one line" - the TV
+   health button used to carry a full sentence ("Waiting for TV reply"),
+   which was the single widest thing in the row and forced a wrap onto a
+   second line. Shortened to just "TV" (detail's in the tooltip/diagnostics
+   panel) with a tight width and a red dot when something needs attention. */
+.qi-mc-tv-status { min-width: 0; padding-inline: var(--qi-space-3); position: relative; }
+.qi-mc-tv-status--warn::after { content: ""; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: #ff8290; box-shadow: 0 0 6px rgb(255 130 144 / 0.7); }
 /* Host report: "'1. Regular Round' text ... weird looking font." It had no
    font-family of its own, so it fell back to the plain body sans-serif
    next to everything else in this header using the branded display font -

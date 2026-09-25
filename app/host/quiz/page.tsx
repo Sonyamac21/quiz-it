@@ -2467,11 +2467,12 @@ function QuizControllerInner() {
         </div>
         <div className="qi-mc-session" aria-label="Live session information">
           <div><span>Session PIN</span><strong>{sessionPin}</strong></div>
-          <StatusPill tone={phaseLive ? "live" : "inactive"}>{hostPhase.replace("_"," ")}{hostPhase==="timer" ? ` · ${timeLeft}s` : ""}</StatusPill>
-          {/* Host request: "remove... question number (as it is already under
-              the space action bar)" - the question count already appears as
-              the "Qn of N" badge on the question card itself, so this header
-              copy was pure duplication eating header width. */}
+          {/* Host request: "Question at top bar isn't needed" - this pill just
+              echoed hostPhase ("question"/"timer"/etc), which is already
+              obvious from the Next Action bar and the question card below;
+              removed rather than relocated. Question count was removed the
+              same way in the previous pass (it's already the "Qn of N" badge
+              on the question card). */}
         </div>
         <nav className="qi-mc-nav" aria-label="Mission Control navigation">
           {/* Host request: "leaderboard controls and photos could move into
@@ -2492,7 +2493,12 @@ function QuizControllerInner() {
               most once at the top of a round. Rules content is still fully
               reachable via the round-start briefing screen. */}
           {FEATURE_FLAGS.diagnostics && <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>}
-          {FEATURE_FLAGS.diagnostics && connected && <button className="qi-button qi-button--secondary" onClick={() => setDiagnosticsOpen(true)} title="Advisory TV browser acknowledgement; does not verify physical TV or audio output" aria-live="polite">{displayHealth.health.level === "healthy" ? "TV: up to date" : displayHealth.health.summary}</button>}
+          {/* Host request: "'TV' can be shortened to just TV" - the full
+              sentence (e.g. "Waiting for TV reply") was the widest thing in
+              this row and the reason it wrapped to a second line; the detail
+              is still one click away via the title tooltip and the
+              diagnostics panel this opens. */}
+          {FEATURE_FLAGS.diagnostics && connected && <button className={`qi-button qi-button--secondary qi-mc-tv-status${displayHealth.health.level !== "healthy" ? " qi-mc-tv-status--warn" : ""}`} onClick={() => setDiagnosticsOpen(true)} title={displayHealth.health.level === "healthy" ? "TV: up to date" : displayHealth.health.summary} aria-live="polite">TV</button>}
         {rulesOpen && typeof document !== "undefined" && createPortal(
           // Rendered as a portal to document.body rather than inline here.
           // The header this button lives in has backdrop-filter:blur() for

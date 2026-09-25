@@ -181,7 +181,7 @@ function PictureQuestion({ imageUrl, questionText, onSubmit, questionIndex, time
           </button>
         ) : (
           <>
-            <FitBlockText className="qi-player-question-text" maxViewportHeight={0.24} minFontSize={13}>{questionText}</FitBlockText>
+            <FitBlockText className="qi-player-question-text" maxViewportHeight={0.32} minFontSize={13}>{questionText}</FitBlockText>
             {!timerReady ? <div className="qi-player-waiting-timer">{timeLeft === 0 ? "TIME’S UP · ANSWERS LOCKED" : "WAITING FOR HOST TO START TIMER"}</div> : !submitted ? <AnswerKeypad mode="text" onSubmit={onSubmit} /> : (
               <div style={{ padding:18, borderRadius:12, background:"rgba(190,38,193,0.15)", textAlign:"center" }}>
                 {/* Recased to match the all-caps directive style every sibling
@@ -2075,7 +2075,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         </div>
         {/* The timer stays outside the scroll area, below the team header. */}
         <div className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        <FitBlockText className="qi-player-question-text" maxViewportHeight={0.24} minFontSize={13}>
+        <FitBlockText className="qi-player-question-text" maxViewportHeight={0.32} minFontSize={13}>
           {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
         </FitBlockText>
         {error && (

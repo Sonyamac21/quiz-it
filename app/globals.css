@@ -643,7 +643,17 @@ button, input, select, textarea { font: inherit; }
    breaking on the next untested content length. .qi-mc-question itself is
    now just FitScaleBlock's sizing reference (still height:100% of the
    desk), no longer the flex column. */
-.qi-mc-question { width: min(100%, 72rem); height:100%; min-height:0; margin-inline:auto; }
+/* .qi-mc-question is now a flex column: FitScaleBlock's own outer wrapper
+   (its first child, matched below since .qi-mc-manual is now a sibling
+   rather than nested inside it) takes flex:1 and the manual-controls bar
+   sits after it. Before this, the manual bar lived INSIDE FitScaleBlock's
+   scaled content, which only ever shrinks/grows to its own natural height -
+   never stretches - so a short question left the whole scaled block shorter
+   than the desk and the bar sat right after it, "floating" above a dead gap
+   instead of glued to the real bottom. Host: "look - it's floating. Lock it
+   to the bottom in every screen." */
+.qi-mc-question { width: min(100%, 72rem); height:100%; min-height:0; margin-inline:auto; display:flex; flex-direction:column; }
+.qi-mc-question > div:first-child { flex:1; min-height:0; }
 .qi-mc-question__inner { display:flex; flex-direction:column; }
 .qi-mc-question__meta { display: flex; align-items: center; gap: var(--qi-space-2); margin-bottom: var(--qi-space-5); flex-wrap: wrap; }
 /* "I cannot read the full question" - the bottom of a wrapped second line
@@ -2403,7 +2413,15 @@ button, input, select, textarea { font: inherit; }
 /* The join-page header must not overlay the active game's own status bar. */
 .qi-player-experience:has(.qi-player-live-root) > .qi-site-header,
 .qi-player-experience:has(.qi-player-live-root) > footer { display: none; }
-.qi-player-state,.qi-player-shell { min-height: 100dvh; max-width: 100vw; overflow-x: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(12px,env(safe-area-inset-top)); padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); padding-bottom: max(14px,env(safe-area-inset-bottom)); padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
+/* padding-bottom is !important and raised to clear the fixed full-width
+   branding bar (join-form.tsx, position:fixed bottom:0, ~47px tall plus
+   the safe-area inset it already adds itself) that sits on top of every
+   phase screen. Every one of these screens sets its own inline `padding`
+   shorthand too, which would otherwise silently cancel this rule entirely -
+   that's exactly why the keypad's LOCK IT IN button and power cards ended
+   up hidden behind the bar. Host: "the buttons are being hidden by the
+   bottom bar." */
+.qi-player-state,.qi-player-shell { min-height: 100dvh; max-width: 100vw; overflow-x: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(12px,env(safe-area-inset-top)); padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); padding-bottom: calc(78px + env(safe-area-inset-bottom)) !important; padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
 .qi-player-status { width: 100%; min-height: 56px; flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 0 12px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 14px; position: relative; z-index: 5; }
 .qi-player-status__crest { width: 38px; height: 38px; flex: none; display: grid; place-items: center; clip-path: polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); background: linear-gradient(145deg,#8a1b8d,#211044); border: 1px solid #d94fdc; font-size: 12px; font-weight: 900; }
 .qi-player-status__crest--photo { width: 64px; height: 64px; clip-path: none; border-radius: 16px; object-fit: cover; object-position: center 30%; border: 2px solid #d94fdc; box-shadow: 0 0 0 3px rgba(190,38,193,.12), 0 5px 16px rgba(0,0,0,.3); }
@@ -2454,7 +2472,7 @@ button, input, select, textarea { font: inherit; }
    the actual "still scrolling" complaint. Switching these to dvh-based
    clamps lets rows compress on shorter viewports / more options instead of
    overflowing, so the safety-net scroll goes back to being a rare fallback. */
-.qi-player-question-text { flex:0 1 auto; max-height:24dvh; overflow:hidden; overflow-wrap:anywhere; font-size:clamp(20px,6.6vw,34px); font-weight:850; line-height:1.2; letter-spacing:-.018em; margin:clamp(2px,.6dvh,4px) 0 clamp(8px,1.8dvh,18px); text-wrap:balance; }
+.qi-player-question-text { flex:0 1 auto; max-height:30dvh; overflow:hidden; overflow-wrap:anywhere; font-size:clamp(24px,7.6vw,38px); font-weight:850; line-height:1.2; letter-spacing:-.018em; margin:clamp(2px,.6dvh,4px) 0 clamp(8px,1.8dvh,18px); text-wrap:balance; }
 .qi-player-question-screen .fbl .opt { min-width:0; min-height:clamp(46px,9dvh,92px); margin-bottom:clamp(6px,1.4dvh,12px); border-radius:18px; padding:clamp(8px,2dvh,18px) 18px; background:var(--qi-player-raised); border-color:rgba(217,79,220,.25); font-size:clamp(15px,5.6vw,28px); line-height:1.2; overflow-wrap:anywhere; touch-action:manipulation; }
 .qi-player-question-screen .fbl .opt > :last-child { min-width:0; overflow-wrap:anywhere; }
 .qi-player-sequence__option { min-width:0; overflow:hidden; }
@@ -2893,7 +2911,7 @@ button, input, select, textarea { font: inherit; }
 .qi-player-question-screen .qi-player-status__identity { flex: 1; }
 .qi-player-question-screen .qi-player-status__identity strong { font-size: 12px; max-width: 32vw; }
 .qi-player-question-screen .qi-player-status__identity small { font-size: 10px; max-width: 32vw; }
-.qi-player-question-screen .qi-player-question-text { font-size: clamp(20px,3.6dvh,30px); line-height: 1.2; margin: 2px 0 8px; flex-shrink: 0; }
+.qi-player-question-screen .qi-player-question-text { font-size: clamp(24px,4.6dvh,36px); line-height: 1.2; margin: 2px 0 8px; flex-shrink: 0; }
 .qi-player-question-screen .fbl .opt { min-height: 44px !important; padding: 7px 10px !important; margin-bottom: 5px; font-size: clamp(15px,2.4dvh,19px); border-radius: 12px; }
 .qi-player-question-screen .fbl .opt .chip { width: 30px; height: 30px; font-size: 14px; }
 .qi-player-question-screen .fbl .lockbar { min-height: 44px; margin-top: 5px; font-size: 16px; border-radius: 12px; }
@@ -2951,7 +2969,7 @@ button, input, select, textarea { font: inherit; }
 .qi-player-answer .qi-player-answer-comparison { width:100%!important; max-width:none!important; }
 .qi-player-waiting > div:nth-of-type(2) { font-size:clamp(17px,4.8vw,21px)!important; }
 @media (min-height:700px) {
-  .qi-player-question-screen .qi-player-question-text { font-size:clamp(24px,4dvh,34px); max-height:26dvh; }
+  .qi-player-question-screen .qi-player-question-text { font-size:clamp(28px,5.4dvh,42px); max-height:32dvh; }
   .qi-player-question-screen .fbl .lockbar { min-height:clamp(54px,7.5dvh,72px); font-size:clamp(18px,2.7dvh,22px); }
   .qi-player-question-screen .qi-player-keypad__key { height:clamp(44px,6.2dvh,58px)!important; font-size:clamp(18px,3dvh,25px)!important; }
   .qi-player-question-screen .qi-player-keypad__submit,.qi-player-question-screen .qi-player-keypad__delete,.qi-player-question-screen .qi-player-keypad__space { min-height:48px!important; font-size:clamp(16px,2.4dvh,20px)!important; }

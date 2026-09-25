@@ -322,18 +322,25 @@ export function JoinForm() {
               it across the bottom of the screen." Used to be a small
               floating rounded pill pinned to the bottom-right corner -
               looked like a stray badge sitting on top of the content rather
-              than part of the screen. Now a full-width bar spanning the
-              entire bottom edge, matching how a branded footer actually
-              reads on a phone screen. */}
+              than part of the screen. The container itself became a
+              full-width bar, but the logo+lockup inside stayed at the
+              smallest preset size ("xs", 0.6x) and a 26px logo - visually
+              still just a small centered badge floating in the middle of a
+              wide bar, not something that reads as "stretched". Bumped both
+              up a size (logo 26->40px, BrandMark xs->sm, more vertical
+              padding) so the bar itself looks filled rather than mostly
+              empty either side of a tiny lockup. Host, after the first
+              pass: "the branding still isn't stretched out across the
+              screen." */}
           <div style={{
             position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-            padding: "10px 16px", paddingBottom: "max(10px, env(safe-area-inset-bottom))",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 14,
+            padding: "14px 16px", paddingBottom: "max(14px, env(safe-area-inset-bottom))",
             background: "rgba(13,2,37,0.85)", borderTop: "1px solid rgba(190,38,193,0.3)",
             pointerEvents: "none" as const,
           }}>
-            <img src="/me-logo.jpg" alt="ME" style={{ width: 26, height: 26, borderRadius: "50%" }} />
-            <BrandMark size="xs" align="left" />
+            <img src="/me-logo.jpg" alt="ME" style={{ width: 40, height: 40, borderRadius: "50%" }} />
+            <BrandMark size="sm" align="left" />
           </div>
         </div>
       );

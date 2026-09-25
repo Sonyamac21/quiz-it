@@ -2391,38 +2391,43 @@ function QuizControllerInner() {
             onClick={() => setStatsTeam(null)}
             style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
           >
-            <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 360, background: "#150A2E", border: "1px solid #2E1A52", borderRadius: 16, padding: 20, boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                <TeamBadge name={statsTeam} size={32} avatarUrl={statTeamRow?.photo_approved ? statTeamRow.photo_url : null} style={{ fontSize: 11, flexShrink: 0 }} />
-                <div style={{ fontWeight: 800, fontSize: 18, color: "#fff", flex: 1 }}>{statsTeam}</div>
-                <button onClick={() => renameTeam(statsTeam)} title="Rename team" style={{ background: "transparent", border: "1px solid #2E1A52", borderRadius: 8, color: "#B9A8D9", fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px" }}>RENAME</button>
-                <button onClick={() => setStatsTeam(null)} style={{ background: "transparent", border: "none", color: "#6B5A8E", fontSize: 20, cursor: "pointer", padding: 4 }}>×</button>
+            {/* Host: "too small - make it bigger" - this was sized like a
+                mobile bottom-sheet (maxWidth 360, 10-22px type) even though
+                it's opened from the wide desktop/TV-scale host console, not
+                a phone. Scaled the whole card and its contents up roughly
+                1.3-1.4x across the board rather than tweaking one element. */}
+            <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: "#150A2E", border: "1px solid #2E1A52", borderRadius: 20, padding: 28, boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
+                <TeamBadge name={statsTeam} size={44} avatarUrl={statTeamRow?.photo_approved ? statTeamRow.photo_url : null} style={{ fontSize: 15, flexShrink: 0 }} />
+                <div style={{ fontWeight: 800, fontSize: 25, color: "#fff", flex: 1 }}>{statsTeam}</div>
+                <button onClick={() => renameTeam(statsTeam)} title="Rename team" style={{ background: "transparent", border: "1px solid #2E1A52", borderRadius: 10, color: "#B9A8D9", fontSize: 14, fontWeight: 700, cursor: "pointer", padding: "6px 12px" }}>RENAME</button>
+                <button onClick={() => setStatsTeam(null)} style={{ background: "transparent", border: "none", color: "#6B5A8E", fontSize: 28, cursor: "pointer", padding: 4 }}>×</button>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18, flexWrap: "wrap" }}>
                 {statRank !== null && (
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#B9A8D9" }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: "#B9A8D9" }}>
                     {statRank === 1 ? "1st place" : statRank === 2 ? "2nd place" : statRank === 3 ? "3rd place" : `${statRank}th place`}
                     <span style={{ color: "#6B5A8E", fontWeight: 500 }}> of {rankedByTotal.length}</span>
                   </span>
                 )}
-                {song && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>♪ {song}</span>}
+                {song && <span style={{ fontSize: 16, color: "rgba(255,255,255,0.5)" }}>♪ {song}</span>}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-                <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 10, padding: "10px 12px" }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "#BE26C1" }}>{statScore?.total_points ?? 0}</div>
-                  <div style={{ fontSize: 10, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>Total points</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
+                <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 14, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 30, fontWeight: 800, color: "#BE26C1" }}>{statScore?.total_points ?? 0}</div>
+                  <div style={{ fontSize: 13, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>Total points</div>
                 </div>
-                <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 10, padding: "10px 12px" }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "#2EE06E" }}>+{statScore?.round_points ?? 0}</div>
-                  <div style={{ fontSize: 10, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>This round</div>
+                <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 14, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 30, fontWeight: 800, color: "#2EE06E" }}>+{statScore?.round_points ?? 0}</div>
+                  <div style={{ fontSize: 13, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>This round</div>
                 </div>
-                <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 10, padding: "10px 12px" }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{statScore?.correct_count ?? 0}</div>
-                  <div style={{ fontSize: 10, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>Correct answers</div>
+                <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 14, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 30, fontWeight: 800, color: "#fff" }}>{statScore?.correct_count ?? 0}</div>
+                  <div style={{ fontSize: 13, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>Correct answers</div>
                 </div>
-                <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 10, padding: "10px 12px" }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "#FFC533" }}>{statScore?.fastest_count ?? 0}</div>
-                  <div style={{ fontSize: 10, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>Times fastest</div>
+                <div style={{ background: "#0A0118", border: "1px solid #2E1A52", borderRadius: 14, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 30, fontWeight: 800, color: "#FFC533" }}>{statScore?.fastest_count ?? 0}</div>
+                  <div style={{ fontSize: 13, color: "#6B5A8E", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>Times fastest</div>
                 </div>
               </div>
               {/* Block, shuffle and the score correction control used to sit
@@ -2431,31 +2436,31 @@ function QuizControllerInner() {
                   They live here now, one tap into the team you actually want
                   to act on, matching how SpeedQuizzing keeps its row down to
                   name/score/answer and puts every other action behind a tap. */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                 <PowerCardDots teamName={statsTeam} />
               </div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
                 <button
                   onClick={() => toggleTeamBlocked(statsTeam)}
                   title={statIsBlocked ? "Unblock - let them answer this question" : "Block this team from answering the current question"}
-                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 10, background: statIsBlocked ? "rgba(255,59,78,0.25)" : "#0A0118", border: "1px solid " + (statIsBlocked ? "#FF3B4E" : "#2E1A52"), color: statIsBlocked ? "#fff" : "#B9A8D9", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 0", borderRadius: 12, background: statIsBlocked ? "rgba(255,59,78,0.25)" : "#0A0118", border: "1px solid " + (statIsBlocked ? "#FF3B4E" : "#2E1A52"), color: statIsBlocked ? "#fff" : "#B9A8D9", fontSize: 15, fontWeight: 700, cursor: "pointer" }}
                 ><IconBlock />{statIsBlocked ? "Unblock" : "Block"}</button>
                 <button
                   onClick={() => toggleTeamScrambled(statsTeam)}
                   title={statIsScrambled ? "Unscramble their keypad" : "Scramble this team's keypad for the current question"}
-                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 10, background: statIsScrambled ? "rgba(217,79,220,0.25)" : "#0A0118", border: "1px solid " + (statIsScrambled ? "#D94FDC" : "#2E1A52"), color: statIsScrambled ? "#fff" : "#B9A8D9", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 0", borderRadius: 12, background: statIsScrambled ? "rgba(217,79,220,0.25)" : "#0A0118", border: "1px solid " + (statIsScrambled ? "#D94FDC" : "#2E1A52"), color: statIsScrambled ? "#fff" : "#B9A8D9", fontSize: 15, fontWeight: 700, cursor: "pointer" }}
                 ><IconShuffle />{statIsScrambled ? "Unshuffle" : "Shuffle keypad"}</button>
               </div>
               {adjustTeam === statsTeam ? (
-                <div style={{ display: "flex", gap: 6 }}>
-                  <input type="number" value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="+/-" style={{ flex: 1, padding: "8px", borderRadius: 8, background: "rgba(255,255,255,0.1)", color: "#fff", border: "1px solid rgba(190,38,193,0.4)", fontSize: 13, textAlign: "center" as const }} />
-                  <button onClick={() => adjustScore(statsTeam, Number(adjustAmount))} style={{ padding: "0 16px", borderRadius: 8, background: "#BE26C1", border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>OK</button>
-                  <button onClick={() => { setAdjustTeam(null); setAdjustAmount(""); }} aria-label="Cancel score adjustment" style={{ padding: "0 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "none", color: "#aaa", fontSize: 12, cursor: "pointer" }}>X</button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input type="number" value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="+/-" style={{ flex: 1, padding: "11px", borderRadius: 10, background: "rgba(255,255,255,0.1)", color: "#fff", border: "1px solid rgba(190,38,193,0.4)", fontSize: 16, textAlign: "center" as const }} />
+                  <button onClick={() => adjustScore(statsTeam, Number(adjustAmount))} style={{ padding: "0 20px", borderRadius: 10, background: "#BE26C1", border: "none", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>OK</button>
+                  <button onClick={() => { setAdjustTeam(null); setAdjustAmount(""); }} aria-label="Cancel score adjustment" style={{ padding: "0 16px", borderRadius: 10, background: "rgba(255,255,255,0.08)", border: "none", color: "#aaa", fontSize: 15, cursor: "pointer" }}>X</button>
                 </div>
               ) : (
-                <button onClick={() => setAdjustTeam(statsTeam)} style={{ width: "100%", padding: "9px 0", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Adjust score (+/-)</button>
+                <button onClick={() => setAdjustTeam(statsTeam)} style={{ width: "100%", padding: "12px 0", borderRadius: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Adjust score (+/-)</button>
               )}
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 10 }}>Counts every question scored this session, live from the start of the quiz.</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", marginTop: 14 }}>Counts every question scored this session, live from the start of the quiz.</div>
             </div>
           </div>
         );
@@ -2948,34 +2953,44 @@ function QuizControllerInner() {
                   {currentQ.explanation && <div className="qi-mc-answer-key__explanation">{currentQ.explanation}</div>}
                 </div>
               )}
-
-              {/* Manual overrides only — the NEXT bar above is the primary flow, so
-                  this row is deliberately small and secondary (jump out of sequence,
-                  dump a question, skip ahead). Reduces the screen to one dominant action. */}
-              <div className="qi-mc-manual">
-                <span className="qi-mc-manual__label">Manual recovery controls</span>
-                {/* Host request: "give me a back button in here - so I can
-                    return to a question, if there's an issue" - Next Q
-                    already jumps forward via doPreviewQuestion(qIdx+1); this
-                    is the same escape hatch in reverse, so a host who's
-                    advanced too far (or needs to redo a question) isn't
-                    stuck going only forward. Disabled on the round's first
-                    question, since there's nothing before it to go back to. */}
-                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={() => doPreviewQuestion(qIdx-1)} disabled={qIdx <= 0} title="Go back to the previous question">Back Q</button>
-                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doStartRound}>Start Round</button>
-                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={() => doPreviewQuestion(qIdx)} disabled={hostPhase==="preview"}>Preview Q</button>
-                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doSendQuestion} disabled={hostPhase!=="preview"}>Send Live</button>
-                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doStartTimer} disabled={hostPhase==="timer"}>{hostPhase==="timer" ? timeLeft+"s" : "Timer"}</button>
-                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doRevealAnswer} disabled={hostPhase==="answer"}>Reveal</button>
-                <button className="qi-button qi-button--quiet qi-mc-manual__button" disabled={scoringInProgress} onClick={doCelebrate}>{scoringInProgress ? "Confirming scores…" : "Celebrate"}</button>
-                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doDumpQuestion} title="Skip this question without scoring it - stays in the round for next time">Dump Q</button>
-                {isLastQ ? (
-                  <button className="qi-button qi-button--secondary qi-mc-manual__last" onClick={doEndRound}>End Round</button>
-                ) : (
-                  <button className="qi-button qi-button--secondary qi-mc-manual__last" onClick={() => doPreviewQuestion(qIdx+1)}>Next Q</button>
-                )}
-              </div>
             </FitScaleBlock>
+
+            {/* Manual overrides only — the NEXT bar above is the primary flow, so
+                this row is deliberately small and secondary (jump out of sequence,
+                dump a question, skip ahead). Reduces the screen to one dominant action.
+                Moved OUT of FitScaleBlock: that block measures its own content's
+                NATURAL height and only shrinks (never stretches) to fit the space
+                available, so on a short question (few options, short answer) the
+                whole scaled block came out shorter than .qi-mc-desk and this bar
+                sat right after it - "floating" with a dead gap of purple below it
+                instead of glued to the real screen bottom. As a sibling instead,
+                with .qi-mc-question now a flex column and FitScaleBlock's own
+                wrapper taking flex:1 (see globals.css), the scaled content simply
+                fills whatever's left above this bar and this bar is always exactly
+                at the bottom, regardless of how short the content is. */}
+            <div className="qi-mc-manual">
+              <span className="qi-mc-manual__label">Manual recovery controls</span>
+              {/* Host request: "give me a back button in here - so I can
+                  return to a question, if there's an issue" - Next Q
+                  already jumps forward via doPreviewQuestion(qIdx+1); this
+                  is the same escape hatch in reverse, so a host who's
+                  advanced too far (or needs to redo a question) isn't
+                  stuck going only forward. Disabled on the round's first
+                  question, since there's nothing before it to go back to. */}
+              <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={() => doPreviewQuestion(qIdx-1)} disabled={qIdx <= 0} title="Go back to the previous question">Back Q</button>
+              <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doStartRound}>Start Round</button>
+              <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={() => doPreviewQuestion(qIdx)} disabled={hostPhase==="preview"}>Preview Q</button>
+              <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doSendQuestion} disabled={hostPhase!=="preview"}>Send Live</button>
+              <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doStartTimer} disabled={hostPhase==="timer"}>{hostPhase==="timer" ? timeLeft+"s" : "Timer"}</button>
+              <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doRevealAnswer} disabled={hostPhase==="answer"}>Reveal</button>
+              <button className="qi-button qi-button--quiet qi-mc-manual__button" disabled={scoringInProgress} onClick={doCelebrate}>{scoringInProgress ? "Confirming scores…" : "Celebrate"}</button>
+              <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doDumpQuestion} title="Skip this question without scoring it - stays in the round for next time">Dump Q</button>
+              {isLastQ ? (
+                <button className="qi-button qi-button--secondary qi-mc-manual__last" onClick={doEndRound}>End Round</button>
+              ) : (
+                <button className="qi-button qi-button--secondary qi-mc-manual__last" onClick={() => doPreviewQuestion(qIdx+1)}>Next Q</button>
+              )}
+            </div>
             </div>
           )}
         </main>
@@ -3206,7 +3221,21 @@ function QuizControllerInner() {
               );
             })}
             {(() => {
-              const thisRoundCards = unoCards.filter(c => c.round_number === roundNumber);
+              // Host: "i changed team name and hit boost. No need for
+              // previous team name to be on the screen." A rename updates
+              // every EXISTING uno_cards row to the new name, but a card
+              // played from a handset that hasn't refreshed since the
+              // rename still writes a brand-new row under the OLD name
+              // (the rename dialog itself warns about this - the handset
+              // has no live subscription to pick up a server-side rename).
+              // That orphaned old name is exactly the ghost showing up
+              // here. The colored square on the team's own row (added for
+              // the same request, above) already covers every card played
+              // under a name that still matches someone on the roster, so
+              // this list is filtered down to genuinely orphaned cards
+              // instead of ever printing a name nobody on the team list
+              // recognizes.
+              const thisRoundCards = unoCards.filter(c => c.round_number === roundNumber && teams.some(t => sameTeam(t.team_name, c.team_name)));
               return thisRoundCards.length > 0 && (
                 <div style={{ marginTop:14, paddingTop:14, borderTop:"1px solid rgba(190,38,193,0.15)" }}>
                   <div style={{ fontSize:11, fontWeight:700, color:"rgba(190,38,193,0.65)", marginBottom:8, letterSpacing:2 }}>ACTIVE POWER CARDS THIS ROUND</div>

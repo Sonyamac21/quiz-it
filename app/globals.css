@@ -2421,7 +2421,15 @@ button, input, select, textarea { font: inherit; }
    that's exactly why the keypad's LOCK IT IN button and power cards ended
    up hidden behind the bar. Host: "the buttons are being hidden by the
    bottom bar." */
-.qi-player-state,.qi-player-shell { min-height: 100dvh; max-width: 100vw; overflow-x: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(12px,env(safe-area-inset-top)); padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); padding-bottom: calc(44px + env(safe-area-inset-bottom)) !important; padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
+/* Host, again, on the answer-reveal screen specifically: "the reveal
+   pushes the top info up too high." Enlarging the status row's own text
+   (below) didn't touch this - the row was still sitting right at the very
+   top edge of the screen because this shared top padding was only
+   max(12px, safe-area-inset-top), and plenty of real devices/previews
+   report a near-zero safe-area-inset-top, leaving just 12px of clearance
+   above the crest/team-name row. Raised the floor to 22px so there's
+   always real breathing room above the status row, notch or no notch. */
+.qi-player-state,.qi-player-shell { min-height: 100dvh; max-width: 100vw; overflow-x: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(22px,env(safe-area-inset-top)); padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); padding-bottom: calc(44px + env(safe-area-inset-bottom)) !important; padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
 /* Host: "it's the answer reveal screen that pushes all up the phone
    screen... too small and pushed up too far." That screen (.qi-player-
    answer) has no size override of its own - it renders this base row

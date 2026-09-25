@@ -374,14 +374,26 @@ button, input, select, textarea { font: inherit; }
   */
   height: 100vh;
   height: 100dvh;
-  display: flex;
-  flex-direction: column;
+  /* Host request: "give me the ENTIRE RHS of the screen for teams" - the
+     header, End-quiz toolbar and Space bar used to be flex-column siblings
+     ABOVE a two-column .qi-mc-workspace (desk + rail), so the rail only
+     ever got the leftover height below all three of those - never the true
+     top-to-bottom of the screen the host was asking for. The shell is now
+     the two-column grid itself: column 1 (.qi-mc-main-column) holds the
+     header/toolbar/next-action bar/desk stacked exactly as before, column
+     2 is .qi-mc-rail directly - a sibling spanning this grid row's full
+     height, top of screen to bottom, regardless of how tall the header or
+     toolbar are. The column-width logic (drag-to-resize, auto-widening for
+     more team columns) moves here from .qi-mc-workspace, unchanged. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 29vw);
   overflow: hidden;
   background:
     radial-gradient(ellipse 70% 55% at 45% 42%, rgb(190 38 193 / 0.1), transparent 72%),
     var(--qi-bg-stage);
   color: var(--qi-text-primary);
 }
+.qi-mc-main-column { grid-column: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .qi-mc-connect { width: min(100%, 30rem); padding: clamp(1.5rem, 4vw, 2.5rem); }
 .qi-mc-connect__copy { margin-block: var(--qi-space-8) var(--qi-space-4); }
 .qi-mc-connect__copy h1, .qi-mc-connect__copy p { margin: 0; }
@@ -464,10 +476,15 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-next__key { border: 1px solid var(--qi-border-strong); border-radius: var(--qi-radius-sm); padding: var(--qi-space-2) var(--qi-space-3); background: rgb(255 255 255 / 0.08); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; white-space: nowrap; }
 .qi-mc-next--timer { background: rgb(190 38 193 / 0.09); box-shadow: none; }
 
-.qi-mc-workspace { min-height: 0; flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 29vw); overflow: hidden; }
-.qi-mc-desk { min-width: 0; padding: clamp(1.25rem, 2.3vw, 2.25rem); overflow-y: auto; border-right: 1px solid var(--qi-border); }
+/* .qi-mc-workspace no longer owns the desk/rail column split - it's now
+   just the scrollable "desk" area filling whatever height is left in
+   .qi-mc-main-column below the header/toolbar/next-action bar. See
+   .qi-mc-shell above for where the real column split (and .qi-mc-rail,
+   its sibling) now lives. */
+.qi-mc-workspace { min-height: 0; flex: 1; display: flex; overflow: hidden; }
+.qi-mc-desk { min-width: 0; flex: 1; padding: clamp(1.25rem, 2.3vw, 2.25rem); overflow-y: auto; border-right: 1px solid var(--qi-border); }
 .qi-mc-desk:has(.qi-mc-question) { overflow:hidden; }
-.qi-mc-rail { min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: rgb(16 5 34 / 0.56); }
+.qi-mc-rail { grid-column: 2; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: rgb(16 5 34 / 0.56); }
 .qi-mc-settings { padding: var(--qi-space-4) var(--qi-space-5); border-bottom: 1px solid var(--qi-border); background: rgb(29 17 64 / 0.5); }
 .qi-mc-settings .fbh-btn { min-height: 40px; }
 /* Multi-column team roster (matches the SpeedQuizzing layout this app is
@@ -606,11 +623,11 @@ button, input, select, textarea { font: inherit; }
   .qi-mc-session { justify-content: flex-end; }
   .qi-mc-nav { grid-column: 1 / -1; justify-content: flex-start; overflow-x: auto; padding-bottom: 2px; }
   .qi-mc-round-select { flex: 1; min-width: 12rem; }
-  .qi-mc-workspace { grid-template-columns: minmax(0, 1fr) minmax(330px, 38vw); }
+  .qi-mc-shell { grid-template-columns: minmax(0, 1fr) minmax(330px, 38vw); }
 }
 
 @media (max-width: 860px) {
-  .qi-mc-shell { overflow: visible; }
+  .qi-mc-shell { overflow: visible; grid-template-columns: 1fr; height: auto; }
   /* Was `position: static` here, which completely cancelled the header's
      sticky positioning at exactly the screen widths a host is most likely
      to actually be using (tablet/small laptop) - the Photos approval badge
@@ -633,7 +650,7 @@ button, input, select, textarea { font: inherit; }
   .qi-mc-next__key { display: none; }
   .qi-mc-workspace { display: flex; flex-direction: column; overflow: visible; }
   .qi-mc-desk { overflow: visible; border-right: 0; }
-  .qi-mc-rail { overflow: visible; border-top: 1px solid var(--qi-border); }
+  .qi-mc-rail { grid-column: 1; overflow: visible; border-top: 1px solid var(--qi-border); }
   .qi-mc-teams { overflow: visible; }
   .qi-mc-teams__header { position: static; margin-top: calc(var(--qi-space-4) * -1); }
   .qi-mc-options { grid-template-columns: 1fr; }

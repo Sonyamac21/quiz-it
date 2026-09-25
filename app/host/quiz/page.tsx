@@ -2334,7 +2334,18 @@ function QuizControllerInner() {
   });
 
   return (
-    <div className="fbh qi-mc-shell">
+    <div
+      className="fbh qi-mc-shell"
+      style={
+        railWidthPx != null
+          ? { gridTemplateColumns: `minmax(0, 1fr) ${railWidthPx}px` }
+          : teamColumnCount >= 3
+          ? { gridTemplateColumns: `minmax(0, 1fr) minmax(${teamColumnCount === 4 ? 760 : 620}px, ${teamColumnCount === 4 ? 62 : 52}vw)` }
+          : teamColumnCount === 2
+          ? { gridTemplateColumns: "minmax(0, 1fr) minmax(640px, 46vw)" }
+          : undefined
+      }
+    >
       {confirmDialogEl}
       {promptDialogEl}
       {toastEl}
@@ -2440,6 +2451,7 @@ function QuizControllerInner() {
           </div>
         );
       })()}
+      <div className="qi-mc-main-column">
       {/* HEADER */}
       <header className="qi-mc-header">
         {/* Identical structure/order to DisplayCornerMark on the display
@@ -2588,19 +2600,11 @@ function QuizControllerInner() {
         </button>
       )}
 
-      {/* MAIN CONTENT */}
-      <div
-        className="qi-mc-workspace"
-        style={
-          railWidthPx != null
-            ? { gridTemplateColumns: `minmax(0, 1fr) ${railWidthPx}px` }
-            : teamColumnCount >= 3
-            ? { gridTemplateColumns: `minmax(0, 1fr) minmax(${teamColumnCount === 4 ? 760 : 620}px, ${teamColumnCount === 4 ? 62 : 52}vw)` }
-            : teamColumnCount === 2
-            ? { gridTemplateColumns: "minmax(0, 1fr) minmax(640px, 46vw)" }
-            : undefined
-        }
-      >
+      {/* MAIN CONTENT - the column-width logic that used to live on this
+          div's style now lives on .qi-mc-shell itself (see the outermost
+          div above), since the desk/rail split is a shell-level grid now,
+          not something this workspace div controls on its own. */}
+      <div className="qi-mc-workspace">
         <main className="qi-mc-desk">
           {/* Host-reported bug: this ternary used to check `!selectedRound`
               FIRST, before any hostPhase check - so if selectedRound was
@@ -2914,9 +2918,14 @@ function QuizControllerInner() {
             </div>
           )}
         </main>
+      </div>
+      </div>
 
-        {/* RIGHT PANEL */}
-        <aside className="qi-mc-rail" aria-label="Teams, answers and round settings" style={{ position: "relative" }}>
+      {/* RIGHT PANEL - a direct sibling of .qi-mc-main-column now, not
+          nested inside .qi-mc-workspace, so it spans the full height of
+          .qi-mc-shell's grid row (see that class's own comment) instead of
+          only the space left below the header/toolbar/next-action bar. */}
+      <aside className="qi-mc-rail" aria-label="Teams, answers and round settings" style={{ position: "relative" }}>
           <div
             onMouseDown={startRailDrag}
             title="Drag to resize - give the team panel more room if names are getting cut off"
@@ -3151,7 +3160,6 @@ function QuizControllerInner() {
             })()}
           </section>
         </aside>
-      </div>
       {FEATURE_FLAGS.diagnostics && <HostDiagnostics
         open={diagnosticsOpen}
         display={displayHealth}

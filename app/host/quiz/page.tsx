@@ -2562,31 +2562,40 @@ function QuizControllerInner() {
           <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
         </div>}
         {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
-        {/* Escape hatch for a round that's stuck with no question to reveal -
-            e.g. a Hard Deck/Pursuit placeholder round with 0 questions in the
-            running order, walked into via the normal question flow instead of
-            its own overlay. doRevealAnswer's `if (!currentQ) return;` guard
-            then leaves "Reveal Answer"/Space doing nothing forever with no
-            other way forward. Always visible during a round (not just when
-            stuck) so the host never has to hunt for it mid-show. */}
-        {hostPhase !== "waiting" && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
-          <Button variant="secondary" onClick={async () => { if (await confirmDialog("Skip the rest of this round and move on? Use this if the round is stuck (e.g. Space isn't doing anything).")) doEndRound(); }}>Skip Round</Button>
-        )}
-        {/* Escape hatch for "nobody's going to buzz in" - previously the only
-            way to end a Hot Seat question was to let every remaining team
-            individually claim it, answer wrong, and get locked out one by
-            one, which is slow with a full room and has no quick way out when
-            the room's just stuck on a hard question. */}
-        {hostPhase === "hot_seat" && hotSeatStatus !== "claimed" && (
-          <Button variant="secondary" onClick={async () => { if (await confirmDialog("Nobody's buzzing in - end this question with no one scoring and reveal the answer?")) doRevealAnswer(); }}>Nobody Knows It — Reveal Answer</Button>
-        )}
-        {/* "I forgot to offer the spin" escape hatch - available on every
-            normal question screen once there's a previous question to go
-            back to. Hot Seat/Pursuit/Hard Deck don't use Spin to Win, so
-            this only needs to appear during the regular question flow. */}
-        {qIdx > 0 && ["preview", "question", "timer", "answer", "celebration"].includes(hostPhase) && (
-          <Button variant="secondary" onClick={async () => { if (await confirmDialog("Go back and re-offer the spin for the previous question's fastest correct team?")) goBackToOfferSpin(); }}>Back — Offer Spin</Button>
-        )}
+        {/* Host request: "move Back - Offer Spin beside Skip Round" - these
+            (plus the Hot Seat escape hatch) are all the same kind of
+            recovery button and used to be loose siblings in the toolbar's
+            flex-wrap, so whichever one ran out of row space wrapped alone
+            onto its own second line, away from the others. Grouped into one
+            flex-shrink:0 unit so they wrap together as a set instead of
+            splitting mid-group. */}
+        <div className="qi-mc-toolbar__group">
+          {/* Escape hatch for a round that's stuck with no question to reveal -
+              e.g. a Hard Deck/Pursuit placeholder round with 0 questions in the
+              running order, walked into via the normal question flow instead of
+              its own overlay. doRevealAnswer's `if (!currentQ) return;` guard
+              then leaves "Reveal Answer"/Space doing nothing forever with no
+              other way forward. Always visible during a round (not just when
+              stuck) so the host never has to hunt for it mid-show. */}
+          {hostPhase !== "waiting" && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
+            <Button variant="secondary" onClick={async () => { if (await confirmDialog("Skip the rest of this round and move on? Use this if the round is stuck (e.g. Space isn't doing anything).")) doEndRound(); }}>Skip Round</Button>
+          )}
+          {/* Escape hatch for "nobody's going to buzz in" - previously the only
+              way to end a Hot Seat question was to let every remaining team
+              individually claim it, answer wrong, and get locked out one by
+              one, which is slow with a full room and has no quick way out when
+              the room's just stuck on a hard question. */}
+          {hostPhase === "hot_seat" && hotSeatStatus !== "claimed" && (
+            <Button variant="secondary" onClick={async () => { if (await confirmDialog("Nobody's buzzing in - end this question with no one scoring and reveal the answer?")) doRevealAnswer(); }}>Nobody Knows It — Reveal Answer</Button>
+          )}
+          {/* "I forgot to offer the spin" escape hatch - available on every
+              normal question screen once there's a previous question to go
+              back to. Hot Seat/Pursuit/Hard Deck don't use Spin to Win, so
+              this only needs to appear during the regular question flow. */}
+          {qIdx > 0 && ["preview", "question", "timer", "answer", "celebration"].includes(hostPhase) && (
+            <Button variant="secondary" onClick={async () => { if (await confirmDialog("Go back and re-offer the spin for the previous question's fastest correct team?")) goBackToOfferSpin(); }}>Back — Offer Spin</Button>
+          )}
+        </div>
         <Button variant="destructive" className="qi-mc-toolbar__end" onClick={async () => { const closing = hostPhase === "quiz_end"; if (await confirmDialog(closing ? "Close this session for good? It'll be marked completed in Reports and cannot be reopened." : "End the quiz for everyone? This closes the live session and cannot be undone.", { tone: "destructive", confirmLabel: closing ? "Close Session" : "End Quiz" })) doEndOfQuiz(); }}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
       </div>
 

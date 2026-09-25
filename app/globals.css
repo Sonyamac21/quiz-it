@@ -418,7 +418,13 @@ button, input, select, textarea { font: inherit; }
   grid-template-columns: minmax(230px, auto) minmax(200px, 1fr) minmax(0, auto);
   align-items: center;
   gap: var(--qi-space-5);
-  padding: var(--qi-space-4) clamp(1rem, 2vw, 2rem);
+  /* Host request: "it's just all too small - shrink the chrome above so the
+     question/options have more room to grow into." Tightened header/brand/
+     session-pill/toolbar/Next-Action padding and sizing throughout this
+     file (all still comfortably usable, just no longer oversized for a
+     screen the host glances at, not reads line by line) so FitScaleBlock
+     has a bigger height budget to work with below. */
+  padding: var(--qi-space-2) clamp(1rem, 2vw, 2rem);
   border-bottom: 1px solid var(--qi-border);
   background: rgb(16 5 34 / 0.92);
   backdrop-filter: blur(16px);
@@ -427,13 +433,17 @@ button, input, select, textarea { font: inherit; }
    logo on top, wordmark/producer/attribution centered underneath, same
    font-size clamps. These two are meant to be the one shared brand mark
    used everywhere, not two independently-tuned lookalikes. */
-.qi-mc-brand { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; min-width: 0; }
+/* Font-size kept exactly as-is deliberately - this is the same mark/size
+   used on Back Office and Live Prep now ("same size across all screens"),
+   so it doesn't shrink independently here. Only the surrounding whitespace
+   (gap, section margin) is tightened. */
+.qi-mc-brand { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; min-width: 0; }
 .qi-mc-brand__mark { width: 58px; height: 58px; flex: none; border: 1px solid var(--qi-border-strong); border-radius: 50%; object-fit: cover; }
 .qi-mc-brand .qi-brand__name { font-size: clamp(1.4rem, 1.2rem + 0.7vw, 2rem); }
 .qi-mc-brand .qi-brand__producer { font-size: clamp(0.72rem, 0.65rem + 0.2vw, 0.9rem); }
-.qi-mc-brand__section { margin-top: 4px; min-height: 28px; display: flex; align-items: center; color: var(--qi-text-secondary); font-size: var(--qi-type-sm); font-weight: 750; white-space: nowrap; }
-.qi-mc-session { display: flex; align-items: center; justify-content: center; gap: var(--qi-space-3); min-width: 0; }
-.qi-mc-session > div { min-width: 82px; display: grid; gap: 0.05rem; padding: var(--qi-space-2) var(--qi-space-3); border: 1px solid var(--qi-border); border-radius: var(--qi-radius-md); background: var(--qi-bg-surface); }
+.qi-mc-brand__section { margin-top: 2px; min-height: 20px; display: flex; align-items: center; color: var(--qi-text-secondary); font-size: var(--qi-type-sm); font-weight: 750; white-space: nowrap; }
+.qi-mc-session { display: flex; align-items: center; justify-content: center; gap: var(--qi-space-2); min-width: 0; }
+.qi-mc-session > div { min-width: 74px; display: grid; gap: 0.05rem; padding: 0.3rem var(--qi-space-2); border: 1px solid var(--qi-border); border-radius: var(--qi-radius-md); background: var(--qi-bg-surface); }
 .qi-mc-session > div span { color: var(--qi-text-muted); font-size: 0.66rem; font-weight: 750; letter-spacing: 0.09em; text-transform: uppercase; }
 .qi-mc-session > div strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
 /* Host request: "Photos, live display pink button - all just disappeared."
@@ -450,14 +460,14 @@ button, input, select, textarea { font: inherit; }
    downward into its own row's free space instead of overflowing
    sideways, regardless of how wide the header's own column happens to be. */
 .qi-mc-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--qi-space-2); }
-.qi-mc-nav .qi-button { min-height: 44px; padding-inline: var(--qi-space-4); text-decoration: none; white-space: nowrap; }
+.qi-mc-nav .qi-button { min-height: 36px; padding-inline: var(--qi-space-4); text-decoration: none; white-space: nowrap; }
 /* Host report: "'1. Regular Round' text ... weird looking font." It had no
    font-family of its own, so it fell back to the plain body sans-serif
    next to everything else in this header using the branded display font -
    the one genuinely unstyled element in the row. Matched to the same
    font/weight/letter-spacing already used for the Session PIN/Question
    values right next to it, rather than introducing a third treatment. */
-.qi-mc-round-select { width: clamp(10rem, 15vw, 15rem); min-height: 44px; display: flex; align-items: center; font-weight: 750; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.qi-mc-round-select { width: clamp(10rem, 15vw, 15rem); min-height: 36px; display: flex; align-items: center; font-weight: 750; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
 /* Bug: "all is overlapping" - moving Photos and the round label into this
    row (from the header's own nav, which already wraps) gave the toolbar
@@ -469,12 +479,12 @@ button, input, select, textarea { font: inherit; }
    onto two lines and overlapped each other). Same root cause as the header
    nav "buttons disappeared" bug - fixed the same way: let the row itself
    wrap to a second line, and stop individual buttons from squeezing. */
-.qi-mc-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--qi-space-3); padding: var(--qi-space-3) clamp(1rem, 2vw, 2rem); border-bottom: 1px solid var(--qi-border); background: rgb(21 10 46 / 0.64); }
-.qi-mc-toolbar .qi-button { min-height: 44px; flex-shrink: 0; white-space: nowrap; }
+.qi-mc-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--qi-space-2); padding: 0.4rem clamp(1rem, 2vw, 2rem); border-bottom: 1px solid var(--qi-border); background: rgb(21 10 46 / 0.64); }
+.qi-mc-toolbar .qi-button { min-height: 36px; flex-shrink: 0; white-space: nowrap; }
 .qi-mc-toolbar__label { min-width: 170px; display: grid; line-height: 1.25; }
 .qi-mc-toolbar__label span, .qi-mc-teams__header span { color: var(--qi-text-muted); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
 .qi-mc-toolbar__label strong, .qi-mc-teams__header strong { font-size: 0.95rem; }
-.qi-mc-toolbar__toggle{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;min-height:44px;padding:7px 14px;border:1px solid var(--qi-border-strong);border-radius:var(--qi-radius-sm);background:rgb(255 255 255 / .04);color:#fff;text-align:left;cursor:pointer;flex-shrink:0}.qi-mc-toolbar__toggle span{color:var(--qi-text-muted);font-size:.68rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;white-space:nowrap}.qi-mc-toolbar__toggle strong{font-size:.95rem;white-space:nowrap}.qi-mc-toolbar__toggle i{color:var(--qi-accent-bright);font-size:.75rem;font-style:normal;font-weight:800}.qi-mc-toolbar__controls{display:flex;align-items:center;gap:var(--qi-space-2);flex-shrink:0}
+.qi-mc-toolbar__toggle{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;min-height:36px;padding:5px 12px;border:1px solid var(--qi-border-strong);border-radius:var(--qi-radius-sm);background:rgb(255 255 255 / .04);color:#fff;text-align:left;cursor:pointer;flex-shrink:0}.qi-mc-toolbar__toggle span{color:var(--qi-text-muted);font-size:.66rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;white-space:nowrap}.qi-mc-toolbar__toggle strong{font-size:.88rem;white-space:nowrap}.qi-mc-toolbar__toggle i{color:var(--qi-accent-bright);font-size:.72rem;font-style:normal;font-weight:800}.qi-mc-toolbar__controls{display:flex;align-items:center;gap:var(--qi-space-2);flex-shrink:0}
 .qi-mc-toolbar__hint { margin-left: auto; color: var(--qi-text-muted); font-size: var(--qi-type-sm); font-weight: 700; letter-spacing: 0.06em; }
 /* Host request: "move Back - Offer Spin beside Skip Round" - wraps as one
    unit (flex-shrink:0, its own nowrap-safe flex row) so these recovery
@@ -502,14 +512,14 @@ button, input, select, textarea { font: inherit; }
    growing the bar. */
 .qi-mc-next {
   width: 100%;
-  height: 92px;
+  height: 68px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   grid-template-rows: auto auto;
   align-items: center;
   align-content: center;
   column-gap: clamp(0.75rem, 2vw, 1.5rem);
-  padding: var(--qi-space-3) clamp(1rem, 3vw, 2.5rem);
+  padding: var(--qi-space-2) clamp(1rem, 3vw, 2.5rem);
   border: 0;
   border-bottom: 1px solid var(--qi-border-strong);
   background: linear-gradient(90deg, rgb(190 38 193 / 0.34), rgb(190 38 193 / 0.1));
@@ -527,7 +537,7 @@ button, input, select, textarea { font: inherit; }
    width isn't stable (the teams rail resizing, or crossing the 860px
    breakpoint below, changes it independent of what phase/label is showing).
    A fixed size removes the "grows/shrinks with every tap" effect entirely. */
-.qi-mc-next__label { grid-column: 1; grid-row: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 2rem; font-weight: 850; line-height: 1.2; }
+.qi-mc-next__label { grid-column: 1; grid-row: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.6rem; font-weight: 850; line-height: 1.2; }
 /* Host request: "reduce its size slightly so it fits and doesn't push all
    text downward" - at its old max (3.25rem/52px) plus line-height, this
    could ask for more vertical room than the banner's fixed 92px actually
@@ -651,10 +661,10 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-answer-key > div:first-child { color: var(--qi-success) !important; }
 .qi-mc-answer-key__answer { color:var(--qi-success); font-size:calc(var(--qi-fit-scale,1) * clamp(1.05rem,1rem + .45vw,1.5rem)); font-weight:750; line-height:1.18; overflow-wrap:anywhere; }
 .qi-mc-answer-key__explanation { margin-top:6px; color:rgba(255,255,255,.6); font-size:calc(var(--qi-fit-scale,1) * clamp(.72rem,.68rem + .12vw,.875rem)); line-height:1.35; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
-.qi-mc-manual { flex:0 0 auto; display:flex; align-items:center; gap:clamp(4px,.7vh,var(--qi-space-2)); margin-top:0; padding-top:clamp(5px,.8vh,var(--qi-space-3)); border-top:1px solid var(--qi-border); flex-wrap:wrap; }
-.qi-mc-manual__label { width: 100%; color: var(--qi-text-muted); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
-.qi-mc-manual__button { min-height: 40px; padding-inline: var(--qi-space-3); font-size: var(--qi-type-sm); }
-.qi-mc-manual__last { min-height: 40px; margin-left: auto; }
+.qi-mc-manual { flex:0 0 auto; display:flex; align-items:center; gap:clamp(4px,.6vh,var(--qi-space-2)); margin-top:0; padding-top:clamp(4px,.6vh,var(--qi-space-2)); border-top:1px solid var(--qi-border); flex-wrap:wrap; }
+.qi-mc-manual__label { width: 100%; color: var(--qi-text-muted); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
+.qi-mc-manual__button { min-height: 32px; padding-inline: var(--qi-space-3); font-size: var(--qi-type-sm); }
+.qi-mc-manual__last { min-height: 32px; margin-left: auto; }
 /* Host request: every team visible with zero scrolling for a realistic
    room size (up to 25), at the SAME name/score font sizes as before - the
    2-COL button in the header remains the manual option for genuinely
@@ -785,7 +795,7 @@ button, input, select, textarea { font: inherit; }
      needs to go on very narrow screens; the fixed height below just
      matches the smaller mobile option/question sizing already in this
      query. */
-  .qi-mc-next { height: 88px; }
+  .qi-mc-next { height: 60px; }
   .qi-mc-next__key { display: none; }
   .qi-mc-workspace { display: flex; flex-direction: column; overflow: visible; }
   .qi-mc-desk { overflow: visible; border-right: 0; }

@@ -29,7 +29,7 @@
 // guess.
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
-export function FitScaleBlock({ children, className, minScale = 0.6, maxScale = 1.6 }: { children: ReactNode; className?: string; minScale?: number; maxScale?: number }) {
+export function FitScaleBlock({ children, className, minScale = 0.6, maxScale = 2.1 }: { children: ReactNode; className?: string; minScale?: number; maxScale?: number }) {
   const outerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);

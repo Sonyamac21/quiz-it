@@ -2471,6 +2471,19 @@ function QuizControllerInner() {
           {selectedRound ? <div><span>Question</span><strong>{qIdx+1} / {selectedRound.questions.length}</strong></div> : null}
         </div>
         <nav className="qi-mc-nav" aria-label="Mission Control navigation">
+          {/* Host request: "I don't think I need these on screen during the
+              questions....so leaderboard controls and photos could move into
+              that space" - Photos and the Audience/Leaderboard toggle used to
+              sit in the toolbar row below (competing with Skip Round/Back -
+              Offer Spin/End quiz for space); moved up here into the header
+              nav, which has room to spare, freeing the toolbar to fit
+              everything on one line. */}
+          {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
+          <button type="button" className="qi-mc-toolbar__toggle" aria-expanded={audienceControlsOpen} onClick={() => setAudienceControlsOpen(open => !open)}><span>Audience</span><strong>{selectedRound?.hide_leaderboard ? "Leaderboards hidden for this round" : showScoreboard || showScoreboardOnHandsets ? "Leaderboard showing" : "Leaderboard controls"}</strong><i>{audienceControlsOpen ? "Hide" : "Show"}</i></button>
+          {audienceControlsOpen && <div className="qi-mc-toolbar__controls">
+            <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handsets hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
+            <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
+          </div>}
           <a className="qi-button qi-button--quiet" href="/host/events">Events</a>
           <Button variant="quiet" onClick={() => setRulesOpen(true)}>Rules</Button>
           {FEATURE_FLAGS.diagnostics && <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>}
@@ -2550,18 +2563,13 @@ function QuizControllerInner() {
         </nav>
       </header>
 
-      {/* SCOREBOARD BUTTONS BAR - host request: "put Photos and Regular
-          Round to the left of the End Quiz button" - both used to live in
-          the header's own nav row up top; moved here so they sit in the
-          same row as End Quiz instead. */}
+      {/* SCOREBOARD BUTTONS BAR - host request: "the skip round, back offer
+          spin and end quiz then can go on the same line as regular round 1"
+          - Photos and the Audience/Leaderboard toggle moved up into the
+          header nav (see above), so this row is now just the round name,
+          the recovery-button group and End quiz, all fitting on one line. */}
       <div className="qi-mc-toolbar">
         <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
-        {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
-        <button type="button" className="qi-mc-toolbar__toggle" aria-expanded={audienceControlsOpen} onClick={() => setAudienceControlsOpen(open => !open)}><span>Audience</span><strong>{selectedRound?.hide_leaderboard ? "Leaderboards hidden for this round" : showScoreboard || showScoreboardOnHandsets ? "Leaderboard showing" : "Leaderboard controls"}</strong><i>{audienceControlsOpen ? "Hide" : "Show"}</i></button>
-        {audienceControlsOpen && <div className="qi-mc-toolbar__controls">
-          <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handsets hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
-          <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
-        </div>}
         {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
         {/* Host request: "move Back - Offer Spin beside Skip Round" - these
             (plus the Hot Seat escape hatch) are all the same kind of

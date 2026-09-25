@@ -3166,9 +3166,9 @@ function QuizControllerInner() {
                 // column of otherwise-identical green "correct" text.
                 return (
                   <span style={{ display:"inline-flex", alignItems:"center", gap:5, minWidth:0, maxWidth:150, overflow:"hidden", ...(isFastest ? { background:"rgba(255,197,51,0.16)", border:"1px solid rgba(255,197,51,0.4)", borderRadius:7, padding:"2px 6px" } : {}) }}>
-                    {ord !== null && <span style={{ fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.4)", flexShrink:0 }}>#{ord}</span>}
-                    <span style={{ fontSize:13, color:ansColor, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>
-                    {questionAward !== undefined && <strong title="Points earned on this question" style={{ color: questionAward < 0 ? "#FF7D87" : "#2EE06E", fontSize: 13, whiteSpace: "nowrap", flexShrink:0 }}>{questionAward >= 0 ? "+" : ""}{questionAward}</strong>}
+                    {ord !== null && <span style={{ fontSize:13, fontWeight:800, color:"rgba(255,255,255,0.5)", flexShrink:0 }}>#{ord}</span>}
+                    <span style={{ fontSize:15, color:ansColor, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>
+                    {questionAward !== undefined && <strong title="Points earned on this question" style={{ color: questionAward < 0 ? "#FF7D87" : "#2EE06E", fontSize: 15, whiteSpace: "nowrap", flexShrink:0 }}>{questionAward >= 0 ? "+" : ""}{questionAward}</strong>}
                   </span>
                 );
               })() : null;
@@ -3189,11 +3189,11 @@ function QuizControllerInner() {
                   className={`qi-mc-team-card${isFastest ? " qi-mc-team-card--fastest" : ""}`}
                   onClick={() => setStatsTeam(s.team_name)}
                   title="Tap for this team's stats, block/shuffle and score controls"
-                  style={{ width: "100%", boxSizing: "border-box", cursor: "pointer", display: "grid", gridTemplateColumns: "26px 28px minmax(0, 1fr) auto 8px auto", alignItems: "center", gap: 8, borderColor:isBlocked?"#FF3B4E":isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}
+                  style={{ width: "100%", boxSizing: "border-box", cursor: "pointer", display: "grid", gridTemplateColumns: "30px 32px minmax(0, 1fr) auto 8px auto", alignItems: "center", gap: 8, borderColor:isBlocked?"#FF3B4E":isFastest?"#BE26C1":medal||"rgba(255,255,255,0.12)" }}
                 >
-                  <span style={{ fontSize:16, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
-                  <TeamBadge name={s.team_name} size={20} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:7, flexShrink:0 }} />
-                  <span style={{ fontWeight:700, fontSize:14, minWidth:0, color:"#fff", display:"inline-flex", alignItems:"center", gap:5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>
+                  <span style={{ fontSize:18, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
+                  <TeamBadge name={s.team_name} size={24} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:9, flexShrink:0 }} />
+                  <span style={{ fontWeight:700, fontSize:16, minWidth:0, color:"#fff", display:"inline-flex", alignItems:"center", gap:5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>
                     {s.team_name}
                     {isFastest && <IconBolt style={{ color:"#FFC533" }} />}
                     {isBlocked && <IconBlock style={{ color:"#FF3B4E" }} />}
@@ -3210,12 +3210,12 @@ function QuizControllerInner() {
                   <span style={{ minWidth: 0 }}>{liveAnswer}</span>
                   <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#D94FDC":"rgba(185,168,217,0.2)", flexShrink:0 }} />
                   {showRoundLeaders ? (
-                    <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: 42 }}>
-                      <span style={{ fontSize:19, fontWeight:800, color:"#2EE06E", textAlign:"right" as const, fontVariantNumeric:"tabular-nums", lineHeight: 1 }}>+{s.round_points}</span>
-                      <span style={{ fontSize:9, fontWeight:600, color:"rgba(255,255,255,0.35)", lineHeight: 1.3 }}>{s.total_points} total</span>
+                    <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: 46 }}>
+                      <span style={{ fontSize:21, fontWeight:800, color:"#2EE06E", textAlign:"right" as const, fontVariantNumeric:"tabular-nums", lineHeight: 1 }}>+{s.round_points}</span>
+                      <span style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.4)", lineHeight: 1.3 }}>{s.total_points} total</span>
                     </span>
                   ) : (
-                    <span style={{ fontSize:19, fontWeight:800, color:"#BE26C1", minWidth:42, textAlign:"right" as const, fontVariantNumeric:"tabular-nums" }}>{s.total_points}</span>
+                    <span style={{ fontSize:21, fontWeight:800, color:"#BE26C1", minWidth:46, textAlign:"right" as const, fontVariantNumeric:"tabular-nums" }}>{s.total_points}</span>
                   )}
                 </div>
               );

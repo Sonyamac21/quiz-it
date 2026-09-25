@@ -3071,14 +3071,33 @@ function QuizControllerInner() {
                 const nwIsClosest = isNearestWins && answersRevealed && s.team_name === fastestTeam;
                 const correct = !isNearestWins && answersRevealed && ansObj && currentQ ? isAnswerCorrect(ansObj, currentQ) : null;
                 const ansColor = nwIsClosest ? "#2EE06E" : correct === true ? "#2EE06E" : correct === false ? "#FF3B4E" : "rgba(255,255,255,0.72)";
+                // Host request: "colour code my fastest teams each answer" -
+                // isFastest already put a border on the whole card and a
+                // small bolt icon by the name, but the answer itself (the
+                // thing a host is actually scanning down the list to
+                // compare) looked identical to every other correct answer.
+                // A gold highlight behind just this team's answer/points
+                // makes the fastest team's row pop out at a glance among a
+                // column of otherwise-identical green "correct" text.
                 return (
-                  <span style={{ display:"inline-flex", alignItems:"center", gap:5, minWidth:0, maxWidth:150, overflow:"hidden" }}>
+                  <span style={{ display:"inline-flex", alignItems:"center", gap:5, minWidth:0, maxWidth:150, overflow:"hidden", ...(isFastest ? { background:"rgba(255,197,51,0.16)", border:"1px solid rgba(255,197,51,0.4)", borderRadius:7, padding:"2px 6px" } : {}) }}>
                     {ord !== null && <span style={{ fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.4)", flexShrink:0 }}>#{ord}</span>}
                     <span style={{ fontSize:13, color:ansColor, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>
                     {questionAward !== undefined && <strong title="Points earned on this question" style={{ color: questionAward < 0 ? "#FF7D87" : "#2EE06E", fontSize: 13, whiteSpace: "nowrap", flexShrink:0 }}>{questionAward >= 0 ? "+" : ""}{questionAward}</strong>}
                   </span>
                 );
               })() : null;
+              // Host request: "change the small indication of a power card
+              // being used to a larger coloured square on the teamname
+              // section." The only power-card indicator previously shown
+              // during live play was a separate "ACTIVE POWER CARDS THIS
+              // ROUND" text list at the very bottom of the rail, disconnected
+              // from the team's own row - a host scanning team names had
+              // nothing there telling them a card was in play. Squares next
+              // to the name itself, sized to actually read at a glance
+              // (12px, not the old 9px PowerCardDots), fix both problems at
+              // once - visible, and in the right place.
+              const cardsUsedThisRound = unoCards.filter(c => sameTeam(c.team_name, s.team_name) && c.round_number === roundNumber);
               return (
                 <div
                   key={s.team_name}
@@ -3094,6 +3113,9 @@ function QuizControllerInner() {
                     {isFastest && <IconBolt style={{ color:"#FFC533" }} />}
                     {isBlocked && <IconBlock style={{ color:"#FF3B4E" }} />}
                     {isScrambled && <IconShuffle style={{ color:"#D94FDC" }} />}
+                    {cardsUsedThisRound.map(card => (
+                      <span key={card.id} title={cardLabel[card.card_type] + " - played this round"} style={{ width:12, height:12, borderRadius:3, background:cardColor[card.card_type], boxShadow:"0 0 5px " + cardColor[card.card_type], flexShrink:0 }} />
+                    ))}
                   </span>
                   {/* Always render this grid cell, even with nothing in it -
                       grid-template-columns has a fixed slot count, and a

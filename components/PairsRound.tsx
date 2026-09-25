@@ -371,9 +371,16 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
             const score = scoreboard.find(item => item.team_name.trim().toLowerCase() === row.name.trim().toLowerCase());
             const done = row.solved_pair_ids.length >= PAIRS_PER_ROUND;
             return (
+              /* Host: "Again the team section has been reduced!" - this
+                 panel has its own, much plainer team row markup than the
+                 Regular Round rail (which just got the same complaint fixed
+                 by enlarging every piece of it) - it was never brought up
+                 to match, so it still reads small next to every other round
+                 type now. Sized to the same scale as that row: 16px name,
+                 ~15px caption instead of 0.8rem (~13px), explicit 21px score. */
               <div key={row.name} className={`qi-mc-team-card${row.name === fastestTeam ? " qi-mc-team-card--fastest" : ""}`} style={{ width: "100%", boxSizing: "border-box" as const, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: 8 }}>
-                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}<span style={{ marginLeft: 8, fontSize: "0.8rem", color: done ? "var(--qi-success)" : "var(--qi-text-muted)" }}>{row.solved_pair_ids.length}/{PAIRS_PER_ROUND} matched · {row.mistakes} misses</span></span>
-                <span>{score?.total_points ?? "—"}</span>
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 16, fontWeight: 700, color: "#fff" }}>{row.name}<span style={{ marginLeft: 8, fontSize: 15, fontWeight: 600, color: done ? "var(--qi-success)" : "var(--qi-text-muted)" }}>{row.solved_pair_ids.length}/{PAIRS_PER_ROUND} matched · {row.mistakes} misses</span></span>
+                <span style={{ fontSize: 21, fontWeight: 800 }}>{score?.total_points ?? "—"}</span>
               </div>
             );
           })}

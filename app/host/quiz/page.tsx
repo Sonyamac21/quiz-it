@@ -30,6 +30,7 @@ import { clearPendingManualAdjustment, loadPendingManualAdjustment, savePendingM
 import { calculateSpinPayout, type SpinPayoutLabel } from "@/lib/quiz/spinPayout";
 import { clearHostPreviewRecovery, loadHostPreviewRecovery, saveHostPreviewRecovery } from "@/lib/quiz/hostPreviewRecovery";
 import { FitBlockText } from "@/components/FitBlockText";
+import { FitScaleBlock } from "@/components/FitScaleBlock";
 import { speedBonusForRank, type FinalBonusMode } from "@/lib/quiz/speedBonus";
 
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
@@ -2807,14 +2808,24 @@ function QuizControllerInner() {
             <div style={{ textAlign:"center", marginTop:80, color:"rgba(255,255,255,0.4)", fontSize:18 }}>No questions in this round</div>
           ) : (
             <div className={`qi-mc-question${hostPhase === "hot_seat" ? " qi-mc-question--hot-seat" : ""}`}>
+            {/* Host request, repeated several times: "ALL MUST FIT IN THE
+                AVAILABLE AREA - SIZE IT TO FIT." Hand-tuning each piece's
+                own max-height/min-height/line-clamp budget kept breaking on
+                whatever combination of question length + option count +
+                explanation length it wasn't tuned for. FitScaleBlock
+                measures this whole block's real natural height against
+                what's actually available and scales the lot down together
+                if (and only if) it doesn't fit - so it's always guaranteed
+                to fit, for any content, not just the cases already seen. */}
+            <FitScaleBlock className="qi-mc-question__inner">
               <div className="qi-mc-question__meta">
                 <span style={{ background:"rgba(190,38,193,0.2)", border:"1px solid rgba(190,38,193,0.4)", color:"#BE26C1", padding:"5px 16px", borderRadius:999, fontSize:13, fontWeight:700 }}>Q{qIdx+1} of {selectedRound.questions.length}</span>
                 <span style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.15)", color:typeColor[currentQ.question_type]||"#aaa", padding:"5px 16px", borderRadius:999, fontSize:13, fontWeight:600 }}>{typeLabel[currentQ.question_type]||currentQ.question_type}</span>
                 <span style={{ fontSize:13, color:"rgba(255,255,255,0.5)" }}>{currentQ.difficulty}</span>
                 {hostPhase === "preview" && <span style={{ padding:"5px 16px", borderRadius:999, background:"rgba(190,38,193,0.18)", border:"1px solid #8A1B8D", fontSize:12, color:"#D94FDC" }}>HOST PREVIEW — not sent yet</span>}
-                {hostPhase === "timer" && (
-                  <div style={{ marginLeft:"auto", width:52, height:52, borderRadius:"50%", background:timeLeft<=3?"rgba(239,68,68,0.3)":"rgba(190,38,193,0.2)", border:"3px solid "+(timeLeft<=3?"#ef4444":"#BE26C1"), display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:800, color:timeLeft<=3?"#ef4444":"#BE26C1" }}>{timeLeft}</div>
-                )}
+                {/* Host request: "I don't need two timers - keep the one
+                    only in the Next Action banner." This circular countdown
+                    badge duplicated qi-mc-next__timer above it. */}
               </div>
 
               <FitBlockText as="h1" className="qi-mc-question__title" maxViewportHeight={0.22} minFontSize={18}>
@@ -2926,6 +2937,7 @@ function QuizControllerInner() {
                   <button className="qi-button qi-button--secondary qi-mc-manual__last" onClick={() => doPreviewQuestion(qIdx+1)}>Next Q</button>
                 )}
               </div>
+            </FitScaleBlock>
             </div>
           )}
         </main>

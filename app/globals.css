@@ -635,9 +635,17 @@ button, input, select, textarea { font: inherit; }
    "fill available area"/FitScaleBlock work above never touched this round
    type: inline styles always beat CSS classes, so this content couldn't
    grow or shrink no matter what globals.css said. Moved to real classes
-   using the same --qi-fit-scale multiplier as .qi-mc-option. */
-.qi-mc-sequence { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; justify-content:center; gap:calc(var(--qi-fit-scale,1) * 6px); margin-bottom:calc(var(--qi-fit-scale,1) * 20px); }
-.qi-mc-sequence__option { min-width:0; display:flex; align-items:center; gap:calc(var(--qi-fit-scale,1) * 10px); padding:calc(var(--qi-fit-scale,1) * 12px) calc(var(--qi-fit-scale,1) * 18px); border-radius:10px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); font-size:calc(var(--qi-fit-scale,1) * 15px); overflow-wrap:anywhere; }
+   using the same --qi-fit-scale multiplier as .qi-mc-option.
+   Host request: "the options are too small to read while running a live
+   quiz - stack in columns of 2x2 or 3x3" instead of one column of skinny
+   full-width rows. Reads top-left, top-right, next row, same order as the
+   old single-column list - now sized and laid out like .qi-mc-options
+   (2 columns; 3 columns once there are enough items to need it) so each
+   option gets real width and height instead of being squeezed into a thin
+   strip. */
+.qi-mc-sequence { flex:1 1 auto; min-height:0; display:grid; grid-template-columns:repeat(2, 1fr); grid-auto-rows:minmax(0,auto); align-content:center; gap:calc(var(--qi-fit-scale,1) * clamp(5px,1vh,var(--qi-space-3))); margin-bottom:calc(var(--qi-fit-scale,1) * clamp(6px,1.2vh,var(--qi-space-5))); }
+.qi-mc-sequence--triple { grid-template-columns:repeat(3, 1fr); }
+.qi-mc-sequence__option { min-width:0; min-height:calc(var(--qi-fit-scale,1) * clamp(38px,6.2vh,64px)); display:flex; align-items:center; gap:calc(var(--qi-fit-scale,1) * 10px); padding:calc(var(--qi-fit-scale,1) * clamp(6px,1vh,var(--qi-space-3))) calc(var(--qi-fit-scale,1) * var(--qi-space-4)); border-radius:var(--qi-radius-md); background:rgb(255 255 255 / 0.055); border:2px solid var(--qi-border); font-size:calc(var(--qi-fit-scale,1) * clamp(.82rem,min(1.45vw,2.15vh),1.15rem)); line-height:1.18; overflow-wrap:anywhere; }
 .qi-mc-sequence__option > span:first-child { color:#BE26C1; font-weight:800; min-width:calc(var(--qi-fit-scale,1) * 24px); flex-shrink:0; }
 .qi-mc-answer-key { flex:0 0 auto; min-width:0; margin-bottom:calc(var(--qi-fit-scale,1) * clamp(8px,1.4vh,var(--qi-space-4))); padding:calc(var(--qi-fit-scale,1) * var(--qi-space-3)) calc(var(--qi-fit-scale,1) * var(--qi-space-4)); border:1px solid rgb(46 224 110 / 0.4); border-radius:var(--qi-radius-md); background:rgb(46 224 110 / 0.12); overflow:hidden; }
 .qi-mc-answer-key > div:first-child { color: var(--qi-success) !important; }

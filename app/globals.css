@@ -479,14 +479,31 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-toolbar__end { margin-left: auto; flex-shrink: 0; }
 .qi-mc-toolbar__hint + .qi-mc-toolbar__end { margin-left: 0; }
 
+/* Bug: "keeps adjusting size at every tap ... pushing the answer/question
+   blocks to collide". Two compounding causes. (1) Only min-height was set,
+   so every phase change (Start Round -> Send Question Live -> Reveal
+   Answer -> Award Points & Reveal ...) could render a different content
+   height and the whole bar - and everything below it - would shift.
+   (2) The 4-column single-row layout (eyebrow, label, timer, key side by
+   side) only actually appeared at the widest windows; this bar sits inside
+   .qi-mc-main-column, whose real width shrinks with the teams rail (up to
+   ~62vw on 4+ teams) regardless of the browser's own viewport width - the
+   same container-vs-viewport mismatch already fixed for the header nav and
+   toolbar. Below that the eyebrow/label wrapped onto however many lines
+   their own text needed, changing height per phase. Fixed by always
+   stacking eyebrow above label in one fixed-height row (no longer
+   conditional on a viewport media query) and clamping both to a single
+   non-wrapping line with ellipsis, so long text truncates instead of
+   growing the bar. */
 .qi-mc-next {
   width: 100%;
-  min-height: 92px;
+  height: 92px;
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto;
   align-items: center;
-  gap: clamp(0.75rem, 2vw, 1.5rem);
-  padding: var(--qi-space-4) clamp(1rem, 3vw, 2.5rem);
+  column-gap: clamp(0.75rem, 2vw, 1.5rem);
+  padding: var(--qi-space-3) clamp(1rem, 3vw, 2.5rem);
   border: 0;
   border-bottom: 1px solid var(--qi-border-strong);
   background: linear-gradient(90deg, rgb(190 38 193 / 0.34), rgb(190 38 193 / 0.1));
@@ -498,11 +515,11 @@ button, input, select, textarea { font: inherit; }
 }
 .qi-mc-next:hover { background: linear-gradient(90deg, rgb(224 77 227 / 0.4), rgb(190 38 193 / 0.14)); box-shadow: inset 0 0 58px rgb(190 38 193 / 0.2); }
 .qi-mc-next.is-advancing { opacity:.86; cursor:progress; background:linear-gradient(90deg,rgb(190 38 193 / .42),rgb(190 38 193 / .16)); }
-.qi-mc-next__eyebrow { color: var(--qi-text-secondary); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.17em; text-transform: uppercase; }
-.qi-mc-next__label { font-size: clamp(1.65rem, 1.25rem + 1.6vw, 3rem); font-weight: 850; line-height: 1.05; }
-.qi-mc-next__timer { color: var(--qi-accent-bright); font-size: clamp(2.25rem, 1.8rem + 2vw, 4rem); font-weight: 900; font-variant-numeric: tabular-nums; }
+.qi-mc-next__eyebrow { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--qi-text-secondary); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.17em; text-transform: uppercase; }
+.qi-mc-next__label { grid-column: 1; grid-row: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: clamp(1.5rem, 1.15rem + 1.4vw, 2.5rem); font-weight: 850; line-height: 1.2; }
+.qi-mc-next__timer { grid-column: 2; grid-row: 1 / 3; color: var(--qi-accent-bright); font-size: clamp(2rem, 1.6rem + 1.6vw, 3.25rem); font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .qi-mc-next__timer--urgent { color: var(--qi-danger); }
-.qi-mc-next__key { border: 1px solid var(--qi-border-strong); border-radius: var(--qi-radius-sm); padding: var(--qi-space-2) var(--qi-space-3); background: rgb(255 255 255 / 0.08); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; white-space: nowrap; }
+.qi-mc-next__key { grid-column: 3; grid-row: 1 / 3; border: 1px solid var(--qi-border-strong); border-radius: var(--qi-radius-sm); padding: var(--qi-space-2) var(--qi-space-3); background: rgb(255 255 255 / 0.08); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; white-space: nowrap; }
 .qi-mc-next--timer { background: rgb(190 38 193 / 0.09); box-shadow: none; }
 
 /* .qi-mc-workspace no longer owns the desk/rail column split - it's now
@@ -612,10 +629,10 @@ button, input, select, textarea { font: inherit; }
   .qi-mc-toolbar__label { min-width: 150px; }
 
   .qi-mc-next {
-    min-height: 68px;
+    height: 68px;
     padding-block: var(--qi-space-2);
   }
-  .qi-mc-next__label { font-size: clamp(1.5rem, 1.1rem + 1.25vw, 2.35rem); }
+  .qi-mc-next__label { font-size: clamp(1.3rem, 1rem + 1vw, 1.9rem); }
   .qi-mc-next__timer { font-size: clamp(2rem, 1.6rem + 1.5vw, 3.25rem); }
 
   .qi-mc-desk { padding: clamp(0.85rem, 1.6vw, 1.5rem); }
@@ -682,10 +699,14 @@ button, input, select, textarea { font: inherit; }
   .qi-mc-toolbar { flex-wrap: wrap; }
   .qi-mc-toolbar__label { width: 100%; }
   .qi-mc-toolbar__end { margin-left: 0; }
-  .qi-mc-next { grid-template-columns: 1fr auto; min-height: 104px; }
-  .qi-mc-next__eyebrow { grid-column: 1; }
-  .qi-mc-next__label { grid-column: 1; }
-  .qi-mc-next__timer { grid-column: 2; grid-row: 1 / 3; }
+  /* Base .qi-mc-next now stacks eyebrow/label and locks its height
+     unconditionally (see the bug note on the base rule above) - this used
+     to be the only place that stacking happened, redeclaring
+     grid-template-columns/grid-column here as well. Only the key pill
+     needs to go on very narrow screens; the fixed height below just
+     matches the smaller mobile option/question sizing already in this
+     query. */
+  .qi-mc-next { height: 88px; }
   .qi-mc-next__key { display: none; }
   .qi-mc-workspace { display: flex; flex-direction: column; overflow: visible; }
   .qi-mc-desk { overflow: visible; border-right: 0; }

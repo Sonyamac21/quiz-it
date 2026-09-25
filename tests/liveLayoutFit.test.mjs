@@ -20,7 +20,11 @@ test("host and handset use measured fitting for complete question text", () => {
   assert.match(host, /import \{ FitScaleBlock \} from "@\/components\/FitScaleBlock"/);
   assert.match(host, /<FitScaleBlock className="qi-mc-question__inner">/);
   assert.match(host, /<h1 className="qi-mc-question__title">/);
-  assert.match(host, /FitBlockText className="qi-mc-answer-key__answer"/);
+  // The answer bubble's own FitBlockText (11vh cap) had the same conflict
+  // with FitScaleBlock the title did - now a plain div, sized by
+  // --qi-fit-scale in globals.css instead.
+  assert.match(host, /<div className="qi-mc-answer-key__answer">/);
+  assert.match(css, /\.qi-mc-answer-key__answer\s*\{[^}]*--qi-fit-scale/);
   assert.match(player, /FitBlockText className="qi-player-question-text"/);
   assert.match(css, /\.qi-mc-desk:has\(\.qi-mc-question\) \{ overflow:hidden; \}/);
   assert.match(css, /\.qi-player-question-scroll \{ overflow:hidden;/);

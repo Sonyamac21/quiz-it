@@ -2897,10 +2897,10 @@ function QuizControllerInner() {
               )}
 
               {currentQ.question_type==="sequence" && (
-                <div className="qi-mc-sequence" style={{ marginBottom:20 }}>
+                <div className="qi-mc-sequence">
                   {[currentQ.option_a,currentQ.option_b,currentQ.option_c,currentQ.option_d].filter(Boolean).map((item,i) => (
-                    <div key={i} className="qi-mc-sequence__option" style={{ padding:"12px 18px", borderRadius:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", marginBottom:6, display:"flex", gap:10, fontSize:15 }}>
-                      <span style={{ color:"#BE26C1", fontWeight:800, minWidth:24 }}>{i+1}.</span>{item}
+                    <div key={i} className="qi-mc-sequence__option">
+                      <span>{i+1}.</span>{item}
                     </div>
                   ))}
                 </div>
@@ -2924,7 +2924,10 @@ function QuizControllerInner() {
               {(
                 <div className="qi-mc-answer-key">
                   <div style={{ fontSize:12, color:"rgba(34,197,94,0.7)", marginBottom:4, letterSpacing:2 }}>ANSWER</div>
-                  <FitBlockText className="qi-mc-answer-key__answer" maxViewportHeight={0.11} minFontSize={14}>{getCorrectAnswerText(currentQ)}</FitBlockText>
+                  {/* Was FitBlockText (its own independent 11vh shrink cap) -
+                      same conflict as the title had with FitScaleBlock, now
+                      that --qi-fit-scale covers this element's font-size too. */}
+                  <div className="qi-mc-answer-key__answer">{getCorrectAnswerText(currentQ)}</div>
                   {currentQ.explanation && <div className="qi-mc-answer-key__explanation">{currentQ.explanation}</div>}
                 </div>
               )}

@@ -2828,9 +2828,19 @@ function QuizControllerInner() {
                     badge duplicated qi-mc-next__timer above it. */}
               </div>
 
-              <FitBlockText as="h1" className="qi-mc-question__title" maxViewportHeight={0.22} minFontSize={18}>
+              {/* Was FitBlockText (its own independent JS font-shrink, capped
+                  at max-height:22vh with overflow:hidden) - stacking that on
+                  top of FitScaleBlock (which now owns fitting the WHOLE
+                  block) meant two separate systems disagreed about the
+                  title's size, and FitBlockText's own hard clip could cut
+                  off text before FitScaleBlock ever got a chance to shrink
+                  it into view - exactly the missing-mid-sentence-text bug
+                  reported. Plain heading now: it just wraps normally at its
+                  natural size, and FitScaleBlock scales that real height
+                  (whatever it turns out to be) down to fit. */}
+              <h1 className="qi-mc-question__title">
                 {currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
-              </FitBlockText>
+              </h1>
 
               {hostPhase === "hot_seat" && (
                 <div className={`qi-hot-seat-host${hotSeatCurrentAnswer ? " qi-hot-seat-host--answered" : hotSeatStatus === "claimed" ? " qi-hot-seat-host--claimed" : ""}`} role="status" aria-live="assertive">

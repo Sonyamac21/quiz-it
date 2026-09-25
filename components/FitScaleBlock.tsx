@@ -31,10 +31,20 @@ export function FitScaleBlock({ children, className, minScale = 0.55 }: { childr
     const fit = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        // Measure at scale(1) first so scrollHeight reflects the content's
-        // real, un-shrunk need - otherwise a previous smaller scale would
-        // make it look like it already fits.
-        inner.style.transform = "scale(1)";
+        // Bug caught on the first real test: this used to also widen inner
+        // to 100/scale% so it would visually span the full outer width
+        // again after shrinking. But that widened box was ALSO what text
+        // wrapped against, at layout time, independent of the transform -
+        // so a stale width left over from a PREVIOUS question's scale
+        // (this only reset transform, not width, before measuring) made
+        // the browser wrap text against the wrong box width, producing an
+        // under- or over-estimate of the real height needed and, in the
+        // reported case, cutting a whole chunk of mid-sentence text that
+        // wrapped somewhere the visible (correctly-scaled) width didn't
+        // actually cover. Inner now stays at a constant, never-adjusted
+        // width (100% of outer) so every measurement wraps text exactly
+        // the same way the final render does - only the vertical/horizontal
+        // SIZE shrinks uniformly via scale(), never the wrapping itself.
         const availableH = outer.clientHeight;
         const neededH = inner.scrollHeight;
         const next = availableH > 0 && neededH > availableH ? Math.max(minScale, availableH / neededH) : 1;
@@ -57,11 +67,7 @@ export function FitScaleBlock({ children, className, minScale = 0.55 }: { childr
 
   return (
     <div ref={outerRef} style={{ height: "100%", minHeight: 0, overflow: "hidden" }}>
-      <div
-        ref={innerRef}
-        className={className}
-        style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: scale < 1 ? `${100 / scale}%` : "100%" }}
-      >
+      <div ref={innerRef} className={className} style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}>
         {children}
       </div>
     </div>

@@ -10,7 +10,16 @@ const pursuitBoard = readFileSync(new URL("../components/PursuitBoard.tsx", impo
 const pursuitPanel = readFileSync(new URL("../components/PursuitPanel.tsx", import.meta.url), "utf8");
 
 test("host and handset use measured fitting for complete question text", () => {
-  assert.match(host, /FitBlockText as="h1" className="qi-mc-question__title"/);
+  // Host's question/options/answer block used to be fitted piecemeal (the
+  // title alone via FitBlockText, capped to 22vh) - individually-tuned caps
+  // kept breaking on whatever content combination they weren't tuned for,
+  // including one that silently clipped mid-sentence text. Replaced with
+  // FitScaleBlock, which measures the whole block's real natural height and
+  // scales the lot down together if it doesn't fit - the title itself is
+  // now a plain, uncapped heading (see components/FitScaleBlock.tsx).
+  assert.match(host, /import \{ FitScaleBlock \} from "@\/components\/FitScaleBlock"/);
+  assert.match(host, /<FitScaleBlock className="qi-mc-question__inner">/);
+  assert.match(host, /<h1 className="qi-mc-question__title">/);
   assert.match(host, /FitBlockText className="qi-mc-answer-key__answer"/);
   assert.match(player, /FitBlockText className="qi-player-question-text"/);
   assert.match(css, /\.qi-mc-desk:has\(\.qi-mc-question\) \{ overflow:hidden; \}/);

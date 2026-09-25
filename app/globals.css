@@ -593,7 +593,12 @@ button, input, select, textarea { font: inherit; }
    AFTER FitBlockText measures scrollHeight at a given font-size, so the
    measurement and the final render didn't always agree - removed in favor
    of plain wrapping, which is deterministic and matches what gets measured. */
-.qi-mc-question__title { flex:0 0 auto; max-height:22vh; overflow:hidden; overflow-wrap:anywhere; margin:0 0 var(--qi-space-6); font-size:clamp(2rem,1.4rem + 2.2vw,4rem); font-weight:850; line-height:1.18; text-shadow:0 2px 12px rgb(0 0 0 / .3); }
+/* No longer capped with max-height/overflow:hidden - that was a second,
+   independent "fit" mechanism (paired with FitBlockText) fighting
+   FitScaleBlock, which now owns fitting the whole question block. Title
+   just wraps at its natural size; FitScaleBlock scales the real result
+   down to fit, so nothing gets silently clipped before it has the chance. */
+.qi-mc-question__title { flex:0 0 auto; overflow-wrap:anywhere; margin:0 0 var(--qi-space-6); font-size:clamp(2rem,1.4rem + 2.2vw,4rem); font-weight:850; line-height:1.18; text-shadow:0 2px 12px rgb(0 0 0 / .3); }
 /* "adjust all in the Question/answer component to fit the screen" - this
    whole block used to rely on flex-shrink fighting: options had no flex
    value of their own (default flex:0 1 auto, so they never grew into

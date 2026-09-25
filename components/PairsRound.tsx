@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
-import { BrandLockup } from "@/components/ui/quiz-it-ui";
 import {
   PAIRS_PER_ROUND,
   PairRecord,
@@ -281,16 +280,42 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
     if (writeError) { setError("Could not finish Match Made: " + writeError.message); finishingRef.current = false; return; }
     setOpen(false); onScoreChange?.(); onRoundComplete?.(); finishingRef.current = false;
   }
+  // Host request: "none of the buttons or functions of a normal round" -
+  // every other round type has a Skip Round escape hatch for a round
+  // that's stuck; Match Made previously had no way out short of playing
+  // through every remaining question. Mirrors HardDeckPanel/PursuitPanel's
+  // own closePanel (setOpen(false) + onRoundComplete), plus the same
+  // pairs_status/phase write finish()'s own last-question branch makes, so
+  // player handsets and the display screen leave the pairs phase cleanly
+  // instead of being left stuck mid-round.
+  function skip() {
+    setOpen(false);
+    void supabase.from("sessions").update({ pairs_status: "complete", phase: "intermission" }).eq("id", sessionId).eq("pairs_round_id", roundId).eq("current_question_index", questionIndex);
+    onRoundComplete?.();
+  }
   useEffect(() => {
     if (!open) return;
     const key = (event: KeyboardEvent) => { if ((event.target as HTMLElement)?.closest("input,textarea,select,[contenteditable=true]")) return; if ((event.code === "Space" || event.key === " ") && !event.repeat) { event.preventDefault(); void finish(); } };
     window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key);
   });
   if (!open || typeof document === "undefined") return null;
-  return createPortal(<PairsHostView pairs={pairs} rows={rows} scoreboard={scoreboard} fastestTeam={fastestTeam} status={status} questionIndex={questionIndex} questionCount={readPairsQuestions(rounds.find(r => r.id === roundId)?.questions).length} error={error} timeLeft={timeLeft} onNext={() => void finish()} />, document.body);
+  return createPortal(<PairsHostView pairs={pairs} rows={rows} scoreboard={scoreboard} fastestTeam={fastestTeam} status={status} questionIndex={questionIndex} questionCount={readPairsQuestions(rounds.find(r => r.id === roundId)?.questions).length} error={error} timeLeft={timeLeft} onNext={() => void finish()} onSkip={skip} />, document.body);
 }
 
-export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, questionIndex, questionCount, error, timeLeft, onNext }: {
+// Host report: "Match Made still looks and acts nothing like the other
+// rounds - no teams on the screen, the timer a small green clock, none of
+// the buttons or functions of a normal round." Like Pursuit and Hard Deck
+// before it (see their own overlay JSX and history comments), this used to
+// be its own one-off design - different chrome, no Next-Action bar in the
+// shared style, an ad hoc scoreboard grid instead of the real team-card
+// list. Rebuilt on the exact same classes those two already use
+// (.qi-mc-next/.qi-mc-next--timer for the action bar and timer badge,
+// .qi-mc-workspace/.qi-mc-desk/.qi-mc-rail/.qi-mc-teams/.qi-mc-team-card for
+// the layout and scoreboard) so this reads as another screen of the same
+// console, not a different app bolted on. A "Skip Round" escape hatch is
+// added to match the other round types' recovery button, since this had no
+// way out short of losing progress.
+export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, questionIndex, questionCount, error, timeLeft, onNext, onSkip }: {
   pairs: PairRecord[];
   rows: { name: string; solved_pair_ids: string[]; mistakes: number }[];
   scoreboard: { team_name: string; total_points: number }[];
@@ -301,30 +326,58 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
   error: string;
   timeLeft?: number | null;
   onNext: () => void;
+  onSkip: () => void;
 }) {
-  return (<div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "#0a0118", color: "white", display: "flex", flexDirection: "column" }}>
-    <header style={{ flexShrink: 0, minHeight: 52, padding: "4px 16px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid #493060" }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}<img src="/me-logo.jpg" alt="Mac Entertainment" width={40} height={40} style={{ borderRadius: 8, objectFit: "contain" }} />
-      <BrandLockup compact />
-      {status === "live" && timeLeft !== undefined && timeLeft !== null && (
-        <span style={{ color: timeLeft <= 5 ? "#ef4444" : "#2ee06e", fontWeight: 800, fontSize: 18 }}>{timeLeft > 0 ? `⏱ ${timeLeft}s` : "TIME'S UP"}</span>
-      )}
-      <span style={{ marginLeft: "auto", color: "#cfc2e7", fontSize: 16 }}>MATCH MADE · QUESTION {questionIndex + 1} / {questionCount}</span>
-    </header>
-    <button className="qi-mc-next" onClick={() => onNext()} style={{ flexShrink: 0 }}><small className="qi-mc-next__eyebrow">NEXT ACTION · Q{questionIndex + 1}</small><strong className="qi-mc-next__label">{status === "live" ? "Reveal Match Made results" : questionIndex + 1 < questionCount ? "Next Match Made question" : "Finish round and show scores"}</strong><span className="qi-mc-next__key" style={{ marginLeft: "auto" }}>Space ↵</span></button>
-    {error && <div role="alert" style={{ padding: 10, textAlign: "center", color: "#ff7d87" }}>{error}</div>}
-    <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: rows.length > 20 ? "minmax(0,1fr) minmax(0,2fr)" : "minmax(0,1.4fr) minmax(0,1fr)", gap: 16, padding: 16 }}>
-      <main style={{ minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}><h2 style={{ fontSize: 22, color: "#d94fdc", margin: "0 0 8px" }}>MATCH MADE · {status === "complete" ? "RESULTS" : "LIVE"}</h2><p style={{ margin: "0 0 12px", color: "#cfc2e7" }}>Answer key · {PAIRS_POINTS_PER_MATCH} points per pair · {PAIRS_POINTS_PER_MATCH * PAIRS_PER_ROUND} points available</p><div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: rows.length > 20 ? "1fr" : "repeat(3,minmax(0,1fr))", gridTemplateRows: rows.length > 20 ? "repeat(3,minmax(0,1fr))" : "minmax(0,1fr)", gap: 12 }}>{pairs.map(pair => <div key={pair.pair_id} style={{ minHeight: 0, border: "1px solid #493060", borderRadius: 18, overflow: "hidden", display: "grid", gridTemplateColumns: rows.length > 20 ? "1fr 1fr" : "1fr", gridTemplateRows: rows.length > 20 ? "minmax(0,1fr)" : "1fr 1fr" }}>{[pair.a, pair.b].map(item => <div key={item.label} style={{ position: "relative", minHeight: 0 }}><TileImage src={getMediaUrl(item.image_url)} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} /><strong style={{ position: "absolute", inset: "auto 0 0", padding: "18px 8px 8px", background: "linear-gradient(transparent,rgba(0,0,0,.95))", textAlign: "center", fontSize: 16 }}>{item.label}</strong></div>)}</div>)}</div></main>
-      <aside style={{ minHeight: 0, display: "flex", flexDirection: "column" }}>
-        <h2 style={{ margin: "0 0 6px", fontSize: 20 }}>Teams & scores</h2>
-        <div style={{ color: "#cfc2e7", marginBottom: 10 }}>{rows.filter(r => r.solved_pair_ids.length === 3).length}/{rows.length} complete · Power cards disabled</div>
-        {fastestTeam && <div style={{ color: "#2ee06e", fontWeight: 800, marginBottom: 8 }}>First complete: {fastestTeam}</div>}
-        <div style={{ flex: 1, display: "grid", gridTemplateColumns: `repeat(${rows.length > 32 ? 4 : rows.length > 20 ? 3 : rows.length > 10 ? 2 : 1},minmax(0,1fr))`, gridAutoRows: "minmax(0,1fr)", gap: rows.length > 32 ? 3 : 6, minHeight: 0 }}>
-          {rows.map(row => { const score = scoreboard.find(item => item.team_name.trim().toLowerCase() === row.name.trim().toLowerCase()); return <div key={row.name} style={{ minWidth: 0, minHeight: 0, border: "1px solid #493060", borderRadius: 9, padding: rows.length > 32 ? "1px 6px" : "4px 7px", lineHeight: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <div style={{ display: "flex", gap: 5, alignItems: "center" }}><strong title={row.name} style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: rows.length <= 10 ? 22 : 14 }}>{row.name}</strong><b style={{ color: "#d94fdc", fontSize: rows.length <= 10 ? 32 : 18 }}>{score?.total_points ?? "—"}</b></div>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 4, fontSize: rows.length <= 10 ? 18 : 12 }}><span>{row.solved_pair_ids.length}/3 · {row.mistakes} misses</span><strong style={{ color: "#2ee06e" }}>+{row.solved_pair_ids.length * PAIRS_POINTS_PER_MATCH} pts</strong></div>
-          </div>; })}
+  const showNextTimer = status === "live" && timeLeft !== undefined && timeLeft !== null;
+  const nextLabel = status === "live" ? "Reveal Match Made results" : questionIndex + 1 < questionCount ? "Next Match Made question" : "Finish round and show scores";
+  return (<div className="qi-host-pairs" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box" as const, background: "var(--qi-bg-stage, #0A0118)", zIndex: 200, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <button onClick={() => onNext()} className={`qi-mc-next${showNextTimer ? " qi-mc-next--timer" : ""}`} style={{ flexShrink: 0 }}>
+      <span className="qi-mc-next__eyebrow">Next action · Q{questionIndex + 1}</span>
+      <span className="qi-mc-next__label">{nextLabel}</span>
+      {showNextTimer && <span className={`qi-mc-next__timer${(timeLeft ?? 0) <= 5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft}s</span>}
+      <span className="qi-mc-next__key">Space ↵</span>
+    </button>
+
+    <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
+      <div style={{ fontFamily: "var(--font-bruno-ace-sc), sans-serif", fontSize: 20, color: "#D94FDC", letterSpacing: 3 }}>MATCH MADE</div>
+      <div style={{ color: "#cfc2e7", fontSize: 14 }}>Question {questionIndex + 1} of {questionCount}</div>
+      <button onClick={onSkip} style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }} title="Skip the rest of this round and move on - use this if it's stuck">Skip Round</button>
+    </div>
+    {error && <div role="alert" style={{ padding: "0 24px 8px", color: "#ff7d87" }}>{error}</div>}
+
+    <div className="qi-mc-workspace" style={{ flex: 1, minHeight: 0 }}>
+      <main className="qi-mc-desk" style={{ display: "flex", flexDirection: "column" }}>
+        <div className="qi-mc-question__meta">
+          <span style={{ background: "rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.4)", color: "#BE26C1", padding: "5px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>{status === "complete" ? "RESULTS" : "LIVE"}</span>
         </div>
+        <h1 className="qi-mc-question__title">{status === "complete" ? "The matching pairs" : "Find the three pairs"}</h1>
+        <div className="qi-mc-answer-key" style={{ flex: "0 0 auto" }}>
+          <div style={{ fontSize: 12, marginBottom: 4, letterSpacing: 2, color: "var(--qi-success)" }}>ANSWER KEY</div>
+          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.75)" }}>{PAIRS_POINTS_PER_MATCH} points per pair · {PAIRS_POINTS_PER_MATCH * PAIRS_PER_ROUND} points available</div>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12, marginTop: 12 }}>
+          {pairs.map(pair => <div key={pair.pair_id} style={{ minHeight: 0, border: "1px solid var(--qi-border)", borderRadius: 18, overflow: "hidden", display: "grid", gridTemplateRows: "1fr 1fr" }}>
+            {[pair.a, pair.b].map(item => <div key={item.label} style={{ position: "relative", minHeight: 0 }}><TileImage src={getMediaUrl(item.image_url)} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} /><strong style={{ position: "absolute", inset: "auto 0 0", padding: "18px 8px 8px", background: "linear-gradient(transparent,rgba(0,0,0,.95))", textAlign: "center", fontSize: 16 }}>{item.label}</strong></div>)}
+          </div>)}
+        </div>
+      </main>
+
+      <aside className="qi-mc-rail" aria-label="Teams and round scores">
+        <section className="qi-mc-teams">
+          <div className="qi-mc-teams__header"><div><span>{rows.filter(r => r.solved_pair_ids.length >= PAIRS_PER_ROUND).length}/{rows.length} complete{fastestTeam ? ` · First: ${fastestTeam}` : ""}</span><strong>Teams & scores</strong></div></div>
+          {rows.length === 0 ? (
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", padding: "8px 0" }}>Waiting for teams to join…</div>
+          ) : rows.map(row => {
+            const score = scoreboard.find(item => item.team_name.trim().toLowerCase() === row.name.trim().toLowerCase());
+            const done = row.solved_pair_ids.length >= PAIRS_PER_ROUND;
+            return (
+              <div key={row.name} className={`qi-mc-team-card${row.name === fastestTeam ? " qi-mc-team-card--fastest" : ""}`} style={{ width: "100%", boxSizing: "border-box" as const, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: 8 }}>
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}<span style={{ marginLeft: 8, fontSize: "0.8rem", color: done ? "var(--qi-success)" : "var(--qi-text-muted)" }}>{row.solved_pair_ids.length}/{PAIRS_PER_ROUND} matched · {row.mistakes} misses</span></span>
+                <span>{score?.total_points ?? "—"}</span>
+              </div>
+            );
+          })}
+        </section>
       </aside>
     </div>
   </div>);

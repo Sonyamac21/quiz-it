@@ -2461,7 +2461,6 @@ function QuizControllerInner() {
             the same component, which is why the two never actually looked
             the same no matter how the sizes were tuned. */}
         <div className="qi-mc-brand">
-          <Image src="/me-logo.jpg" alt="Mac Entertainment" width={58} height={58} className="qi-mc-brand__mark" />
           <BrandLockup compact />
           <span className="qi-mc-brand__section">Mission Control</span>
         </div>
@@ -2472,7 +2471,6 @@ function QuizControllerInner() {
         </div>
         <nav className="qi-mc-nav" aria-label="Mission Control navigation">
           <a className="qi-button qi-button--quiet" href="/host/events">Events</a>
-          <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
           <Button variant="quiet" onClick={() => setRulesOpen(true)}>Rules</Button>
           {FEATURE_FLAGS.diagnostics && <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>}
           {FEATURE_FLAGS.diagnostics && connected && <button className="qi-button qi-button--secondary" onClick={() => setDiagnosticsOpen(true)} title="Advisory TV browser acknowledgement; does not verify physical TV or audio output" aria-live="polite">{displayHealth.health.level === "healthy" ? "TV: up to date" : displayHealth.health.summary}</button>}
@@ -2547,13 +2545,17 @@ function QuizControllerInner() {
           {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} scores={scores} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setHardDeckActive(active); if (!active) setHardDeckAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={hardDeckAutoStartId} />}
           {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pursuitAutoStartId} />}
           {sessionId && <PairsPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pairs").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPairsActive(active); if (!active) setPairsAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pairsAutoStartId} />}
-          {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
           <a href={sessionPin ? `/host/display?pin=${encodeURIComponent(sessionPin)}` : "/host/display"} target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
         </nav>
       </header>
 
-      {/* SCOREBOARD BUTTONS BAR */}
+      {/* SCOREBOARD BUTTONS BAR - host request: "put Photos and Regular
+          Round to the left of the End Quiz button" - both used to live in
+          the header's own nav row up top; moved here so they sit in the
+          same row as End Quiz instead. */}
       <div className="qi-mc-toolbar">
+        <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
+        {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
         <button type="button" className="qi-mc-toolbar__toggle" aria-expanded={audienceControlsOpen} onClick={() => setAudienceControlsOpen(open => !open)}><span>Audience</span><strong>{selectedRound?.hide_leaderboard ? "Leaderboards hidden for this round" : showScoreboard || showScoreboardOnHandsets ? "Leaderboard showing" : "Leaderboard controls"}</strong><i>{audienceControlsOpen ? "Hide" : "Show"}</i></button>
         {audienceControlsOpen && <div className="qi-mc-toolbar__controls">
           <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handsets hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>

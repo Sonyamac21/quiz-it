@@ -661,10 +661,14 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-answer-key > div:first-child { color: var(--qi-success) !important; }
 .qi-mc-answer-key__answer { color:var(--qi-success); font-size:calc(var(--qi-fit-scale,1) * clamp(1.05rem,1rem + .45vw,1.5rem)); font-weight:750; line-height:1.18; overflow-wrap:anywhere; }
 .qi-mc-answer-key__explanation { margin-top:6px; color:rgba(255,255,255,.6); font-size:calc(var(--qi-fit-scale,1) * clamp(.72rem,.68rem + .12vw,.875rem)); line-height:1.35; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
-.qi-mc-manual { flex:0 0 auto; display:flex; align-items:center; gap:clamp(4px,.6vh,var(--qi-space-2)); margin-top:0; padding-top:clamp(4px,.6vh,var(--qi-space-2)); border-top:1px solid var(--qi-border); flex-wrap:wrap; }
-.qi-mc-manual__label { width: 100%; color: var(--qi-text-muted); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
-.qi-mc-manual__button { min-height: 32px; padding-inline: var(--qi-space-3); font-size: var(--qi-type-sm); }
-.qi-mc-manual__last { min-height: 32px; margin-left: auto; }
+/* Host request (repeated): "this bottom bar can then be thinner" - dropped
+   further from the earlier 32px/40px passes. Label folded onto the same
+   row as the buttons instead of its own full-width line, since that line
+   alone was costing as much height as a button row. */
+.qi-mc-manual { flex:0 0 auto; display:flex; align-items:center; gap:6px; margin-top:0; padding-top:4px; border-top:1px solid var(--qi-border); flex-wrap:wrap; }
+.qi-mc-manual__label { width: auto; color: var(--qi-text-muted); font-size: 0.58rem; font-weight: 800; letter-spacing: 0.11em; text-transform: uppercase; white-space: nowrap; margin-right: 4px; }
+.qi-mc-manual__button { min-height: 26px; padding-inline: 10px; font-size: 0.78rem; }
+.qi-mc-manual__last { min-height: 26px; margin-left: auto; }
 /* Host request: every team visible with zero scrolling for a realistic
    room size (up to 25), at the SAME name/score font sizes as before - the
    2-COL button in the header remains the manual option for genuinely

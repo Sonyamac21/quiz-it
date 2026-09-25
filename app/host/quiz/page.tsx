@@ -2468,7 +2468,10 @@ function QuizControllerInner() {
         <div className="qi-mc-session" aria-label="Live session information">
           <div><span>Session PIN</span><strong>{sessionPin}</strong></div>
           <StatusPill tone={phaseLive ? "live" : "inactive"}>{hostPhase.replace("_"," ")}{hostPhase==="timer" ? ` · ${timeLeft}s` : ""}</StatusPill>
-          {selectedRound ? <div><span>Question</span><strong>{qIdx+1} / {selectedRound.questions.length}</strong></div> : null}
+          {/* Host request: "remove... question number (as it is already under
+              the space action bar)" - the question count already appears as
+              the "Qn of N" badge on the question card itself, so this header
+              copy was pure duplication eating header width. */}
         </div>
         <nav className="qi-mc-nav" aria-label="Mission Control navigation">
           {/* Host request: "leaderboard controls and photos could move into
@@ -2483,8 +2486,11 @@ function QuizControllerInner() {
             <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handsets hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
             <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
           </div>}
-          <a className="qi-button qi-button--quiet" href="/host/events">Events</a>
-          <Button variant="quiet" onClick={() => setRulesOpen(true)}>Rules</Button>
+          {/* Host request (repeated twice): "remove events, rules and question
+              number... and move all up" - Events and Rules ate header width
+              every single question, for something a host needs to check at
+              most once at the top of a round. Rules content is still fully
+              reachable via the round-start briefing screen. */}
           {FEATURE_FLAGS.diagnostics && <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>}
           {FEATURE_FLAGS.diagnostics && connected && <button className="qi-button qi-button--secondary" onClick={() => setDiagnosticsOpen(true)} title="Advisory TV browser acknowledgement; does not verify physical TV or audio output" aria-live="polite">{displayHealth.health.level === "healthy" ? "TV: up to date" : displayHealth.health.summary}</button>}
         {rulesOpen && typeof document !== "undefined" && createPortal(

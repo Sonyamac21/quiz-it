@@ -318,42 +318,37 @@ export function JoinForm() {
           {/* Persistent branding overlay - sits on top of every phase screen
               PlayerQuizScreen renders internally, instead of needing to be
               threaded through each of its many separate return branches. */}
-          {/* Host request history: "Quiz-It logo and branding looks stupid -
-              stretch it across the bottom of the screen" -> bumped the
-              preset size and logo up a step, which was still just a bigger
-              small badge sitting centered in the middle of a wide bar ->
-              "the branding still isn't stretched out across the screen...
-              Remove the ME!! And logo on screen - branding is hidden
-              behind the feature of the phone!!! Place the logo in a bottom
-              bar - stretch it across the WHOLE bottom of the screen!!!!!
-              Do NOT distort the letters." Every previous pass changed the
-              SIZE of a small centered lockup, which can never itself reach
-              "stretched edge to edge" - only changing WHAT it's matched
-              against does that. BrandMark's `stretch` prop (see that
-              component) now measures this bar's real live width and
-              justifies (real letter-spacing, not a distorting CSS scaleX)
-              every line to fill it exactly, edge to edge, same technique
-              the component already used to match its own four lines to
-              each other. Dropped the circular "ME" logo image entirely per
-              the explicit "Remove the ME!!" - it was also the thing
-              sitting closest to the phone's home-indicator/rounded-corner
-              area that she flagged as getting obscured. */}
-          {/* Host, immediately after: "no need for the bottom bar to be
-              sooooo thick." Stretching to fill the width is purely a
-              letter-SPACING move (see BrandMark's `stretch`) - it doesn't
-              need a bigger font-size to reach full width, and a bigger
-              size on 4 stacked lines is what made the bar tall. Dropped
-              back to the smallest preset and tight spacing/padding so the
-              bar itself stays thin; `stretch` still spreads each line's
-              own letters out to the full width regardless of how small
-              the font is. */}
+          {/* Tried spreading the letters out to fill the full width
+              (BrandMark's `stretch` prop, real letter-spacing) - "no - it
+              looks stupid." Host's actual spec, given explicitly after
+              that: "Quiz IT - Half the screen width. Powered by/
+              MacEntertainment/by sonya Mac - 3 separate lines. these 3
+              lines will equal the same size as the words Quiz-It [and]
+              will take up the other half of the width of the screen." So
+              a two-column lockup, not a stretched single line: QUIZ-IT on
+              the left sized (via font-size, scaling with the viewport
+              through vw units - never a distorting transform or letter-
+              spacing hack) to fill roughly half the bar's width, and the
+              three supporting lines stacked in the right half, sized so
+              their combined stacked height matches QUIZ-IT's own height. */}
+          {/* Host, again: "the depth at the bottom is still too much" -
+              shrunk the bar's own vertical padding and the max clamp
+              ceilings further so the bar itself sits thinner. */}
           <div style={{
             position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999,
-            padding: "6px 16px", paddingBottom: "max(6px, env(safe-area-inset-bottom))",
+            display: "flex", alignItems: "center",
+            padding: "4px 16px", paddingBottom: "max(4px, env(safe-area-inset-bottom))",
             background: "rgba(13,2,37,0.9)", borderTop: "1px solid rgba(190,38,193,0.3)",
             pointerEvents: "none" as const, boxSizing: "border-box" as const,
           }}>
-            <BrandMark size="xs" align="left" stretch />
+            <div style={{ flex: "0 0 50%", minWidth: 0, fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive", fontSize: "clamp(18px,9vw,32px)", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden" }}>
+              <span style={{ color: "#BE26C1" }}>QUIZ-</span><span style={{ color: "#fff" }}>IT</span>
+            </div>
+            <div style={{ flex: "0 0 50%", minWidth: 0, display: "flex", flexDirection: "column", gap: 1, fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive", color: "#fff", overflow: "hidden" }}>
+              <span style={{ fontSize: "clamp(7px,2.3vw,11px)", lineHeight: 1.1, opacity: 0.6, whiteSpace: "nowrap" }}>Powered by</span>
+              <span style={{ fontSize: "clamp(10px,3.5vw,16px)", lineHeight: 1.1, opacity: 0.6, whiteSpace: "nowrap" }}>Mac Entertainment</span>
+              <span style={{ fontSize: "clamp(9px,3vw,14px)", lineHeight: 1.1, opacity: 0.5, whiteSpace: "nowrap" }}>by Sonya Mac</span>
+            </div>
           </div>
         </div>
       );

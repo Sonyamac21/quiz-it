@@ -40,6 +40,30 @@ function targetQuestionCount(roundType: string, savedTarget?: number | null): nu
   return savedTarget && savedTarget > 0 ? savedTarget : 10;
 }
 
+// The round-tile status dot (see QUESTIONS section below) used to only ever
+// read bulkProgress/lastGenerateMoreResult - both plain React state, gone
+// the moment this tab reloads or the host navigates away and back. A host
+// who came back to check on a shortfall round ("did it finish? why did it
+// stop short?") found literally no dot, no message, nothing - the outcome
+// was simply lost. localStorage survives a reload (though not a different
+// browser/device), so persisting the last known outcome per round here
+// closes that gap without needing a database migration.
+function roundGenStatusKey(roundId: string): string {
+  return "qi_round_gen_status_" + roundId;
+}
+function persistRoundGenStatus(roundId: string, message: string) {
+  try {
+    if (typeof window !== "undefined") window.localStorage.setItem(roundGenStatusKey(roundId), message);
+  } catch {}
+}
+function readPersistedRoundGenStatus(roundId: string): string {
+  try {
+    return (typeof window !== "undefined" && window.localStorage.getItem(roundGenStatusKey(roundId))) || "";
+  } catch {
+    return "";
+  }
+}
+
 function validQuestionsForRound<T extends Record<string, unknown> | Question>(roundType: string, questions: T[]): T[] {
   if (roundType === "pairs") return questions.filter(isPairsQuestion);
   if (roundType !== "multi_tap") return questions;
@@ -823,6 +847,7 @@ export default function QuizBuilderPage() {
         (idx, status) => {
           const round = runTargets[idx];
           setBulkProgress(prev => ({ ...prev, [round.id]: status }));
+          persistRoundGenStatus(round.id, status);
         },
         async (idx, result) => {
           // Save THIS round the instant it finishes, independent of every
@@ -958,8 +983,11 @@ export default function QuizBuilderPage() {
         ? result.finalStatus
         : shortfall ? `Added ${actualAdded} of ${n} requested. ${actualAdded < generatedQuestions.length ? "Some generated questions could not be saved. " : ""}${result.finalStatus}` : `Added ${actualAdded} question${actualAdded === 1 ? "" : "s"}. Round now has ${persistedQuestions.length}.`;
       setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: resultMessage }));
+      persistRoundGenStatus(round.id, resultMessage);
     } catch (e) {
-      setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: "Generation failed - please try again." + (e instanceof Error ? " (" + e.message + ")" : "") }));
+      const failureMessage = "Generation failed - please try again." + (e instanceof Error ? " (" + e.message + ")" : "");
+      setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: failureMessage }));
+      persistRoundGenStatus(round.id, failureMessage);
     } finally {
       setGeneratingMoreId(id => id === round.id ? null : id);
       setGeneratingMoreStatus("");
@@ -1429,7 +1457,14 @@ export default function QuizBuilderPage() {
                 {selected.quiz_rounds.map((round, index) => {
                   const isRoundGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
                   const roundCfg = bulkConfig[round.id];
-                  const roundProgress = bulkProgress[round.id];
+                  // Falls back to whatever was last persisted to
+                  // localStorage (see persistRoundGenStatus above) once this
+                  // tab's own in-memory bulkProgress/lastGenerateMoreResult
+                  // has nothing for this round - e.g. after a reload, or
+                  // when it was the per-round "+GENERATE WITH AI" button
+                  // (which never touches bulkProgress at all) that produced
+                  // the last outcome.
+                  const roundProgress = bulkProgress[round.id] || lastGenerateMoreResult[round.id] || readPersistedRoundGenStatus(round.id);
                   // A tab is a drop target either for a dragged QUESTION (moving it into
                   // a different round) or for a dragged ROUND tab itself (reordering the
                   // rounds) - the two never happen at the same time, so they share the

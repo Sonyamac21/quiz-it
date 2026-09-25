@@ -318,29 +318,42 @@ export function JoinForm() {
           {/* Persistent branding overlay - sits on top of every phase screen
               PlayerQuizScreen renders internally, instead of needing to be
               threaded through each of its many separate return branches. */}
-          {/* Host request: "Quiz-It logo and branding looks stupid - stretch
-              it across the bottom of the screen." Used to be a small
-              floating rounded pill pinned to the bottom-right corner -
-              looked like a stray badge sitting on top of the content rather
-              than part of the screen. The container itself became a
-              full-width bar, but the logo+lockup inside stayed at the
-              smallest preset size ("xs", 0.6x) and a 26px logo - visually
-              still just a small centered badge floating in the middle of a
-              wide bar, not something that reads as "stretched". Bumped both
-              up a size (logo 26->40px, BrandMark xs->sm, more vertical
-              padding) so the bar itself looks filled rather than mostly
-              empty either side of a tiny lockup. Host, after the first
-              pass: "the branding still isn't stretched out across the
-              screen." */}
+          {/* Host request history: "Quiz-It logo and branding looks stupid -
+              stretch it across the bottom of the screen" -> bumped the
+              preset size and logo up a step, which was still just a bigger
+              small badge sitting centered in the middle of a wide bar ->
+              "the branding still isn't stretched out across the screen...
+              Remove the ME!! And logo on screen - branding is hidden
+              behind the feature of the phone!!! Place the logo in a bottom
+              bar - stretch it across the WHOLE bottom of the screen!!!!!
+              Do NOT distort the letters." Every previous pass changed the
+              SIZE of a small centered lockup, which can never itself reach
+              "stretched edge to edge" - only changing WHAT it's matched
+              against does that. BrandMark's `stretch` prop (see that
+              component) now measures this bar's real live width and
+              justifies (real letter-spacing, not a distorting CSS scaleX)
+              every line to fill it exactly, edge to edge, same technique
+              the component already used to match its own four lines to
+              each other. Dropped the circular "ME" logo image entirely per
+              the explicit "Remove the ME!!" - it was also the thing
+              sitting closest to the phone's home-indicator/rounded-corner
+              area that she flagged as getting obscured. */}
+          {/* Host, immediately after: "no need for the bottom bar to be
+              sooooo thick." Stretching to fill the width is purely a
+              letter-SPACING move (see BrandMark's `stretch`) - it doesn't
+              need a bigger font-size to reach full width, and a bigger
+              size on 4 stacked lines is what made the bar tall. Dropped
+              back to the smallest preset and tight spacing/padding so the
+              bar itself stays thin; `stretch` still spreads each line's
+              own letters out to the full width regardless of how small
+              the font is. */}
           <div style={{
             position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 14,
-            padding: "14px 16px", paddingBottom: "max(14px, env(safe-area-inset-bottom))",
-            background: "rgba(13,2,37,0.85)", borderTop: "1px solid rgba(190,38,193,0.3)",
-            pointerEvents: "none" as const,
+            padding: "6px 16px", paddingBottom: "max(6px, env(safe-area-inset-bottom))",
+            background: "rgba(13,2,37,0.9)", borderTop: "1px solid rgba(190,38,193,0.3)",
+            pointerEvents: "none" as const, boxSizing: "border-box" as const,
           }}>
-            <img src="/me-logo.jpg" alt="ME" style={{ width: 40, height: 40, borderRadius: "50%" }} />
-            <BrandMark size="sm" align="left" />
+            <BrandMark size="xs" align="left" stretch />
           </div>
         </div>
       );

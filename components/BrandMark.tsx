@@ -95,17 +95,45 @@ export function BrandMark({
   size = "md",
   align = "left",
   color = "#fff",
+  stretch = false,
 }: {
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   align?: "left" | "center" | "right";
   color?: string;
+  // Host, repeatedly, about the handset's fixed bottom bar: "stretch it
+  // across the WHOLE bottom of the screen... do NOT distort the
+  // letters... but you could have QUIZ-IT on a double line, then powered
+  // by etc on separate lines." Every line already gets justified via real
+  // letter-spacing (not a CSS scaleX warp) to match the WIDEST of the four
+  // lines at their natural size - which stretches them to match each
+  // OTHER, but that natural widest-line width is nowhere near the actual
+  // screen width once the lockup is small enough to fit a corner badge.
+  // `stretch` swaps that target from "the widest of these four lines" to
+  // "the full width of whatever container this is placed in" (measured
+  // live via ResizeObserver), so the whole lockup spans edge to edge of
+  // its container using the exact same real-kerning mechanism, not a
+  // distorting transform.
+  stretch?: boolean;
 }) {
   const s = SCALE[size];
   const measured = useRef<number[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [targetWidth, setTargetWidth] = useState<number | null>(null);
   const justify = align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center";
 
+  useLayoutEffect(() => {
+    if (!stretch) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setTargetWidth(el.clientWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [stretch]);
+
   function handleMeasured(index: number, width: number) {
+    if (stretch) return;
     measured.current[index] = width;
     if (measured.current.filter(w => w > 0).length === 4) {
       const widest = Math.max(...measured.current);
@@ -137,7 +165,7 @@ export function BrandMark({
   };
 
   return (
-    <div style={{ lineHeight: 1.25 }}>
+    <div ref={containerRef} style={{ lineHeight: 1.25, width: stretch ? "100%" : undefined }}>
       <JustifiedLine style={nameStyle} targetWidth={targetWidth} onMeasured={w => handleMeasured(0, w)} justify={justify}>
         <span style={{ color: "#BE26C1" }}>QUIZ-</span>
         <span style={{ color }}>IT</span>

@@ -1228,6 +1228,14 @@ function QuizControllerInner() {
     hostPhaseRef.current = "quiz_end";
     setHostPhase("quiz_end");
   }
+  // Shared by the main header's own End quiz button AND every full-screen
+  // round overlay (Hard Deck, Pursuit) via MissionControlTopBar, so a host
+  // never loses access to ending the quiz just because a mini-game is
+  // running - see that component's own comment for the fuller context.
+  async function endQuizWithConfirm() {
+    const closing = hostPhase === "quiz_end";
+    if (await confirmDialog(closing ? "Close this session for good? It'll be marked completed in Reports and cannot be reopened." : "End the quiz for everyone? This closes the live session and cannot be undone.", { tone: "destructive", confirmLabel: closing ? "Close Session" : "End Quiz" })) doEndOfQuiz();
+  }
   async function doBuildReel() {
     if (!sessionPin || buildingReel) return;
     setBuildingReel(true);
@@ -2486,7 +2494,7 @@ function QuizControllerInner() {
             {FEATURE_FLAGS.diagnostics && <button className="qi-health-trigger" aria-label="Open host diagnostics" title="Diagnostics · Ctrl/Cmd + Shift + D" onClick={() => setDiagnosticsOpen(true)}>●</button>}
             {FEATURE_FLAGS.diagnostics && connected && <button className={`qi-button qi-button--secondary qi-mc-tv-status${displayHealth.health.level !== "healthy" ? " qi-mc-tv-status--warn" : ""}`} onClick={() => setDiagnosticsOpen(true)} title={displayHealth.health.level === "healthy" ? "TV: up to date" : displayHealth.health.summary} aria-live="polite">TV</button>}
             <a href={sessionPin ? `/host/display?pin=${encodeURIComponent(sessionPin)}` : "/host/display"} target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
-            <Button variant="destructive" className="qi-mc-toolbar__end" onClick={async () => { const closing = hostPhase === "quiz_end"; if (await confirmDialog(closing ? "Close this session for good? It'll be marked completed in Reports and cannot be reopened." : "End the quiz for everyone? This closes the live session and cannot be undone.", { tone: "destructive", confirmLabel: closing ? "Close Session" : "End Quiz" })) doEndOfQuiz(); }}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
+            <Button variant="destructive" className="qi-mc-toolbar__end" onClick={endQuizWithConfirm}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
           </div>
           <div className="qi-mc-header__bottom">
             <button type="button" className="qi-mc-toolbar__toggle" aria-expanded={audienceControlsOpen} onClick={() => setAudienceControlsOpen(open => !open)}><span>Audience</span><strong>{selectedRound?.hide_leaderboard ? "Leaderboards hidden for this round" : showScoreboard || showScoreboardOnHandsets ? "Leaderboard showing" : "Leaderboard controls"}</strong><i>{audienceControlsOpen ? "Hide" : "Show"}</i></button>
@@ -2604,8 +2612,8 @@ function QuizControllerInner() {
           </div>,
           document.body
         )}
-        {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} scores={scores} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setHardDeckActive(active); if (!active) setHardDeckAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={hardDeckAutoStartId} />}
-        {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pursuitAutoStartId} />}
+        {FEATURE_FLAGS.hardDeck && sessionId && <HardDeckPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} scores={scores} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setHardDeckActive(active); if (!active) setHardDeckAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={hardDeckAutoStartId} tvStatus={FEATURE_FLAGS.diagnostics && connected ? displayHealth.health : null} onOpenDiagnostics={() => setDiagnosticsOpen(true)} endQuizLabel={hostPhase === "quiz_end" ? "Close Session" : "End quiz"} onEndQuiz={endQuizWithConfirm} />}
+        {FEATURE_FLAGS.pursuit && sessionId && <PursuitPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pursuit").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} timerDuration={timerDuration} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPursuitActive(active); if (!active) setPursuitAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pursuitAutoStartId} tvStatus={FEATURE_FLAGS.diagnostics && connected ? displayHealth.health : null} onOpenDiagnostics={() => setDiagnosticsOpen(true)} endQuizLabel={hostPhase === "quiz_end" ? "Close Session" : "End quiz"} onEndQuiz={endQuizWithConfirm} />}
         {sessionId && <PairsPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pairs").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPairsActive(active); if (!active) setPairsAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pairsAutoStartId} />}
       </header>
 
@@ -2924,7 +2932,7 @@ function QuizControllerInner() {
                     </a>
                   ) : (
                     <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 26px", borderRadius:14, background:"rgba(190,38,193,0.12)", border:"1px solid #8A1B8D", color:"#D94FDC", fontSize:14, fontWeight:600 }}>
-                      \u266a Auto-playing on display screen ({currentQ.playback_mode === "manual" ? "manual play button" : "auto-play"})
+                      ♪ Auto-playing on display screen ({currentQ.playback_mode === "manual" ? "manual play button" : "auto-play"})
                     </div>
                   )}
                 </div>

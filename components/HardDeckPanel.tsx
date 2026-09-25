@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { applyScoreDelta } from "@/lib/quiz/scoreService";
 import { HARD_DECK_CARD_POINTS, hardDeckGambleStake, hardDeckStealAward } from "@/lib/quiz/hardDeck";
+import { MissionControlTopBar } from "@/components/ui/quiz-it-ui";
 
 type PlayingCard = { rank: number; suit: "♠" | "♥" | "♦" | "♣" };
 type HardDeckStatus =
@@ -51,9 +52,16 @@ type Props = {
   // round type) - see PursuitPanel's identical autoStartRoundId for the
   // full reasoning. Each distinct value triggers one launch.
   autoStartRoundId?: string | null;
+  // Threaded down from the main console so MissionControlTopBar can render
+  // the same Session PIN/TV/Open Display/End quiz row this overlay was
+  // otherwise missing entirely - see that component's own comment.
+  tvStatus?: { level: string; summary: string } | null;
+  onOpenDiagnostics?: () => void;
+  endQuizLabel?: string;
+  onEndQuiz?: () => void;
 };
 
-export function HardDeckPanel({ sessionId, sessionPin, teams, scores = [], onScoreChange, onActiveChange, onRoundComplete, autoStartRoundId }: Props) {
+export function HardDeckPanel({ sessionId, sessionPin, teams, scores = [], onScoreChange, onActiveChange, onRoundComplete, autoStartRoundId, tvStatus, onOpenDiagnostics, endQuizLabel, onEndQuiz }: Props) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
   const [scoreWarnings, setScoreWarnings] = useState<string[]>([]);
@@ -393,31 +401,38 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, scores = [], onSco
   // Reusing the actual layout classes every other round (and Pursuit) uses
   // is what actually fixes that, not another palette pass.
   const overlay = (
-    <div className="qi-host-harddeck" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box" as const, background: "var(--qi-bg-stage)", zIndex: 200, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {nextLabel && (
-        <button onClick={nextHandler} disabled={nextDisabled} className="qi-mc-next" style={{ flexShrink: 0 }}>
-          <span className="qi-mc-next__eyebrow">Next action</span>
-          <span className="qi-mc-next__label">{nextLabel}</span>
-          <span className="qi-mc-next__key">Space ↵</span>
-        </button>
-      )}
+    <div className="qi-host-harddeck qi-mc-shell" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box" as const, background: "var(--qi-bg-stage)", zIndex: 200, overflow: "hidden" }}>
+      <div className="qi-mc-main-column">
+        {/* Host request: "all info from top bar has disappeared from the
+            screen - it should be on all screens" - Session PIN, TV status,
+            Open Display and End quiz used to only exist on the main console;
+            this overlay's own slim title row (just below) had none of it, so
+            all of it vanished for as long as Hard Deck was running. Reusing
+            the exact same top-bar component the main console renders fixes
+            that without duplicating its markup here. */}
+        <MissionControlTopBar sessionPin={sessionPin} tvStatus={tvStatus} onOpenDiagnostics={onOpenDiagnostics} endQuizLabel={endQuizLabel ?? "End quiz"} onEndQuiz={onEndQuiz ?? closePanel} />
+        {nextLabel && (
+          <button onClick={nextHandler} disabled={nextDisabled} className="qi-mc-next" style={{ flexShrink: 0 }}>
+            <span className="qi-mc-next__eyebrow">Next action</span>
+            <span className="qi-mc-next__label">{nextLabel}</span>
+            <span className="qi-mc-next__key">Space ↵</span>
+          </button>
+        )}
 
-      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
-        <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 20, color: "#BE26C1", letterSpacing: 3 }}>THE HARD DECK</div>
-        {!showWheel && team && <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>Team: <strong style={{ fontWeight: 800 }}>{team}</strong></div>}
-        <button onClick={closePanel} style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
-      </div>
+        <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
+          <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 20, color: "#BE26C1", letterSpacing: 3 }}>THE HARD DECK</div>
+          {/* Host request: "team name area is smaller" - bumped from 15px to
+              match the weight/size of the round wordmark beside it, so the
+              team currently playing reads as clearly as the round name. */}
+          {!showWheel && team && <div style={{ fontSize: 20, fontWeight: 700, color: "#fff" }}>Team: <strong style={{ fontWeight: 800 }}>{team}</strong></div>}
+          <button onClick={closePanel} style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
+        </div>
 
-      {/* Host request: this overlay had no team rail at all - every other
-          round type keeps the scoreboard visible on the right via this same
-          .qi-mc-workspace two-column grid; Hard Deck was the one round type
-          where it fully disappeared for as long as the mini-game ran.
-          Wheel/card sizing below is also enlarged - it was a small, fixed-
-          size centerpiece floating in a mostly-empty viewport on every
-          screen size (phone, iPad, host laptop, venue TV), the "too small
-          for every display" report. Sized relative to the actual space
-          available in .qi-mc-desk instead of small fixed/capped values. */}
-      <div className="qi-mc-workspace">
+        {/* Wheel/card sizing below is enlarged - it was a small, fixed-size
+            centerpiece floating in a mostly-empty viewport on every screen
+            size (phone, iPad, host laptop, venue TV), the "too small for
+            every display" report. Sized relative to the actual space
+            available in .qi-mc-desk instead of small fixed/capped values. */}
         <main className="qi-mc-desk" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, textAlign: "center" as const }}>
           {showWheel && (
             <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={Math.min(560, typeof window !== "undefined" ? Math.min(window.innerWidth * 0.42, window.innerHeight * 0.72) : 480)} forceResultIndex={wheelTarget ?? undefined} onSpinStart={() => pushState({ hard_deck_wheel_spinning: true })} />
@@ -498,22 +513,32 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, scores = [], onSco
             </>
           )}
         </main>
-        <aside className="qi-mc-rail">
-          <div className="qi-mc-teams">
-            {[...scores].sort((a, b) => b.total_points - a.total_points).map((s, i) => (
-              <div key={s.team_name} className="qi-mc-team-card" style={{ gridTemplateColumns: "26px 28px minmax(0, 1fr) auto" }}>
-                <span style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", fontWeight: 700 }}>{i + 1}</span>
-                <span />
-                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>{s.team_name}</span>
-                <span style={{ fontSize: 19, fontWeight: 800 }}>{s.total_points}</span>
-              </div>
-            ))}
-            {scores.length === 0 && (
-              <div style={{ padding: "12px 4px", color: "rgba(255,255,255,0.5)", fontSize: 13 }}>Scores will appear here once teams have points.</div>
-            )}
-          </div>
-        </aside>
       </div>
+      {/* .qi-mc-rail is a direct sibling of .qi-mc-main-column inside the
+          .qi-mc-shell grid now (see that class), exactly like the main
+          console - NOT a flex sibling of .qi-mc-desk inside a plain
+          .qi-mc-workspace row the way this used to be built. That older
+          structure never actually gave the rail its fixed
+          minmax(360px,29vw) column: .qi-mc-rail's own `grid-column: 2` rule
+          only means anything inside a grid parent, so under a flex parent it
+          silently fell back to shrink-to-fit content width - with almost no
+          content ("Scores will appear here...") that collapsed to a sliver.
+          ("team name area is tiny - the area should always be locked".) */}
+      <aside className="qi-mc-rail">
+        <div className="qi-mc-teams">
+          {[...scores].sort((a, b) => b.total_points - a.total_points).map((s, i) => (
+            <div key={s.team_name} className="qi-mc-team-card" style={{ gridTemplateColumns: "26px 28px minmax(0, 1fr) auto" }}>
+              <span style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", fontWeight: 700 }}>{i + 1}</span>
+              <span />
+              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>{s.team_name}</span>
+              <span style={{ fontSize: 19, fontWeight: 800 }}>{s.total_points}</span>
+            </div>
+          ))}
+          {scores.length === 0 && (
+            <div style={{ padding: "12px 4px", color: "rgba(255,255,255,0.5)", fontSize: 13 }}>Scores will appear here once teams have points.</div>
+          )}
+        </div>
+      </aside>
     </div>
   );
 

@@ -608,7 +608,7 @@ button, input, select, textarea { font: inherit; }
    .qi-mc-shell above for where the real column split (and .qi-mc-rail,
    its sibling) now lives. */
 .qi-mc-workspace { min-height: 0; flex: 1; display: flex; overflow: hidden; }
-.qi-mc-desk { min-width: 0; flex: 1; padding: clamp(1.25rem, 2.3vw, 2.25rem); overflow-y: auto; border-right: 1px solid var(--qi-border); }
+.qi-mc-desk { min-width: 0; flex: 1; display: flex; flex-direction: column; padding: clamp(1.25rem, 2.3vw, 2.25rem); overflow-y: auto; border-right: 1px solid var(--qi-border); }
 .qi-mc-desk:has(.qi-mc-question) { overflow:hidden; }
 .qi-mc-rail { grid-column: 2; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: rgb(16 5 34 / 0.56); }
 .qi-mc-settings { padding: var(--qi-space-4) var(--qi-space-5); border-bottom: 1px solid var(--qi-border); background: rgb(29 17 64 / 0.5); }
@@ -725,7 +725,17 @@ button, input, select, textarea { font: inherit; }
    further from the earlier 32px/40px passes. Label folded onto the same
    row as the buttons instead of its own full-width line, since that line
    alone was costing as much height as a button row. */
-.qi-mc-manual { flex:0 0 auto; display:flex; align-items:center; gap:6px; margin-top:0; padding-top:4px; border-top:1px solid var(--qi-border); flex-wrap:wrap; }
+/* .qi-mc-desk is now the flex column (see above) that this bar's parent
+   actually needs to be for margin-top:auto to mean anything - previously
+   .qi-mc-desk was a plain block, so this flex:0 0 auto/margin-top:0 did
+   nothing and the bar just sat wherever it fell in normal document flow,
+   directly under whatever content was above it - on a short question with
+   little content, that left it "floating" with a visible gap of empty
+   purple background below it rather than sitting at the true bottom of the
+   screen ("bottom bar locked to bottom please - not floating"). With the
+   flex column now in place, margin-top:auto pushes this bar all the way
+   down to fill any leftover space above it instead. */
+.qi-mc-manual { flex:0 0 auto; display:flex; align-items:center; gap:6px; margin-top:auto; padding-top:4px; border-top:1px solid var(--qi-border); flex-wrap:wrap; }
 .qi-mc-manual__label { width: auto; color: var(--qi-text-muted); font-size: 0.58rem; font-weight: 800; letter-spacing: 0.11em; text-transform: uppercase; white-space: nowrap; margin-right: 4px; }
 .qi-mc-manual__button { min-height: 26px; padding-inline: 10px; font-size: 0.78rem; }
 .qi-mc-manual__last { min-height: 26px; margin-left: auto; }
@@ -796,7 +806,7 @@ button, input, select, textarea { font: inherit; }
   }
   .qi-mc-options { gap: var(--qi-space-2); margin-bottom: var(--qi-space-3); }
   .qi-mc-option { min-height: 52px; padding-block: var(--qi-space-2); }
-  .qi-mc-manual { margin-top: var(--qi-space-3); padding-top: var(--qi-space-3); }
+  .qi-mc-manual { padding-top: var(--qi-space-3); }
 
   /* Hot Seat's answer-locked alert was added after this shrink pass, so on a
      short laptop/venue-control screen it kept its full padding/margin and
@@ -2444,7 +2454,7 @@ button, input, select, textarea { font: inherit; }
    the actual "still scrolling" complaint. Switching these to dvh-based
    clamps lets rows compress on shorter viewports / more options instead of
    overflowing, so the safety-net scroll goes back to being a rare fallback. */
-.qi-player-question-text { flex:0 1 auto; max-height:18dvh; overflow:hidden; overflow-wrap:anywhere; font-size:clamp(20px,6.6vw,34px); font-weight:850; line-height:1.2; letter-spacing:-.018em; margin:clamp(2px,.6dvh,4px) 0 clamp(8px,1.8dvh,18px); text-wrap:balance; }
+.qi-player-question-text { flex:0 1 auto; max-height:24dvh; overflow:hidden; overflow-wrap:anywhere; font-size:clamp(20px,6.6vw,34px); font-weight:850; line-height:1.2; letter-spacing:-.018em; margin:clamp(2px,.6dvh,4px) 0 clamp(8px,1.8dvh,18px); text-wrap:balance; }
 .qi-player-question-screen .fbl .opt { min-width:0; min-height:clamp(46px,9dvh,92px); margin-bottom:clamp(6px,1.4dvh,12px); border-radius:18px; padding:clamp(8px,2dvh,18px) 18px; background:var(--qi-player-raised); border-color:rgba(217,79,220,.25); font-size:clamp(15px,5.6vw,28px); line-height:1.2; overflow-wrap:anywhere; touch-action:manipulation; }
 .qi-player-question-screen .fbl .opt > :last-child { min-width:0; overflow-wrap:anywhere; }
 .qi-player-sequence__option { min-width:0; overflow:hidden; }
@@ -2883,7 +2893,7 @@ button, input, select, textarea { font: inherit; }
 .qi-player-question-screen .qi-player-status__identity { flex: 1; }
 .qi-player-question-screen .qi-player-status__identity strong { font-size: 12px; max-width: 32vw; }
 .qi-player-question-screen .qi-player-status__identity small { font-size: 10px; max-width: 32vw; }
-.qi-player-question-screen .qi-player-question-text { font-size: clamp(18px,2.9dvh,24px); line-height: 1.2; margin: 2px 0 8px; flex-shrink: 0; }
+.qi-player-question-screen .qi-player-question-text { font-size: clamp(20px,3.6dvh,30px); line-height: 1.2; margin: 2px 0 8px; flex-shrink: 0; }
 .qi-player-question-screen .fbl .opt { min-height: 44px !important; padding: 7px 10px !important; margin-bottom: 5px; font-size: clamp(15px,2.4dvh,19px); border-radius: 12px; }
 .qi-player-question-screen .fbl .opt .chip { width: 30px; height: 30px; font-size: 14px; }
 .qi-player-question-screen .fbl .lockbar { min-height: 44px; margin-top: 5px; font-size: 16px; border-radius: 12px; }
@@ -2909,9 +2919,27 @@ button, input, select, textarea { font: inherit; }
    unused height becomes larger tap targets/readable text, not dead space. */
 .qi-player-question-screen .qi-player-question-scroll > .fbl,
 .qi-player-question-screen .qi-player-keypad-wrap,
-.qi-player-question-screen .qi-player-sequence { flex:1 1 0; min-height:0; }
+.qi-player-question-screen .qi-player-sequence,
+.qi-player-question-screen .qi-player-result { flex:1 1 0; min-height:0; }
 .qi-player-question-screen .qi-player-question-scroll > .fbl,
-.qi-player-question-screen .qi-player-keypad-wrap { display:flex; flex-direction:column; justify-content:center; }
+.qi-player-question-screen .qi-player-keypad-wrap,
+.qi-player-question-screen .qi-player-result { display:flex; flex-direction:column; justify-content:center; }
+/* Host request: "the question is tiny... utilise the whole screen space" -
+   this was the one gap the rule above didn't cover. Every OTHER answer type
+   (multiple choice grid, keypad, sequence) already grows to fill the
+   leftover space once the timer starts. But the moment a player actually
+   locks in a text/number answer, that whole flex-growing block unmounts
+   and is replaced by just this small "LOCKED IN" banner at its own natural
+   size - with nothing else claiming the space it vacated, the screen was
+   left with a small question, a small banner, and a large dead gap of
+   background between the banner and the power cards row at the bottom.
+   flex:1 above makes the banner claim that same leftover space instead of
+   leaving it empty; bumping its own text size here (it was still using the
+   compact clamp() sized for a banner that shared the screen with a full
+   answer grid above it) makes it read as a real full-screen confirmation
+   moment, not a stray note. */
+.qi-player-question-screen .qi-player-result strong { font-size: clamp(30px,9vw,46px); }
+.qi-player-question-screen .qi-player-result>div { font-size: clamp(20px,5.6vw,28px); }
 .qi-player-question-screen[data-answer-type="multiple_choice"] .fbl .opt { flex:1 1 0; max-height:92px; font-size:clamp(17px,4.8vw,23px); }
 .qi-player-question-screen[data-answer-type="multi_tap"] .qi-player-multitap-grid { flex:1 1 0; grid-auto-rows:minmax(48px,1fr); }
 .qi-player-question-screen[data-answer-type="multi_tap"] .qi-player-answer-button { height:100%; font-size:clamp(16px,4.4vw,21px)!important; }
@@ -2923,7 +2951,7 @@ button, input, select, textarea { font: inherit; }
 .qi-player-answer .qi-player-answer-comparison { width:100%!important; max-width:none!important; }
 .qi-player-waiting > div:nth-of-type(2) { font-size:clamp(17px,4.8vw,21px)!important; }
 @media (min-height:700px) {
-  .qi-player-question-screen .qi-player-question-text { font-size:clamp(22px,3.4dvh,30px); max-height:21dvh; }
+  .qi-player-question-screen .qi-player-question-text { font-size:clamp(24px,4dvh,34px); max-height:26dvh; }
   .qi-player-question-screen .fbl .lockbar { min-height:clamp(54px,7.5dvh,72px); font-size:clamp(18px,2.7dvh,22px); }
   .qi-player-question-screen .qi-player-keypad__key { height:clamp(44px,6.2dvh,58px)!important; font-size:clamp(18px,3dvh,25px)!important; }
   .qi-player-question-screen .qi-player-keypad__submit,.qi-player-question-screen .qi-player-keypad__delete,.qi-player-question-screen .qi-player-keypad__space { min-height:48px!important; font-size:clamp(16px,2.4dvh,20px)!important; }

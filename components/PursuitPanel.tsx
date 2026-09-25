@@ -7,6 +7,7 @@ import { applyScoreDelta } from "@/lib/quiz/scoreService";
 import { getTimerForQuestion } from "@/lib/quiz/questionTimer";
 import { teamInitials } from "@/components/TeamBadge";
 import { FitBlockText } from "@/components/FitBlockText";
+import { MissionControlTopBar } from "@/components/ui/quiz-it-ui";
 import {
   PursuitPhase,
   PursuitRace,
@@ -70,9 +71,16 @@ type Props = {
   // distinct value (including being set to the same round again) triggers
   // one launch - see the effect below.
   autoStartRoundId?: string | null;
+  // Threaded down from the main console so MissionControlTopBar can render
+  // the same Session PIN/TV/Open Display/End quiz row this overlay was
+  // otherwise missing entirely - see that component's own comment.
+  tvStatus?: { level: string; summary: string } | null;
+  onOpenDiagnostics?: () => void;
+  endQuizLabel?: string;
+  onEndQuiz?: () => void;
 };
 
-export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDuration, onScoreChange, onActiveChange, onRoundComplete, autoStartRoundId }: Props) {
+export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDuration, onScoreChange, onActiveChange, onRoundComplete, autoStartRoundId, tvStatus, onOpenDiagnostics, endQuizLabel, onEndQuiz }: Props) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -490,37 +498,43 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
     // and clipped the race graphic, per direct host feedback ("impossible
     // to read... start the pursuit should be on space... team scores on the
     // right side, like all other rounds").
-    <div className="qi-pursuit-host-console" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box" as const, background: "var(--qi-bg-page, #0A0118)", zIndex: 200, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* Fixed Next-Action bar - the very first thing on screen, matching the
-          main host console's own layout (its Next-Action bar sits above
-          everything else too), so the host's next move is the first thing
-          they see instead of something to hunt for further down. */}
-      {pursuitNextLabel && (
-        <button onClick={pursuitNextHandler} disabled={status === "intro" && pursuitQuestions.length === 0} className={`qi-mc-next${showNextTimer ? " qi-mc-next--timer" : ""}`} style={{ flexShrink: 0 }}>
-          <span className="qi-mc-next__eyebrow">Next action</span>
-          <span className="qi-mc-next__label">{pursuitNextLabel}</span>
-          {showNextTimer && <span className={`qi-mc-next__timer${(timeLeft ?? 0) <= 5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft ?? "—"}s</span>}
-          <span className="qi-mc-next__key">Space ↵</span>
-        </button>
-      )}
-
-      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
-        <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 20, color: "#D94FDC", letterSpacing: 3 }}>THE PURSUIT</div>
-        <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-          <button onClick={recoverGraphics} disabled={recovering} title="Re-pull the race board from the last saved state — use this if the graphics ever look stuck or out of sync" style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(217,79,220,0.4)", color: recovering ? "rgba(217,79,220,0.4)" : "#D94FDC", fontSize: 12, cursor: recovering ? "default" : "pointer" }}>
-            {recovering ? "Recovering…" : "Recover Graphics"}
+    <div className="qi-pursuit-host-console qi-mc-shell" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box" as const, background: "var(--qi-bg-page, #0A0118)", zIndex: 200, overflow: "hidden" }}>
+      <div className="qi-mc-main-column">
+        {/* Host request: "all info from top bar has disappeared from the
+            screen - it should be on all screens" - Session PIN, TV status,
+            Open Display and End quiz used to only exist on the main console;
+            reusing the exact same top-bar component the main console renders
+            fixes that without duplicating its markup here. */}
+        <MissionControlTopBar sessionPin={sessionPin} tvStatus={tvStatus} onOpenDiagnostics={onOpenDiagnostics} endQuizLabel={endQuizLabel ?? "End quiz"} onEndQuiz={onEndQuiz ?? closePanel} />
+        {/* Fixed Next-Action bar - the very first thing on screen, matching the
+            main host console's own layout (its Next-Action bar sits above
+            everything else too), so the host's next move is the first thing
+            they see instead of something to hunt for further down. */}
+        {pursuitNextLabel && (
+          <button onClick={pursuitNextHandler} disabled={status === "intro" && pursuitQuestions.length === 0} className={`qi-mc-next${showNextTimer ? " qi-mc-next--timer" : ""}`} style={{ flexShrink: 0 }}>
+            <span className="qi-mc-next__eyebrow">Next action</span>
+            <span className="qi-mc-next__label">{pursuitNextLabel}</span>
+            {showNextTimer && <span className={`qi-mc-next__timer${(timeLeft ?? 0) <= 5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft ?? "—"}s</span>}
+            <span className="qi-mc-next__key">Space ↵</span>
           </button>
-          <button onClick={closePanel} style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
-        </div>
-      </div>
+        )}
 
-      {status === "advance" && canAskMore && (
-        <div style={{ flexShrink: 0, textAlign: "center" as const, padding: "8px 0" }}>
-          <SecondaryButton onClick={finishRound} label="Finish Round Early" />
+        <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
+          <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 20, color: "#D94FDC", letterSpacing: 3 }}>THE PURSUIT</div>
+          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+            <button onClick={recoverGraphics} disabled={recovering} title="Re-pull the race board from the last saved state — use this if the graphics ever look stuck or out of sync" style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(217,79,220,0.4)", color: recovering ? "rgba(217,79,220,0.4)" : "#D94FDC", fontSize: 12, cursor: recovering ? "default" : "pointer" }}>
+              {recovering ? "Recovering…" : "Recover Graphics"}
+            </button>
+            <button onClick={closePanel} style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
+          </div>
         </div>
-      )}
 
-      <div className="qi-mc-workspace" style={{ flex: 1, minHeight: 0 }}>
+        {status === "advance" && canAskMore && (
+          <div style={{ flexShrink: 0, textAlign: "center" as const, padding: "8px 0" }}>
+            <SecondaryButton onClick={finishRound} label="Finish Round Early" />
+          </div>
+        )}
+
         <main className="qi-mc-desk">
           {/* Host-reported bug: the running-track graphic embedded here was
               capped at a small fixed height (.qi-pursuit-host-board, max
@@ -571,10 +585,19 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
             </div>
           )}
         </main>
-
-        <aside className="qi-mc-rail" aria-label="Teams and round scores">
-          <section className="qi-mc-teams">
-            <div className="qi-mc-teams__header"><div><span>Live answers</span><strong>Teams & scores</strong></div></div>
+      </div>
+      {/* .qi-mc-rail is now a direct sibling of .qi-mc-main-column inside
+          the .qi-mc-shell grid (see that class), exactly like the main
+          console - not a flex sibling of .qi-mc-desk inside a plain
+          .qi-mc-workspace row the way this used to be built. That older
+          structure never actually gave the rail its fixed
+          minmax(360px,29vw) column - .qi-mc-rail's own `grid-column: 2`
+          rule only means anything inside a grid parent, so under a flex
+          parent it silently shrank to content width instead.
+          ("Team name area is tiny - the area should always be locked".) */}
+      <aside className="qi-mc-rail" aria-label="Teams and round scores">
+        <section className="qi-mc-teams">
+          <div className="qi-mc-teams__header"><div><span>Live answers</span><strong>Teams & scores</strong></div></div>
             {standings.length === 0 ? (
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", padding: "8px 0" }}>Waiting for scores…</div>
             ) : standings.map((s, i) => {
@@ -607,9 +630,8 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
                 </div>
               );
             })}
-          </section>
-        </aside>
-      </div>
+        </section>
+      </aside>
     </div>
   );
 

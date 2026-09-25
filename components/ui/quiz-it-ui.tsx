@@ -309,6 +309,47 @@ export function SectionHeader({ title, description, action }: { title: string; d
   return <div className="qi-section-header"><div><h2>{title}</h2>{description ? <p>{description}</p> : null}</div>{action}</div>;
 }
 
+// Host request: Hard Deck and Pursuit's full-screen overlays each grew their
+// own slim custom title bar (round wordmark + a "Close" button) instead of
+// the main console's real header, so Session PIN, the TV diagnostics
+// button, Open Display and End quiz all silently disappeared for as long as
+// either mini-game was running ("all info from top bar has disappeared from
+// the screen - it should be on all screens"). Extracted the main console's
+// own .qi-mc-header__top row (app/host/quiz/page.tsx) into this one shared
+// component so every full-screen round overlay can render the SAME markup
+// instead of a hand-rolled approximation that drifts out of sync.
+export function MissionControlTopBar({
+  sessionPin,
+  tvStatus,
+  onOpenDiagnostics,
+  endQuizLabel,
+  onEndQuiz,
+}: {
+  sessionPin: string;
+  tvStatus?: { level: string; summary: string } | null;
+  onOpenDiagnostics?: () => void;
+  endQuizLabel: string;
+  onEndQuiz: () => void;
+}) {
+  return (
+    <div className="qi-mc-header__top" style={{ flexShrink: 0 }}>
+      <div className="qi-mc-session" aria-label="Live session information">
+        <div><span>Session PIN</span><strong>{sessionPin}</strong></div>
+      </div>
+      {tvStatus && onOpenDiagnostics && (
+        <button
+          className={`qi-button qi-button--secondary qi-mc-tv-status${tvStatus.level !== "healthy" ? " qi-mc-tv-status--warn" : ""}`}
+          onClick={onOpenDiagnostics}
+          title={tvStatus.level === "healthy" ? "TV: up to date" : tvStatus.summary}
+          aria-live="polite"
+        >TV</button>
+      )}
+      <a href={sessionPin ? `/host/display?pin=${encodeURIComponent(sessionPin)}` : "/host/display"} target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
+      <Button variant="destructive" className="qi-mc-toolbar__end" onClick={onEndQuiz}>{endQuizLabel}</Button>
+    </div>
+  );
+}
+
 export function BrandLockup({ context, compact = false, align = "center" }: { context?: string; compact?: boolean; align?: "left" | "center" }) {
   // Host request: this three-line mark ("QUIZ-IT" / "Powered by Mac
   // Entertainment" / "by Sonya Mac") must look identical everywhere it

@@ -22,7 +22,7 @@ test("handset question families expand into available vertical space", () => {
   assert.match(css, /\.qi-player-question-screen \.qi-player-question-scroll > \.fbl,[\s\S]*flex:1 1 0; min-height:0;/);
   assert.match(css, /data-answer-type="multiple_choice"[\s\S]*flex:1 1 0; max-height:92px/);
   assert.match(css, /data-answer-type="multi_tap"[\s\S]*grid-auto-rows:minmax\(48px,1fr\)/);
-  assert.match(css, /@media \(min-height:700px\)[\s\S]*qi-player-question-text[\s\S]*font-size:clamp\(22px,3\.4dvh,30px\)/);
+  assert.match(css, /@media \(min-height:700px\)[\s\S]*qi-player-question-text[\s\S]*font-size:clamp\(24px,4dvh,34px\)/);
 });
 
 test("handsets continuously recover native and iOS screen-awake protection", () => {

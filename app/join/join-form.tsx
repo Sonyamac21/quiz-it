@@ -318,16 +318,18 @@ export function JoinForm() {
           {/* Persistent branding overlay - sits on top of every phase screen
               PlayerQuizScreen renders internally, instead of needing to be
               threaded through each of its many separate return branches. */}
-          {/* Standardised against the same brand-lockup scale used on the
-              host console header and display screen corner mark - this was
-              its own much smaller (16px logo, 9px text), cramped one-line
-              badge, so the same brand read as a different, harder-to-read
-              product on a player's phone than everywhere else. */}
+          {/* Host request: "Quiz-It logo and branding looks stupid - stretch
+              it across the bottom of the screen." Used to be a small
+              floating rounded pill pinned to the bottom-right corner -
+              looked like a stray badge sitting on top of the content rather
+              than part of the screen. Now a full-width bar spanning the
+              entire bottom edge, matching how a branded footer actually
+              reads on a phone screen. */}
           <div style={{
-            position: "fixed", bottom: 10, right: 12, zIndex: 9999,
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "7px 12px", borderRadius: 999,
-            background: "rgba(13,2,37,0.7)", border: "1px solid rgba(190,38,193,0.3)",
+            position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+            padding: "10px 16px", paddingBottom: "max(10px, env(safe-area-inset-bottom))",
+            background: "rgba(13,2,37,0.85)", borderTop: "1px solid rgba(190,38,193,0.3)",
             pointerEvents: "none" as const,
           }}>
             <img src="/me-logo.jpg" alt="ME" style={{ width: 26, height: 26, borderRadius: "50%" }} />

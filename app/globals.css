@@ -434,9 +434,17 @@ button, input, select, textarea { font: inherit; }
   background: rgb(16 5 34 / 0.92);
   backdrop-filter: blur(16px);
 }
-/* Brand spans both content rows (it's visually two lines tall itself), and
-   the content column stacks the two explicit rows the host asked for. */
-.qi-mc-header > .qi-mc-brand { grid-row: 1 / span 2; grid-column: 1; }
+/* Host request: "move up the purple space action bar" - brand was
+   explicitly spanning grid-row: 1 / span 2 while .qi-mc-header__content
+   (which already stacks its OWN two visual rows internally via
+   flex-direction:column) sat entirely in row 1 alone. That forced the grid
+   to create a real second row just to satisfy brand's span - mostly
+   empty, since nothing else needed it - which is exactly the dead gap
+   between the header and the Next Action bar below it. Brand and content
+   are both single items in the one implicit row now; that row's height is
+   just whichever of the two is naturally taller (brand, in this case),
+   with no phantom second row left over. */
+.qi-mc-header > .qi-mc-brand { grid-column: 1; align-self: center; }
 .qi-mc-header__content { grid-column: 2; min-width: 0; display: flex; flex-direction: column; gap: var(--qi-space-2); overflow: hidden; }
 /* Host request: "why do I have 3 rows at the top? I asked for two." -
    flex-wrap here let the recovery-button group (flex-shrink:0, so it
@@ -493,7 +501,13 @@ button, input, select, textarea { font: inherit; }
    the one genuinely unstyled element in the row. Matched to the same
    font/weight/letter-spacing already used for the Session PIN/Question
    values right next to it, rather than introducing a third treatment. */
-.qi-mc-round-select { width: clamp(10rem, 15vw, 15rem); min-height: 36px; display: flex; align-items: center; font-weight: 750; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+/* Host request: "make the round name more obvious - maybe in my font? and
+   centre to fill the space properly between the leaderboard functions and
+   photos" - was a small fixed-width label matched to the Session PIN
+   styling; now grows to fill the leftover space in that row (flex:1),
+   centers its text in it, and uses the same Bruno Ace SC display font as
+   the QUIZ-IT wordmark itself rather than the plain UI font. */
+.qi-mc-round-select { flex: 1 1 auto; min-width: 10rem; min-height: 36px; display: flex; align-items: center; justify-content: center; text-align: center; font-family: var(--font-bruno-ace-sc), sans-serif; font-weight: 700; font-size: clamp(1rem, 0.85rem + 0.5vw, 1.3rem); letter-spacing: 0.03em; color: var(--qi-accent-bright); }
 
 /* Bug: "all is overlapping" - moving Photos and the round label into this
    row (from the header's own nav, which already wraps) gave the toolbar

@@ -46,24 +46,38 @@ export function FitBlockText({ as = "div", children, className, maxViewportHeigh
         // than this measurement pass. Reported as "I cannot read the full
         // question" - the second line was visibly sliced off mid-letter.
         //
-        // Bug: this budget used to be maxViewportHeight * window.innerHeight
-        // - a fixed FRACTION OF THE WHOLE SCREEN, regardless of how much
-        // this element's own flex siblings (status bar, timer row, and
-        // especially the answer keypad/options BELOW it) actually leave
-        // available. On a question screen with a tall status bar and a
-        // numeric keypad underneath, that fixed fraction let this text
-        // grow larger than the real remaining space, so it overflowed past
-        // its own box into the keypad below (reported: "the question still
-        // isn't fully visible"). The element's DIRECT PARENT
-        // (.qi-player-question-scroll, a flex:1 column that already
-        // correctly absorbs everything above/below it) is the actual
-        // available-space budget for this text plus whatever answer UI
-        // shares it - measuring THAT instead makes this genuinely adapt to
-        // whatever room is really left, on any device, instead of guessing
-        // a screen-wide percentage.
+        // Bug (round 1): this budget used to be maxViewportHeight *
+        // window.innerHeight - a fixed FRACTION OF THE WHOLE SCREEN,
+        // regardless of how much this element's own flex siblings (status
+        // bar, timer row, and especially the answer keypad/options BELOW
+        // it) actually leave available. Switching to a fraction of the
+        // PARENT's clientHeight (.qi-player-question-scroll) was closer,
+        // but still a fixed fraction of that parent - which is exactly as
+        // wrong when the sibling below (a tall numeric keypad, say) needs
+        // MORE than "100% - maxViewportHeight%" of the parent, or when it
+        // needs less and the text could safely go bigger. Reported again
+        // as "the text for the question still doesn't quite fit" even
+        // after the round-1 fix.
+        //
+        // Real fix: measure how much height the OTHER children of this
+        // parent actually occupy at their natural size, and give this text
+        // whatever's left over - genuinely adapting to whatever's sharing
+        // the screen with it (multi-choice options, multi-tap grid,
+        // Sequence's own UI, or the numeric/text keypad), not a guessed
+        // percentage. maxViewportHeight is kept as an upper CEILING only,
+        // so a short keypad doesn't let the question balloon to fill the
+        // whole screen.
         const parent = element.parentElement;
         const availableHeight = parent ? parent.clientHeight : window.innerHeight;
-        const limit = Math.max(48, availableHeight * maxViewportHeight) * 0.94;
+        let siblingsHeight = 0;
+        if (parent) {
+          for (const child of Array.from(parent.children)) {
+            if (child !== element) siblingsHeight += (child as HTMLElement).offsetHeight;
+          }
+        }
+        const remaining = availableHeight - siblingsHeight;
+        const ceiling = Math.max(48, availableHeight * maxViewportHeight);
+        const limit = Math.max(48, Math.min(ceiling, remaining > 0 ? remaining : ceiling)) * 0.94;
         let next = authored;
         element.style.fontSize = `${next}px`;
         for (let attempt = 0; attempt < 10 && element.scrollHeight > limit && next > minFontSize; attempt += 1) {

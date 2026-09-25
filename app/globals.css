@@ -2428,8 +2428,17 @@ button, input, select, textarea { font: inherit; }
    max(12px, safe-area-inset-top), and plenty of real devices/previews
    report a near-zero safe-area-inset-top, leaving just 12px of clearance
    above the crest/team-name row. Raised the floor to 22px so there's
-   always real breathing room above the status row, notch or no notch. */
-.qi-player-state,.qi-player-shell { min-height: 100dvh; max-width: 100vw; overflow-x: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(22px,env(safe-area-inset-top)); padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); padding-bottom: calc(44px + env(safe-area-inset-bottom)) !important; padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
+   always real breathing room above the status row, notch or no notch.
+   Bug: the FIRST attempt at this raise didn't actually land - screens
+   using this class (.qi-player-answer among them) set their own inline
+   `style={{ padding: 20 }}` shorthand, and a plain (non-!important)
+   stylesheet rule ALWAYS loses to an inline style declaration no matter
+   how specific the selector is. Only padding-bottom and background had
+   !important here (from the earlier branding-bar fix); padding-top was
+   quietly overridden right back to the inline 20px the whole time, which
+   is why the exact same "pushed up" screenshot came back after that
+   "fix." Added !important to padding-top too. */
+.qi-player-state,.qi-player-shell { min-height: 100dvh; max-width: 100vw; overflow-x: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(22px,env(safe-area-inset-top)) !important; padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); padding-bottom: calc(44px + env(safe-area-inset-bottom)) !important; padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
 /* Host: "it's the answer reveal screen that pushes all up the phone
    screen... too small and pushed up too far." That screen (.qi-player-
    answer) has no size override of its own - it renders this base row
@@ -2918,8 +2927,21 @@ button, input, select, textarea { font: inherit; }
   .fbl .lb-venue-intro.has-media .lb-venue-intro-logo { left:3%; bottom:9%; max-width:min(36%,clamp(170px,19vw,320px)); max-height:clamp(120px,16vw,220px); width:auto; height:auto; }
 }
 /* Compact answering mode; waiting/results retain their larger team photo.
-   Inner overflow remains available for unusually long text/accessibility zoom. */
-.qi-player-question-screen { padding: max(6px,env(safe-area-inset-top)) 12px max(6px,env(safe-area-inset-bottom)) !important; }
+   Inner overflow remains available for unusually long text/accessibility zoom.
+   Host: "when the answer is revealed... team name, score etc [get pushed]
+   off the top of the screen too far. when it's a question it sits lower
+   down - do not allow the elements to move." Root cause: this rule's
+   shorthand `padding` set its OWN padding-top (6px) on top of the shared
+   .qi-player-state rule's 22px - both !important, both single-class
+   selectors of equal specificity, so whichever rule comes LATER in this
+   file wins, and this one comes after. That's what made the question
+   screen's status row sit at a different (smaller) top gap than every
+   other player screen sharing .qi-player-state, including the answer
+   reveal - the exact inconsistency reported. Only overriding
+   left/right/bottom here (never top) means every .qi-player-state screen
+   inherits the SAME top gap from the one shared rule, so the status row
+   genuinely cannot move between screens. */
+.qi-player-question-screen { padding-left: 12px !important; padding-right: 12px !important; padding-bottom: max(6px,env(safe-area-inset-bottom)) !important; padding-top: max(22px,env(safe-area-inset-top)) !important; }
 /* Host: "the team, points, regular round info is all too small and pushed
    up to the top of the screen too far - give it more space." This compact
    answering-mode override had shrunk every dimension of the status row
@@ -3013,7 +3035,7 @@ button, input, select, textarea { font: inherit; }
   line-height:1.14;
   margin-bottom:clamp(4px,1dvh,8px);
 }
-.qi-player-question-screen--hot-seat .qi-player-timer-row { margin-bottom:3px!important; }
+.qi-player-question-screen--hot-seat .qi-player-question-wrap { margin-bottom:3px!important; }
 .qi-player-question-screen--hot-seat .qi-player-keypad__value { max-height:8dvh; overflow:hidden; }
 .qi-player-question-screen--hot-seat .qi-player-keypad__key { height:clamp(34px,5.4dvh,44px)!important; min-height:34px!important; }
 .qi-player-question-screen--hot-seat .qi-player-keypad__space,

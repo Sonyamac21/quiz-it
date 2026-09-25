@@ -2065,19 +2065,30 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           ? `inset 0 0 ${60 + (6 - timeLeft) * 18}px ${10 + (6 - timeLeft) * 8}px rgba(255,59,78,${(0.15 + (6 - timeLeft) * 0.12).toFixed(3)})`
           : "none" }} />
         <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={powerCardsUsableNow} photoUrl={teamPhotoUrl} points={myRunningPoints} />
-        <div className="qi-player-timer-row" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexShrink: 0 }}>
-          <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
-          {timeLeft !== null && timeLeft > 0 && (
-            <div style={{ marginLeft: "auto", width: 44, height: 44, borderRadius: "50%", background: timeLeft <= 3 ? "rgba(239,68,68,0.3)" : "rgba(190,38,193,0.2)", border: "2px solid " + (timeLeft <= 3 ? "#ef4444" : purple), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 800, color: timeLeft <= 3 ? "#ef4444" : purple }}>
-              {timeLeft}
-            </div>
-          )}
-        </div>
-        {/* The timer stays outside the scroll area, below the team header. */}
+        {/* Host: "the question can also move up and wrap around the timer
+            - if needed." The Q-number + timer used to be their own fixed
+            flex row ABOVE the scroll area, permanently reserving a full
+            row's height whether or not the question actually needed it.
+            Floating the Q-number/timer block to the right of the question
+            text instead - inside the same scroll area - lets the text's
+            first lines wrap around it and reclaim that row's height for
+            itself; a short question still shows the timer beside it, a
+            long one just flows past it once its lines pass the float's
+            height, same as any other float. */}
         <div className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        <FitBlockText className="qi-player-question-text" maxViewportHeight={0.32} minFontSize={13}>
-          {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
-        </FitBlockText>
+        <div className="qi-player-question-wrap" style={{ overflow: "hidden", marginBottom: 8 }}>
+          <div className="qi-player-timer-badge" style={{ float: "right", marginLeft: 12, marginBottom: 6, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
+            {timeLeft !== null && timeLeft > 0 && (
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: timeLeft <= 3 ? "rgba(239,68,68,0.3)" : "rgba(190,38,193,0.2)", border: "2px solid " + (timeLeft <= 3 ? "#ef4444" : purple), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 800, color: timeLeft <= 3 ? "#ef4444" : purple, flexShrink: 0 }}>
+                {timeLeft}
+              </div>
+            )}
+          </div>
+          <FitBlockText className="qi-player-question-text" maxViewportHeight={0.32} minFontSize={13}>
+            {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
+          </FitBlockText>
+        </div>
         {error && (
           <div role="alert" style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, marginBottom: 10, textAlign: "center" as const }}>{error}</div>
         )}

@@ -115,13 +115,36 @@ export function AnswerKeypad({ onSubmit, mode = "text", scrambled = false }: { o
         </button>
       )}
 
-      <div className="qi-player-keypad__actions" style={{ display: "grid", gridTemplateColumns: "minmax(92px, .65fr) minmax(0, 1.35fr)", gap: 8, marginTop: 4, width: "100%" }}>
+      {/* Host: "the delete button can be same width as the number keys and
+          so can lock it in button." This used to be its own 2-column grid
+          (.65fr / 1.35fr) that had nothing to do with the number pad's own
+          3-equal-column grid above it, so DELETE and LOCK IT IN landed at
+          arbitrary widths that didn't line up with the number keys at all.
+          Using the SAME 3-column template here - DELETE in column 1 (one
+          number-key width) and LOCK IT IN spanning columns 2-3 (exactly two
+          number-key widths plus the gap between them) - makes both actions
+          line up under the grid above instead of floating at their own
+          unrelated proportions. */}
+      <div className="qi-player-keypad__actions" style={{ display: "grid", gridTemplateColumns: mode === "number" ? "repeat(3,minmax(0,1fr))" : "minmax(92px, .65fr) minmax(0, 1.35fr)", gap: 8, marginTop: 4, width: "100%" }}>
+        {/* Host: "the depth of the delete and lock it in didn't change -
+            still leaving little room for the question." The width fix above
+            only touched gridColumn/gridTemplateColumns - these two buttons'
+            own padding was still the FIXED "22px"/"26px" used whenever
+            isCompact is false, and isCompact is only true for the text
+            keyboard (mode==="text"), never for the number pad. So on the
+            number-answer screen (the one actually in every screenshot so
+            far), these two action buttons were always at their tallest,
+            un-shrinking fixed height regardless of how little room the
+            question above had left. Using the same viewport-relative clamp
+            as the compact/text case for BOTH modes lets these two buttons
+            genuinely shrink under vertical pressure instead of holding a
+            fixed floor no matter what. */}
         <button type="button" className="qi-player-keypad__delete" onClick={backspace} disabled={!value}
-          style={{ width: "100%", minWidth: 0, padding: isCompact ? "clamp(10px, 2.2vh, 22px)" : "22px", borderRadius: 10, background: "rgba(255,255,255,0.1)", border: "1.5px solid rgba(255,255,255,0.28)", color: value ? "#fff" : "rgba(255,255,255,0.35)", fontSize: 17, fontWeight: 800 as const, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
+          style={{ width: "100%", minWidth: 0, gridColumn: mode === "number" ? "1" : undefined, padding: "clamp(8px, 1.6vh, 22px)", borderRadius: 10, background: "rgba(255,255,255,0.1)", border: "1.5px solid rgba(255,255,255,0.28)", color: value ? "#fff" : "rgba(255,255,255,0.35)", fontSize: 17, fontWeight: 800 as const, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
           {"\u232B"} DELETE
         </button>
         <button type="button" className="qi-player-keypad__submit" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}
-          style={{ width: "100%", minWidth: 0, boxSizing: "border-box", padding: isCompact ? "clamp(12px, 2.6vh, 26px)" : "26px", borderRadius: 12, background: value.trim() ? purple : "#150A2E", color: value.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: value.trim() ? "1px solid #D94FDC" : "1px solid #2E1A52", fontSize: 22, fontWeight: 800, fontFamily: font, letterSpacing: 2, boxShadow: value.trim() ? "0 0 20px rgba(190,38,193,0.35)" : "none", cursor: value.trim() ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
+          style={{ width: "100%", minWidth: 0, gridColumn: mode === "number" ? "2 / 4" : undefined, boxSizing: "border-box", padding: "clamp(10px, 1.9vh, 26px)", borderRadius: 12, background: value.trim() ? purple : "#150A2E", color: value.trim() ? "#fff" : "rgba(255,255,255,0.3)", border: value.trim() ? "1px solid #D94FDC" : "1px solid #2E1A52", fontSize: 22, fontWeight: 800, fontFamily: font, letterSpacing: 2, boxShadow: value.trim() ? "0 0 20px rgba(190,38,193,0.35)" : "none", cursor: value.trim() ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
           LOCK IT IN
         </button>
       </div>

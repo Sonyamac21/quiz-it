@@ -127,7 +127,7 @@ export function PhotoApprovalPanel({ sessionId, sessionPin }: Props) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="qi-button"
+        className="qi-button qi-button--secondary"
         style={{ position: "relative" }}
         aria-haspopup="dialog"
       >

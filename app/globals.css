@@ -437,8 +437,16 @@ button, input, select, textarea { font: inherit; }
 /* Brand spans both content rows (it's visually two lines tall itself), and
    the content column stacks the two explicit rows the host asked for. */
 .qi-mc-header > .qi-mc-brand { grid-row: 1 / span 2; grid-column: 1; }
-.qi-mc-header__content { grid-column: 2; display: flex; flex-direction: column; gap: var(--qi-space-2); min-width: 0; }
-.qi-mc-header__top, .qi-mc-header__bottom { display: flex; flex-wrap: wrap; align-items: center; gap: var(--qi-space-2) var(--qi-space-3); }
+.qi-mc-header__content { grid-column: 2; min-width: 0; display: flex; flex-direction: column; gap: var(--qi-space-2); overflow: hidden; }
+/* Host request: "why do I have 3 rows at the top? I asked for two." -
+   flex-wrap here let the recovery-button group (flex-shrink:0, so it
+   always demands its full width) drop to a THIRD line rather than shrink
+   or share the second line, whenever the row ran a little short on space.
+   nowrap + horizontal scroll keeps this to exactly the two rows asked for -
+   there's normally plenty of width for both anyway. */
+.qi-mc-header__top, .qi-mc-header__bottom { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--qi-space-2) var(--qi-space-3); overflow-x: auto; scrollbar-width: none; }
+.qi-mc-header__top::-webkit-scrollbar, .qi-mc-header__bottom::-webkit-scrollbar { display: none; }
+.qi-mc-header__top > *, .qi-mc-header__bottom > * { flex-shrink: 0; }
 .qi-mc-header__top .qi-mc-toolbar__end { margin-left: auto; }
 /* Identical structure to .qi-display-corner-mark on the display screen:
    logo on top, wordmark/producer/attribution centered underneath, same

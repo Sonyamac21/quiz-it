@@ -2474,6 +2474,43 @@ function QuizControllerInner() {
               same way in the previous pass (it's already the "Qn of N" badge
               on the question card). */}
         </div>
+        {/* Host request: "move [Regular Round/Skip Round/Back-Offer-Spin/End
+            quiz] into here" (pointing at the empty space beside the Session
+            PIN badge) "then move up the space action bar" - this used to be
+            its own row under the header (and before that, its own separate
+            .qi-mc-toolbar block entirely). Now it's just more children in
+            the header's own flex row, filling the space next to Session PIN
+            instead of taking a whole row/block of its own - which is what
+            lets the Next Action bar sit directly under the header now. */}
+        <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
+        {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
+        <div className="qi-mc-toolbar__group">
+          {/* Escape hatch for a round that's stuck with no question to reveal -
+              e.g. a Hard Deck/Pursuit placeholder round with 0 questions in the
+              running order, walked into via the normal question flow instead of
+              its own overlay. doRevealAnswer's `if (!currentQ) return;` guard
+              then leaves "Reveal Answer"/Space doing nothing forever with no
+              other way forward. Always visible during a round (not just when
+              stuck) so the host never has to hunt for it mid-show. */}
+          {hostPhase !== "waiting" && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
+            <Button variant="secondary" onClick={async () => { if (await confirmDialog("Skip the rest of this round and move on? Use this if the round is stuck (e.g. Space isn't doing anything).")) doEndRound(); }}>Skip Round</Button>
+          )}
+          {/* Escape hatch for "nobody's going to buzz in" - previously the only
+              way to end a Hot Seat question was to let every remaining team
+              individually claim it, answer wrong, and get locked out one by
+              one, which is slow with a full room and has no quick way out when
+              the room's just stuck on a hard question. */}
+          {hostPhase === "hot_seat" && hotSeatStatus !== "claimed" && (
+            <Button variant="secondary" onClick={async () => { if (await confirmDialog("Nobody's buzzing in - end this question with no one scoring and reveal the answer?")) doRevealAnswer(); }}>Nobody Knows It — Reveal Answer</Button>
+          )}
+          {/* "I forgot to offer the spin" escape hatch - available on every
+              normal question screen once there's a previous question to go
+              back to. Hot Seat/Pursuit/Hard Deck don't use Spin to Win, so
+              this only needs to appear during the regular question flow. */}
+          {qIdx > 0 && ["preview", "question", "timer", "answer", "celebration"].includes(hostPhase) && (
+            <Button variant="secondary" onClick={async () => { if (await confirmDialog("Go back and re-offer the spin for the previous question's fastest correct team?")) goBackToOfferSpin(); }}>Back — Offer Spin</Button>
+          )}
+        </div>
         <nav className="qi-mc-nav" aria-label="Mission Control navigation">
           {/* Host request: "leaderboard controls and photos could move into
               that space" - Photos and the Audience/Leaderboard toggle used to
@@ -2572,54 +2609,7 @@ function QuizControllerInner() {
           {sessionId && <PairsPanel sessionId={sessionId} sessionPin={sessionPin} teams={teams} rounds={rounds.filter(r => r.round_type === "pairs").map(r => ({ id: r.id, name: r.name, questions: r.questions }))} onScoreChange={() => loadScores(sessionPin)} onActiveChange={(active) => { setPairsActive(active); if (!active) setPairsAutoStartId(null); }} onRoundComplete={doEndRound} autoStartRoundId={pairsAutoStartId} />}
           <a href={sessionPin ? `/host/display?pin=${encodeURIComponent(sessionPin)}` : "/host/display"} target="_blank" rel="noopener noreferrer" className="qi-button qi-button--primary">Open Display</a>
         </nav>
-        {/* Host request: "moving all into top bar? regular round, skip round,
-            offer back, end quiz. would get rid of the block between the logo
-            and the space action bar." - this used to be its own
-            .qi-mc-toolbar element directly under the header, with its own
-            border/background/padding, i.e. a whole extra chrome block. Now
-            it's just a second row inside the SAME header (spans the full
-            header width via grid-column), so there's one shared
-            background/border/padding instead of two stacked ones - freeing
-            that block's height for the question below. */}
-        <div className="qi-mc-header__row2">
-        <div className="qi-mc-round-select" aria-label="Current quiz round">{selectedRound ? `${(selectedRound.position ?? 0) + 1}. ${selectedRound.name}` : "Quiz not loaded"}</div>
-        {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
-        {/* Host request: "move Back - Offer Spin beside Skip Round" - these
-            (plus the Hot Seat escape hatch) are all the same kind of
-            recovery button and used to be loose siblings in the toolbar's
-            flex-wrap, so whichever one ran out of row space wrapped alone
-            onto its own second line, away from the others. Grouped into one
-            flex-shrink:0 unit so they wrap together as a set instead of
-            splitting mid-group. */}
-        <div className="qi-mc-toolbar__group">
-          {/* Escape hatch for a round that's stuck with no question to reveal -
-              e.g. a Hard Deck/Pursuit placeholder round with 0 questions in the
-              running order, walked into via the normal question flow instead of
-              its own overlay. doRevealAnswer's `if (!currentQ) return;` guard
-              then leaves "Reveal Answer"/Space doing nothing forever with no
-              other way forward. Always visible during a round (not just when
-              stuck) so the host never has to hunt for it mid-show. */}
-          {hostPhase !== "waiting" && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
-            <Button variant="secondary" onClick={async () => { if (await confirmDialog("Skip the rest of this round and move on? Use this if the round is stuck (e.g. Space isn't doing anything).")) doEndRound(); }}>Skip Round</Button>
-          )}
-          {/* Escape hatch for "nobody's going to buzz in" - previously the only
-              way to end a Hot Seat question was to let every remaining team
-              individually claim it, answer wrong, and get locked out one by
-              one, which is slow with a full room and has no quick way out when
-              the room's just stuck on a hard question. */}
-          {hostPhase === "hot_seat" && hotSeatStatus !== "claimed" && (
-            <Button variant="secondary" onClick={async () => { if (await confirmDialog("Nobody's buzzing in - end this question with no one scoring and reveal the answer?")) doRevealAnswer(); }}>Nobody Knows It — Reveal Answer</Button>
-          )}
-          {/* "I forgot to offer the spin" escape hatch - available on every
-              normal question screen once there's a previous question to go
-              back to. Hot Seat/Pursuit/Hard Deck don't use Spin to Win, so
-              this only needs to appear during the regular question flow. */}
-          {qIdx > 0 && ["preview", "question", "timer", "answer", "celebration"].includes(hostPhase) && (
-            <Button variant="secondary" onClick={async () => { if (await confirmDialog("Go back and re-offer the spin for the previous question's fastest correct team?")) goBackToOfferSpin(); }}>Back — Offer Spin</Button>
-          )}
-        </div>
         <Button variant="destructive" className="qi-mc-toolbar__end" onClick={async () => { const closing = hostPhase === "quiz_end"; if (await confirmDialog(closing ? "Close this session for good? It'll be marked completed in Reports and cannot be reopened." : "End the quiz for everyone? This closes the live session and cannot be undone.", { tone: "destructive", confirmLabel: closing ? "Close Session" : "End Quiz" })) doEndOfQuiz(); }}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
-        </div>
       </header>
 
       {/* DOMINANT NEXT-ACTION BAR — the one thing the host acts on next, huge and
@@ -2959,6 +2949,14 @@ function QuizControllerInner() {
                   dump a question, skip ahead). Reduces the screen to one dominant action. */}
               <div className="qi-mc-manual">
                 <span className="qi-mc-manual__label">Manual recovery controls</span>
+                {/* Host request: "give me a back button in here - so I can
+                    return to a question, if there's an issue" - Next Q
+                    already jumps forward via doPreviewQuestion(qIdx+1); this
+                    is the same escape hatch in reverse, so a host who's
+                    advanced too far (or needs to redo a question) isn't
+                    stuck going only forward. Disabled on the round's first
+                    question, since there's nothing before it to go back to. */}
+                <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={() => doPreviewQuestion(qIdx-1)} disabled={qIdx <= 0} title="Go back to the previous question">Back Q</button>
                 <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doStartRound}>Start Round</button>
                 <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={() => doPreviewQuestion(qIdx)} disabled={hostPhase==="preview"}>Preview Q</button>
                 <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doSendQuestion} disabled={hostPhase!=="preview"}>Send Live</button>

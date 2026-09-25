@@ -414,10 +414,18 @@ button, input, select, textarea { font: inherit; }
   position: sticky;
   top: 0;
   z-index: var(--qi-z-sticky, 30);
-  display: grid;
-  grid-template-columns: minmax(230px, auto) minmax(200px, 1fr) minmax(0, auto);
+  /* Host request: "move [round/skip/back-offer-spin/end quiz] into here"
+     (the empty space beside Session PIN) "then move up the space action
+     bar" - was a strict 3-column grid (brand | session | nav), which had no
+     room for extra children without breaking that layout. Switched to a
+     flex-wrap row instead, so the round-select/recovery-group/End quiz
+     just flow into whatever space is left next to Session PIN, and the
+     whole header wraps as one unit if it runs out of width - same
+     principle already used inside .qi-mc-nav. */
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--qi-space-5);
+  gap: var(--qi-space-3) var(--qi-space-5);
   /* Host request: "it's just all too small - shrink the chrome above so the
      question/options have more room to grow into." Tightened header/brand/
      session-pill/toolbar/Next-Action padding and sizing throughout this
@@ -429,6 +437,14 @@ button, input, select, textarea { font: inherit; }
   background: rgb(16 5 34 / 0.92);
   backdrop-filter: blur(16px);
 }
+/* Flex-basis for the header's direct children now that it's a flex-wrap
+   row instead of a 3-column grid: brand and Session PIN keep their
+   natural (fixed) width, nav is the one flexible/growing piece so it
+   soaks up remaining space and right-aligns its own contents, and
+   round-select/the recovery group/End quiz (see their own rules below)
+   stay their natural width like any other button. */
+.qi-mc-header > .qi-mc-brand, .qi-mc-header > .qi-mc-session { flex: 0 0 auto; }
+.qi-mc-header > .qi-mc-nav { flex: 1 1 auto; }
 /* Identical structure to .qi-display-corner-mark on the display screen:
    logo on top, wordmark/producer/attribution centered underneath, same
    font-size clamps. These two are meant to be the one shared brand mark
@@ -500,7 +516,12 @@ button, input, select, textarea { font: inherit; }
 .qi-mc-toolbar__label span, .qi-mc-teams__header span { color: var(--qi-text-muted); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
 .qi-mc-toolbar__label strong, .qi-mc-teams__header strong { font-size: 0.95rem; }
 .qi-mc-toolbar__toggle{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;min-height:36px;padding:5px 12px;border:1px solid var(--qi-border-strong);border-radius:var(--qi-radius-sm);background:rgb(255 255 255 / .04);color:#fff;text-align:left;cursor:pointer;flex-shrink:0}.qi-mc-toolbar__toggle span{color:var(--qi-text-muted);font-size:.66rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;white-space:nowrap}.qi-mc-toolbar__toggle strong{font-size:.88rem;white-space:nowrap}.qi-mc-toolbar__toggle i{color:var(--qi-accent-bright);font-size:.72rem;font-style:normal;font-weight:800}.qi-mc-toolbar__controls{display:flex;align-items:center;gap:var(--qi-space-2);flex-shrink:0}
-.qi-mc-toolbar__hint { margin-left: auto; color: var(--qi-text-muted); font-size: var(--qi-type-sm); font-weight: 700; letter-spacing: 0.06em; }
+/* margin-left:auto removed - this used to be the last "filler" item in the
+   old standalone toolbar row, pushing End quiz to that row's far right.
+   Now it has siblings after it (the recovery group, nav, End quiz) inside
+   the merged header row, where that auto-margin would shove all of them
+   instead of just this hint. */
+.qi-mc-toolbar__hint { color: var(--qi-text-muted); font-size: var(--qi-type-sm); font-weight: 700; letter-spacing: 0.06em; }
 /* Host request: "move Back - Offer Spin beside Skip Round" - wraps as one
    unit (flex-shrink:0, its own nowrap-safe flex row) so these recovery
    buttons land on the same line together or drop to the next line

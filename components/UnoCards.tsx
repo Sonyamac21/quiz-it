@@ -285,9 +285,18 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
             the fixed bottom-right brand pill (app/join/join-form.tsx), this
             one never did. On a short screen its centered text sat directly
             under the pill, letters superimposed. Same clearance treatment
-            here. */}
-        <div style={{ marginTop: 8, textAlign: "center", font: "600 10px 'Inter'", color: "#6B5A8E", letterSpacing: "0.14em", padding: "0 clamp(90px,26vw,140px) 0 14px" }}>
-          {feedback ? <span role="status" style={{ color: feedback.ok ? "#2EE06E" : "#FF7280", letterSpacing: ".04em" }}>{feedback.text}</span> : enabled ? `${remaining} CARD${remaining === 1 ? "" : "S"} REMAINING · EACH ONCE PER QUIZ` : "POWER CARDS ARE NOT AVAILABLE THIS ROUND"}
+            here. The brand pill itself later became a full-width bar
+            glued to the true bottom of every .qi-player-state/-shell
+            screen (see globals.css), which already reserves its own
+            padding-bottom everywhere - so the old right-only clearance
+            hack is stale/no longer needed and just squeezed this text
+            into a narrow column. Plain, even padding now.
+            Host, separately: "warning text too small" - a rejection like
+            "Reconnect on the handset that joined this team to use
+            Reverse" is exactly the kind of message a host needs to
+            actually read at a glance, not squint at at 10px. */}
+        <div style={{ marginTop: 8, textAlign: "center", font: "700 13px 'Inter'", color: "#6B5A8E", letterSpacing: "0.1em", padding: "0 14px", lineHeight: 1.4 }}>
+          {feedback ? <span role="status" style={{ color: feedback.ok ? "#2EE06E" : "#FF7280", letterSpacing: ".02em" }}>{feedback.text}</span> : enabled ? `${remaining} CARD${remaining === 1 ? "" : "S"} REMAINING · EACH ONCE PER QUIZ` : "POWER CARDS ARE NOT AVAILABLE THIS ROUND"}
         </div>
       </div>
     );

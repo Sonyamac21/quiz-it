@@ -182,7 +182,16 @@ export default function SessionPage() {
     if (!preflight.ready) { setCreateError("This Quiz Plan is not ready: " + preflight.blockers.map(issue => issue.message).join(" ")); return; }
     setCreating(true);
     setCreateError("");
-    const newPin = generatePin();
+    // Host-reported bug: "duplicate key value violates unique constraint
+    // sessions_pin_key" surfaced raw to the host, killing session creation
+    // outright. generatePin() only ever picked ONE random 4-digit pin
+    // (1000-9999) with no check that it wasn't already taken by an older
+    // session row (including cancelled/ended ones, which never free their
+    // pin) - on a busy testing day with many past sessions accumulated,
+    // a collision becomes a real, not just theoretical, possibility.
+    // `let` so the retry loop below can swap in a fresh pin and just
+    // re-run the same insert, which reads `newPin` fresh each time.
+    let newPin = generatePin();
     const supabase = createSupabaseBrowserClient();
     // venueData and upcomingEvents don't depend on each other - previously
     // awaited one after another, adding a full extra round-trip to every
@@ -231,9 +240,11 @@ export default function SessionPage() {
     const upcomingQuizzes = (upcomingEvents || [])
       .map(row => ({ venue_name: (Array.isArray(row.venue) ? row.venue[0] : row.venue)?.venue_name as string | undefined, event_date: row.event_date, start_time: row.start_time }))
       .filter((row): row is { venue_name: string; event_date: string; start_time: string } => !!row.venue_name);
-    const { data, error } = await supabase
-      .from("sessions")
-      .insert({
+    // Pulled into a closure (reads the outer `newPin`/`quizName`/etc.
+    // fresh each call) so the retry loop below can just call it again
+    // after swapping in a new pin, instead of duplicating this whole
+    // payload a second time.
+    const buildSessionPayload = () => ({
         pin: newPin,
         status: "waiting",
         quiz_id: selectedQuizId,
@@ -279,9 +290,18 @@ export default function SessionPage() {
         intermission_other_quizzes: offersVenue?.other_quizzes_text || null,
         intermission_photos: venueData?.gallery_images || [],
         upcoming_quizzes: upcomingQuizzes,
-      })
-      .select()
-      .single();
+    });
+    let { data, error } = await supabase.from("sessions").insert(buildSessionPayload()).select().single();
+    // Retry on a pin collision only (23505 on sessions_pin_key) - anything
+    // else is a real error and should surface normally. Capped at 5 tries;
+    // 9000 possible 4-digit pins makes a second collision astronomically
+    // unlikely, this is just a safety net, not an expected hot path.
+    let pinRetries = 0;
+    while (error?.message.includes("sessions_pin_key") && pinRetries < 5) {
+      pinRetries += 1;
+      newPin = generatePin();
+      ({ data, error } = await supabase.from("sessions").insert(buildSessionPayload()).select().single());
+    }
     if (!error && data) {
       const { data: snapshots, error: snapshotError } = await supabase.from("session_rounds").insert(quizRounds.map(round => ({ session_id: data.id, source_quiz_round_id: round.id, source_round_id: round.source_round_id, position: round.position, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard, allow_power_cards: round.allow_power_cards, points_per_question: round.points_per_question ?? null, notes: round.notes, sponsor: round.sponsor, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5, max_time_bonus: round.max_time_bonus ?? 5 }))).select("id,position").order("position");
       if (snapshotError || !snapshots?.length) {

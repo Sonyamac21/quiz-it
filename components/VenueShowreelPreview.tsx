@@ -196,10 +196,16 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
                     {intro}
                   </div>
                 ) : (
-                  <>
+                  // Same fix as the live Display screen's matching fallback
+                  // (see its comment): with no hero photo/video, this used to
+                  // render bare inset:0, filling the FULL .lb-cardstage
+                  // content box instead of the smaller, centered
+                  // .lb-reel-media-frame the photo/video branches use - so it
+                  // grew right over the "TONIGHT AT ..." title above it.
+                  <div className="lb-reel-media-frame">
                     <div className="lb-venue-intro-bg" />
                     {intro}
-                  </>
+                  </div>
                 )}
               </div>
             );

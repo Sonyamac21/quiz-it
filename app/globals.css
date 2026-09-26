@@ -735,13 +735,26 @@ button, input, select, textarea { font: inherit; }
    drives for every other question type's title/options/answer-key above -
    host request: "Shrink the question/photos to fit, just like the
    questions/rounds we worked on yesterday." The grid needs an explicit,
-   scale-driven row height (not flex:1) because FitScaleBlock measures real
-   scrollHeight at each candidate scale to binary-search the best fit - a
-   flex:1 row has no "natural" height of its own to measure against. */
-.qi-mc-pairs__inner { display:flex; flex-direction:column; gap:calc(var(--qi-fit-scale,1) * 10px); }
-.qi-mc-pairs__grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:calc(var(--qi-fit-scale,1) * 12px); margin-top:calc(var(--qi-fit-scale,1) * 4px); }
-.qi-mc-pairs__card { min-width:0; border:1px solid var(--qi-border); border-radius:calc(var(--qi-fit-scale,1) * 18px); overflow:hidden; display:grid; grid-template-rows:repeat(2, calc(var(--qi-fit-scale,1) * 160px)); }
-.qi-mc-pairs__label { position:absolute; inset:auto 0 0; padding:calc(var(--qi-fit-scale,1) * 18px) calc(var(--qi-fit-scale,1) * 8px) calc(var(--qi-fit-scale,1) * 8px); background:linear-gradient(transparent,rgba(0,0,0,.95)); text-align:center; font-size:calc(var(--qi-fit-scale,1) * 16px); }
+   scale-driven row height. Host: "still not right... it pushed but it
+   didn't take effect" - raising FitScaleBlock's maxScale cap changed
+   nothing because the cap was never the real ceiling. FitScaleBlock only
+   grows AS FAR AS the content needs at a given scale; if the header text
+   plus the grid at its current calc()-driven size already fit inside the
+   available height well below the cap, the binary search settles there
+   and never gets anywhere near maxScale - a JS-measured "does this scale
+   overflow" check can never guarantee "always fill the box", only "don't
+   overflow it". So the grid is no longer scale-driven at all: it's a
+   flex:1 sibling of the (now plain, unscaled) header inside .qi-mc-question,
+   which unconditionally consumes 100% of whatever height is left over -
+   guaranteed by the browser's own flex layout, not a measurement guess.
+   The header (badge/title/answer-key) keeps the exact same markup/classes
+   every other round's question header uses, just without a FitScaleBlock
+   wrapper - see the :first-child override directly below for why that
+   matters. */
+.qi-mc-question > .qi-mc-pairs__header:first-child { flex: 0 0 auto; }
+.qi-mc-pairs__grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); grid-template-rows:minmax(0,1fr); gap:12px; margin-top:10px; flex:1; min-height:0; }
+.qi-mc-pairs__card { min-width:0; min-height:0; height:100%; border:1px solid var(--qi-border); border-radius:18px; overflow:hidden; display:grid; grid-template-rows:repeat(2, minmax(0,1fr)); }
+.qi-mc-pairs__label { position:absolute; inset:auto 0 0; padding:14px 8px 8px; background:linear-gradient(transparent,rgba(0,0,0,.95)); text-align:center; font-size:16px; }
 /* Host request (repeated): "this bottom bar can then be thinner" - dropped
    further from the earlier 32px/40px passes. Label folded onto the same
    row as the buttons instead of its own full-width line, since that line

@@ -1807,10 +1807,24 @@ function DisplayScreenInner() {
                   {intro}
                 </div>
               ) : (
-                <>
+                // Host, live tonight at The Snooty Fox: "this screen covers
+                // branding" - with no hero photo/video, this fallback used
+                // to render .lb-venue-intro-bg and the intro card (name/
+                // logo/schedule) as bare inset:0 siblings of .lb-reel-scene
+                // itself, which is height:100% of the FULL .lb-cardstage
+                // content box - unlike the media branches, which are capped
+                // to the smaller .lb-reel-media-frame (min(70vh,600px)) and
+                // so naturally leave the top clearance .lb-cardstage's
+                // padding reserves for .lb-reel-title above it. With no cap,
+                // the fallback card grew to fill that entire box edge to
+                // edge, landing right over the "TONIGHT AT ..." title.
+                // Wrapping it in the same .lb-reel-media-frame the photo/
+                // video branches use gives it the same size cap and
+                // centering, so it sits in the same clear space they do.
+                <div className="lb-reel-media-frame">
                   <div className="lb-venue-intro-bg" />
                   {intro}
-                </>
+                </div>
               )}
             </div>
           );

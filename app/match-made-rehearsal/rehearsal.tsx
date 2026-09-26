@@ -17,7 +17,7 @@ export default function Rehearsal() {
   const rows = teams.map((name,i) => ({ name, solved_pair_ids: progress[name]?.solved_pair_ids || pairs.slice(0,i % 4).map(p=>p.pair_id), mistakes: i % 3 }));
   return <>
     <nav style={{ position: "fixed", bottom: 0, left: 0, zIndex: 10000, background: "#fff", color: "#000", padding: 4 }}>{["host","display","phone"].map(name => <button key={name} onClick={()=>setView(name)}>{name}</button>)}<button onClick={()=>setCount(count===50?3:50)}>{count} teams</button></nav>
-    {view === "host" && <PairsHostView pairs={pairs} rows={rows} scoreboard={teams.map((team_name,i)=>({team_name,total_points: i===0?-5:100+i}))} fastestTeam="Team 4" status={status} questionIndex={0} questionCount={5} error="" onNext={()=>setStatus(status==="live"?"complete":"live")} onSkip={()=>{}} />}
+    {view === "host" && <PairsHostView sessionPin="1234" pairs={pairs} rows={rows} scoreboard={teams.map((team_name,i)=>({team_name,total_points: i===0?-5:100+i}))} fastestTeam="Team 4" status={status} questionIndex={0} questionCount={5} error="" onNext={()=>setStatus(status==="live"?"complete":"live")} onSkip={()=>{}} endQuizLabel="End quiz" onEndQuiz={()=>{}} />}
     {view === "display" && <div style={{height:"100dvh"}}><PairsDisplayBoard pairs={pairs} progress={Object.fromEntries(rows.map(row=>[row.name,row]))} teamNames={teams} /></div>}
     {view === "phone" && <div style={{width:"100%",maxWidth:390,height:"100dvh",margin:"auto"}}><PairsPlayerBoard pairs={pairs} progress={progress} teamName="Team 1" points={-5+(progress["Team 1"]?.solved_pair_ids.length||0)} onSelect={async()=>{}} onAttempt={async(a,b)=>{
       const correct = a.pair_id===b.pair_id;

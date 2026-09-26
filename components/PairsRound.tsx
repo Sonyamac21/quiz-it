@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
-import { FitScaleBlock } from "@/components/FitScaleBlock";
+import { MissionControlTopBar } from "@/components/ui/quiz-it-ui";
 import {
   PAIRS_PER_ROUND,
   PairRecord,
@@ -192,9 +192,9 @@ export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, 
   </div>;
 }
 
-type HostProps = { sessionId: string; sessionPin: string; teams: { team_name: string }[]; rounds: { id: string; name: string; questions: unknown[] }[]; autoStartRoundId?: string | null; onActiveChange?: (active: boolean) => void; onRoundComplete?: () => void; onScoreChange?: () => void };
+type HostProps = { sessionId: string; sessionPin: string; teams: { team_name: string }[]; rounds: { id: string; name: string; questions: unknown[] }[]; autoStartRoundId?: string | null; onActiveChange?: (active: boolean) => void; onRoundComplete?: () => void; onScoreChange?: () => void; tvStatus?: { level: string; summary: string } | null; onOpenDiagnostics?: () => void; endQuizLabel?: string; onEndQuiz?: () => void };
 
-export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoundId, onActiveChange, onRoundComplete, onScoreChange }: HostProps) {
+export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoundId, onActiveChange, onRoundComplete, onScoreChange, tvStatus, onOpenDiagnostics, endQuizLabel, onEndQuiz }: HostProps) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [open, setOpen] = useState(false);
   const [roundId, setRoundId] = useState("");
@@ -328,7 +328,7 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
     window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key);
   });
   if (!open || typeof document === "undefined") return null;
-  return createPortal(<PairsHostView pairs={pairs} rows={rows} scoreboard={scoreboard} fastestTeam={fastestTeam} status={status} questionIndex={questionIndex} questionCount={readPairsQuestions(rounds.find(r => r.id === roundId)?.questions).length} error={error} timeLeft={timeLeft} onNext={() => void finish()} onSkip={skip} />, document.body);
+  return createPortal(<PairsHostView sessionPin={sessionPin} pairs={pairs} rows={rows} scoreboard={scoreboard} fastestTeam={fastestTeam} status={status} questionIndex={questionIndex} questionCount={readPairsQuestions(rounds.find(r => r.id === roundId)?.questions).length} error={error} timeLeft={timeLeft} onNext={() => void finish()} onSkip={skip} tvStatus={tvStatus} onOpenDiagnostics={onOpenDiagnostics} endQuizLabel={endQuizLabel} onEndQuiz={onEndQuiz} />, document.body);
 }
 
 // Host report: "Match Made still looks and acts nothing like the other
@@ -344,7 +344,8 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
 // console, not a different app bolted on. A "Skip Round" escape hatch is
 // added to match the other round types' recovery button, since this had no
 // way out short of losing progress.
-export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, questionIndex, questionCount, error, timeLeft, onNext, onSkip }: {
+export function PairsHostView({ sessionPin, pairs, rows, scoreboard, fastestTeam, status, questionIndex, questionCount, error, timeLeft, onNext, onSkip, tvStatus, onOpenDiagnostics, endQuizLabel, onEndQuiz }: {
+  sessionPin: string;
   pairs: PairRecord[];
   rows: { name: string; solved_pair_ids: string[]; mistakes: number }[];
   scoreboard: { team_name: string; total_points: number }[];
@@ -356,40 +357,64 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
   timeLeft?: number | null;
   onNext: () => void;
   onSkip: () => void;
+  tvStatus?: { level: string; summary: string } | null;
+  onOpenDiagnostics?: () => void;
+  endQuizLabel?: string;
+  onEndQuiz?: () => void;
 }) {
   const showNextTimer = status === "live" && timeLeft !== undefined && timeLeft !== null;
   const nextLabel = status === "live" ? "Reveal Match Made results" : questionIndex + 1 < questionCount ? "Next Match Made question" : "Finish round and show scores";
-  return (<div className="qi-host-pairs" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box" as const, background: "var(--qi-bg-stage, #0A0118)", zIndex: 200, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-    <button onClick={() => onNext()} className={`qi-mc-next${showNextTimer ? " qi-mc-next--timer" : ""}`} style={{ flexShrink: 0 }}>
-      <span className="qi-mc-next__eyebrow">Next action · Q{questionIndex + 1}</span>
-      <span className="qi-mc-next__label">{nextLabel}</span>
-      {showNextTimer && <span className={`qi-mc-next__timer${(timeLeft ?? 0) <= 5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft}s</span>}
-      <span className="qi-mc-next__key">Space ↵</span>
-    </button>
+  return (<div className="qi-host-pairs qi-mc-shell" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box" as const, background: "var(--qi-bg-stage, #0A0118)", zIndex: 200, overflow: "hidden" }}>
+    <div className="qi-mc-main-column">
+      {/* Host: "all info from top bar has disappeared from the screen - it
+          should be on all screens." Match Made never had this at all (its
+          own slim MATCH MADE/question-counter row below is not the same
+          thing) - Session PIN, TV status, Open Display and End quiz were
+          simply missing for the entire time a Match Made round was
+          running. Reusing the exact same top-bar component Pursuit and
+          Hard Deck already render fixes that without duplicating markup. */}
+      <MissionControlTopBar sessionPin={sessionPin} tvStatus={tvStatus} onOpenDiagnostics={onOpenDiagnostics} endQuizLabel={endQuizLabel ?? "End quiz"} onEndQuiz={onEndQuiz ?? onSkip} />
+      <button onClick={() => onNext()} className={`qi-mc-next${showNextTimer ? " qi-mc-next--timer" : ""}`} style={{ flexShrink: 0 }}>
+        <span className="qi-mc-next__eyebrow">Next action · Q{questionIndex + 1}</span>
+        <span className="qi-mc-next__label">{nextLabel}</span>
+        {showNextTimer && <span className={`qi-mc-next__timer${(timeLeft ?? 0) <= 5 ? " qi-mc-next__timer--urgent" : ""}`}>{timeLeft}s</span>}
+        <span className="qi-mc-next__key">Space ↵</span>
+      </button>
 
-    <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
-      <div style={{ fontFamily: "var(--font-bruno-ace-sc), sans-serif", fontSize: 20, color: "#D94FDC", letterSpacing: 3 }}>MATCH MADE</div>
-      <div style={{ color: "#cfc2e7", fontSize: 14 }}>Question {questionIndex + 1} of {questionCount}</div>
-    </div>
-    {error && <div role="alert" style={{ padding: "0 24px 8px", color: "#ff7d87" }}>{error}</div>}
+      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
+        <div style={{ fontFamily: "var(--font-bruno-ace-sc), sans-serif", fontSize: 20, color: "#D94FDC", letterSpacing: 3 }}>MATCH MADE</div>
+        <div style={{ color: "#cfc2e7", fontSize: 14 }}>Question {questionIndex + 1} of {questionCount}</div>
+      </div>
+      {error && <div role="alert" style={{ padding: "0 24px 8px", color: "#ff7d87" }}>{error}</div>}
 
-    <div className="qi-mc-workspace" style={{ flex: 1, minHeight: 0 }}>
       <main className="qi-mc-desk" style={{ display: "flex", flexDirection: "column" }}>
-        {/* Host: "Shrink the question/photos to fit, just like the
-            questions/rounds we worked on yesterday." Regular Round's
-            question block shrinks (or grows) as a unit to exactly fill
-            .qi-mc-desk via FitScaleBlock - this panel never had that, so
-            its title/answer-key/photo-grid just sat at fixed sizes and
-            could scroll instead of fit. Wrapping the same content in the
-            same FitScaleBlock, with the grid's row height driven by the
-            same --qi-fit-scale variable every other scaled class here
-            already uses, makes Match Made's photos shrink-to-fit exactly
-            like every other round's question does. The wrapping
-            .qi-mc-question div also matches the CSS selector
-            (.qi-mc-desk:has(.qi-mc-question)) that forces this desk to
-            clip instead of scroll, same as Regular Round and Pursuit. */}
+        {/* Host: "Fit the question into the question area on the screen -
+            same as all other rounds." The previous version of this block
+            wrapped everything (badge/title/answer-key/photo grid) in a
+            FitScaleBlock and drove the grid's own row height off the same
+            --qi-fit-scale variable the text uses - but FitScaleBlock only
+            picks a scale up to whatever height the CONTENT needs at that
+            scale, so if the text+photos already fit comfortably below the
+            cap, it never grows further even though real empty space was
+            still sitting below it (confirmed live: raising the cap from
+            1.6 to 2.1 changed nothing, because the actual ceiling was
+            never the cap - it was simply that the content fit before
+            reaching it). A JS-measured scale can't guarantee "always fill
+            the box" the way plain flex/grid layout can. So the badge/
+            title/answer-key stay a normal, naturally-sized header (same
+            markup, same classes every other round's question uses, just
+            without the scale wrapper), and the photo grid below it is a
+            flex:1 sibling that unconditionally consumes whatever space is
+            left in .qi-mc-question - guaranteed by the browser's own
+            layout, not a measurement guess. See the .qi-mc-question >
+            .qi-mc-pairs__header:first-child override in globals.css: the
+            existing .qi-mc-question > div:first-child rule (written for
+            the single-FitScaleBlock-child shape every other round uses)
+            would otherwise force flex:1 onto this header instead of the
+            grid - this more specific selector keeps the header at its
+            natural size so the grid gets 100% of the leftover room. */}
         <div className="qi-mc-question" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <FitScaleBlock className="qi-mc-pairs__inner" minScale={0.45} maxScale={2.1}>
+          <div className="qi-mc-pairs__header">
             <div className="qi-mc-question__meta">
               <span style={{ background: "rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.4)", color: "#BE26C1", padding: "5px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>{status === "complete" ? "RESULTS" : "LIVE"}</span>
             </div>
@@ -398,30 +423,32 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
               <div style={{ fontSize: 12, marginBottom: 4, letterSpacing: 2, color: "var(--qi-success)" }}>ANSWER KEY</div>
               <div style={{ fontSize: 14, color: "rgba(255,255,255,0.75)" }}>{PAIRS_POINTS_PER_MATCH} points per pair · {PAIRS_POINTS_PER_MATCH * PAIRS_PER_ROUND} points available</div>
             </div>
-            <div className="qi-mc-pairs__grid">
-              {pairs.map(pair => <div key={pair.pair_id} className="qi-mc-pairs__card">
-                {[pair.a, pair.b].map(item => <div key={item.label} style={{ position: "relative", minHeight: 0 }}><TileImage src={getMediaUrl(item.image_url)} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} /><strong className="qi-mc-pairs__label">{item.label}</strong></div>)}
-              </div>)}
-            </div>
-          </FitScaleBlock>
+          </div>
+          <div className="qi-mc-pairs__grid">
+            {pairs.map(pair => <div key={pair.pair_id} className="qi-mc-pairs__card">
+              {[pair.a, pair.b].map(item => <div key={item.label} style={{ position: "relative", minHeight: 0 }}><TileImage src={getMediaUrl(item.image_url)} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} /><strong className="qi-mc-pairs__label">{item.label}</strong></div>)}
+            </div>)}
+          </div>
         </div>
 
         {/* Host: "I want match made to do the same" (manual recovery bar,
-            matching Pursuit/Hard Deck). Placed inside .qi-mc-desk as a
-            sibling of .qi-mc-question rather than as a sibling of
-            .qi-mc-desk itself - unlike Pursuit/Hard Deck's own
-            .qi-mc-main-column, this panel's .qi-mc-workspace is a plain
-            flex ROW splitting desk+rail (see below), so margin-top:auto
-            on a sibling of .qi-mc-desk would just sit beside the rail
-            instead of gluing to the bottom. Inside .qi-mc-desk (itself a
-            flex column) it lands correctly regardless. */}
+            matching Pursuit/Hard Deck). Now inside .qi-mc-main-column
+            (see that class) rather than .qi-mc-workspace's old flex ROW,
+            margin-top:auto glues it to the bottom the same way Pursuit
+            and Hard Deck's own bars do. */}
         <div className="qi-mc-manual">
           <span className="qi-mc-manual__label">Manual recovery</span>
           <button className="qi-button qi-button--secondary qi-mc-manual__last" onClick={onSkip} title="Skip the rest of this round and move on - use this if it's stuck">Skip Round</button>
         </div>
       </main>
+    </div>
 
-      <aside className="qi-mc-rail" aria-label="Teams and round scores">
+    {/* .qi-mc-rail is now a direct sibling of .qi-mc-main-column inside the
+        .qi-mc-shell grid (see that class), exactly like Pursuit and Hard
+        Deck - not a flex sibling of .qi-mc-desk inside a plain
+        .qi-mc-workspace row the way this used to be built, which never
+        actually gave the rail its fixed minmax(360px,29vw) column. */}
+    <aside className="qi-mc-rail" aria-label="Teams and round scores">
         <section className="qi-mc-teams">
           <div className="qi-mc-teams__header"><div><span>{rows.filter(r => r.solved_pair_ids.length >= PAIRS_PER_ROUND).length}/{rows.length} complete{fastestTeam ? ` · First: ${fastestTeam}` : ""}</span><strong>Teams & scores</strong></div></div>
           {rows.length === 0 ? (
@@ -445,6 +472,5 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
           })}
         </section>
       </aside>
-    </div>
   </div>);
 }

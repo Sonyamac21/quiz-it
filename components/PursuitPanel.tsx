@@ -569,15 +569,30 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
             <div className="qi-mc-question qi-pursuit-host-question">
               <div className="qi-mc-question__meta">
                 <span style={{ background: "rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.4)", color: "#BE26C1", padding: "5px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>Question {qIndex + 1} of {PURSUIT_TOTAL_QUESTIONS}</span>
+                {/* Host: "Remove the timer that's in the Question area - keep
+                    the larger timer." This row had its OWN small circular
+                    countdown (52px, duplicating the exact same timeLeft value
+                    already shown big and bold in the qi-mc-next action bar
+                    above), so the host was reading two different-sized
+                    timers ticking the same number at once. Only the locked/
+                    not-started status badges stay here; the countdown itself
+                    now lives in exactly one place. */}
                 {status === "question" && (
                   answersLocked
                     ? <span style={{ padding: "5px 16px", borderRadius: 999, background: "rgba(239,68,68,0.15)", border: "1px solid #ef4444", fontSize: 12, fontWeight: 700, color: "#ef4444" }}>ANSWERS LOCKED</span>
                     : timerNotStarted
                     ? <span style={{ padding: "5px 16px", borderRadius: 999, background: "rgba(251,191,36,0.15)", border: "1px solid #fbbf24", fontSize: 12, fontWeight: 700, color: "#fbbf24" }}>TIMER NOT STARTED</span>
-                    : <div style={{ marginLeft: "auto", width: 52, height: 52, borderRadius: "50%", background: (timeLeft ?? 0) <= 5 ? "rgba(239,68,68,0.3)" : "rgba(190,38,193,0.2)", border: "3px solid " + ((timeLeft ?? 0) <= 5 ? "#ef4444" : "#BE26C1"), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, color: (timeLeft ?? 0) <= 5 ? "#ef4444" : "#BE26C1" }}>{timeLeft}</div>
+                    : null
                 )}
               </div>
-              <FitBlockText as="h1" className="qi-mc-question__title" maxViewportHeight={0.13} minFontSize={16}>{currentQuestion.question_text}</FitBlockText>
+              {/* Host: "make the question bigger for the host to read." This
+                  h1 was capped at maxViewportHeight=0.13 (13% of the desk's
+                  available height) - far tighter than the budget every other
+                  round's question gets, and this is a host-only console read
+                  from across a desk, not a phone screen, so there's no
+                  reason to keep it small. Raised the ceiling and the floor
+                  font size together. */}
+              <FitBlockText as="h1" className="qi-mc-question__title" maxViewportHeight={0.32} minFontSize={24}>{currentQuestion.question_text}</FitBlockText>
               <div className="qi-mc-answer-key">
                 <div style={{ fontSize: 12, marginBottom: 4, letterSpacing: 2 }}>ANSWER</div>
                 <div style={{ fontSize: 24, fontWeight: 700, color: "#22c55e" }}>{pursuitCorrectAnswerText(currentQuestion)}</div>

@@ -389,7 +389,7 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
             (.qi-mc-desk:has(.qi-mc-question)) that forces this desk to
             clip instead of scroll, same as Regular Round and Pursuit. */}
         <div className="qi-mc-question" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <FitScaleBlock className="qi-mc-pairs__inner" minScale={0.45} maxScale={1.6}>
+          <FitScaleBlock className="qi-mc-pairs__inner" minScale={0.45} maxScale={2.1}>
             <div className="qi-mc-question__meta">
               <span style={{ background: "rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.4)", color: "#BE26C1", padding: "5px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>{status === "complete" ? "RESULTS" : "LIVE"}</span>
             </div>

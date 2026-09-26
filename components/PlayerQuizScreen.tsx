@@ -2077,7 +2077,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             long one just flows past it once its lines pass the float's
             height, same as any other float. */}
         <div className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        <div className="qi-player-question-wrap" style={{ overflow: "hidden", marginBottom: 8 }}>
+        <div className="qi-player-question-wrap" style={{ flex: "1 1 auto", minHeight: 0, overflow: "hidden", marginBottom: 8 }}>
           <div className="qi-player-timer-badge" style={{ float: "right", marginLeft: 12, marginBottom: 6, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
             <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
             {timeLeft !== null && timeLeft > 0 && (

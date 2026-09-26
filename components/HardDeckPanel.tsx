@@ -82,6 +82,25 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, scores = [], onSco
   const [hasSwapped, setHasSwapped] = useState(false);
   const [showWheel, setShowWheel] = useState(false);
   const [deck, setDeck] = useState<PlayingCard[]>([]);
+  // Host: "I have a scroll on this screen. I don't want it. Fit in the area
+  // we have." The wheel's size used window.innerHeight*0.72 - the WHOLE
+  // window, not the actual room left in .qi-mc-desk once the top bar,
+  // Next-Action bar and "THE HARD DECK" header row are subtracted, so on a
+  // laptop screen the wheel could genuinely be taller than the space it had
+  // and force this panel to scroll. Measuring the real container instead
+  // makes the wheel always fit exactly, the same way every other round's
+  // FitScaleBlock-driven content does.
+  const wheelBoxRef = useRef<HTMLDivElement>(null);
+  const [wheelBoxSize, setWheelBoxSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const el = wheelBoxRef.current;
+    if (!el) return;
+    const measure = () => setWheelBoxSize({ width: el.clientWidth, height: el.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [showWheel]);
   const [wheelTarget, setWheelTarget] = useState<number | null>(null);
   const [stealGuesses, setStealGuesses] = useState<Record<string, string>>({});
   const [stealWinners, setStealWinners] = useState<string[]>([]);
@@ -318,6 +337,29 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, scores = [], onSco
     }
   }, [status]);
 
+  // Host: "add the manual recovery bar and buttons." Hard Deck had no
+  // recovery tool at all - unlike Pursuit's "Recover Graphics" (which
+  // re-pushes its last known state so a display/handset that missed a
+  // realtime update catches back up), there was nothing here to reach for
+  // if a team's phone or the venue display ever looked out of sync. This
+  // re-sends the exact state already held locally - never a new value, so
+  // it cannot corrupt an in-progress hand - the same safe "nudge everyone
+  // back in sync" action Pursuit's button performs.
+  const [resyncing, setResyncing] = useState(false);
+  async function resyncState() {
+    setResyncing(true);
+    try {
+      await pushState({
+        hard_deck_status: status, hard_deck_team: team, hard_deck_cards: cards,
+        hard_deck_guess: guess, hard_deck_potential: potential, hard_deck_has_swapped: hasSwapped,
+        hard_deck_wheel_target: wheelTarget, hard_deck_steal_guesses: stealGuesses,
+        hard_deck_steal_winners: stealWinners, hard_deck_steal_points: stealPoints, hard_deck_play_id: playId,
+      });
+    } finally {
+      setResyncing(false);
+    }
+  }
+
   function closePanel() {
     setOpen(false);
     // Leave the Hard Deck-specific state, but let the parent's own
@@ -426,7 +468,6 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, scores = [], onSco
               match the weight/size of the round wordmark beside it, so the
               team currently playing reads as clearly as the round name. */}
           {!showWheel && team && <div style={{ fontSize: 20, fontWeight: 700, color: "#fff" }}>Team: <strong style={{ fontWeight: 800 }}>{team}</strong></div>}
-          <button onClick={closePanel} style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
         </div>
 
         {/* Wheel/card sizing below is enlarged - it was a small, fixed-size
@@ -436,7 +477,16 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, scores = [], onSco
             available in .qi-mc-desk instead of small fixed/capped values. */}
         <main className="qi-mc-desk" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, textAlign: "center" as const }}>
           {showWheel && (
-            <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={Math.min(560, typeof window !== "undefined" ? Math.min(window.innerWidth * 0.42, window.innerHeight * 0.72) : 480)} forceResultIndex={wheelTarget ?? undefined} onSpinStart={() => pushState({ hard_deck_wheel_spinning: true })} />
+            /* Host: "I have a scroll on this screen. I don't want it. Fit
+               in the area we have." The wheel's old size formula used
+               window.innerHeight*0.72 - the WHOLE window, not the actual
+               room left in .qi-mc-desk once the top bar, Next-Action bar
+               and header row are subtracted, so it could be taller than
+               its real box and force this panel to scroll. This measures
+               the real container (wheelBoxRef, above) instead. */
+            <div ref={wheelBoxRef} className="qi-mc-question" style={{ flex: 1, width: "100%", minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={Math.min(560, wheelBoxSize.width * 0.9, wheelBoxSize.height * 0.9) || 320} forceResultIndex={wheelTarget ?? undefined} onSpinStart={() => pushState({ hard_deck_wheel_spinning: true })} />
+            </div>
           )}
 
           {/* Host: "Shrink the question/photos to fit, just like the
@@ -531,6 +581,18 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, scores = [], onSco
             </div>
           )}
         </main>
+        {/* Host: "add the manual recovery bar and buttons." Matches the
+            same .qi-mc-manual bar Regular Round uses, glued to the bottom
+            via margin-top:auto as a sibling of .qi-mc-desk (not inside
+            it) - the same structural fix that stopped the manual bar from
+            floating above a dead gap earlier this session. Resync re-sends
+            the exact state already held locally (never a new value), so
+            it's safe to press at any point in the hand. */}
+        <div className="qi-mc-manual">
+          <span className="qi-mc-manual__label">Manual recovery</span>
+          <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={resyncState} disabled={resyncing}>{resyncing ? "Resyncing…" : "Resync Display/Handset"}</button>
+          <button className="qi-button qi-button--secondary qi-mc-manual__last" onClick={closePanel}>Close / Skip Round</button>
+        </div>
       </div>
       {/* .qi-mc-rail is a direct sibling of .qi-mc-main-column inside the
           .qi-mc-shell grid now (see that class), exactly like the main

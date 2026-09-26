@@ -521,12 +521,6 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
 
         <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
           <div style={{ fontFamily: "'Bruno Ace SC', sans-serif", fontSize: 20, color: "#D94FDC", letterSpacing: 3 }}>THE PURSUIT</div>
-          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-            <button onClick={recoverGraphics} disabled={recovering} title="Re-pull the race board from the last saved state — use this if the graphics ever look stuck or out of sync" style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(217,79,220,0.4)", color: recovering ? "rgba(217,79,220,0.4)" : "#D94FDC", fontSize: 12, cursor: recovering ? "default" : "pointer" }}>
-              {recovering ? "Recovering…" : "Recover Graphics"}
-            </button>
-            <button onClick={closePanel} style={{ padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }}>Close</button>
-          </div>
         </div>
 
         {status === "advance" && canAskMore && (
@@ -535,7 +529,15 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
           </div>
         )}
 
-        <main className="qi-mc-desk">
+        {/* Host: "move it all up to where the questions sit in normal
+            rounds." Whatever was pulling this question block down toward
+            the middle/bottom of the desk, an explicit inline
+            justifyContent:"flex-start" (which - unlike a plain stylesheet
+            rule - always wins over any other non-!important CSS, no
+            matter its specificity or source) pins it to the top the same
+            way Regular Round's question sits, with no ambiguity left
+            about what's controlling it. */}
+        <main className="qi-mc-desk" style={{ display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
           {/* Host-reported bug: the running-track graphic embedded here was
               capped at a small fixed height (.qi-pursuit-host-board, max
               280px) - with more than 3-4 teams the lanes below that height
@@ -600,6 +602,19 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
             </div>
           )}
         </main>
+        {/* Host: "add the manual recovery bar and buttons." Matches the
+            same .qi-mc-manual bar Regular Round and Hard Deck use, glued
+            to the bottom via margin-top:auto as a sibling of .qi-mc-desk
+            (not inside it). Recover Graphics and Close already existed in
+            the header row above - just relocated here to match where
+            every other round's recovery controls live. */}
+        <div className="qi-mc-manual">
+          <span className="qi-mc-manual__label">Manual recovery</span>
+          <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={recoverGraphics} disabled={recovering} title="Re-pull the race board from the last saved state — use this if the graphics ever look stuck or out of sync">
+            {recovering ? "Recovering…" : "Recover Graphics"}
+          </button>
+          <button className="qi-button qi-button--secondary qi-mc-manual__last" onClick={closePanel}>Close / Skip Round</button>
+        </div>
       </div>
       {/* .qi-mc-rail is now a direct sibling of .qi-mc-main-column inside
           the .qi-mc-shell grid (see that class), exactly like the main

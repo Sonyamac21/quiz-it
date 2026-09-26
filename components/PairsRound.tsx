@@ -370,7 +370,6 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
     <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "14px 24px 6px" }}>
       <div style={{ fontFamily: "var(--font-bruno-ace-sc), sans-serif", fontSize: 20, color: "#D94FDC", letterSpacing: 3 }}>MATCH MADE</div>
       <div style={{ color: "#cfc2e7", fontSize: 14 }}>Question {questionIndex + 1} of {questionCount}</div>
-      <button onClick={onSkip} style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer" }} title="Skip the rest of this round and move on - use this if it's stuck">Skip Round</button>
     </div>
     {error && <div role="alert" style={{ padding: "0 24px 8px", color: "#ff7d87" }}>{error}</div>}
 
@@ -405,6 +404,20 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
               </div>)}
             </div>
           </FitScaleBlock>
+        </div>
+
+        {/* Host: "I want match made to do the same" (manual recovery bar,
+            matching Pursuit/Hard Deck). Placed inside .qi-mc-desk as a
+            sibling of .qi-mc-question rather than as a sibling of
+            .qi-mc-desk itself - unlike Pursuit/Hard Deck's own
+            .qi-mc-main-column, this panel's .qi-mc-workspace is a plain
+            flex ROW splitting desk+rail (see below), so margin-top:auto
+            on a sibling of .qi-mc-desk would just sit beside the rail
+            instead of gluing to the bottom. Inside .qi-mc-desk (itself a
+            flex column) it lands correctly regardless. */}
+        <div className="qi-mc-manual">
+          <span className="qi-mc-manual__label">Manual recovery</span>
+          <button className="qi-button qi-button--secondary qi-mc-manual__last" onClick={onSkip} title="Skip the rest of this round and move on - use this if it's stuck">Skip Round</button>
         </div>
       </main>
 

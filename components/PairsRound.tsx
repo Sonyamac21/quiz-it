@@ -91,7 +91,7 @@ export function PairsDisplayBoard({ pairs, progress, teamNames, complete = false
   );
 }
 
-export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, disabledReason, timeLeft, onSelect, onAttempt }: { pairs: PairRecord[]; progress: PairsProgress; teamName: string; points?: number; disabled?: boolean; disabledReason?: string; timeLeft?: number | null; onSelect: (tile: PairTile) => Promise<void>; onAttempt: (first: PairTile, second: PairTile) => Promise<{ correct: boolean; reason?: string }> }) {
+export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, disabledReason, timeLeft, revealed, onSelect, onAttempt }: { pairs: PairRecord[]; progress: PairsProgress; teamName: string; points?: number; disabled?: boolean; disabledReason?: string; timeLeft?: number | null; revealed?: boolean; onSelect: (tile: PairTile) => Promise<void>; onAttempt: (first: PairTile, second: PairTile) => Promise<{ correct: boolean; reason?: string }> }) {
   const tiles = useMemo(() => tilesForTeam(pairs, teamName), [pairs, teamName]);
   const mine = pairProgressForTeam(progress, teamName);
   const [selected, setSelected] = useState<PairTile[]>([]);
@@ -145,20 +145,48 @@ export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, 
     <div style={{ color: "#cfc2e7", font: "600 clamp(13px,1.8vh,17px) 'Inter'", margin: "3px 0 4px" }}>{done ? "All three matched!" : "Tap two pictures that go together"}</div>
     {effectiveReason && <div role="alert" style={{ color: "#ffc533", fontSize: 16, textAlign: "center", marginBottom: 8 }}>{effectiveReason}</div>}
     {points !== undefined && <div style={{ color: "#d94fdc", font: "800 15px 'Inter'", marginBottom: 5 }}>Team total: {points} pts</div>}
-    <div style={{ display: "flex", gap: 7, marginBottom: 9 }} aria-label={`${mine.mistakes} mistakes`}>
-      <span style={{ color: "#cfc2e7", fontSize: 15 }}>{mine.mistakes} mistakes · +{solved.size * PAIRS_POINTS_PER_MATCH} points this question</span>
-    </div>
-    <div style={{ flex: 1, minHeight: 0, width: "min(100%,430px)", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "repeat(3,minmax(0,1fr))", gap: "clamp(8px,1.4vh,13px)" }}>
-      {tiles.map(tile => {
-        const isSolved = solved.has(tile.pair_id), isSelected = selected.some(item => item.id === tile.id), isWrong = wrong.includes(tile.id);
-        return <button key={tile.id} type="button" onClick={() => void tap(tile)} disabled={locked || isSolved || busy} style={{ minHeight: 0, overflow: "hidden", position: "relative", borderRadius: "clamp(14px,2.2vh,22px)", border: isSolved ? "3px solid #2ee06e" : isSelected ? "3px solid #d94fdc" : "1px solid rgba(255,255,255,.18)", padding: 0, background: "#170b2c", opacity: isSolved ? .58 : 1, boxShadow: isSelected ? "0 0 20px rgba(217,79,220,.45)" : "none", animation: isWrong ? "qi-pairs-shake .5s" : undefined }}>
-          <TileImage src={getMediaUrl(tile.image_url)} alt={tile.label} style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
-          <span style={{ position: "absolute", inset: "auto 0 0", padding: "7px 5px", background: "linear-gradient(transparent,rgba(5,0,14,.96))", color: "white", font: "800 clamp(12px,1.7vh,16px) 'Inter'", textShadow: "0 1px 3px #000" }}>{tile.label}</span>
-          {isSolved && <span style={{ position: "absolute", top: 7, right: 7, width: 27, height: 27, borderRadius: 20, display: "grid", placeItems: "center", background: "#2ee06e", color: "#06150c", fontWeight: 900 }}>✓</span>}
-        </button>;
-      })}
-    </div>
-    <div style={{ minHeight: 24, paddingTop: 5, color: message ? "#ff7d87" : done ? "#2ee06e" : "rgba(255,255,255,.5)", font: "700 12px 'Inter'" }}>{message || (done ? `${mine.mistakes} mistake${mine.mistakes === 1 ? "" : "s"}` : `${solved.size} / ${PAIRS_PER_ROUND} matched`)}</div>
+    {/* Host: "there is still no reveal screen either." Every other round
+        type ends with a distinct reveal moment (a CORRECT/INCORRECT screen
+        showing the answer) - Match Made had none at all. The tiles already
+        show their labels while playing, so hitting "Reveal Match Made
+        results" on the host console (which flips pairs_status to
+        "complete") changed nothing the team could see; the board just sat
+        there locked, looking identical to mid-play. This adds the same
+        kind of reveal every other round has: once revealed, replace the
+        tile grid with the three actual pairs and a clear tick/cross for
+        each one this team did or didn't get. */}
+    {revealed ? (
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", width: "min(100%,430px)", display: "flex", flexDirection: "column", gap: 10, paddingBottom: 8 }}>
+        <div style={{ color: "#2EE06E", font: "800 15px 'Inter'", letterSpacing: ".18em", textAlign: "center" }}>MATCHES REVEALED</div>
+        {pairs.map(pair => {
+          const gotIt = solved.has(pair.pair_id);
+          return (
+            <div key={pair.pair_id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 16px", borderRadius: 14, background: gotIt ? "rgba(46,224,110,0.12)" : "rgba(255,59,78,0.08)", border: "1px solid " + (gotIt ? "rgba(46,224,110,0.4)" : "rgba(255,59,78,0.3)") }}>
+              <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>{pair.a.label} + {pair.b.label}</span>
+              <span style={{ fontSize: 22, flexShrink: 0, color: gotIt ? "#2EE06E" : "#FF3B4E" }}>{gotIt ? "✓" : "✗"}</span>
+            </div>
+          );
+        })}
+        <div style={{ textAlign: "center", color: "#cfc2e7", fontSize: 15, marginTop: 4 }}>{solved.size} of {PAIRS_PER_ROUND} matched · {mine.mistakes} mistake{mine.mistakes === 1 ? "" : "s"}</div>
+      </div>
+    ) : (
+      <>
+        <div style={{ display: "flex", gap: 7, marginBottom: 9 }} aria-label={`${mine.mistakes} mistakes`}>
+          <span style={{ color: "#cfc2e7", fontSize: 15 }}>{mine.mistakes} mistakes · +{solved.size * PAIRS_POINTS_PER_MATCH} points this question</span>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, width: "min(100%,430px)", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "repeat(3,minmax(0,1fr))", gap: "clamp(8px,1.4vh,13px)" }}>
+          {tiles.map(tile => {
+            const isSolved = solved.has(tile.pair_id), isSelected = selected.some(item => item.id === tile.id), isWrong = wrong.includes(tile.id);
+            return <button key={tile.id} type="button" onClick={() => void tap(tile)} disabled={locked || isSolved || busy} style={{ minHeight: 0, overflow: "hidden", position: "relative", borderRadius: "clamp(14px,2.2vh,22px)", border: isSolved ? "3px solid #2ee06e" : isSelected ? "3px solid #d94fdc" : "1px solid rgba(255,255,255,.18)", padding: 0, background: "#170b2c", opacity: isSolved ? .58 : 1, boxShadow: isSelected ? "0 0 20px rgba(217,79,220,.45)" : "none", animation: isWrong ? "qi-pairs-shake .5s" : undefined }}>
+              <TileImage src={getMediaUrl(tile.image_url)} alt={tile.label} style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+              <span style={{ position: "absolute", inset: "auto 0 0", padding: "7px 5px", background: "linear-gradient(transparent,rgba(5,0,14,.96))", color: "white", font: "800 clamp(12px,1.7vh,16px) 'Inter'", textShadow: "0 1px 3px #000" }}>{tile.label}</span>
+              {isSolved && <span style={{ position: "absolute", top: 7, right: 7, width: 27, height: 27, borderRadius: 20, display: "grid", placeItems: "center", background: "#2ee06e", color: "#06150c", fontWeight: 900 }}>✓</span>}
+            </button>;
+          })}
+        </div>
+        <div style={{ minHeight: 24, paddingTop: 5, color: message ? "#ff7d87" : done ? "#2ee06e" : "rgba(255,255,255,.5)", font: "700 12px 'Inter'" }}>{message || (done ? `${mine.mistakes} mistake${mine.mistakes === 1 ? "" : "s"}` : `${solved.size} / ${PAIRS_PER_ROUND} matched`)}</div>
+      </>
+    )}
     <style>{`@keyframes qi-pairs-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}`}</style>
   </div>;
 }

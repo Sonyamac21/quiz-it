@@ -3159,29 +3159,38 @@ function QuizControllerInner() {
               // packed side by side instead of stacked. Live-answer text
               // still shows (ellipsis-truncated if long) whenever a team
               // has actually answered; otherwise that space is simply empty.
-              const liveAnswer = answered ? (() => {
-                const ord = submissionOrder(s.team_name);
-                const ansObj = teamAnswerObj(s.team_name);
-                const isNearestWins = currentQ?.question_type === "nearest_wins";
-                const nwIsClosest = isNearestWins && answersRevealed && s.team_name === fastestTeam;
-                const correct = !isNearestWins && answersRevealed && ansObj && currentQ ? isAnswerCorrect(ansObj, currentQ) : null;
-                const ansColor = nwIsClosest ? "#2EE06E" : correct === true ? "#2EE06E" : correct === false ? "#FF3B4E" : "rgba(255,255,255,0.72)";
-                // Host request: "colour code my fastest teams each answer" -
-                // isFastest already put a border on the whole card and a
-                // small bolt icon by the name, but the answer itself (the
-                // thing a host is actually scanning down the list to
-                // compare) looked identical to every other correct answer.
-                // A gold highlight behind just this team's answer/points
-                // makes the fastest team's row pop out at a glance among a
-                // column of otherwise-identical green "correct" text.
-                return (
-                  <span style={{ display:"inline-flex", alignItems:"center", gap:5, minWidth:0, maxWidth:150, overflow:"hidden", ...(isFastest ? { background:"rgba(255,197,51,0.16)", border:"1px solid rgba(255,197,51,0.4)", borderRadius:7, padding:"2px 6px" } : {}) }}>
-                    {ord !== null && <span style={{ fontSize:13, fontWeight:800, color:"rgba(255,255,255,0.5)", flexShrink:0 }}>#{ord}</span>}
-                    <span style={{ fontSize:15, color:ansColor, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>
-                    {questionAward !== undefined && <strong title="Points earned on this question" style={{ color: questionAward < 0 ? "#FF7D87" : "#2EE06E", fontSize: 15, whiteSpace: "nowrap", flexShrink:0 }}>{questionAward >= 0 ? "+" : ""}{questionAward}</strong>}
-                  </span>
-                );
-              })() : null;
+              // Host, live tonight: "when the answers come in - colour the
+              // answers right or wrong - red or green on the host screen -
+              // rather than grey." This correct/incorrect computation used
+              // to live entirely inside liveAnswer's own IIFE, so only the
+              // answer TEXT got the green/red treatment - the little 8px
+              // "has answered" dot at the end of the row (rendered
+              // separately, below) stayed hardcoded to purple-if-answered/
+              // grey-if-not regardless of whether the answer revealed as
+              // right or wrong. Pulled the correctness check up a level so
+              // both the text and the dot share one answer.
+              const ord = answered ? submissionOrder(s.team_name) : null;
+              const ansObj = answered ? teamAnswerObj(s.team_name) : null;
+              const isNearestWins = currentQ?.question_type === "nearest_wins";
+              const nwIsClosest = isNearestWins && answersRevealed && s.team_name === fastestTeam;
+              const correct = answered && !isNearestWins && answersRevealed && ansObj && currentQ ? isAnswerCorrect(ansObj, currentQ) : null;
+              const ansColor = nwIsClosest ? "#2EE06E" : correct === true ? "#2EE06E" : correct === false ? "#FF3B4E" : "rgba(255,255,255,0.72)";
+              const dotColor = !answered ? "rgba(185,168,217,0.2)" : (nwIsClosest || correct === true) ? "#2EE06E" : correct === false ? "#FF3B4E" : "#D94FDC";
+              // Host request: "colour code my fastest teams each answer" -
+              // isFastest already put a border on the whole card and a
+              // small bolt icon by the name, but the answer itself (the
+              // thing a host is actually scanning down the list to
+              // compare) looked identical to every other correct answer.
+              // A gold highlight behind just this team's answer/points
+              // makes the fastest team's row pop out at a glance among a
+              // column of otherwise-identical green "correct" text.
+              const liveAnswer = answered ? (
+                <span style={{ display:"inline-flex", alignItems:"center", gap:5, minWidth:0, maxWidth:150, overflow:"hidden", ...(isFastest ? { background:"rgba(255,197,51,0.16)", border:"1px solid rgba(255,197,51,0.4)", borderRadius:7, padding:"2px 6px" } : {}) }}>
+                  {ord !== null && <span style={{ fontSize:13, fontWeight:800, color:"rgba(255,255,255,0.5)", flexShrink:0 }}>#{ord}</span>}
+                  <span style={{ fontSize:15, color:ansColor, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{ans}</span>
+                  {questionAward !== undefined && <strong title="Points earned on this question" style={{ color: questionAward < 0 ? "#FF7D87" : "#2EE06E", fontSize: 15, whiteSpace: "nowrap", flexShrink:0 }}>{questionAward >= 0 ? "+" : ""}{questionAward}</strong>}
+                </span>
+              ) : null;
               // Host request: "change the small indication of a power card
               // being used to a larger coloured square on the teamname
               // section." The only power-card indicator previously shown
@@ -3218,7 +3227,7 @@ function QuizControllerInner() {
                       shifts every column after it over by one instead of
                       leaving a gap. */}
                   <span style={{ minWidth: 0 }}>{liveAnswer}</span>
-                  <div style={{ width:8, height:8, borderRadius:"50%", background:answered?"#D94FDC":"rgba(185,168,217,0.2)", flexShrink:0 }} />
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:dotColor, flexShrink:0 }} />
                   {showRoundLeaders ? (
                     <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: 46 }}>
                       <span style={{ fontSize:21, fontWeight:800, color:"#2EE06E", textAlign:"right" as const, fontVariantNumeric:"tabular-nums", lineHeight: 1 }}>+{s.round_points}</span>

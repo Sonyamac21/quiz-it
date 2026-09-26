@@ -2462,7 +2462,40 @@ button, input, select, textarea { font: inherit; }
    quietly overridden right back to the inline 20px the whole time, which
    is why the exact same "pushed up" screenshot came back after that
    "fix." Added !important to padding-top too. */
-.qi-player-state,.qi-player-shell { min-height: 100dvh; max-width: 100vw; overflow-x: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(22px,env(safe-area-inset-top)) !important; padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); padding-bottom: calc(44px + env(safe-area-inset-bottom)) !important; padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
+/* Host, live tonight: "one of the phones is scrolling - so can't see all
+   info. rest are not." Every player screen sets its own exact
+   height:"100dvh" as an INLINE style (React style object), and each
+   screen's own overflow:hidden relies on that height actually being a
+   real number to have anything to clip against. Inline styles can only
+   hold ONE value per property - a browser/webview that doesn't recognise
+   the dvh unit doesn't fall back to anything, it drops the whole
+   height declaration, leaving the screen unconstrained (grows to fit its
+   content) with nothing above it to clip that overflow, so the page
+   itself scrolls - exactly the "one phone, not the others" symptom of an
+   older/different browser engine on just that one handset. A stylesheet
+   rule (unlike an inline style) CAN carry a fallback: an unsupported
+   VALUE is ignored per-declaration, so this vh line stays in effect on a
+   dvh-less browser while the next line's dvh silently overrides it on
+   every other browser that does support it. This is a pure safety net -
+   every screen's own inline height still wins whenever the browser
+   understands it, so nothing changes on any working phone. */
+.qi-player-state,.qi-player-shell { box-sizing: border-box; height: 100vh; height: 100dvh; min-height: 100dvh; max-width: 100vw; overflow-x: hidden; overflow-y: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(22px,env(safe-area-inset-top)) !important; padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); /* Host, live tonight: "power cards are partially covered on 4 ipad/
+   tablets, all different orientations." The fixed "Quiz-It · Powered by
+   Mac Entertainment · by Sonya Mac" brand bar (join-form.tsx,
+   position:fixed, bottom:0) sits on top of every phase screen at a real
+   rendered height of about 53-60px (its taller side is the 3 stacked
+   lines on the right, not the QUIZ-IT wordmark) - this 44px reservation
+   was always a few px short of that, just usually masked on notched
+   iPhones by their own ~34px home-indicator safe-area-inset-bottom
+   stacking on top of it. iPads mostly have EITHER no home indicator at
+   all (Home-button models: 0 safe-area) or a much smaller one than an
+   iPhone's, in every orientation - so there was no extra safe-area
+   cushion to hide the shortfall there, and the power cards row (the
+   last thing before this padding) visibly collided with the bar's text.
+   Bumped past the bar's real height with a margin, so this clears it on
+   every device regardless of how much (or how little) safe-area inset
+   that device reports. */
+padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important; padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
 /* Host: "it's the answer reveal screen that pushes all up the phone
    screen... too small and pushed up too far." That screen (.qi-player-
    answer) has no size override of its own - it renders this base row
@@ -3035,7 +3068,21 @@ button, input, select, textarea { font: inherit; }
    now - this @media(min-height:700px) copy used to set SMALLER clamp()
    values than that fix, silently winning back on any tall phone (which is
    most of them) purely by being the later rule at equal specificity. */
-.qi-player-waiting-timer { flex:1 1 auto; min-height:0; font-size:clamp(14px,4vw,18px); }
+/* Host, live tonight: "question too small on the player's screen" - while
+   waiting for the timer (or once it's locked), this box was the only
+   flex:1 child of .qi-player-question-scroll, so it alone soaked up every
+   pixel of real leftover screen space while the question text above it
+   (.qi-player-question-wrap, with no flex set at all) stayed sized to its
+   own tiny natural content height - and FitBlockText's growth ceiling is
+   a fraction of THAT self-referential height, not the real screen. Every
+   other sibling this box swaps places with (multi-choice options,
+   multi-tap grid, Sequence's own UI) is naturally sized, not flex:1 -
+   this was the one exception, and exactly the case (nothing to answer
+   yet, or answers already locked) where the question is the only thing
+   worth making bigger. Dropped to natural sizing so .qi-player-
+   question-wrap's own flex:1 (see its inline style) gets the real
+   leftover room instead. */
+.qi-player-waiting-timer { flex:0 0 auto; min-height:96px; font-size:clamp(14px,4vw,18px); }
 .qi-player-answer .qi-player-result { min-height:min(34dvh,300px); display:grid; place-content:center; }
 .qi-player-answer .qi-player-answer-comparison { width:100%!important; max-width:none!important; }
 .qi-player-waiting > div:nth-of-type(2) { font-size:clamp(17px,4.8vw,21px)!important; }

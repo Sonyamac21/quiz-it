@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
+import { FitScaleBlock } from "@/components/FitScaleBlock";
 import {
   PAIRS_PER_ROUND,
   PairRecord,
@@ -375,18 +376,35 @@ export function PairsHostView({ pairs, rows, scoreboard, fastestTeam, status, qu
 
     <div className="qi-mc-workspace" style={{ flex: 1, minHeight: 0 }}>
       <main className="qi-mc-desk" style={{ display: "flex", flexDirection: "column" }}>
-        <div className="qi-mc-question__meta">
-          <span style={{ background: "rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.4)", color: "#BE26C1", padding: "5px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>{status === "complete" ? "RESULTS" : "LIVE"}</span>
-        </div>
-        <h1 className="qi-mc-question__title">{status === "complete" ? "The matching pairs" : "Find the three pairs"}</h1>
-        <div className="qi-mc-answer-key" style={{ flex: "0 0 auto" }}>
-          <div style={{ fontSize: 12, marginBottom: 4, letterSpacing: 2, color: "var(--qi-success)" }}>ANSWER KEY</div>
-          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.75)" }}>{PAIRS_POINTS_PER_MATCH} points per pair · {PAIRS_POINTS_PER_MATCH * PAIRS_PER_ROUND} points available</div>
-        </div>
-        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12, marginTop: 12 }}>
-          {pairs.map(pair => <div key={pair.pair_id} style={{ minHeight: 0, border: "1px solid var(--qi-border)", borderRadius: 18, overflow: "hidden", display: "grid", gridTemplateRows: "1fr 1fr" }}>
-            {[pair.a, pair.b].map(item => <div key={item.label} style={{ position: "relative", minHeight: 0 }}><TileImage src={getMediaUrl(item.image_url)} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} /><strong style={{ position: "absolute", inset: "auto 0 0", padding: "18px 8px 8px", background: "linear-gradient(transparent,rgba(0,0,0,.95))", textAlign: "center", fontSize: 16 }}>{item.label}</strong></div>)}
-          </div>)}
+        {/* Host: "Shrink the question/photos to fit, just like the
+            questions/rounds we worked on yesterday." Regular Round's
+            question block shrinks (or grows) as a unit to exactly fill
+            .qi-mc-desk via FitScaleBlock - this panel never had that, so
+            its title/answer-key/photo-grid just sat at fixed sizes and
+            could scroll instead of fit. Wrapping the same content in the
+            same FitScaleBlock, with the grid's row height driven by the
+            same --qi-fit-scale variable every other scaled class here
+            already uses, makes Match Made's photos shrink-to-fit exactly
+            like every other round's question does. The wrapping
+            .qi-mc-question div also matches the CSS selector
+            (.qi-mc-desk:has(.qi-mc-question)) that forces this desk to
+            clip instead of scroll, same as Regular Round and Pursuit. */}
+        <div className="qi-mc-question" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <FitScaleBlock className="qi-mc-pairs__inner" minScale={0.45} maxScale={1.6}>
+            <div className="qi-mc-question__meta">
+              <span style={{ background: "rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.4)", color: "#BE26C1", padding: "5px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>{status === "complete" ? "RESULTS" : "LIVE"}</span>
+            </div>
+            <h1 className="qi-mc-question__title">{status === "complete" ? "The matching pairs" : "Find the three pairs"}</h1>
+            <div className="qi-mc-answer-key" style={{ flex: "0 0 auto" }}>
+              <div style={{ fontSize: 12, marginBottom: 4, letterSpacing: 2, color: "var(--qi-success)" }}>ANSWER KEY</div>
+              <div style={{ fontSize: 14, color: "rgba(255,255,255,0.75)" }}>{PAIRS_POINTS_PER_MATCH} points per pair · {PAIRS_POINTS_PER_MATCH * PAIRS_PER_ROUND} points available</div>
+            </div>
+            <div className="qi-mc-pairs__grid">
+              {pairs.map(pair => <div key={pair.pair_id} className="qi-mc-pairs__card">
+                {[pair.a, pair.b].map(item => <div key={item.label} style={{ position: "relative", minHeight: 0 }}><TileImage src={getMediaUrl(item.image_url)} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} /><strong className="qi-mc-pairs__label">{item.label}</strong></div>)}
+              </div>)}
+            </div>
+          </FitScaleBlock>
         </div>
       </main>
 

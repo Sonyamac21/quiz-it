@@ -6,6 +6,7 @@ import { SpinWheel, buildTeamSegments } from "@/components/SpinWheel";
 import { applyScoreDelta } from "@/lib/quiz/scoreService";
 import { HARD_DECK_CARD_POINTS, hardDeckGambleStake, hardDeckStealAward } from "@/lib/quiz/hardDeck";
 import { MissionControlTopBar } from "@/components/ui/quiz-it-ui";
+import { FitScaleBlock } from "@/components/FitScaleBlock";
 
 type PlayingCard = { rank: number; suit: "♠" | "♥" | "♦" | "♣" };
 type HardDeckStatus =
@@ -438,79 +439,96 @@ export function HardDeckPanel({ sessionId, sessionPin, teams, scores = [], onSco
             <SpinWheel segments={buildTeamSegments(teams.map(t => t.team_name))} onResult={onWheelResult} size={Math.min(560, typeof window !== "undefined" ? Math.min(window.innerWidth * 0.42, window.innerHeight * 0.72) : 480)} forceResultIndex={wheelTarget ?? undefined} onSpinStart={() => pushState({ hard_deck_wheel_spinning: true })} />
           )}
 
+          {/* Host: "Shrink the question/photos to fit, just like the
+              questions/rounds we worked on yesterday. Do same for the Hard
+              Deck." This whole block used to be fixed/vw-clamped sizes with
+              its own internal 68vh scroll fallback - different content
+              could end up a different overall footprint than every other
+              round's FitScaleBlock-shrunk question, and a long hand of
+              cards would scroll inside its own box rather than shrinking
+              like Regular Round's question text does. Wrapping it in the
+              same FitScaleBlock, with the card size driven by the same
+              --qi-fit-scale variable, makes it shrink (or grow) to exactly
+              fill .qi-mc-desk instead. The wrapping .qi-mc-question div
+              also matches .qi-mc-desk:has(.qi-mc-question) in globals.css,
+              the same selector Regular Round and Pursuit rely on to force
+              this desk to clip instead of scroll. */}
           {!showWheel && team && (
-            <>
-              {/* This row shows every card revealed so far this hand (not just
-                  the latest one - see task history), so its width keeps
-                  growing through a long hand. flexWrap is the primary fix so
-                  it reads as a normal multi-row hand instead of needing to
-                  scroll at all in the common case; maxWidth+overflow is a
-                  safety net for an unusually long one. */}
-              <div className="qi-host-harddeck-cards" style={{ padding: "28px 32px", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)", maxWidth: "min(90vw, 66vw)", maxHeight: "68vh", overflow: "auto" }}>
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center" }}>
-                  {cards.map((c, i) => (
-                    <div key={i} style={{ width: "clamp(110px,11vw,170px)", height: "clamp(158px,16vw,244px)", borderRadius: 16, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: "clamp(38px,4.2vw,62px)", fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
-                      <div>{rankLabel(c.rank)}</div>
-                      <div style={{ fontSize: "clamp(24px,2.6vw,38px)" }}>{c.suit}</div>
+            <div className="qi-mc-question" style={{ flex: 1, width: "100%", minHeight: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+              <FitScaleBlock className="qi-hd-inner" minScale={0.4} maxScale={1.6}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "calc(var(--qi-fit-scale,1) * 20px)", textAlign: "center" as const }}>
+                  {/* This row shows every card revealed so far this hand (not
+                      just the latest one - see task history), so its width
+                      keeps growing through a long hand. flexWrap is the
+                      primary fix so it reads as a normal multi-row hand
+                      instead of needing to scroll at all in the common case. */}
+                  <div className="qi-host-harddeck-cards" style={{ padding: "calc(var(--qi-fit-scale,1) * 28px) calc(var(--qi-fit-scale,1) * 32px)", borderRadius: 20, background: "linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))", border: "1px solid rgba(190,38,193,0.25)", boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), inset 0 -1px 20px rgba(0,0,0,0.4), 0 0 30px rgba(190,38,193,0.15)", maxWidth: "90vw" }}>
+                    <div style={{ display: "flex", gap: "calc(var(--qi-fit-scale,1) * 16px)", flexWrap: "wrap", justifyContent: "center" }}>
+                      {cards.map((c, i) => (
+                        <div key={i} style={{ width: "calc(var(--qi-fit-scale,1) * 140px)", height: "calc(var(--qi-fit-scale,1) * 200px)", borderRadius: 16, background: "linear-gradient(160deg, #ffffff 0%, #f2f2f5 100%)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -6px 10px rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,175,90,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", fontSize: "calc(var(--qi-fit-scale,1) * 50px)", fontWeight: 700, color: (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111" }}>
+                          <div>{rankLabel(c.rank)}</div>
+                          <div style={{ fontSize: "calc(var(--qi-fit-scale,1) * 31px)" }}>{c.suit}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
 
-              {potential > 0 && (status === "decision" || status === "won") && (
-                <div style={{ fontSize: 20, fontWeight: 700, color: "#facc15", letterSpacing: 0.5 }}>Potential: {potential} pts</div>
-              )}
+                  {potential > 0 && (status === "decision" || status === "won") && (
+                    <div style={{ fontSize: 20, fontWeight: 700, color: "#facc15", letterSpacing: 0.5 }}>Potential: {potential} pts</div>
+                  )}
 
-              {status === "base_revealed" && (
-                <div style={{ display: "flex", gap: 12 }}>
-                  <button onClick={keepBase} style={{ padding: "11px 26px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "1px solid #22c55e", color: "#fff", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>Keep</button>
-                  <button onClick={swapBase} disabled={hasSwapped} style={{ padding: "11px 26px", borderRadius: 12, background: "rgba(239,68,68,0.25)", border: "1px solid #ef4444", color: "#fff", fontWeight: 700, cursor: hasSwapped ? "not-allowed" : "pointer", opacity: hasSwapped ? 0.4 : 1, boxShadow: hasSwapped ? "none" : "0 2px 10px rgba(0,0,0,0.3)" }}>Swap</button>
-                </div>
-              )}
-
-              {status === "awaiting_guess" && (
-                <>
-                  {!guess ? (
-                    <div style={{ fontSize: 22, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: 1 }}>
-                      Waiting for {team}&rsquo;s guess on their phone&hellip;
-                    </div>
-                  ) : (
-                    <div style={{
-                      display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
-                      padding: "20px 48px", borderRadius: 16,
-                      background: guess === "higher" ? "rgba(34,197,94,0.22)" : "rgba(239,68,68,0.22)",
-                      border: "3px solid " + (guess === "higher" ? "#22c55e" : "#ef4444"),
-                      boxShadow: "0 0 32px " + (guess === "higher" ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"),
-                      animation: "qiGuessPulse var(--qi-motion-moment) var(--qi-ease-settle)"
-                    }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>GUESS LOCKED IN</div>
-                      <div style={{
-                        fontSize: 44, fontWeight: 800, letterSpacing: 2, lineHeight: 1,
-                        color: guess === "higher" ? "#22c55e" : "#ef4444",
-                        display: "flex", alignItems: "center", gap: 14
-                      }}>
-                        <span style={{ fontSize: 48 }}>{guess === "higher" ? "▲" : "▼"}</span>
-                        {guess.toUpperCase()}
-                      </div>
+                  {status === "base_revealed" && (
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <button onClick={keepBase} style={{ padding: "11px 26px", borderRadius: 12, background: "rgba(34,197,94,0.25)", border: "1px solid #22c55e", color: "#fff", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>Keep</button>
+                      <button onClick={swapBase} disabled={hasSwapped} style={{ padding: "11px 26px", borderRadius: 12, background: "rgba(239,68,68,0.25)", border: "1px solid #ef4444", color: "#fff", fontWeight: 700, cursor: hasSwapped ? "not-allowed" : "pointer", opacity: hasSwapped ? 0.4 : 1, boxShadow: hasSwapped ? "none" : "0 2px 10px rgba(0,0,0,0.3)" }}>Swap</button>
                     </div>
                   )}
-                  <div style={{ color: "#E8C36A", fontSize: 15, fontWeight: 800 }}>Live gamble · {hardDeckGambleStake(potential)} point steal pool</div>
-                  <div style={{ color: "#B9A8D9", fontSize: 14 }}>{Object.keys(stealGuesses).length} of {Math.max(0, teams.length - 1)} other teams locked in for a steal</div>
-                </>
-              )}
 
-              {status === "decision" && (
-                <div style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.65)" }}>Waiting for team to choose Stick or Gamble on their phone...</div>
-              )}
+                  {status === "awaiting_guess" && (
+                    <>
+                      {!guess ? (
+                        <div style={{ fontSize: 22, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: 1 }}>
+                          Waiting for {team}&rsquo;s guess on their phone&hellip;
+                        </div>
+                      ) : (
+                        <div style={{
+                          display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                          padding: "20px 48px", borderRadius: 16,
+                          background: guess === "higher" ? "rgba(34,197,94,0.22)" : "rgba(239,68,68,0.22)",
+                          border: "3px solid " + (guess === "higher" ? "#22c55e" : "#ef4444"),
+                          boxShadow: "0 0 32px " + (guess === "higher" ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"),
+                          animation: "qiGuessPulse var(--qi-motion-moment) var(--qi-ease-settle)"
+                        }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: 2, color: "rgba(255,255,255,0.6)" }}>GUESS LOCKED IN</div>
+                          <div style={{
+                            fontSize: 44, fontWeight: 800, letterSpacing: 2, lineHeight: 1,
+                            color: guess === "higher" ? "#22c55e" : "#ef4444",
+                            display: "flex", alignItems: "center", gap: 14
+                          }}>
+                            <span style={{ fontSize: 48 }}>{guess === "higher" ? "▲" : "▼"}</span>
+                            {guess.toUpperCase()}
+                          </div>
+                        </div>
+                      )}
+                      <div style={{ color: "#E8C36A", fontSize: 15, fontWeight: 800 }}>Live gamble · {hardDeckGambleStake(potential)} point steal pool</div>
+                      <div style={{ color: "#B9A8D9", fontSize: 14 }}>{Object.keys(stealGuesses).length} of {Math.max(0, teams.length - 1)} other teams locked in for a steal</div>
+                    </>
+                  )}
 
-              {status === "won" && (
-                <div style={{ fontSize: 26, fontWeight: 800, color: "#22c55e", letterSpacing: 0.5 }}>WON {potential} points! 🎉</div>
-              )}
+                  {status === "decision" && (
+                    <div style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.65)" }}>Waiting for team to choose Stick or Gamble on their phone...</div>
+                  )}
 
-              {status === "lost" && (
-                <div style={{ textAlign: "center" }}><div style={{ fontSize: 26, fontWeight: 800, color: "#ef4444", letterSpacing: 0.5 }}>Bust — 0 points</div>{stealWinners.length > 0 && <div style={{ marginTop: 8, color: "#22c55e", fontWeight: 800 }}>+{stealPoints} steal: {stealWinners.join(", ")}</div>}</div>
-              )}
-            </>
+                  {status === "won" && (
+                    <div style={{ fontSize: 26, fontWeight: 800, color: "#22c55e", letterSpacing: 0.5 }}>WON {potential} points! 🎉</div>
+                  )}
+
+                  {status === "lost" && (
+                    <div style={{ textAlign: "center" }}><div style={{ fontSize: 26, fontWeight: 800, color: "#ef4444", letterSpacing: 0.5 }}>Bust — 0 points</div>{stealWinners.length > 0 && <div style={{ marginTop: 8, color: "#22c55e", fontWeight: 800 }}>+{stealPoints} steal: {stealWinners.join(", ")}</div>}</div>
+                  )}
+                </div>
+              </FitScaleBlock>
+            </div>
           )}
         </main>
       </div>

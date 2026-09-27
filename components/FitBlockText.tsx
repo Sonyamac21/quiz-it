@@ -84,6 +84,23 @@ export function FitBlockText({ as = "div", children, className, maxViewportHeigh
           next = Math.max(minFontSize, next * (limit / element.scrollHeight) * 0.92);
           element.style.fontSize = `${next}px`;
         }
+        // Host, live tonight: "question needs bigger text - use available
+        // space." Everything above this point only ever SHRINKS - it never
+        // grows past the CSS-authored clamp() size, even when the sibling
+        // that normally eats most of the room (the answer options/keypad)
+        // hasn't rendered yet, e.g. the "waiting for host to start timer"
+        // moment, where this text sat at its small default size with a
+        // large empty gap below it before that box. Grows toward the same
+        // ceiling/limit this already computes above, backing off the
+        // instant a step would overflow it - so a short question on an
+        // otherwise-empty screen actually fills the space it's been given,
+        // the same way FitScaleBlock does for the host console.
+        for (let attempt = 0; attempt < 12 && next < ceiling && element.scrollHeight < limit * 0.92; attempt += 1) {
+          const candidate = Math.min(ceiling, next * 1.12);
+          element.style.fontSize = `${candidate}px`;
+          if (element.scrollHeight > limit) { element.style.fontSize = `${next}px`; break; }
+          next = candidate;
+        }
         setFontSize(next);
       });
     };

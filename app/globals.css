@@ -2252,7 +2252,16 @@ button, input, select, textarea { font: inherit; }
 .qi-display-final-score { color: var(--qi-medal); font-size: clamp(31px,3.5vw,58px); font-weight: 900; font-variant-numeric: tabular-nums; }
 .qi-display-final-wait { padding: 10vh 0; text-align: center; color: #9c89c2; font-size: clamp(20px,2vw,34px); }
 .qi-display-final-reveal .qi-display-powered { margin-top: 3vh; }
-.qi-display-celebration { position: relative; display: grid; place-items: center; padding:164px 0 40px; overflow: hidden; --qi-celebration-photo-size:min(30vh,34vw,560px); }
+/* Host, live tonight: "fastest team - too small on screen text and pic."
+   The photo specifically had a real regression: this variable feeds the
+   more-specific `.qi-display-celebration .qi-display-fastest-photo img`
+   rule below (which wins over the earlier, more generous
+   `.qi-display-fastest-photo img{width:clamp(300px,34vw,560px)}` rule
+   purely on selector specificity) - and unlike that rule, this one had no
+   floor at all: min(30vh,34vw,560px) with nothing to stop 30vh from
+   winning small on a wide-but-short venue TV. Restored the same 300px
+   floor the original rule had. */
+.qi-display-celebration { position: relative; display: grid; place-items: center; padding:164px 0 40px; overflow: hidden; --qi-celebration-photo-size:clamp(300px, min(30vh,34vw), 560px); }
 .qi-display-celebration-content { position: relative; z-index: 2; padding: 0 var(--qi-display-safe-x); text-align: center; }
 /* One-off camera-flash burst that fires the instant the celebration phase
    mounts - a quick white-to-transparent radial wash timed to land right
@@ -2261,7 +2270,7 @@ button, input, select, textarea { font: inherit; }
    ...forwards so it fades out once and stays gone, never loops. */
 .qi-display-celebration-flash { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(circle at 50% 42%, rgba(255,255,255,.9), rgba(217,79,220,.35) 38%, transparent 70%); animation: celebrationFlash .7s ease-out forwards; }
 .qi-display-fastest-eyebrow { display: inline-block; animation: eyebrowDrop .5s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
-.qi-display-fastest-team { position: relative; max-width:94vw; margin:3vh auto 0; overflow-wrap:anywhere; font-size: clamp(70px,10vw,180px); font-weight: 900; line-height: .92; letter-spacing: -.04em; text-shadow: 0 12px 60px rgba(190,38,193,.48); animation: nameSlam .65s .18s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
+.qi-display-fastest-team { position: relative; max-width:94vw; margin:3vh auto 0; overflow-wrap:anywhere; font-size: clamp(84px,11vw,200px); font-weight: 900; line-height: .92; letter-spacing: -.04em; text-shadow: 0 12px 60px rgba(190,38,193,.48); animation: nameSlam .65s .18s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
 .qi-player-celebration-team { width:100%; max-width:360px; margin:8px auto; overflow-wrap:anywhere; color:#be26c1; font-size:42px; font-weight:900; line-height:1.05; letter-spacing:.04em; text-align:center; text-shadow:0 0 40px rgba(190,38,193,.8); }
 .qi-player-celebration-team.is-secondary { margin-bottom:16px; font-size:32px; text-shadow:0 0 24px rgba(190,38,193,.6); }
 .qi-mc-celebration { height:100%; min-height:0; overflow:hidden; display:flex; flex-direction:column; justify-content:center; text-align:center; padding:clamp(8px,1.5vh,18px) 0; }
@@ -2524,7 +2533,11 @@ button, input, select, textarea { font: inherit; }
    Bumped past the bar's real height with a margin, so this clears it on
    every device regardless of how much (or how little) safe-area inset
    that device reports. */
-padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important; padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
+padding-bottom: calc(var(--qi-player-brand-bar-height, 64px) + 10px + env(safe-area-inset-bottom)) !important; padding-left: max(var(--qi-player-pad),env(safe-area-inset-left)); }
+/* --qi-player-brand-bar-height is set at runtime in app/join/join-form.tsx
+   from the brand bar's own measured offsetHeight (see the comment there) -
+   64px is only the fallback for the brief moment before that measurement
+   has run, or on a page that doesn't render the bar at all. */
 /* Host: "it's the answer reveal screen that pushes all up the phone
    screen... too small and pushed up too far." That screen (.qi-player-
    answer) has no size override of its own - it renders this base row

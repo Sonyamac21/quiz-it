@@ -62,6 +62,25 @@ export function JoinForm() {
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [takenSongs, setTakenSongs] = useState<string[]>([]);
   const [songs, setSongs] = useState<VictorySong[]>([]);
+  // Host, live tonight (repeat report): "power cards are partially covered
+  // on ipads/tablets" - persisted after bumping the reserved padding-bottom
+  // to a hand-calculated 64px, twice. Rather than guess a THIRD static
+  // number against font metrics/safe-area combinations we can't test on
+  // every real device, this measures the brand bar's actual rendered
+  // height and publishes it as a CSS variable every screen's padding-
+  // bottom reads from - correct on any device, any font-metric quirk,
+  // any safe-area value, without another guess.
+  const brandBarRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = brandBarRef.current;
+    if (!el) return;
+    const publish = () => document.documentElement.style.setProperty("--qi-player-brand-bar-height", `${el.offsetHeight}px`);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(el);
+    window.addEventListener("resize", publish);
+    return () => { observer.disconnect(); window.removeEventListener("resize", publish); };
+  }, [done]);
 
   useEffect(() => {
     (async () => {
@@ -342,7 +361,7 @@ export function JoinForm() {
               (page background, no border/fill) that reserves the safe-area
               room without reading as bar depth. */}
           <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999, pointerEvents: "none" as const }}>
-            <div style={{
+            <div ref={brandBarRef} style={{
               display: "flex", alignItems: "center",
               padding: "3px 16px", background: "rgba(13,2,37,0.9)", borderTop: "1px solid rgba(190,38,193,0.3)",
               boxSizing: "border-box" as const,

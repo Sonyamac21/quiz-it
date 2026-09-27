@@ -3,7 +3,6 @@ import { scoreBarPercent } from "@/lib/quiz/scoreBar";
 import { displayLeaderboardVisible } from "@/lib/quiz/leaderboardVisibility";
 import { useCallback, useEffect, useLayoutEffect, useState, useRef, Suspense, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { BrandMark } from "@/components/BrandMark";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -2544,15 +2543,15 @@ function DisplayScreenInner() {
 // every phase renders individually, bottom-right), so it can't reintroduce
 // the old duplicate-badge overlap that was previously removed from here.
 function DisplayCornerMark() {
+  // Host, live tonight: "wrong branding on the top left corner... still ME
+  // logo! sort to match the one we decided." quiz-it-header.tsx already
+  // dropped the circular /me-logo.jpg icon site-wide ("take the circular ME
+  // logo away, just use the word block, same size across all screens") -
+  // this corner mark was never updated to match and was still rendering
+  // that exact same retired asset. Just the wordmark now, like everywhere
+  // else.
   return (
-    // Stacked - logo on top, wordmark/producer/attribution centered
-    // underneath - matching the host console header's layout exactly. This
-    // was previously a side-by-side row (logo left, text block right,
-    // left-aligned), a different arrangement from the host console's
-    // stacked-and-centered one, so the "same" brand mark still looked like
-    // two different layouts depending which screen you were on.
     <div className="qi-display-corner-mark">
-      <Image src="/me-logo.jpg" alt="Mac Entertainment" width={58} height={58} className="qi-display-corner-mark__logo" />
       <BrandMark size="sm" align="center" />
     </div>
   );

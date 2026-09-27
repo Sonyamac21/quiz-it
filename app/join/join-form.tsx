@@ -8,6 +8,20 @@ import { BrandMark } from "@/components/BrandMark";
 
 const STORAGE_KEY = "quizit_player_session";
 
+// Host: "I have one quiz in the afternoon... can the platform make the
+// distinction for the instruction changes depending on time of day that
+// the quiz is live?" "Tonight" reads oddly for an afternoon or lunchtime
+// event. Based on the device's own local clock (the player's phone, at
+// the moment they're actually joining) rather than the quiz's scheduled
+// start time - simpler, always matches what the player is experiencing
+// right now, and needs no extra data plumbed through from the session.
+function timeOfDayPhrase(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "this morning’s";
+  if (hour < 17) return "this afternoon’s";
+  return "tonight’s";
+}
+
 // The victory song list used to be hardcoded here, with several garbled
 // legacy-filename titles (e.g. "CC American GIrls SQS") and no way to fix a
 // title or add a new track without a code change. It now lives in the
@@ -385,7 +399,7 @@ export function JoinForm() {
     return (
       <div className="fbl qi-player-join-card qi-player-pin" style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
         <div className="pj-wm wm"><span className="q">QUIZ-</span>IT</div>
-        <div className="pj-title">Enter tonight&rsquo;s PIN</div>
+        <div className="pj-title">Enter {timeOfDayPhrase()} PIN</div>
         <div className="pj-slots">
           {[0, 1, 2, 3].map(i => (
             <div key={i} className={"pj-slot" + (i < pin.length ? " filled" : i === pin.length && !pinLoading ? " next" : "")}>{pin[i] ?? ""}</div>

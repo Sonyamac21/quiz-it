@@ -18,7 +18,11 @@ test("first completion uses server time, not team order, and survives reload", (
 test("all live Match Made images use the media proxy for private storage", () => {
   const source = fs.readFileSync(new URL("../components/PairsRound.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(source, /src=\{(?:tile|item)\.image_url\}/);
-  assert.equal((source.match(/src=\{getMediaUrl\(/g) || []).length, 3);
+  // 4 call sites: PairsPlayerBoard, PairsHostView, and PairsDisplayBoard's
+  // two branches (live venue-rotation tiles vs the revealed pair-card grid
+  // with its connecting line, added so the reveal has an explicit answer
+  // key on the audience display too).
+  assert.equal((source.match(/src=\{getMediaUrl\(/g) || []).length, 4);
   assert.match(source, /Points|points this question/);
 });
 

@@ -1265,17 +1265,32 @@ function DisplayScreenInner() {
       const newQuestionIndex = (data.current_question_index as number) ?? 0;
       const prevProgress = prevPairsProgressRef.current;
       const sameQuestion = prevPairsQuestionIndexRef.current === newQuestionIndex && prevPairsStatusRef.current !== "idle";
+      // Host, live tonight: "take away the 'ding' every time a team gets any
+      // match correct. it doesn't need to be audible." Every single solved
+      // pair across every team fired its own correct-chime, so a busy round
+      // with several teams matching at once was near-constant dinging - not
+      // the occasional cue every other round's audio is, just noise. Kept
+      // the mistake trombone (not what was reported) and moved the "big"
+      // celebratory sounds to the two real beats this round now has: a
+      // cheer on the reveal itself, an airhorn on the fastest-team bonus.
       if (sameQuestion) {
         for (const name of Object.keys(newProgress)) {
           const before = prevProgress[name];
           const after = newProgress[name];
           if (!before || !after) continue;
-          if (after.solved_pair_ids.length > before.solved_pair_ids.length) playSound("correct-chime.mp3", 0.4);
-          else if (after.mistakes > before.mistakes) playSound("sad-trombone.mp3", 0.35);
+          if (after.mistakes > before.mistakes) playSound("sad-trombone.mp3", 0.35);
         }
       }
       if (newStatus === "complete" && prevPairsStatusRef.current !== "complete") {
         playSound("crowd-cheer.mp3", 0.6);
+      }
+      // MATCH MADE — "fastest team reveal for the additional points - like
+      // every other round." pairs_status now has a third value,
+      // "celebration", for the fastest-team bonus beat every other round
+      // already gets (see PairsRound.tsx's finish()) - this is that beat's
+      // audio, matching the airhorn every other round's fastest reveal gets.
+      if (newStatus === "celebration" && prevPairsStatusRef.current !== "celebration") {
+        playSound("airhorn.mp3", 0.5);
       }
       prevPairsProgressRef.current = newProgress;
       prevPairsStatusRef.current = newStatus;
@@ -1637,7 +1652,7 @@ function DisplayScreenInner() {
   if (!displayLeaderboard && phase === "pairs") {
     return (
       <div className="fbl fbl-stage qi-display-stage" style={{ height: "100vh", overflow: "hidden" }}>
-        <PairsDisplayBoard pairs={pairsContent} progress={pairsProgress} teamNames={teams.map(team => team.team_name)} complete={pairsStatus === "complete"} timeLeft={timeLeft} />
+        <PairsDisplayBoard pairs={pairsContent} progress={pairsProgress} teamNames={teams.map(team => team.team_name)} complete={pairsStatus === "complete" || pairsStatus === "celebration"} celebrating={pairsStatus === "celebration"} fastestTeamName={fastestTeam} timeLeft={timeLeft} />
         <QuizItBadge />
       </div>
     );

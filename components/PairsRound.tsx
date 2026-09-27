@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { applyScoreDelta } from "@/lib/quiz/scoreService";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { MissionControlTopBar } from "@/components/ui/quiz-it-ui";
 import {
@@ -68,8 +69,23 @@ function TileImage({ src, alt, style }: { src: string | null | undefined; alt: s
   );
 }
 
-export function PairsDisplayBoard({ pairs, progress, teamNames, complete = false, timeLeft }: { pairs: PairRecord[]; progress: PairsProgress; teamNames: string[]; complete?: boolean; timeLeft?: number | null }) {
-  const tiles = complete ? [...pairs.map(p => ({ ...p.a, id: p.pair_id + "-a" })), ...pairs.map(p => ({ ...p.b, id: p.pair_id + "-b" }))] : tilesForTeam(pairs, "venue-display");
+// A vertical line plus a small "linked" badge through the middle of a pair
+// card, so the reveal actually SHOWS the two photos are matched instead of
+// just implying it via grid position. Shared between the display board and
+// the host console's own reveal grid below.
+function PairLinkConnector() {
+  return (
+    <>
+      <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: 2, background: "rgba(46,224,110,.55)", zIndex: 2, transform: "translateX(-50%)", pointerEvents: "none" }} />
+      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 3, width: "clamp(26px,3vw,40px)", height: "clamp(26px,3vw,40px)", borderRadius: "50%", background: "#0A0118", border: "2px solid #2EE06E", display: "grid", placeItems: "center", boxShadow: "0 0 14px rgba(46,224,110,.65)", pointerEvents: "none" }}>
+        <svg width="55%" height="55%" viewBox="0 0 24 24" fill="none"><path d="M9 12h6M9 8l-3 4 3 4M15 8l3 4-3 4" stroke="#2EE06E" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </div>
+    </>
+  );
+}
+
+export function PairsDisplayBoard({ pairs, progress, teamNames, complete = false, celebrating = false, fastestTeamName, timeLeft }: { pairs: PairRecord[]; progress: PairsProgress; teamNames: string[]; complete?: boolean; celebrating?: boolean; fastestTeamName?: string | null; timeLeft?: number | null }) {
+  const tiles = tilesForTeam(pairs, "venue-display");
   const fastest = fastestPairsTeam(progress);
   const completed = teamNames.filter(name => pairProgressForTeam(progress, name).solved_pair_ids.length >= PAIRS_PER_ROUND).length;
   return (
@@ -81,13 +97,51 @@ export function PairsDisplayBoard({ pairs, progress, teamNames, complete = false
         )}
       </div>
       <h1 style={{ color: "white", font: "800 clamp(36px,5vw,84px) 'Inter'", margin: ".15em 0 .5em", textAlign: "center" }}>{complete ? "The matching pairs" : timeLeft === 0 ? "Time's up!" : "Find the three pairs"}</h1>
-      <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gridTemplateRows: "repeat(2,minmax(0,1fr))", gap: "clamp(12px,2vh,24px)", width: "min(86vw,1400px)" }}>
-        {tiles.map(tile => <div key={tile.id} style={{ position: "relative", minHeight: 0, overflow: "hidden", borderRadius: 18, border: "2px solid #493060" }}>
-          <TileImage src={getMediaUrl(tile.image_url)} alt={tile.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-          <strong style={{ position: "absolute", inset: "auto 0 0", padding: "20px 12px 10px", color: "white", textAlign: "center", fontSize: "clamp(20px,2vw,34px)", background: "linear-gradient(transparent,rgba(0,0,0,.95))" }}>{tile.label}</strong>
-        </div>)}
-      </div>
-      <div style={{ marginTop: "2vh", color: "#cfc2e7", font: "700 clamp(16px,1.6vw,27px) 'Inter'" }}>{completed} of {teamNames.length} teams complete{fastest ? ` · First complete: ${fastest}` : ""}</div>
+      {/* Host: "make the reveal the matched photos on the screen even with
+          lines joining them." The reveal previously just laid all six tiles
+          flat in a 3x2 grid (a-tiles on top, b-tiles below) with no visual
+          link between a matched pair beyond them happening to share a
+          column - this makes each pair its own bordered card with a real
+          connecting line + badge through the middle, same as the host
+          console's reveal grid. */}
+      {complete ? (
+        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: "clamp(16px,2.4vh,32px)", width: "min(86vw,1400px)" }}>
+          {pairs.map(pair => (
+            <div key={pair.pair_id} style={{ position: "relative", minHeight: 0, display: "grid", gridTemplateRows: "repeat(2,minmax(0,1fr))", borderRadius: 18, border: "2px solid #493060", overflow: "hidden" }}>
+              {[pair.a, pair.b].map(item => (
+                <div key={item.label} style={{ position: "relative", minHeight: 0 }}>
+                  <TileImage src={getMediaUrl(item.image_url)} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                  <strong style={{ position: "absolute", inset: "auto 0 0", padding: "14px 10px 8px", color: "white", textAlign: "center", fontSize: "clamp(17px,1.7vw,28px)", background: "linear-gradient(transparent,rgba(0,0,0,.95))" }}>{item.label}</strong>
+                </div>
+              ))}
+              <PairLinkConnector />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gridTemplateRows: "repeat(2,minmax(0,1fr))", gap: "clamp(12px,2vh,24px)", width: "min(86vw,1400px)" }}>
+          {tiles.map(tile => <div key={tile.id} style={{ position: "relative", minHeight: 0, overflow: "hidden", borderRadius: 18, border: "2px solid #493060" }}>
+            <TileImage src={getMediaUrl(tile.image_url)} alt={tile.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            <strong style={{ position: "absolute", inset: "auto 0 0", padding: "20px 12px 10px", color: "white", textAlign: "center", fontSize: "clamp(20px,2vw,34px)", background: "linear-gradient(transparent,rgba(0,0,0,.95))" }}>{tile.label}</strong>
+          </div>)}
+        </div>
+      )}
+      {/* Host: "then fastest team reveal for the additional points - like
+          every other round." Every other round type gets its own "FASTEST
+          CORRECT ANSWER" beat on this screen once scoring lands - Match
+          Made had nothing equivalent, the "First complete: X" footnote
+          below was the only trace of it. This mirrors that beat once the
+          host has moved on from the plain reveal to celebrating the fastest
+          team specifically. */}
+      {celebrating && fastestTeamName ? (
+        <div style={{ marginTop: "2.2vh", textAlign: "center", animation: "lbCardIn .5s var(--settle)" }}>
+          <div style={{ fontSize: "clamp(13px,1.3vw,18px)", letterSpacing: 3, color: "rgba(255,255,255,0.45)", marginBottom: 6 }}>FASTEST TO FINISH ALL THREE</div>
+          <div style={{ font: "800 clamp(28px,3.4vw,54px) 'Inter'", color: "#2EE06E", textShadow: "0 0 34px rgba(46,224,110,.5)" }}>{fastestTeamName}</div>
+          <div style={{ marginTop: 4, color: "#cfc2e7", font: "700 clamp(14px,1.4vw,20px) 'Inter'" }}>+{PAIRS_POINTS_PER_MATCH} bonus points</div>
+        </div>
+      ) : (
+        <div style={{ marginTop: "2vh", color: "#cfc2e7", font: "700 clamp(16px,1.6vw,27px) 'Inter'" }}>{completed} of {teamNames.length} teams complete{fastest ? ` · First complete: ${fastest}` : ""}</div>
+      )}
     </div>
   );
 }
@@ -272,7 +326,7 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
     if (!round || content.length !== PAIRS_PER_ROUND) { setError("This Match Made question needs exactly three complete image pairs before it can go live."); setOpen(true); return false; }
     const initial = Object.fromEntries(teamNames.map(name => [name, { solved_pair_ids: [], mistakes: 0, selected_tile_id: null }]));
     const startedAt = new Date().toISOString();
-    const { error: writeError } = await supabase.from("sessions").update({ phase: "pairs", current_question_index: index, pairs_status: "live", pairs_content: content, pairs_progress: initial, pairs_round_id: id, timer_started_at: startedAt, timer_duration: PAIRS_TIMER_SECONDS, current_question: null, allow_power_cards: false, spin_choice: null, spin_offered: false, fastest_team: null, updated_at: startedAt }).eq("id", sessionId);
+    const { error: writeError } = await supabase.from("sessions").update({ phase: "pairs", current_question_index: index, pairs_status: "live", pairs_content: content, pairs_progress: initial, pairs_round_id: id, timer_started_at: startedAt, timer_duration: PAIRS_TIMER_SECONDS, current_question: null, allow_power_cards: false, spin_choice: null, spin_offered: false, fastest_team: null, fastest_points: null, updated_at: startedAt }).eq("id", sessionId);
     if (writeError) { setError("Could not start Match Made: " + writeError.message); setOpen(true); return false; }
     setQuestionIndex(index);
     setRoundId(id); setPairs(content); setProgress(initial); setStatus("live"); setError(""); setOpen(true);
@@ -296,6 +350,30 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
         const { error: writeError } = await supabase.from("sessions").update({ pairs_status: "complete", updated_at: new Date().toISOString() }).eq("id", sessionId).eq("pairs_round_id", roundId).eq("current_question_index", questionIndex);
         if (writeError) setError("Could not reveal results: " + writeError.message);
         else { setStatus("complete"); onScoreChange?.(); }
+      } finally { finishingRef.current = false; }
+      return;
+    }
+    // Host: "fastest team reveal for the additional points - like every
+    // other round." Every other round type pays its speed bonus and shows
+    // the "FASTEST CORRECT ANSWER" beat as its own step between the answer
+    // reveal and moving on - Match Made went straight from reveal to the
+    // next question with no equivalent moment. This inserts that step:
+    // "complete" (the plain reveal, unchanged) now advances to a new
+    // "celebration" status that pays whichever team finished all three
+    // pairs first a bonus (same value as one match, applyScoreDelta's
+    // eventKey keying off the exact question so a retry or double-click can
+    // never pay it twice), before the round's existing "move on" logic
+    // (previously reachable straight from "complete") runs.
+    if (status === "complete") {
+      try {
+        const fastest = fastestPairsTeam(progress);
+        if (fastest) {
+          const bonus = await applyScoreDelta(supabase, sessionPin, fastest, PAIRS_POINTS_PER_MATCH, { eventKey: `pairs-fastest:${sessionId}:${roundId}:${questionIndex}`, isFastest: true });
+          if (bonus.error) setError("Could not award the fastest-team bonus: " + bonus.error);
+        }
+        const { error: writeError } = await supabase.from("sessions").update({ pairs_status: "celebration", fastest_team: fastest, fastest_points: fastest ? PAIRS_POINTS_PER_MATCH : null, updated_at: new Date().toISOString() }).eq("id", sessionId).eq("pairs_round_id", roundId).eq("current_question_index", questionIndex);
+        if (writeError) setError("Could not reveal the fastest team: " + writeError.message);
+        else { setStatus("celebration"); onScoreChange?.(); }
       } finally { finishingRef.current = false; }
       return;
     }
@@ -363,7 +441,16 @@ export function PairsHostView({ sessionPin, pairs, rows, scoreboard, fastestTeam
   onEndQuiz?: () => void;
 }) {
   const showNextTimer = status === "live" && timeLeft !== undefined && timeLeft !== null;
-  const nextLabel = status === "live" ? "Reveal Match Made results" : questionIndex + 1 < questionCount ? "Next Match Made question" : "Finish round and show scores";
+  // Host: "fastest team reveal for the additional points - like every other
+  // round." Every other round's Next-Action bar has three real beats
+  // (reveal the answer, celebrate the fastest team, move on) - Match Made
+  // only ever had two (reveal, then straight on to the next question), so
+  // the fastest team was never its own moment, just a footnote in the rail.
+  // pairs_status now has a third value, "celebration", sitting between
+  // "complete" (the reveal, unchanged) and moving on.
+  const nextLabel = status === "live" ? "Reveal Match Made results"
+    : status === "complete" ? "Reveal fastest team"
+    : questionIndex + 1 < questionCount ? "Next Match Made question" : "Finish round and show scores";
   return (<div className="qi-host-pairs qi-mc-shell" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box" as const, background: "var(--qi-bg-stage, #0A0118)", zIndex: 200, overflow: "hidden" }}>
     <div className="qi-mc-main-column">
       {/* Host: "all info from top bar has disappeared from the screen - it
@@ -416,17 +503,30 @@ export function PairsHostView({ sessionPin, pairs, rows, scoreboard, fastestTeam
         <div className="qi-mc-question" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <div className="qi-mc-pairs__header">
             <div className="qi-mc-question__meta">
-              <span style={{ background: "rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.4)", color: "#BE26C1", padding: "5px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>{status === "complete" ? "RESULTS" : "LIVE"}</span>
+              <span style={{ background: "rgba(190,38,193,0.2)", border: "1px solid rgba(190,38,193,0.4)", color: "#BE26C1", padding: "5px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>{status === "live" ? "LIVE" : status === "complete" ? "RESULTS" : "FASTEST"}</span>
             </div>
-            <h1 className="qi-mc-question__title">{status === "complete" ? "The matching pairs" : "Find the three pairs"}</h1>
-            <div className="qi-mc-answer-key" style={{ flex: "0 0 auto" }}>
-              <div style={{ fontSize: 12, marginBottom: 4, letterSpacing: 2, color: "var(--qi-success)" }}>ANSWER KEY</div>
-              <div style={{ fontSize: 14, color: "rgba(255,255,255,0.75)" }}>{PAIRS_POINTS_PER_MATCH} points per pair · {PAIRS_POINTS_PER_MATCH * PAIRS_PER_ROUND} points available</div>
-            </div>
+            <h1 className="qi-mc-question__title">{status === "live" ? "Find the three pairs" : "The matching pairs"}</h1>
+            {status === "celebration" && fastestTeam ? (
+              <div style={{ flex: "0 0 auto", padding: "8px 14px", borderRadius: 10, background: "rgba(46,224,110,0.12)", border: "1px solid rgba(46,224,110,0.4)" }}>
+                <div style={{ fontSize: 11, marginBottom: 3, letterSpacing: 2, color: "#2EE06E" }}>FASTEST TO FINISH ALL THREE</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>{fastestTeam} <span style={{ color: "#2EE06E" }}>+{PAIRS_POINTS_PER_MATCH} pts</span></div>
+              </div>
+            ) : (
+              <div className="qi-mc-answer-key" style={{ flex: "0 0 auto" }}>
+                <div style={{ fontSize: 12, marginBottom: 4, letterSpacing: 2, color: "var(--qi-success)" }}>ANSWER KEY</div>
+                <div style={{ fontSize: 14, color: "rgba(255,255,255,0.75)" }}>{PAIRS_POINTS_PER_MATCH} points per pair · {PAIRS_POINTS_PER_MATCH * PAIRS_PER_ROUND} points available</div>
+              </div>
+            )}
           </div>
+          {/* Host: "make the reveal even with lines joining them." The host
+              already sees the real pairing (this is the answer key, shown
+              regardless of live/complete), so the connector renders
+              unconditionally - it's not a spoiler here the way it would be
+              on the player handset or the audience display. */}
           <div className="qi-mc-pairs__grid">
-            {pairs.map(pair => <div key={pair.pair_id} className="qi-mc-pairs__card">
+            {pairs.map(pair => <div key={pair.pair_id} className="qi-mc-pairs__card" style={{ position: "relative" }}>
               {[pair.a, pair.b].map(item => <div key={item.label} style={{ position: "relative", minHeight: 0 }}><TileImage src={getMediaUrl(item.image_url)} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} /><strong className="qi-mc-pairs__label">{item.label}</strong></div>)}
+              <PairLinkConnector />
             </div>)}
           </div>
         </div>

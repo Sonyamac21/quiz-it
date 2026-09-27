@@ -21,10 +21,14 @@ test("host and handset use measured fitting for complete question text", () => {
   assert.match(host, /<FitScaleBlock className="qi-mc-question__inner">/);
   assert.match(host, /<h1 className="qi-mc-question__title">/);
   // The answer bubble's own FitBlockText (11vh cap) had the same conflict
-  // with FitScaleBlock the title did - now a plain div, sized by
-  // --qi-fit-scale in globals.css instead.
+  // with FitScaleBlock the title did - now a plain div. It used to be sized
+  // by --qi-fit-scale like the rest of the block, but that let a short
+  // question (FitScaleBlock scaling the whole block up generously) scale
+  // the answer text right back up to option-text size before the reveal -
+  // "the answer is too large before reveal - teams will be able to cheat."
+  // It's now a fixed small size independent of the block's own scale.
   assert.match(host, /<div className="qi-mc-answer-key__answer">/);
-  assert.match(css, /\.qi-mc-answer-key__answer\s*\{[^}]*--qi-fit-scale/);
+  assert.doesNotMatch(css, /\.qi-mc-answer-key__answer\s*\{[^}]*--qi-fit-scale/);
   assert.match(player, /FitBlockText className="qi-player-question-text"/);
   assert.match(css, /\.qi-mc-desk:has\(\.qi-mc-question\) \{ overflow:hidden; \}/);
   assert.match(css, /\.qi-player-question-scroll \{ overflow:hidden;/);

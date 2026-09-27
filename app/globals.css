@@ -736,8 +736,20 @@ button, input, select, textarea { font: inherit; }
    same size as the question itself - readable by anyone glancing at the
    host's laptop from across a table. Shrunk well below the question text's
    own size; still perfectly legible to the host up close. */
-.qi-mc-answer-key__answer { color:var(--qi-success); font-size:calc(var(--qi-fit-scale,1) * clamp(.8rem,.75rem + .2vw,1rem)); font-weight:750; line-height:1.18; overflow-wrap:anywhere; }
-.qi-mc-answer-key__explanation { margin-top:6px; color:rgba(255,255,255,.6); font-size:calc(var(--qi-fit-scale,1) * clamp(.72rem,.68rem + .12vw,.875rem)); line-height:1.35; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+/* Host, live tonight: "the answer is too large before reveal - teams will
+   be able to cheat." The shrink above was still multiplied by
+   --qi-fit-scale, the same variable FitScaleBlock uses to scale the WHOLE
+   question block up when a short question leaves it plenty of room -
+   exactly the case in the reported screenshot (a short multiple-choice
+   question, block scaled up generously) - so the answer text got scaled
+   right back up past the shrink, ending up roughly the same size as the
+   options themselves. Dropped the multiplier entirely: this stays a fixed,
+   small, host-legible size no matter how large FitScaleBlock renders
+   everything else in the block. */
+.qi-mc-answer-key__answer { color:var(--qi-success); font-size:clamp(.8rem,.75rem + .2vw,1rem); font-weight:750; line-height:1.18; overflow-wrap:anywhere; }
+/* Same fit-scale-independence as .qi-mc-answer-key__answer above - the
+   explanation text sits right under the answer and gives just as much away. */
+.qi-mc-answer-key__explanation { margin-top:6px; color:rgba(255,255,255,.6); font-size:clamp(.72rem,.68rem + .12vw,.875rem); line-height:1.35; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
 /* Match Made's photo grid, scaled by the same --qi-fit-scale FitScaleBlock
    drives for every other question type's title/options/answer-key above -
    host request: "Shrink the question/photos to fit, just like the

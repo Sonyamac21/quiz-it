@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useState, useRef, Suspense, ty
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { BrandMark } from "@/components/BrandMark";
+import { BrandLockup } from "@/components/ui/quiz-it-ui";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { fetchActiveVenueOffers, normalizeWhatsappLink } from "@/lib/venueOffers";
@@ -2544,15 +2545,21 @@ function DisplayScreenInner() {
 // the old duplicate-badge overlap that was previously removed from here.
 function DisplayCornerMark() {
   // Host, live tonight: "wrong branding on the top left corner... still ME
-  // logo! sort to match the one we decided." quiz-it-header.tsx already
-  // dropped the circular /me-logo.jpg icon site-wide ("take the circular ME
-  // logo away, just use the word block, same size across all screens") -
-  // this corner mark was never updated to match and was still rendering
-  // that exact same retired asset. Just the wordmark now, like everywhere
-  // else.
+  // logo! sort to match the one we decided" - then, after that first pass,
+  // "use the same logo in the top left of the last screenshot [the host
+  // console] for the display screen." components/ui/quiz-it-ui.tsx's own
+  // BrandLockup comment settles which shared component that actually is:
+  // "This is the one shared lockup used across login/auth, the host
+  // console header, Mission Control, the Display screen's corner mark..."
+  // - BrandLockup, not BrandMark (that one's for the smaller handset/
+  // player instances with inline sizing). The first pass swapped the
+  // retired /me-logo.jpg image for the wrong one of the two brand
+  // components; globals.css even already has dedicated
+  // .qi-display-corner-mark .qi-brand__name/.qi-brand__producer sizing
+  // rules sitting unused, waiting for BrandLockup's own .qi-brand classes.
   return (
     <div className="qi-display-corner-mark">
-      <BrandMark size="sm" align="center" />
+      <BrandLockup />
     </div>
   );
 }

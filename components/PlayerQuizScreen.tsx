@@ -299,6 +299,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const answerInnerRef = useRef<HTMLDivElement>(null);
   const [qWrapHeight, setQWrapHeight] = useState<number | undefined>(undefined);
   const [answerScale, setAnswerScale] = useState(1);
+  const [answerHeight, setAnswerHeight] = useState<number | undefined>(undefined);
 
   useLayoutEffect(() => {
     const scroll = qScrollRef.current;
@@ -330,9 +331,21 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
         const answerAvailable = total - questionBudget - otherFixed;
         if (answerNatural > 0 && answerAvailable < answerNatural) {
-          setAnswerScale(Math.max(0.55, answerAvailable / answerNatural));
+          // A scaled-down transform doesn't shrink the outer box's own
+          // LAYOUT height (transform is purely visual, box model is
+          // unaffected) - without also reserving a matching, SMALLER
+          // outer height, this block still occupied its full natural
+          // space regardless of how small it visually looked, so LOCK IT
+          // IN could still land past the scroll container's overflow:
+          // hidden edge and get clipped exactly as before. Reserving
+          // height = natural * scale makes the shrunk box's real layout
+          // footprint match what it looks like.
+          const scale = Math.max(0.55, answerAvailable / answerNatural);
+          setAnswerScale(scale);
+          setAnswerHeight(answerNatural * scale);
         } else {
           setAnswerScale(1);
+          setAnswerHeight(undefined);
         }
       });
     };
@@ -2183,7 +2196,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             ShrinkToFit measures the real remaining space and scales the
             whole block down (never clipping) if it doesn't fit. */}
         {timerReady && isMultiChoice && (
-          <ShrinkToFit ref={answerOuterRef} innerRef={answerInnerRef} scale={answerScale} className="fbl" style={{ marginBottom: 10 }}>
+          <ShrinkToFit ref={answerOuterRef} innerRef={answerInnerRef} scale={answerScale} height={answerHeight} className="fbl" style={{ marginBottom: 10 }}>
             {options.map(opt => {
               const isSelected = selectedAnswer === opt.key;
               const dim = !!selectedAnswer && !isSelected;
@@ -2208,7 +2221,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
         {/* Same guaranteed-fit treatment as above - protects the LOCK IN row. */}
         {timerReady && isMultiTap && (
-          <ShrinkToFit ref={answerOuterRef} innerRef={answerInnerRef} scale={answerScale} className="fbl" style={{ marginBottom: 16 }}>
+          <ShrinkToFit ref={answerOuterRef} innerRef={answerInnerRef} scale={answerScale} height={answerHeight} className="fbl" style={{ marginBottom: 16 }}>
             <div className="qi-player-multitap-grid" style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
               {multiTapOptions.map(opt => {
                 const isTapped = tappedItems.includes(opt.key);
@@ -2251,7 +2264,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             the whole keypad down, uniformly, only if it doesn't fit -
             LOCK IT IN is now guaranteed to be on screen. */}
         {timerReady && !isMultiChoice && !isSequence && !isMultiTap && !submitted && (
-          <ShrinkToFit ref={answerOuterRef} innerRef={answerInnerRef} scale={answerScale} className="qi-player-keypad-wrap" style={{ marginBottom: 16 }}>
+          <ShrinkToFit ref={answerOuterRef} innerRef={answerInnerRef} scale={answerScale} height={answerHeight} className="qi-player-keypad-wrap" style={{ marginBottom: 16 }}>
             {/* question_type alone isn't always reliable for this - a music
                 round question like "what year was this released?" can come
                 through tagged as a generic text type even though its

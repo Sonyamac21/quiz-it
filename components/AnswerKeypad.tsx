@@ -140,7 +140,7 @@ export function AnswerKeypad({ onSubmit, mode = "text", scrambled = false }: { o
             genuinely shrink under vertical pressure instead of holding a
             fixed floor no matter what. */}
         <button type="button" className="qi-player-keypad__delete" onClick={backspace} disabled={!value}
-          style={{ width: "100%", minWidth: 0, gridColumn: mode === "number" ? "1" : undefined, padding: "clamp(8px, 1.6vh, 22px)", borderRadius: 10, background: "rgba(255,255,255,0.1)", border: "1.5px solid rgba(255,255,255,0.28)", color: value ? "#fff" : "rgba(255,255,255,0.35)", fontSize: 17, fontWeight: 800 as const, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
+          style={{ width: "100%", minWidth: 0, gridColumn: mode === "number" ? "1" : undefined, padding: "clamp(8px, 1.6vh, 22px)", borderRadius: 10, background: "rgba(255,255,255,0.1)", border: "1.5px solid rgba(255,255,255,0.28)", color: value ? "#fff" : "rgba(255,255,255,0.35)", fontSize: "clamp(16px, 3.2vh, 24px)", fontWeight: 800 as const, fontFamily: font, cursor: value ? "pointer" : "default", touchAction: "manipulation" as const, WebkitTapHighlightColor: "transparent" }}>
           {"\u232B"} DELETE
         </button>
         <button type="button" className="qi-player-keypad__submit" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}

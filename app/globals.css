@@ -2489,7 +2489,7 @@ button, input, select, textarea { font: inherit; }
    every other browser that does support it. This is a pure safety net -
    every screen's own inline height still wins whenever the browser
    understands it, so nothing changes on any working phone. */
-.qi-player-state,.qi-player-shell { box-sizing: border-box; height: 100vh; height: 100dvh; min-height: 100dvh; max-width: 100vw; overflow-x: hidden; overflow-y: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(22px,env(safe-area-inset-top)) !important; padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); /* Host, live tonight: "power cards are partially covered on 4 ipad/
+.qi-player-state,.qi-player-shell { box-sizing: border-box; height: 100vh; height: 100dvh; min-height: 100vh; min-height: 100dvh; max-width: 100vw; overflow-x: hidden; overflow-y: hidden; background: radial-gradient(ellipse 100% 50% at 50% 0%,rgba(190,38,193,.12),transparent 70%),#090116 !important; padding-top: max(22px,env(safe-area-inset-top)) !important; padding-right: max(var(--qi-player-pad),env(safe-area-inset-right)); /* Host, live tonight: "power cards are partially covered on 4 ipad/
    tablets, all different orientations." The fixed "Quiz-It · Powered by
    Mac Entertainment · by Sonya Mac" brand bar (join-form.tsx,
    position:fixed, bottom:0) sits on top of every phase screen at a real

@@ -398,7 +398,15 @@ export function JoinForm() {
   if (step === "pin") {
     return (
       <div className="fbl qi-player-join-card qi-player-pin" style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
-        <div className="pj-wm wm"><span className="q">QUIZ-</span>IT</div>
+        {/* Host, live, again: "you've put quiz-it at the top of the join
+            screen - it's obscured by the phone camera etc." This card's
+            own QUIZ-IT wordmark sat right at its top edge, and the page
+            centers this card - on a tall card (bigger PIN keypad, see
+            other fixes tonight) that top edge lands right up against the
+            notch/camera the SAME way the page-level header did before it
+            was removed for exactly this reason. The full brand lockup
+            already lives in the page's own footer now - no need for a
+            second, smaller QUIZ-IT at the top of the card too. */}
         <div className="pj-title">Enter {timeOfDayPhrase()} PIN</div>
         <div className="pj-slots">
           {[0, 1, 2, 3].map(i => (

@@ -30,8 +30,13 @@ export default function JoinPage() {
         <JoinForm />
         <InstallAppPrompt label="your team" />
       </main>
-      <footer className="px-3 py-4 text-center" style={{ flexShrink: 0 }}>
-        <BrandLockup />
+      {/* Host: "the bottom bar with the branding is too deep again." Using
+          the same compact scale BrandLockup already offers elsewhere
+          (host console header, display corner mark) instead of its full
+          size, with tighter padding, keeps this bar to the same modest
+          depth as those other spots rather than a large standalone lockup. */}
+      <footer className="px-3 py-2 text-center" style={{ flexShrink: 0 }}>
+        <BrandLockup compact />
       </footer>
     </div>
   );

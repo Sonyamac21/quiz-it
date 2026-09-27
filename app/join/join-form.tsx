@@ -370,26 +370,34 @@ export function JoinForm() {
               were the SAME background-filled block, so on any notched
               phone that ~34px safe-area inset visually became part of the
               "bar" - the text inside was thin, but the colored rectangle
-              behind it wasn't. Split them: a tight colored strip sized to
-              just the text, then a separate, transparent spacer below it
-              (page background, no border/fill) that reserves the safe-area
-              room without reading as bar depth. */}
+              behind it wasn't.
+              Host, live, again: "the bottom branding bar is too high -
+              change it so it's locked to the very bottom of the screen
+              and takes up less room." The transparent spacer below the
+              bar (added for the reason above) reads as a gap between the
+              bar and the actual bottom edge - it LOOKS like the bar is
+              floating above the bottom rather than sitting flush at it,
+              even though it's already position:fixed;bottom:0. Giving the
+              spacer the SAME background as the bar removes that seam so
+              it reads as one continuous bar flush to the bottom, and the
+              text itself is smaller so the whole thing takes up less
+              room overall. */}
           <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999, pointerEvents: "none" as const }}>
             <div ref={brandBarRef} style={{
               display: "flex", alignItems: "center",
-              padding: "3px 16px", background: "rgba(13,2,37,0.9)", borderTop: "1px solid rgba(190,38,193,0.3)",
+              padding: "2px 14px", background: "rgba(13,2,37,0.9)", borderTop: "1px solid rgba(190,38,193,0.3)",
               boxSizing: "border-box" as const,
             }}>
-              <div style={{ flex: "0 0 50%", minWidth: 0, fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive", fontSize: "clamp(18px,9vw,32px)", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden" }}>
+              <div style={{ flex: "0 0 50%", minWidth: 0, fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive", fontSize: "clamp(14px,6.5vw,24px)", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden" }}>
                 <span style={{ color: "#BE26C1" }}>QUIZ-</span><span style={{ color: "#fff" }}>IT</span>
               </div>
-              <div style={{ flex: "0 0 50%", minWidth: 0, display: "flex", flexDirection: "column", gap: 1, fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive", color: "#fff", overflow: "hidden" }}>
-                <span style={{ fontSize: "clamp(7px,2.3vw,11px)", lineHeight: 1.1, opacity: 0.6, whiteSpace: "nowrap" }}>Powered by</span>
-                <span style={{ fontSize: "clamp(10px,3.5vw,16px)", lineHeight: 1.1, opacity: 0.6, whiteSpace: "nowrap" }}>Mac Entertainment</span>
-                <span style={{ fontSize: "clamp(9px,3vw,14px)", lineHeight: 1.1, opacity: 0.5, whiteSpace: "nowrap" }}>by Sonya Mac</span>
+              <div style={{ flex: "0 0 50%", minWidth: 0, display: "flex", flexDirection: "column", gap: 0, fontFamily: "var(--font-bruno-ace-sc,'Bruno Ace SC'),cursive", color: "#fff", overflow: "hidden" }}>
+                <span style={{ fontSize: "clamp(6px,1.8vw,9px)", lineHeight: 1.1, opacity: 0.6, whiteSpace: "nowrap" }}>Powered by</span>
+                <span style={{ fontSize: "clamp(8px,2.6vw,12px)", lineHeight: 1.1, opacity: 0.6, whiteSpace: "nowrap" }}>Mac Entertainment</span>
+                <span style={{ fontSize: "clamp(7px,2.2vw,10px)", lineHeight: 1.1, opacity: 0.5, whiteSpace: "nowrap" }}>by Sonya Mac</span>
               </div>
             </div>
-            <div style={{ height: "env(safe-area-inset-bottom)", background: "transparent" }} />
+            <div style={{ height: "env(safe-area-inset-bottom)", background: "rgba(13,2,37,0.9)" }} />
           </div>
         </div>
       );

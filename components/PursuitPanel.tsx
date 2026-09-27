@@ -595,9 +595,14 @@ export function PursuitPanel({ sessionId, sessionPin, teams, rounds, timerDurati
                   reason to keep it small. Raised the ceiling and the floor
                   font size together. */}
               <FitBlockText as="h1" className="qi-mc-question__title" maxViewportHeight={0.32} minFontSize={24}>{currentQuestion.question_text}</FitBlockText>
+              {/* Host, live tonight: "I'd like the answer in smaller text,
+                  so that any teams cannot read it from a distance."
+                  Matches the shrink applied to .qi-mc-answer-key__answer
+                  (used by every other round type) - this box was still a
+                  fixed 24px, the same size as the question text above it. */}
               <div className="qi-mc-answer-key">
                 <div style={{ fontSize: 12, marginBottom: 4, letterSpacing: 2 }}>ANSWER</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#22c55e" }}>{pursuitCorrectAnswerText(currentQuestion)}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#22c55e" }}>{pursuitCorrectAnswerText(currentQuestion)}</div>
               </div>
             </div>
           )}

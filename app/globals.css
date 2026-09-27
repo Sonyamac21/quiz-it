@@ -729,7 +729,14 @@ button, input, select, textarea { font: inherit; }
    the text/options themselves do, so this is a small fixed gap instead. */
 .qi-mc-answer-key { flex:0 0 auto; min-width:0; margin-bottom:6px; padding:calc(var(--qi-fit-scale,1) * var(--qi-space-3)) calc(var(--qi-fit-scale,1) * var(--qi-space-4)); border:1px solid rgb(46 224 110 / 0.4); border-radius:var(--qi-radius-md); background:rgb(46 224 110 / 0.12); overflow:hidden; }
 .qi-mc-answer-key > div:first-child { color: var(--qi-success) !important; }
-.qi-mc-answer-key__answer { color:var(--qi-success); font-size:calc(var(--qi-fit-scale,1) * clamp(1.05rem,1rem + .45vw,1.5rem)); font-weight:750; line-height:1.18; overflow-wrap:anywhere; }
+/* Host, live tonight: "I'd like the answer in smaller text, so that any
+   teams cannot read it from a distance. especially before the reveal." The
+   answer key sits on screen the whole time a question is live (it's the
+   host's own reference, not gated behind the reveal action) at nearly the
+   same size as the question itself - readable by anyone glancing at the
+   host's laptop from across a table. Shrunk well below the question text's
+   own size; still perfectly legible to the host up close. */
+.qi-mc-answer-key__answer { color:var(--qi-success); font-size:calc(var(--qi-fit-scale,1) * clamp(.8rem,.75rem + .2vw,1rem)); font-weight:750; line-height:1.18; overflow-wrap:anywhere; }
 .qi-mc-answer-key__explanation { margin-top:6px; color:rgba(255,255,255,.6); font-size:calc(var(--qi-fit-scale,1) * clamp(.72rem,.68rem + .12vw,.875rem)); line-height:1.35; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
 /* Match Made's photo grid, scaled by the same --qi-fit-scale FitScaleBlock
    drives for every other question type's title/options/answer-key above -
@@ -1598,10 +1605,22 @@ button, input, select, textarea { font: inherit; }
 .pursuit-board .pu-qtext { font: 800 clamp(24px,3.2vw,44px)/1.22 'Inter', sans-serif; }
 .pursuit-board .pu-qstate { margin-top: 10px; font: 700 clamp(16px,1.9vw,28px) 'Inter', sans-serif; color: var(--text-secondary); letter-spacing: 0.06em; }
 .pursuit-board .pu-qstate.correct { color: var(--feature-correct); }
+/* Host, live tonight: huge dead gap between the Question X of 7 badge and
+   the actual question text on THE PURSUIT's host screen. Root cause: the
+   generic `.qi-mc-question > div:first-child{flex:1;min-height:0}` rule
+   (globals.css, written for the Regular round's single FitScaleBlock-
+   wrapper child) was matching .qi-mc-question__meta here instead - Pursuit
+   renders meta/title/answer-key as three flat siblings of .qi-mc-question,
+   not one wrapper, so its FIRST real child is the small meta badge row,
+   which got stretched to flex:1 and absorbed the entire leftover height,
+   shoving the actual question + answer down to the bottom below it. Hot
+   Seat's own question layout (.qi-mc-question--hot-seat, same flat-
+   siblings shape) already opts every child out of that generic rule with
+   flex:none - Pursuit never got the equivalent opt-out. */
 .qi-pursuit-host-question { flex:1 1 auto; height:auto; }
-.qi-pursuit-host-question .qi-mc-question__meta { margin-bottom:clamp(5px,.8vh,10px); }
-.qi-pursuit-host-question .qi-mc-question__title { margin-bottom:clamp(6px,1vh,12px); }
-.qi-pursuit-host-question .qi-mc-answer-key { margin-bottom:0; }
+.qi-pursuit-host-question .qi-mc-question__meta { flex:none; margin-bottom:clamp(5px,.8vh,10px); }
+.qi-pursuit-host-question .qi-mc-question__title { flex:none; margin-bottom:clamp(6px,1vh,12px); }
+.qi-pursuit-host-question .qi-mc-answer-key { flex:none; margin-bottom:0; }
 .pursuit-board.answering .pu-gridwrap { opacity: 0.55; transition: opacity var(--m-standard); }
 .pursuit-board.locked .pu-gridwrap { opacity: 0.8; }
 

@@ -1089,7 +1089,17 @@ button, input, select, textarea { font: inherit; }
 @media (prefers-reduced-motion: reduce){.fbl .lb-pcard{animation:none;}.fbl .lb-dot{transition:none;}}
 /* Pre-show reel: venue video/hero image, power cards, and floating team
    photos rotate through the same stage. Each scene fades in on mount. */
-.fbl .lb-reel{position:relative;}
+.fbl .lb-reel{position:relative;flex:1 1 auto;min-height:0;width:100%;height:100%;}
+/* Bug: with no explicit height, .lb-reel shrink-wrapped to its own content
+   (the venue card/photo, capped at min(70vh,600px)) instead of filling
+   .lb-cardstage's real vertical space - .lb-cardstage centers its child with
+   justify-content:center rather than stretching it. That made .lb-reel-title's
+   top:4% resolve against a box only as tall as the card itself, so the title
+   landed almost directly on the card's top edge instead of near the real
+   screen top. flex:1 1 auto (this is itself a flex item of .lb-cardstage's
+   column flex) plus height:100% make .lb-reel's height genuinely definite
+   again, so both the title's percentage offset and .lb-reel-scene's
+   height:100% below it measure against real screen space. */
 .fbl .lb-reel-title{position:absolute;top:4%;left:50%;transform:translateX(-50%);font-family:'Bruno Ace SC',var(--font-logo),cursive;font-size:clamp(14px,1.6vw,22px);letter-spacing:.18em;color:var(--purple-b);text-align:center;white-space:nowrap;}
 .fbl .lb-reel-scene{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3%;animation:lbCardIn .6s var(--settle);}
 .fbl .lb-reel-venue{width:100%;height:100%;position:relative;}

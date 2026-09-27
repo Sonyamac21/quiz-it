@@ -2096,8 +2096,13 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
         {!timerReady && <div className="qi-player-waiting-timer">{timeLeft === 0 ? "TIME’S UP · ANSWERS LOCKED" : "WAITING FOR HOST TO START TIMER"}</div>}
 
+        {/* Same fixed-area fix as the numeric keypad below: without
+            flexShrink:0 this competed with .qi-player-question-wrap for
+            space and could lose enough of it that LOCK IT IN got clipped
+            by the scroll container's overflow:hidden instead of the
+            options list visibly shrinking. */}
         {timerReady && isMultiChoice && (
-          <div className="fbl" style={{ marginBottom: 10 }}>
+          <div className="fbl" style={{ marginBottom: 10, flexShrink: 0 }}>
             {options.map(opt => {
               const isSelected = selectedAnswer === opt.key;
               const dim = !!selectedAnswer && !isSelected;
@@ -2120,8 +2125,9 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           </div>
         )}
 
+        {/* Same fixed-area fix as above - protects the LOCK IN row. */}
         {timerReady && isMultiTap && (
-          <div className="fbl" style={{ marginBottom: 16 }}>
+          <div className="fbl" style={{ marginBottom: 16, flexShrink: 0 }}>
             <div className="qi-player-multitap-grid" style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
               {multiTapOptions.map(opt => {
                 const isTapped = tappedItems.includes(opt.key);
@@ -2150,8 +2156,22 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           <SequenceQuestion key={questionIndex} options={seqItems} onSubmit={(answer, displayAnswer) => { setMySubmittedDisplay(displayAnswer); submitAnswer(answer); }} submitted={submitted} />
         )}
 
+        {/* Host, live tonight: "can't see the lock it in button. set the
+            areas for each component so they cannot move!" Both this wrap
+            and .qi-player-question-wrap above it defaulted to flex-shrink:1
+            (the browser default for any flex item, never overridden here) -
+            when their combined natural height didn't fit, BOTH competed to
+            shrink, and this one lost enough room that its last row (DELETE/
+            LOCK IT IN) got pushed past the scroll container's own
+            overflow:hidden boundary and clipped, invisible, rather than the
+            keypad visibly getting smaller. flexShrink:0 makes this wrap a
+            fixed, protected area that always renders at its full natural
+            size - the question text above it (which already has its own
+            shrink-to-fit via FitBlockText, down to a real minimum font
+            size) is the one region meant to give up space under pressure,
+            never this one. */}
         {timerReady && !isMultiChoice && !isSequence && !isMultiTap && !submitted && (
-          <div className="qi-player-keypad-wrap" style={{ marginBottom: 16 }}>
+          <div className="qi-player-keypad-wrap" style={{ marginBottom: 16, flexShrink: 0 }}>
             {/* question_type alone isn't always reliable for this - a music
                 round question like "what year was this released?" can come
                 through tagged as a generic text type even though its

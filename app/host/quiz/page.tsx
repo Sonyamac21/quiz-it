@@ -3172,8 +3172,26 @@ function QuizControllerInner() {
               const ord = answered ? submissionOrder(s.team_name) : null;
               const ansObj = answered ? teamAnswerObj(s.team_name) : null;
               const isNearestWins = currentQ?.question_type === "nearest_wins";
+              // Host, live tonight: "if a team gets a correct answer, place
+              // their answer in green in the team list, if they get it
+              // wrong, indicate the answer in red." The previous version of
+              // this fix gated correct/incorrect on answersRevealed, so the
+              // colour only appeared AFTER the host clicked Reveal - while
+              // answers were still coming in ("LIVE ANSWERS"/"X/X ANSWERED")
+              // every row stayed the same grey regardless of right or
+              // wrong, which is exactly the screenshot this was reported
+              // against. The host already has the correct answer in front
+              // of her on the question card the whole time a question is
+              // live - unlike the players, seeing it early isn't a spoiler
+              // for her - so this no longer waits for the reveal click.
+              // nearest_wins has no live "correct" concept (fastestTeam is
+              // only computed for the CURRENT question inside doCelebrate,
+              // and would otherwise still be showing the PREVIOUS
+              // question's closest team here) - that one stays gated on
+              // answersRevealed. Every other question type's correct/
+              // incorrect is a fixed fact the moment the answer is in.
               const nwIsClosest = isNearestWins && answersRevealed && s.team_name === fastestTeam;
-              const correct = answered && !isNearestWins && answersRevealed && ansObj && currentQ ? isAnswerCorrect(ansObj, currentQ) : null;
+              const correct = answered && !isNearestWins && ansObj && currentQ ? isAnswerCorrect(ansObj, currentQ) : null;
               const ansColor = nwIsClosest ? "#2EE06E" : correct === true ? "#2EE06E" : correct === false ? "#FF3B4E" : "rgba(255,255,255,0.72)";
               const dotColor = !answered ? "rgba(185,168,217,0.2)" : (nwIsClosest || correct === true) ? "#2EE06E" : correct === false ? "#FF3B4E" : "#D94FDC";
               // Host request: "colour code my fastest teams each answer" -

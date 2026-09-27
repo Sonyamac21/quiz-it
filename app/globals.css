@@ -2477,9 +2477,14 @@ button, input, select, textarea { font: inherit; }
 .qi-player-pin .pj-slots { gap: clamp(8px,2.5vw,14px); margin: 24px 0 12px; }
 .qi-player-pin .pj-slot { min-width: 0; height: clamp(66px,19vw,84px); border-radius: 18px; font-size: clamp(34px,10vw,48px); background: #100624; }
 .qi-player-pin .pj-hint,.qi-player-pin .pj-err { min-height: 42px; display: grid; place-items: center; font-size: 14px; text-align: center; }
-.qi-player-pin .pj-pad { gap: 10px; }
-.qi-player-pin .pj-key { appearance: none; min-height: clamp(58px,16vw,72px); border-radius: 18px; border: 1px solid rgba(255,255,255,.12); background: var(--qi-player-raised); color: #fff; font: 800 clamp(22px,7vw,30px) var(--font-body),Inter,sans-serif; cursor: pointer; touch-action: manipulation; }
+.qi-player-pin .pj-pad { gap: 12px; }
+/* Host, live: "make the numbers and the delete button larger." */
+.qi-player-pin .pj-key { appearance: none; min-height: clamp(72px,20vw,92px); border-radius: 18px; border: 1px solid rgba(255,255,255,.12); background: var(--qi-player-raised); color: #fff; font: 800 clamp(28px,9vw,38px) var(--font-body),Inter,sans-serif; cursor: pointer; touch-action: manipulation; }
 .qi-player-pin .pj-key:active { transform: scale(.95); background: #8a1b8d; }
+/* .fbl .pj-key.ghost (3 classes) otherwise beats the rule above (2
+   classes) on specificity and holds the delete symbol at a fixed 15px
+   regardless of how large the number keys get - matching it here. */
+.qi-player-pin .pj-key.ghost { font-size: clamp(26px,8vw,34px); }
 .qi-player-loading { display: flex; align-items: center; gap: 12px; color: var(--qi-player-muted); font-weight: 700; font-size: 16px; }
 .qi-player-loading span { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(217,79,220,.25); border-top-color: #d94fdc; animation: qiPlayerSpin .8s linear infinite; }
 

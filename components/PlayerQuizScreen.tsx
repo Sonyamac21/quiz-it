@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { fetchActiveVenueOffers, normalizeWhatsappLink } from "@/lib/venueOffers";
@@ -275,6 +275,79 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [fastestTeamName, setFastestTeamName] = useState<string | null>(null);
   const [fastestSongName, setFastestSongName] = useState<string | null>(null);
   const [fastestPoints, setFastestPoints] = useState(0);
+
+  // Host, live: "even here - lots of space" / "missing all of the
+  // options". The question-text wrap and the answer area (multi-choice
+  // options, multi-tap grid, or the keypad) each used to size themselves
+  // independently - the wrap via flex-grow (so FitBlockText had room to
+  // grow short questions bigger), the answer area via its own
+  // measure-and-shrink pass (ShrinkToFit) - with neither aware of what
+  // the other actually needed. flex-grow claimed ALL leftover space for
+  // the question regardless of whether the text used it (the empty gap
+  // under a short question), which then starved the answer area's OWN
+  // measurement of real room, shrinking options until one went missing
+  // off the top and the lock-in row was reduced to a sliver.
+  // This single controller measures every sibling's real natural size
+  // once, gives the answer area its full natural height first (never
+  // shrinking it unless there truly isn't enough room even with the
+  // question at a sane floor), and gives the question exactly what's
+  // left over - so short questions no longer leave a dead gap, and the
+  // answer area is never crowded out by one.
+  const qScrollRef = useRef<HTMLDivElement>(null);
+  const qWrapRef = useRef<HTMLDivElement>(null);
+  const answerOuterRef = useRef<HTMLDivElement>(null);
+  const answerInnerRef = useRef<HTMLDivElement>(null);
+  const [qWrapHeight, setQWrapHeight] = useState<number | undefined>(undefined);
+  const [answerScale, setAnswerScale] = useState(1);
+
+  useLayoutEffect(() => {
+    const scroll = qScrollRef.current;
+    const qWrap = qWrapRef.current;
+    if (!scroll || !qWrap) return;
+    const aOuter = answerOuterRef.current;
+    const aInner = answerInnerRef.current;
+
+    let frame = 0;
+    const fit = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        // Measure everyone's real, unadjusted size first.
+        qWrap.style.height = "auto";
+        if (aInner) aInner.style.transform = "none";
+        if (aOuter) aOuter.style.height = "auto";
+
+        const answerNatural = aInner ? aInner.scrollHeight : 0;
+        let otherFixed = 0;
+        for (const child of Array.from(scroll.children)) {
+          if (child === qWrap || child === aOuter) continue;
+          otherFixed += (child as HTMLElement).offsetHeight;
+        }
+        const total = scroll.clientHeight;
+        if (total <= 0) return;
+        const minQuestion = 60;
+        const questionBudget = Math.max(minQuestion, total - answerNatural - otherFixed);
+        setQWrapHeight(questionBudget);
+
+        const answerAvailable = total - questionBudget - otherFixed;
+        if (answerNatural > 0 && answerAvailable < answerNatural) {
+          setAnswerScale(Math.max(0.55, answerAvailable / answerNatural));
+        } else {
+          setAnswerScale(1);
+        }
+      });
+    };
+
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(scroll);
+    if (aInner) observer.observe(aInner);
+    window.addEventListener("resize", fit);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", fit);
+    };
+  }, [phase, question, questionIndex, submitted, timeLeft, hotSeatStatus, hotSeatTeam, teamName]);
   const [showScoreboardOnPhone, setShowScoreboardOnPhone] = useState(false);
   const [hideLeaderboard, setHideLeaderboard] = useState(false);
   // is_final_round was already being fetched on every poll but never read
@@ -2077,8 +2150,8 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             itself; a short question still shows the timer beside it, a
             long one just flows past it once its lines pass the float's
             height, same as any other float. */}
-        <div className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        <div className="qi-player-question-wrap" style={{ flex: "1 1 auto", minHeight: 0, overflow: "hidden", marginBottom: 8 }}>
+        <div ref={qScrollRef} className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div ref={qWrapRef} className="qi-player-question-wrap" style={{ flex: "0 0 auto", minHeight: 0, overflow: "hidden", marginBottom: 8, height: qWrapHeight }}>
           <div className="qi-player-timer-badge" style={{ float: "right", marginLeft: 12, marginBottom: 6, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
             <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
             {timeLeft !== null && timeLeft > 0 && (
@@ -2087,7 +2160,14 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               </div>
             )}
           </div>
-          <FitBlockText className="qi-player-question-text" maxViewportHeight={0.32} minFontSize={13}>
+          {/* maxViewportHeight is a fraction of THIS wrap's own height, not
+              the whole screen - and the wrap above is now sized to exactly
+              the real leftover room after the answer area's natural size
+              (see the controller near the top of this component), so a
+              generous fraction here fills that dedicated space nicely
+              instead of the old fixed 32%-of-flex-grown-box, which left a
+              visible gap under short questions. */}
+          <FitBlockText className="qi-player-question-text" maxViewportHeight={0.78} minFontSize={13}>
             {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
           </FitBlockText>
         </div>
@@ -2103,7 +2183,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             ShrinkToFit measures the real remaining space and scales the
             whole block down (never clipping) if it doesn't fit. */}
         {timerReady && isMultiChoice && (
-          <ShrinkToFit className="fbl" scrollContainerClassName="qi-player-question-scroll" style={{ marginBottom: 10 }}>
+          <ShrinkToFit ref={answerOuterRef} innerRef={answerInnerRef} scale={answerScale} className="fbl" style={{ marginBottom: 10 }}>
             {options.map(opt => {
               const isSelected = selectedAnswer === opt.key;
               const dim = !!selectedAnswer && !isSelected;
@@ -2128,7 +2208,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
         {/* Same guaranteed-fit treatment as above - protects the LOCK IN row. */}
         {timerReady && isMultiTap && (
-          <ShrinkToFit className="fbl" scrollContainerClassName="qi-player-question-scroll" style={{ marginBottom: 16 }}>
+          <ShrinkToFit ref={answerOuterRef} innerRef={answerInnerRef} scale={answerScale} className="fbl" style={{ marginBottom: 16 }}>
             <div className="qi-player-multitap-grid" style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
               {multiTapOptions.map(opt => {
                 const isTapped = tappedItems.includes(opt.key);
@@ -2171,7 +2251,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             the whole keypad down, uniformly, only if it doesn't fit -
             LOCK IT IN is now guaranteed to be on screen. */}
         {timerReady && !isMultiChoice && !isSequence && !isMultiTap && !submitted && (
-          <ShrinkToFit className="qi-player-keypad-wrap" scrollContainerClassName="qi-player-question-scroll" style={{ marginBottom: 16 }}>
+          <ShrinkToFit ref={answerOuterRef} innerRef={answerInnerRef} scale={answerScale} className="qi-player-keypad-wrap" style={{ marginBottom: 16 }}>
             {/* question_type alone isn't always reliable for this - a music
                 round question like "what year was this released?" can come
                 through tagged as a generic text type even though its

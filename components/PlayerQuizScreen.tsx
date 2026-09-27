@@ -15,6 +15,7 @@ import { PairRecord, PairsProgress, readPairs, readPairsProgress } from "@/lib/q
 import { teamInitials } from "@/components/TeamBadge";
 import { PlayerShell, PlayerStatusBar, PlayerResultBanner } from "@/components/player/PlayerUI";
 import { BrandMark } from "@/components/BrandMark";
+import { ShrinkToFit } from "@/components/ShrinkToFit";
 import { TeamPhotoUpload } from "@/components/player/TeamPhotoUpload";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { platformLogger } from "@/lib/platform/logger";
@@ -2096,13 +2097,13 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
         {!timerReady && <div className="qi-player-waiting-timer">{timeLeft === 0 ? "TIME’S UP · ANSWERS LOCKED" : "WAITING FOR HOST TO START TIMER"}</div>}
 
-        {/* Same fixed-area fix as the numeric keypad below: without
-            flexShrink:0 this competed with .qi-player-question-wrap for
-            space and could lose enough of it that LOCK IT IN got clipped
-            by the scroll container's overflow:hidden instead of the
-            options list visibly shrinking. */}
+        {/* flexShrink:0 alone only stops this losing a shrink fight
+            against the question text - it doesn't guarantee this block's
+            own natural size fits what's actually left on screen.
+            ShrinkToFit measures the real remaining space and scales the
+            whole block down (never clipping) if it doesn't fit. */}
         {timerReady && isMultiChoice && (
-          <div className="fbl" style={{ marginBottom: 10, flexShrink: 0 }}>
+          <ShrinkToFit className="fbl" scrollContainerClassName="qi-player-question-scroll" style={{ marginBottom: 10 }}>
             {options.map(opt => {
               const isSelected = selectedAnswer === opt.key;
               const dim = !!selectedAnswer && !isSelected;
@@ -2122,12 +2123,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               </>
             )}
             {submitted && <div className="lk-note" role="status" aria-live="polite" style={{ color: "var(--green)", letterSpacing: "0.2em", fontSize: 13 }}>{submissionPending ? "LOCKING…" : "ANSWER LOCKED IN ✓"}</div>}
-          </div>
+          </ShrinkToFit>
         )}
 
-        {/* Same fixed-area fix as above - protects the LOCK IN row. */}
+        {/* Same guaranteed-fit treatment as above - protects the LOCK IN row. */}
         {timerReady && isMultiTap && (
-          <div className="fbl" style={{ marginBottom: 16, flexShrink: 0 }}>
+          <ShrinkToFit className="fbl" scrollContainerClassName="qi-player-question-scroll" style={{ marginBottom: 16 }}>
             <div className="qi-player-multitap-grid" style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
               {multiTapOptions.map(opt => {
                 const isTapped = tappedItems.includes(opt.key);
@@ -2149,7 +2150,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               </button>
             )}
             {submitted && <div className="lk-note" role="status" aria-live="polite" style={{ color: "var(--green)", letterSpacing: "0.2em", fontSize: 13 }}>{submissionPending ? "LOCKING…" : "ANSWERS LOCKED IN ✓"}</div>}
-          </div>
+          </ShrinkToFit>
         )}
 
         {timerReady && isSequence && (
@@ -2157,21 +2158,20 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
 
         {/* Host, live tonight: "can't see the lock it in button. set the
-            areas for each component so they cannot move!" Both this wrap
-            and .qi-player-question-wrap above it defaulted to flex-shrink:1
-            (the browser default for any flex item, never overridden here) -
-            when their combined natural height didn't fit, BOTH competed to
-            shrink, and this one lost enough room that its last row (DELETE/
-            LOCK IT IN) got pushed past the scroll container's own
-            overflow:hidden boundary and clipped, invisible, rather than the
-            keypad visibly getting smaller. flexShrink:0 makes this wrap a
-            fixed, protected area that always renders at its full natural
-            size - the question text above it (which already has its own
-            shrink-to-fit via FitBlockText, down to a real minimum font
-            size) is the one region meant to give up space under pressure,
-            never this one. */}
+            areas for each component so they cannot move!" ... "did you fix
+            the spacing on the player screens? we have no access to the
+            lock it in button." flexShrink:0 alone stopped this wrap LOSING
+            a flex-shrink fight against the question text above, but did
+            nothing if the keypad's own natural size - even after the
+            question text shrinks to its floor - still doesn't fit the
+            space actually left on screen (a 4-row numeric keypad plus
+            DELETE/LOCK IT IN can genuinely be taller than that on a short
+            device). ShrinkToFit measures the real remaining space between
+            this block and the bottom of the scroll container and scales
+            the whole keypad down, uniformly, only if it doesn't fit -
+            LOCK IT IN is now guaranteed to be on screen. */}
         {timerReady && !isMultiChoice && !isSequence && !isMultiTap && !submitted && (
-          <div className="qi-player-keypad-wrap" style={{ marginBottom: 16, flexShrink: 0 }}>
+          <ShrinkToFit className="qi-player-keypad-wrap" scrollContainerClassName="qi-player-question-scroll" style={{ marginBottom: 16 }}>
             {/* question_type alone isn't always reliable for this - a music
                 round question like "what year was this released?" can come
                 through tagged as a generic text type even though its
@@ -2180,7 +2180,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
                 digits-only correct_answer forces the numeric keypad
                 regardless of the stored question_type. */}
             <AnswerKeypad key={`${questionIndex}:${question.question_type}`} mode={question.question_type === "number" || question.question_type === "nearest_wins" || /^\d+$/.test((question.correct_answer || "").trim()) ? "number" : "text"} scrambled={hostScrambledTeams.includes(teamName)} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
-          </div>
+          </ShrinkToFit>
         )}
 
         {/* Multiple choice and Multi Tap already show their own compact

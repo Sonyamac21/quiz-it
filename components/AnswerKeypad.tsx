@@ -67,12 +67,23 @@ export function AnswerKeypad({ onSubmit, mode = "text", scrambled = false }: { o
           <IconShuffle /> The host has scrambled your keyboard this question
         </div>
       )}
+      {/* Host, live: "keypad jumps when inputting answers... its now
+          glitchy." Root cause: this box used to be minHeight + wordBreak,
+          so a longer typed answer could wrap to a second line and grow the
+          box's real height - the parent's ShrinkToFit measures this whole
+          keypad's natural height via a ResizeObserver, so every extra
+          character that caused a wrap re-triggered a full re-measure/
+          re-scale of the entire keypad mid-keystroke, visibly jumping.
+          Fixed height (not minHeight) + no wrapping + horizontal scroll for
+          anything past the visible width means typing NEVER changes this
+          box's height, so it never re-triggers the fit calculation - what
+          the player typed is still always reachable by scrolling sideways. */}
       <div className="qi-player-keypad__value" aria-live="polite" style={{
         padding: isCompact ? "10px 14px" : "14px 16px", borderRadius: 12,
         background: "rgba(255,255,255,0.06)", border: "1.5px solid " + purple,
-        minHeight: isCompact ? 52 : 66, display: "flex", alignItems: "center",
+        height: isCompact ? 52 : 66, display: "flex", alignItems: "center",
         fontSize: isCompact ? 26 : 32, fontWeight: 800, fontFamily: font, color: "#fff", letterSpacing: 1,
-        wordBreak: "break-word" as const,
+        whiteSpace: "nowrap" as const, overflowX: "auto" as const, overflowY: "hidden" as const,
       }}>
         {value || <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 17, fontWeight: 600 }}>{mode === "number" ? "Tap numbers to answer…" : "Tap letters to answer…"}</span>}
       </div>

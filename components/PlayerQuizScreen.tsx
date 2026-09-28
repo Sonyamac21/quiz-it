@@ -351,6 +351,20 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     };
 
     fit();
+    // Host, live, repeatedly: "can't answer question" / LOCK IT IN cut off
+    // behind the footer on a fresh question. This fit() runs in
+    // useLayoutEffect on mount, before the custom webfonts (Bruno Ace SC /
+    // Inter) are necessarily loaded - the very first measurement can use
+    // fallback-font metrics for the question text, under/over-estimating
+    // its real height, then the font swaps in AFTER the budget split has
+    // already been set, with nothing to re-trigger a re-fit against the
+    // real, final text size. FitQuestionText (the display screen's
+    // equivalent) already guards against exactly this with
+    // document.fonts.ready; doing the same here so the keypad's guaranteed
+    // space is computed against the actual rendered font, not a fallback.
+    if (typeof document !== "undefined" && "fonts" in document) {
+      document.fonts.ready.then(fit).catch(() => {});
+    }
     const observer = new ResizeObserver(fit);
     observer.observe(scroll);
     if (aInner) observer.observe(aInner);

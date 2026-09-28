@@ -2289,7 +2289,9 @@ function DisplayScreenInner() {
         {fastestTeam ? (
           <div className="qi-display-celebration-content">
             <div className="qi-display-eyebrow qi-display-fastest-eyebrow">{question?.question_type === "nearest_wins" ? "CLOSEST GUESS" : "FASTEST CORRECT ANSWER"}</div>
-            <FitBlockText className="qi-display-fastest-team" maxViewportHeight={0.2} minFontSize={32}>
+            {/* Host, live: "text too small. increase team name size!!" on the
+                fastest-correct-answer celebration screen. */}
+            <FitBlockText className="qi-display-fastest-team" maxViewportHeight={0.3} minFontSize={48}>
               {fastestTeam || ""}
             </FitBlockText>
             {/* Never shown until a host has approved this team's photo - see

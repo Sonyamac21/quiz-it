@@ -2622,8 +2622,13 @@ padding-bottom: calc(var(--qi-player-brand-bar-height, 64px) + 10px + env(safe-a
 .qi-player-question-screen .fbl .lockbar { min-height: clamp(44px,8dvh,80px); border-radius: 18px; margin-top: clamp(8px,2dvh,16px); font-size: clamp(16px,3.6dvh,24px); letter-spacing: .12em; touch-action: manipulation; }
 .qi-player-answer-button { min-height: clamp(46px,9dvh,92px) !important; border-radius: 18px !important; background: var(--qi-player-raised) !important; font-size: clamp(17px,5.6vw,28px) !important; font-weight: 700; font-family: 'Inter', sans-serif; line-height: 1.2; touch-action: manipulation; }
 .qi-player-answer-button.is-selected { background: rgba(190,38,193,.27) !important; border: 2px solid #d94fdc !important; box-shadow: 0 0 0 4px rgba(217,79,220,.1) !important; }
-.qi-player-result { width: 100%; padding: 20px; border-radius: 20px; text-align: center; border: 2px solid rgba(217,79,220,.45); background: rgba(190,38,193,.13); margin: 12px 0 16px; }
-.qi-player-result strong { display: block; font-family: var(--font-logo),"Bruno Ace SC",sans-serif; font-size: clamp(25px,8vw,38px); letter-spacing: .08em; }
+.qi-player-result { width: 100%; padding: 20px; border-radius: 20px; text-align: center; border: 2px solid rgba(217,79,220,.45); background: rgba(190,38,193,.13); margin: 12px 0 16px; overflow: hidden; box-sizing: border-box; }
+/* Host, live: "the locked in text is out of it's box and was glitching."
+   A pure vw-based clamp with no overflow guard on the box itself let this
+   blow past its border on a wide/short viewport - overflow:hidden above
+   now clips it as a last resort, and the vw coefficient is reduced so it
+   stays comfortably inside the box on ordinary phone widths too. */
+.qi-player-result strong { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-logo),"Bruno Ace SC",sans-serif; font-size: clamp(25px,6vw,38px); letter-spacing: .08em; }
 .qi-player-result>div { margin-top: 10px; color: #fff; font-size: clamp(16px,4.6vw,21px); font-weight: 750; }
 .qi-player-result--correct { border-color: rgba(46,224,110,.62); background: rgba(46,224,110,.12); color: #64ed99; }
 .qi-player-result--incorrect { border-color: rgba(255,83,101,.55); color: #ff8290; }
@@ -3116,7 +3121,7 @@ padding-bottom: calc(var(--qi-player-brand-bar-height, 64px) + 10px + env(safe-a
    compact clamp() sized for a banner that shared the screen with a full
    answer grid above it) makes it read as a real full-screen confirmation
    moment, not a stray note. */
-.qi-player-question-screen .qi-player-result strong { font-size: clamp(30px,9vw,46px); }
+.qi-player-question-screen .qi-player-result strong { font-size: clamp(30px,6.5vw,46px); }
 .qi-player-question-screen .qi-player-result>div { font-size: clamp(20px,5.6vw,28px); }
 .qi-player-question-screen[data-answer-type="multiple_choice"] .fbl .opt { flex:1 1 0; max-height:92px; font-size:clamp(17px,4.8vw,23px); }
 .qi-player-question-screen[data-answer-type="multi_tap"] .qi-player-multitap-grid { flex:1 1 0; grid-auto-rows:minmax(48px,1fr); }

@@ -2163,7 +2163,17 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             itself; a short question still shows the timer beside it, a
             long one just flows past it once its lines pass the float's
             height, same as any other float. */}
-        <div ref={qScrollRef} className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        {/* Host, live, repeatedly: "the lock it in button is still not
+            visible" - a long question paired with a tall keypad/on-screen
+            keyboard can still exceed the ShrinkToFit scale floor (0.55) on
+            some device/content combinations no matter how the JS budget
+            math above is tuned - this has recurred several times even
+            after each fix. overflow:hidden meant the ONLY way to reach
+            LOCK IT IN in that case was already off-screen with literally no
+            way to get to it. overflow-y:auto keeps the JS scaling as the
+            normal no-scroll experience but adds scrolling as a guaranteed
+            last resort, so the button is never truly unreachable again. */}
+        <div ref={qScrollRef} className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
         <div ref={qWrapRef} className="qi-player-question-wrap" style={{ flex: "0 0 auto", minHeight: 0, overflow: "hidden", marginBottom: 8, height: qWrapHeight }}>
           <div className="qi-player-timer-badge" style={{ float: "right", marginLeft: 12, marginBottom: 6, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
             <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>

@@ -329,6 +329,15 @@ export default function QuizBuilderPage() {
     const { error } = await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
     if (error) { showToast("Could not save this Match Made question.", "error"); return; }
     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
+    // Host, live: "allow me to add match made round from round library." A
+    // Match Made round only shows up in "OR PICK AN EXISTING ROUND FROM THE
+    // LIBRARY" (see the `rounds` picker above) once at least one round of
+    // that type has actually been synced into the `rounds` table - every
+    // other way of adding/changing a round's questions already does this
+    // (see syncRoundToLibrary's other call sites), this manual/edit path
+    // was the one gap, so a hand-built or hand-fixed Match Made round could
+    // never be reused in a future quiz.
+    if (selected) void syncRoundToLibrary(round, newQuestions, selected.name);
     showToast(isNew ? "Match Made question added." : "Match Made question updated.", "success", 2500);
     closePairsBuilder();
   }

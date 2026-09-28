@@ -2040,7 +2040,13 @@ button, input, select, textarea { font: inherit; }
    content started underneath it and the two visually collided. This
    reserves real space for the mark regardless of its exact height rather
    than relying on the two happening not to overlap. */
-.qi-display-lobby .lb-join { padding: clamp(120px, 15vh, 190px) 8% 8%; }
+/* Host, live: "off the LHS of the screen - move all of the instructions
+   away from the edge" - the 8% side padding was computed against this
+   column's own (narrow, ~300-350px on a real TV) width, working out to
+   only ~24-28px in practice - not enough clearance from the screen edge
+   when viewed from across a room. Floored with max() so it never goes
+   below a comfortable px minimum regardless of how narrow the column is. */
+.qi-display-lobby .lb-join { padding: clamp(120px, 15vh, 190px) max(8%, 30px) 8% max(9%, 44px); }
 .qi-display-lobby .lb-kicker { font-size: clamp(16px, 1.6vw, 28px); color: #d94fdc; letter-spacing: .26em; }
 .qi-display-lobby .lb-pin { font-size: clamp(56px, 3vw, 108px); line-height: .86; letter-spacing: .06em; text-shadow: 0 0 48px rgba(217,79,220,.28); }
 .qi-display-lobby .lb-pin small { font-size: clamp(13px, 1.2vw, 20px); letter-spacing: .34em; margin-bottom: 1vh; }

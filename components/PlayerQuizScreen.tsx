@@ -340,7 +340,17 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           // hidden edge and get clipped exactly as before. Reserving
           // height = natural * scale makes the shrunk box's real layout
           // footprint match what it looks like.
-          const scale = Math.max(0.55, answerAvailable / answerNatural);
+          // Host, live, repeatedly: "make all fit... still doesn't work."
+          // This floor existed to keep the keypad from shrinking into
+          // illegibility, but on a genuinely tight combination (a long
+          // question + the full numeric/QWERTY keypad + DELETE/LOCK IT IN)
+          // it was WORSE than useless - it forced the block to render
+          // bigger than the real available space no matter what,
+          // guaranteeing the exact overflow being reported instead of
+          // preventing it. Lowered well past what any real device here
+          // needs, so the block always actually fits instead of "fits down
+          // to a point, then deliberately doesn't."
+          const scale = Math.max(0.4, answerAvailable / answerNatural);
           setAnswerScale(scale);
           setAnswerHeight(answerNatural * scale);
         } else {

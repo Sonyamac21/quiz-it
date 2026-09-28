@@ -11,7 +11,7 @@ import { useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
-import { isPairRecord, isPairsQuestion, readPairs, readPairsQuestions, tilesForTeam, PAIRS_PER_ROUND } from "@/lib/quiz/pairs";
+import { isPairRecord, isPairsQuestion, readPairs, readPairsQuestions, tilesForTeam, PAIRS_PER_ROUND, type PairRecord } from "@/lib/quiz/pairs";
 import { eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "@/lib/quiz/prepRules";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -240,6 +240,162 @@ export default function QuizBuilderPage() {
     } finally {
       setPhotoSearching(false);
     }
+  }
+  // Host, live: "can I also manually build match made questions? plus to
+  // edit any that are not correct by adding other pics etc." Match Made
+  // previously had NO manual entry path at all (the whole "+ ADD QUESTIONS"
+  // panel was hidden for pairs rounds, see round_type !== "pairs" below) and
+  // no EDIT button on an existing pairs card - AI generation was the only
+  // way in or out, so a wrong label or a bad photo could only be fixed by
+  // regenerating the whole question and hoping for something better.
+  // pairsBuilderKey mirrors editKey's "roundId-qIndex" shape but also
+  // supports "roundId-new" for building a brand-new question from scratch,
+  // so the same editor UI (see pairsEditorFields below) serves both cases.
+  const [pairsBuilderKey, setPairsBuilderKey] = useState<string | null>(null);
+  const [pairsBuilderDraft, setPairsBuilderDraft] = useState<PairRecord[]>([]);
+  const [pairsPhotoTileKey, setPairsPhotoTileKey] = useState<string | null>(null);
+  const [pairsPhotoQuery, setPairsPhotoQuery] = useState("");
+  const [pairsPhotoSearching, setPairsPhotoSearching] = useState(false);
+  const [pairsPhotoCandidates, setPairsPhotoCandidates] = useState<{ id: number; thumb: string; full: string; tags: string }[]>([]);
+  const [pairsPhotoSearchError, setPairsPhotoSearchError] = useState("");
+  function emptyPairsDraft(): PairRecord[] {
+    return [1, 2, 3].map(n => ({ pair_id: `p${n}`, a: { label: "", image_url: "" }, b: { label: "", image_url: "" } }));
+  }
+  function startBuildPairs(round: QuizRound) {
+    setPairsBuilderDraft(emptyPairsDraft());
+    setPairsBuilderKey(round.id + "-new");
+    setPairsPhotoTileKey(null);
+    setPairsPhotoCandidates([]);
+    setPairsPhotoSearchError("");
+  }
+  function startEditPairs(round: QuizRound, qIndex: number, q: Record<string, unknown>) {
+    const pairs = readPairs([q]);
+    setPairsBuilderDraft(pairs.length === PAIRS_PER_ROUND ? pairs.map(p => ({ ...p, a: { ...p.a }, b: { ...p.b } })) : emptyPairsDraft());
+    setPairsBuilderKey(round.id + "-" + qIndex);
+    setPairsPhotoTileKey(null);
+    setPairsPhotoCandidates([]);
+    setPairsPhotoSearchError("");
+  }
+  function closePairsBuilder() {
+    setPairsBuilderKey(null);
+    setPairsBuilderDraft([]);
+    setPairsPhotoTileKey(null);
+  }
+  function updatePairsTile(pairIndex: number, side: "a" | "b", patch: Partial<{ label: string; image_url: string }>) {
+    setPairsBuilderDraft(draft => draft.map((p, i) => i === pairIndex ? { ...p, [side]: { ...p[side], ...patch } } : p));
+  }
+  async function searchPairsTilePhotos(query: string) {
+    if (!query.trim()) return;
+    setPairsPhotoSearching(true);
+    setPairsPhotoSearchError("");
+    try {
+      const res = await fetch("/api/pixabay-search?q=" + encodeURIComponent(query.trim()));
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Search failed");
+      setPairsPhotoCandidates(data.candidates || []);
+      if (!data.candidates?.length) setPairsPhotoSearchError("No photos found for that search - try different words.");
+    } catch (e) {
+      setPairsPhotoCandidates([]);
+      setPairsPhotoSearchError(e instanceof Error ? e.message : "Search failed");
+    } finally {
+      setPairsPhotoSearching(false);
+    }
+  }
+  async function savePairsBuilder(round: QuizRound) {
+    if (!pairsBuilderKey) return;
+    const hostImage = async (img?: string) => {
+      const trimmed = img?.trim();
+      if (!trimmed) return undefined;
+      // Same re-hosting rule as the single-picture edit form (saveEditQuestion
+      // below) - a freshly-picked Pixabay thumbnail is still a live hotlink at
+      // this point and needs re-hosting so it doesn't quietly go dead later;
+      // an already re-hosted or manually pasted permanent URL passes through.
+      if (trimmed.includes("blob.vercel-storage.com")) return trimmed;
+      return (await persistPixabayImage(trimmed)).url;
+    };
+    const cleaned = await Promise.all(pairsBuilderDraft.map(async (p, i) => ({
+      pair_id: `p${i + 1}`,
+      question_type: "pairs" as const,
+      round_type: "pairs" as const,
+      a: { label: p.a.label.trim(), image_url: await hostImage(p.a.image_url) },
+      b: { label: p.b.label.trim(), image_url: await hostImage(p.b.image_url) },
+    })));
+    if (cleaned.some(p => !p.a.label || !p.b.label)) { showToast("Every tile needs a label before saving.", "error"); return; }
+    const question = { question_type: "pairs" as const, round_type: "pairs" as const, pairs: cleaned };
+    const isNew = pairsBuilderKey === round.id + "-new";
+    const qIndex = isNew ? -1 : Number(pairsBuilderKey.slice(round.id.length + 1));
+    const newQuestions = isNew ? [...round.questions, question] : round.questions.map((q, i) => i === qIndex ? question : q);
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
+    if (error) { showToast("Could not save this Match Made question.", "error"); return; }
+    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
+    showToast(isNew ? "Match Made question added." : "Match Made question updated.", "success", 2500);
+    closePairsBuilder();
+  }
+  // Shared editor UI for both "build a brand-new Match Made question" and
+  // "edit an existing one" - 3 pairs x 2 tiles, each with an editable label
+  // and an optional photo (search Pixabay, pick a thumbnail, or paste a
+  // direct URL - same pattern as the picture-question edit form). A tile
+  // with no photo just plays as a text-only tile (see the generatePairs.ts
+  // fix this same night: a picture is an enhancement, never a requirement).
+  function pairsEditorFields(round: QuizRound) {
+    return (
+      <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ color: "#B9A8D9", font: "700 10px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>3 pairs · 6 tiles - every tile needs a label; a photo is optional</div>
+        {pairsBuilderDraft.map((pair, pairIndex) => (
+          <div key={pairIndex} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: 8, borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52" }}>
+            {(["a", "b"] as const).map(side => {
+              const tileKey = pairIndex + "-" + side;
+              const tile = pair[side];
+              const isPhotoOpen = pairsPhotoTileKey === tileKey;
+              return (
+                <div key={side} style={{ display: "grid", gap: 5 }}>
+                  <input
+                    value={tile.label}
+                    onChange={e => updatePairsTile(pairIndex, side, { label: e.target.value })}
+                    className="fbh-input"
+                    style={{ width: "100%", font: "400 12px 'Inter'" }}
+                    placeholder={side === "a" ? "Item A label" : "Item B label (matches Item A)"}
+                  />
+                  {tile.image_url && !brokenImageUrls.has(tile.image_url) ? (
+                    <img src={getMediaUrl(tile.image_url) ?? undefined} alt={tile.label || "tile"} style={{ display: "block", width: "100%", height: 70, objectFit: "cover", borderRadius: 6 }} onError={() => markImageBroken(tile.image_url)} />
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 70, borderRadius: 6, background: "#170b2c", color: "#6B5A8E", font: "400 10px 'Inter'", textAlign: "center", padding: 6 }}>No photo (text-only tile)</div>
+                  )}
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <HostButton className="qi-btn-sm" style={{ flex: 1 }} onClick={() => { setPairsPhotoTileKey(isPhotoOpen ? null : tileKey); setPairsPhotoQuery(tile.label); setPairsPhotoCandidates([]); setPairsPhotoSearchError(""); }}>{isPhotoOpen ? "CLOSE" : "FIND PHOTO"}</HostButton>
+                    {!!tile.image_url && <HostButton className="qi-btn-sm" style={{ flex: 1 }} onClick={() => updatePairsTile(pairIndex, side, { image_url: "" })}>REMOVE PHOTO</HostButton>}
+                  </div>
+                  {isPhotoOpen && (
+                    <div style={{ display: "grid", gap: 5 }}>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input value={pairsPhotoQuery} onChange={e => setPairsPhotoQuery(e.target.value)} className="fbh-input" style={{ flex: 1, font: "400 12px 'Inter'" }} placeholder="e.g. red bicycle" />
+                        <HostButton className="qi-btn-sm" type="button" onClick={() => searchPairsTilePhotos(pairsPhotoQuery)} disabled={pairsPhotoSearching || !pairsPhotoQuery.trim()}>{pairsPhotoSearching ? "..." : "SEARCH"}</HostButton>
+                      </div>
+                      {pairsPhotoSearchError && <div style={{ color: "#FF8290", font: "400 11px 'Inter'" }}>{pairsPhotoSearchError}</div>}
+                      {pairsPhotoCandidates.length > 0 && (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5 }}>
+                          {pairsPhotoCandidates.map(c => (
+                            <button key={c.id} type="button" onClick={() => { updatePairsTile(pairIndex, side, { image_url: c.full }); setPairsPhotoTileKey(null); setPairsPhotoCandidates([]); }} title={c.tags} style={{ padding: 0, border: "1px solid #2E1A52", borderRadius: 6, overflow: "hidden", cursor: "pointer", background: "none", height: 48 }}>
+                              {!brokenImageUrls.has(c.thumb) && <img src={c.thumb} alt={c.tags} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={() => markImageBroken(c.thumb)} />}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <input value={tile.image_url ?? ""} onChange={e => updatePairsTile(pairIndex, side, { image_url: e.target.value })} className="fbh-input" style={{ width: "100%", font: "400 12px 'Inter'" }} placeholder="Or paste a direct image URL" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 8 }}>
+          <HostButton className="qi-btn-sm" variant="pri" onClick={() => void savePairsBuilder(round)}>SAVE</HostButton>
+          <HostButton className="qi-btn-sm" onClick={closePairsBuilder}>CANCEL</HostButton>
+        </div>
+      </div>
+    );
   }
   const [addRoundOpen, setAddRoundOpen] = useState(false);
   const [settingsOpenRoundId, setSettingsOpenRoundId] = useState<string | null>(null);
@@ -1827,8 +1983,22 @@ export default function QuizBuilderPage() {
                         setLibraryOpenId(activeRound.id); setRandomOpenId(null); setAddQuestionOpenId(null); setAiGenerateOpenId(null);
                       }}>{anyAddPanelOpen ? "CLOSE" : "+ ADD QUESTIONS"}</HostButton>
                     )}
+                    {/* Host, live: "can I also manually build match made
+                        questions?" Match Made had no manual-entry path at
+                        all - AI generation was the only way to add one. */}
+                    {activeRound.round_type === "pairs" && (
+                      <HostButton onClick={() => {
+                        if (pairsBuilderKey === activeRound.id + "-new") { closePairsBuilder(); return; }
+                        startBuildPairs(activeRound);
+                      }}>{pairsBuilderKey === activeRound.id + "-new" ? "CLOSE" : "+ BUILD MANUALLY"}</HostButton>
+                    )}
                   </div>
                 </div>
+                {pairsBuilderKey === activeRound.id + "-new" && (
+                  <div style={{ padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
+                    {pairsEditorFields(activeRound)}
+                  </div>
+                )}
                 {anyAddPanelOpen && (
                   <div style={{ padding: 12, marginBottom: 14, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
                     {/* One shared box instead of three separate accordions
@@ -2220,6 +2390,10 @@ export default function QuizBuilderPage() {
                               <HostButton className="qi-btn-sm" onClick={() => { setEditingKey(null); setEditDraft({}); setPhotoCandidates([]); }}>CANCEL</HostButton>
                             </div>
                           </div>
+                        ) : pairsBuilderKey === editKey ? (
+                          <div style={{ display: "grid", gap: 6 }}>
+                            {pairsEditorFields(activeRound)}
+                          </div>
                         ) : (() => {
                           const cardBody = isPairs ? (
                             <>
@@ -2311,7 +2485,7 @@ export default function QuizBuilderPage() {
                                   beneath instead of sharing the row, since it never fit
                                   alongside a full-width button pair. */}
                               <div style={{ display: "flex", alignItems: "stretch", gap: 6, flexWrap: "nowrap" }}>
-                                {!isPairs && <HostButton className="qi-btn-sm" style={{ flex: 1 }} onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question">EDIT</HostButton>}
+                                <HostButton className="qi-btn-sm" style={{ flex: 1 }} onClick={() => isPairs ? startEditPairs(activeRound, qi, qr) : startEditQuestion(activeRound, qi, qr)} title="Edit this question">EDIT</HostButton>
                                 <HostButton className="qi-btn-sm" style={{ flex: 1 }} onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace this question">{isSwapping ? "REGEN..." : "REGEN"}</HostButton>
                               </div>
                               {/* Host, prepping live: "I want to move Q1 into the library -

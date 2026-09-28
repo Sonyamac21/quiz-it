@@ -2200,7 +2200,12 @@ button, input, select, textarea { font: inherit; }
    wrapper below has a real, measurable height budget to shrink against
    instead of one that just grows to fit the text - which was letting a long
    question run straight off the bottom of the screen under the branding. */
-.qi-display-question .qd { padding-top: clamp(16px,2vh,30px); height: 100dvh; overflow: hidden; }
+/* Host, live: the fixed top-left corner mark (logo+wordmark+producer line,
+   position:fixed, doesn't reserve flow space) was only cleared by 16-30px
+   here while actually standing ~50-70px tall on a real TV - the "QUESTION N
+   · ROUND NAME" line sat right underneath it and visibly ran into it.
+   Matched to the same real clearance the lobby's .lb-join gives it. */
+.qi-display-question .qd { padding-top: clamp(56px,7vh,84px); height: 100dvh; overflow: hidden; }
 /* Bumped from clamp(13px,1.25vw,21px) - the "QUESTION N · ROUND NAME" line
    was too small to read from across a room. */
 .qi-display-question .qd-top { margin: 0 6%; font-size: clamp(19px,2vw,32px); color: #cfc2e7; }
@@ -2491,7 +2496,14 @@ button, input, select, textarea { font: inherit; }
 @media (max-height: 800px) {
   .qi-display-shell { --qi-display-safe-y: clamp(14px,2vh,24px); }
   .qi-display-question .qd { inset: 3.5% 4% 4%; }
-  .qi-display-question .qd-q { font-size: clamp(34px,6vh,64px); }
+  /* Host, live: "you've shrunk the question... i didn't ask for this" -
+     many smart-TV browsers report a scaled logical viewport height under
+     800px even on a real 1080p/4K screen, so this fallback (not the base
+     rule above) is what actually governs the question size on Sonya's TV.
+     34-64px read as noticeably smaller than before on that screen. Raised
+     the floor and ceiling well past the base rule's own minimum so a real
+     TV never renders a smaller question than a laptop preview would. */
+  .qi-display-question .qd-q { font-size: clamp(48px,8vh,96px); }
   .qi-display-question .qd-opt { min-height: 54px; }
   .qi-display-brand-signature { bottom: 7px !important; right: 9px !important; transform: scale(.84); transform-origin: bottom right; }
 }

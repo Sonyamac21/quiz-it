@@ -945,7 +945,18 @@ export default function QuizBuilderPage() {
     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, theme: effectiveTheme || null, difficulty: effectiveDifficulty } : r) }));
     try {
       const [result] = await generateAllRounds(
-        [{ roundType: round.round_type, difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions) }],
+        // Host: "the generate with AI when topping up doesn't allow me to
+        // choose a particular type of question. I want to be able to ask
+        // it to generate specifically a picture question or a music
+        // question." The "Include: Picture / Music" checkboxes already
+        // above this panel write to bulkConfig[round.id].allowedQuestionTypes,
+        // and generateValidatedRound already fully supports that field
+        // (see runBulkGenerate's own "GENERATE ALL SELECTED" flow) -
+        // this quick top-up call was just never passing it through, so it
+        // always generated the round's default type mix regardless of
+        // what was ticked. Passing it through means the SAME checkboxes
+        // the host already sees on screen now govern this button too.
+        [{ roundType: round.round_type, difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions), allowedQuestionTypes: cfg?.allowedQuestionTypes }],
         (_idx, status) => setGeneratingMoreStatus(status + capNote),
       );
       // Same stale-snapshot bug as runBulkGenerate above: `round` here is

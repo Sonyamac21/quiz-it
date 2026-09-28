@@ -764,6 +764,7 @@ export default function QuizBuilderPage() {
     const draft: Record<string, string> = {
       question_text: String(q.question_text ?? ""),
       correct_answer: String(q.correct_answer ?? ""),
+      explanation: String(q.explanation ?? ""),
     };
     (["a", "b", "c", "d", "e", "f"] as const).forEach(letter => {
       const v = q["option_" + letter];
@@ -2206,6 +2207,14 @@ export default function QuizBuilderPage() {
                                 />
                               </>
                             )}
+                            <textarea
+                              value={editDraft.explanation ?? ""}
+                              onChange={e => setEditDraft(d => ({ ...d, explanation: e.target.value }))}
+                              className="fbh-input"
+                              rows={2}
+                              style={{ width: "100%", resize: "vertical", font: "400 12px 'Inter'", marginTop: 6 }}
+                              placeholder="Explanation (shown on answer key, celebration & display screens)"
+                            />
                             <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
                               <HostButton className="qi-btn-sm" variant="pri" onClick={() => saveEditQuestion(activeRound, qi)}>SAVE</HostButton>
                               <HostButton className="qi-btn-sm" onClick={() => { setEditingKey(null); setEditDraft({}); setPhotoCandidates([]); }}>CANCEL</HostButton>

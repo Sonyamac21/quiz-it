@@ -2213,7 +2213,7 @@ export default function QuizBuilderPage() {
                               className="fbh-input"
                               rows={2}
                               style={{ width: "100%", resize: "vertical", font: "400 12px 'Inter'", marginTop: 6 }}
-                              placeholder="Explanation (shown on answer key, celebration & display screens)"
+                              placeholder="Brief summary (shown to you on the answer key & celebration screen only)"
                             />
                             <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
                               <HostButton className="qi-btn-sm" variant="pri" onClick={() => saveEditQuestion(activeRound, qi)}>SAVE</HostButton>

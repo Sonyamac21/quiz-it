@@ -795,7 +795,7 @@ STRICT QUALITY RULES (every question must pass all of these):
 10. The question must stand alone without its explanation and test one satisfying piece of knowledge.
 11. Stay on TOPIC but use a genuinely different entity and narrow subtopic from the exclusions.
 ${varietyNote}${sessionExclusionNote}${permanentExclusionNote}
-Include a 1-2 sentence explanation of the answer in the explanation field.
+Include a brief, one-sentence summary of the answer (not a full explanation) in the explanation field.
 ${isRecencyTopic ? 'SEARCH BUDGET: You have exactly one web search available. Use one broad query that can support the entire question, including every correct Multi Tap option. Do not plan additional searches. If the results cannot support a complete question, return [] so another candidate can be tried. Never substitute unverified current facts or commentary about search limits.' : ''}
 Silently check before writing: one array item, every schema key present, unused options null, exact requested type and answer format. Do not write out that checking process - it must not appear anywhere in your reply.
 Your entire reply must be ONLY the JSON array itself - no preamble, no "checking..." notes, no explanation of your reasoning, no markdown, nothing before the opening [ or after the closing ]. The very first character of your reply must be [.

@@ -2373,10 +2373,10 @@ function DisplayScreenInner() {
           )}
         </div>
         {/* FOOTER */}
+        {/* Host: "no need for on screen or on player handset explanation" -
+            the explanation field is a host-side prep/answer-key aid only;
+            it never belonged on the audience-facing TV screen. */}
         <div className="qi-display-answer-footer">
-          <div className="qi-display-answer-explanation">
-            {question.explanation || ""}
-          </div>
           <div className="qi-display-answer-brand"><BrandMark size="xs" align="center" /></div>
         </div>
         <div style={{ position:"absolute", bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,rgba(34,197,94,0.6),transparent)` }} />

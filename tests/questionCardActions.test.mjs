@@ -34,3 +34,21 @@ test("round-prep question card grows in normal flow on hover, but actions never 
   assert.match(page, />TO LIBRARY<\/HostButton>/);
   assert.match(page, /moveQuestionToLibrary\(activeRound, qi\)/);
 });
+
+// Host: "I still cannot generate a picture question when needed if adding
+// a question to a round." The other three "+ ADD QUESTIONS" tabs
+// (SEARCH LIBRARY, RANDOM, TYPE YOUR OWN) only reuse already-saved
+// library rows or take plain typed text with no type field at all - none
+// of them can ask the AI to generate a fresh question of a chosen type. A
+// GENERATE tab, with its own type <select>, now calls the same
+// generateMoreForRound the round-level top-up button uses, with an
+// explicit one-off type override that takes priority over the round's own
+// Include: Picture/Music default.
+test("round-prep add-questions panel offers a GENERATE tab with a type picker", () => {
+  assert.match(page, /async function generateMoreForRound\(round: QuizRound, requested: number, typeOverride\?: string\[\]\)/);
+  assert.match(page, /allowedQuestionTypes: typeOverride \?\? cfg\?\.allowedQuestionTypes/);
+  assert.match(page, /"GENERATE", aiGenerateOpenId === activeRound\.id/);
+  assert.match(page, /<select value=\{aiGenerateType\}/);
+  assert.match(page, /allowedLibraryTypesForRound\(activeRound\.round_type\)\.map\(t => \(/);
+  assert.match(page, /onClick=\{\(\) => generateMoreForRound\(activeRound, aiGenerateCount, aiGenerateType \? \[aiGenerateType\] : undefined\)\}/);
+});

@@ -262,6 +262,17 @@ export default function QuizBuilderPage() {
   const [randomOpenId, setRandomOpenId] = useState<string | null>(null);
   const [randomTopic, setRandomTopic] = useState("");
   const [randomCount, setRandomCount] = useState(5);
+  // Host: "I still cannot generate a picture question when needed if
+  // adding a question to a round." The three existing "+ ADD QUESTIONS"
+  // tabs only reuse already-saved library rows (SEARCH LIBRARY, RANDOM) or
+  // take plain typed-in text with no type at all (TYPE YOUR OWN) - none of
+  // them can ask the AI to generate a FRESH question of a specific type.
+  // A fourth "GENERATE" tab, with its own type picker, calls the same
+  // generateMoreForRound the top-up button already uses, with an explicit
+  // one-off type override.
+  const [aiGenerateOpenId, setAiGenerateOpenId] = useState<string | null>(null);
+  const [aiGenerateType, setAiGenerateType] = useState("");
+  const [aiGenerateCount, setAiGenerateCount] = useState(1);
   // Library rows removed from a round after a random pull (i.e. the host
   // rejected them) - keyed by round id, so the NEXT random pull for that
   // round excludes them instead of them re-surfacing. Without this, removing
@@ -928,7 +939,7 @@ export default function QuizBuilderPage() {
   // certainly why "it only ever generates 5". An inline input in the panel
   // itself avoids both problems - nothing can block the page, and the
   // number being requested is always visibly sitting right there.
-  async function generateMoreForRound(round: QuizRound, requested: number) {
+  async function generateMoreForRound(round: QuizRound, requested: number, typeOverride?: string[]) {
     // The Pursuit is always exactly 7 gates total (never host-configurable) -
     // clamp here too, not just inside generateValidatedRound, so a host
     // asking for more than the round has room for gets told plainly instead
@@ -975,7 +986,14 @@ export default function QuizBuilderPage() {
         // always generated the round's default type mix regardless of
         // what was ticked. Passing it through means the SAME checkboxes
         // the host already sees on screen now govern this button too.
-        [{ roundType: round.round_type, difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions), allowedQuestionTypes: cfg?.allowedQuestionTypes }],
+        // Host, still: "I still cannot generate a picture question when
+        // needed if adding a question to a round." The "+ ADD QUESTIONS"
+        // panel's own "GENERATE" tab (see its type <select>) now calls
+        // this same function with an explicit one-off typeOverride, which
+        // takes priority over the round-level Include: Picture/Music
+        // checkboxes below - so a host can ask for "just one picture
+        // question" without having to change the round's default mix.
+        [{ roundType: round.round_type, difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions), allowedQuestionTypes: typeOverride ?? cfg?.allowedQuestionTypes }],
         (_idx, status) => setGeneratingMoreStatus(status + capNote),
       );
       // Same stale-snapshot bug as runBulkGenerate above: `round` here is
@@ -1426,7 +1444,7 @@ export default function QuizBuilderPage() {
           // three stacked boxes at once. Folded into one "+ ADD QUESTIONS"
           // entry point below with a segmented switch inside - exactly one
           // panel is ever open, in one shared box.
-          const anyAddPanelOpen = libraryOpenId === activeRound.id || randomOpenId === activeRound.id || addQuestionOpen;
+          const anyAddPanelOpen = libraryOpenId === activeRound.id || randomOpenId === activeRound.id || addQuestionOpen || aiGenerateOpenId === activeRound.id;
           return (
             <>
               {/* One tab per round - the whole quiz at a glance, click a tab to work on just that round's questions.
@@ -1799,13 +1817,13 @@ export default function QuizBuilderPage() {
                     )}
                     {activeRound.round_type !== "pairs" && (
                       <HostButton onClick={() => {
-                        if (anyAddPanelOpen) { setLibraryOpenId(null); setRandomOpenId(null); setAddQuestionOpenId(null); return; }
+                        if (anyAddPanelOpen) { setLibraryOpenId(null); setRandomOpenId(null); setAddQuestionOpenId(null); setAiGenerateOpenId(null); return; }
                         setLibrarySearch("");
                         const allowed = allowedLibraryTypesForRound(activeRound.round_type);
                         const defaultType = allowed.length === 1 ? allowed[0] : "";
                         setLibraryTypeFilter(defaultType);
                         loadLibraryQuestions("", defaultType);
-                        setLibraryOpenId(activeRound.id); setRandomOpenId(null); setAddQuestionOpenId(null);
+                        setLibraryOpenId(activeRound.id); setRandomOpenId(null); setAddQuestionOpenId(null); setAiGenerateOpenId(null);
                       }}>{anyAddPanelOpen ? "CLOSE" : "+ ADD QUESTIONS"}</HostButton>
                     )}
                   </div>
@@ -1824,10 +1842,15 @@ export default function QuizBuilderPage() {
                           const defaultType = allowed.length === 1 ? allowed[0] : "";
                           setLibraryTypeFilter(defaultType);
                           loadLibraryQuestions("", defaultType);
-                          setLibraryOpenId(activeRound.id); setRandomOpenId(null); setAddQuestionOpenId(null);
+                          setLibraryOpenId(activeRound.id); setRandomOpenId(null); setAddQuestionOpenId(null); setAiGenerateOpenId(null);
                         }],
-                        ["RANDOM", randomOpenId === activeRound.id, () => { setRandomOpenId(activeRound.id); setLibraryOpenId(null); setAddQuestionOpenId(null); }],
-                        ["TYPE YOUR OWN", addQuestionOpen, () => { setAddQuestionOpenId(activeRound.id); setLibraryOpenId(null); setRandomOpenId(null); }],
+                        ["RANDOM", randomOpenId === activeRound.id, () => { setRandomOpenId(activeRound.id); setLibraryOpenId(null); setAddQuestionOpenId(null); setAiGenerateOpenId(null); }],
+                        ["TYPE YOUR OWN", addQuestionOpen, () => { setAddQuestionOpenId(activeRound.id); setLibraryOpenId(null); setRandomOpenId(null); setAiGenerateOpenId(null); }],
+                        ...(isGeneratable ? [["GENERATE", aiGenerateOpenId === activeRound.id, () => {
+                          const allowed = allowedLibraryTypesForRound(activeRound.round_type);
+                          setAiGenerateType(allowed.includes("picture") ? "picture" : "");
+                          setAiGenerateOpenId(activeRound.id); setLibraryOpenId(null); setRandomOpenId(null); setAddQuestionOpenId(null);
+                        }] as const] : []),
                       ] as const).map(([label, active, onClick]) => (
                         <button key={label} type="button" onClick={onClick} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #2E1A52", cursor: "pointer", font: "700 10px 'Inter'", letterSpacing: ".04em", background: active ? "rgba(190,38,193,0.2)" : "transparent", color: active ? "#fff" : "#B9A8D9" }}>{label}</button>
                       ))}
@@ -1906,6 +1929,29 @@ export default function QuizBuilderPage() {
                         <input value={manualQText} onChange={e => setManualQText(e.target.value)} placeholder="Question" className="fbh-input" style={{ width: "100%" }} />
                         <input value={manualAText} onChange={e => setManualAText(e.target.value)} placeholder="Answer" className="fbh-input" style={{ width: "100%" }} />
                         <HostButton variant="pri" onClick={() => addManualQuestion(activeRound, manualQText, manualAText)} disabled={!manualQText.trim() || !manualAText.trim()}>ADD QUESTION</HostButton>
+                      </div>
+                    )}
+                    {/* Host: "I still cannot generate a picture question when
+                        needed if adding a question to a round." The other
+                        three tabs above only reuse already-saved library
+                        rows or take plain typed text with no type at all -
+                        this is the one that actually asks the AI for a
+                        fresh question of a chosen type, right from the
+                        add-questions panel, without touching the round's
+                        own default Include: Picture/Music settings. */}
+                    {isGeneratable && aiGenerateOpenId === activeRound.id && (
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                        <select value={aiGenerateType} onChange={e => setAiGenerateType(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}>
+                          <option value="">Any type (round's usual mix)</option>
+                          {allowedLibraryTypesForRound(activeRound.round_type).map(t => (
+                            <option key={t} value={t}>{QUESTION_TYPE_BADGE[t]?.label ?? t}</option>
+                          ))}
+                        </select>
+                        <input type="number" min={1} max={20} value={aiGenerateCount} onChange={e => setAiGenerateCount(Math.max(1, Math.min(20, Math.floor(Number(e.target.value)) || 1)))} style={{ width: 56, padding: "8px 6px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff", textAlign: "center" }} />
+                        <HostButton variant="pri" disabled={generatingMoreId === activeRound.id} onClick={() => generateMoreForRound(activeRound, aiGenerateCount, aiGenerateType ? [aiGenerateType] : undefined)}>
+                          {generatingMoreId === activeRound.id ? "GENERATING..." : "GENERATE"}
+                        </HostButton>
+                        {generatingMoreId === activeRound.id && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{generatingMoreStatus}</span>}
                       </div>
                     )}
                   </div>

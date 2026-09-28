@@ -177,12 +177,6 @@ export default function QuizBuilderPage() {
   const [draggedQuestionIndex, setDraggedQuestionIndex] = useState<number | null>(null);
   const [dragOverQuestionIndex, setDragOverQuestionIndex] = useState<number | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
-  // Same uniform-card-size/hover-to-expand treatment as the Question Library
-  // (app/host/question-bank/page.tsx) - a card with a long question and every
-  // option listed used to stretch tall while its neighbours stayed short,
-  // leaving a ragged grid. Collapsing to a fixed height and expanding the
-  // full text in a popover on hover fixes that here too.
-  const [hoveredQuestionKey, setHoveredQuestionKey] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Record<string, string>>({});
   const [draggedQuestionSource, setDraggedQuestionSource] = useState<{ roundId: string; index: number } | null>(null);
   // Host request: "I want to add a question - I can simply search and drag
@@ -1953,8 +1947,6 @@ export default function QuizBuilderPage() {
                           setDraggedQuestionSource(null);
                         }}
                         onDragEnd={() => { setDraggedQuestionIndex(null); setDragOverQuestionIndex(null); setDraggedQuestionSource(null); }}
-                        onMouseEnter={() => setHoveredQuestionKey(editKey)}
-                        onMouseLeave={() => setHoveredQuestionKey(prev => prev === editKey ? null : prev)}
                         style={{
                           // Left padding cleared to make room for the question-type
                           // corner badge (top:6/left:6, 18px) so it doesn't sit on
@@ -2197,7 +2189,6 @@ export default function QuizBuilderPage() {
                             })()}
                             </>
                           );
-                          const isCardHovered = !isPairs && hoveredQuestionKey === editKey;
                           const questionActions = (
                             <div className="qi-prep-question-actions" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                               {/* Root cause of these originally looking huge next to the
@@ -2239,17 +2230,27 @@ export default function QuizBuilderPage() {
                             <>
                               {/* Uniform-height collapsed view, clipped so every card in
                                   the round lines up the same - matches the Question
-                                  Library's card treatment. */}
+                                  Library's card treatment.
+                                  Host, live: "I cannot move to library - when I hover
+                                  over it, it extends and the button is off the bottom of
+                                  the screen, I cannot scroll as there is no extended
+                                  'off screen' question." This used to expand into an
+                                  absolutely-positioned popover on hover (to show
+                                  untruncated text), which took the buttons out of normal
+                                  document flow - the popover's own height cap was against
+                                  the whole viewport, not against the space actually left
+                                  between the card and the bottom of the screen, so on any
+                                  card not near the top it could render its action row
+                                  below the visible viewport with no page scroll to reach
+                                  it (an absolutely-positioned element doesn't grow the
+                                  page). Worse, the trigger was hovering the card AT ALL,
+                                  including hovering the button itself - so moving toward
+                                  TO LIBRARY to click it was exactly what pushed it out of
+                                  reach. Buttons now stay in normal flow always, in the
+                                  same place, never relocated by hover - full question
+                                  text is still one click away via EDIT. */}
                               <div style={{ flex: 1, overflow: "hidden" }}>{cardBody}</div>
-                              {/* Hover expands the full, untruncated question/options in a
-                                  popover above everything else, same as the Question Library. */}
-                              {isCardHovered && (
-                                <div className="qi-prep-question-preview" style={{ position: "absolute", top: -1, left: -1, right: -1, zIndex: 40, background: "#150A2E", border: "1px solid #BE26C1", borderRadius: 12, padding: "12px 14px", boxShadow: "0 12px 32px rgba(0,0,0,0.55)" }}>
-                                  <div className="qi-prep-question-preview__body">{cardBody}</div>
-                                  {questionActions}
-                                </div>
-                              )}
-                              {!isCardHovered && questionActions}
+                              {questionActions}
                             </>
                           );
                         })()}

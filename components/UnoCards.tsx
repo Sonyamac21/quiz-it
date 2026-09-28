@@ -236,7 +236,7 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
       );
     }
     return (
-      <div className="fbl" style={{ paddingTop: 4, padding: "4px 14px 0" }}>
+      <div className="fbl" style={{ padding: "2px 14px 0" }}>
         <div className="qi-player-card-rail" style={{ display: "flex", gap: 10 }}>
           {visibleCards.map(card => {
             const isUsed = used.includes(card.type);

@@ -987,7 +987,14 @@ button, input, select, textarea { font: inherit; }
    venue TV - confirmed live: "scanned it, server not found" was the wrong-
    domain bug, but the size complaint was separate and real too. */
 .fbl .lb-qr{width:27%;aspect-ratio:1;background:repeating-conic-gradient(#fff 0 25%,transparent 0 50%) 0 0/26% 26%;border-radius:10px;border:5px solid #fff;opacity:.92;flex:none;object-fit:contain;}
-.fbl .lb-steps{font:600 clamp(8px,1.15vw,14.5px)/1.9 'Inter';color:var(--text2);}
+/* Host, live: "beside the QR - the web address doesn't fit." A domain
+   like quiz-it.macentertainmentuae.com has no spaces, so with no wrap
+   guard it's a single unbreakable "word" - the browser's default is to
+   let it overflow this narrow column rather than break it, instead of
+   wrapping onto a new line. overflow-wrap:anywhere allows a break inside
+   the word (still preferring word/space boundaries first) so long domains
+   fit the column instead of spilling out of it. */
+.fbl .lb-steps{font:600 clamp(8px,1.15vw,14.5px)/1.9 'Inter';color:var(--text2);overflow-wrap:anywhere;min-width:0;}
 .fbl .lb-steps b{color:var(--text);}
 .fbl .lb-wall{border-left:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;padding:0 4%;gap:4%;}
 .fbl .lb-count{font:800 clamp(12px,1.8vw,22px) 'Inter';letter-spacing:.12em;}
@@ -1230,7 +1237,23 @@ button, input, select, textarea { font: inherit; }
    independent of any ancestor's own sizing - removes that whole failure
    mode; width still also has a hard px ceiling and object-fit:contain
    still guarantees nothing is ever cropped, only shrunk. */
-.fbl .lb-reel-media-frame{position:relative;width:min(86%,980px);height:min(70vh,600px);margin:auto;overflow:hidden;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
+/* Host, live: "the animation graphic is only in centre - use the
+   rectangular space available inc RHS of display screen." 980px was a
+   sensible cap on a laptop-sized preview, but on a real TV this column is
+   often 1300-1600px+ wide - object-fit:contain on the media inside (see
+   below) means widening this box never crops or distorts the actual
+   photo/video, it just gives it (and the blurred fill behind it) more of
+   the real rectangle to sit in instead of leaving both sides empty. */
+.fbl .lb-reel-media-frame{position:relative;width:min(94%,1400px);height:min(70vh,600px);margin:auto;overflow:hidden;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
+/* Host, live: "Alton info not fitting" - the no-hero-photo/video fallback
+   (identified by its .lb-venue-intro-bg marker) stacks logo + name + time
+   + tagline + host block, centered, inside the SAME fixed height the
+   photo/video branches use to match a real image's aspect ratio - but this
+   branch has no photo to match, so that cap was clipping its last line
+   (the tagline) against overflow:hidden. A taller box here costs nothing
+   visually (it's a decorative gradient, not cropped media) and gives every
+   line room to actually fit. */
+.fbl .lb-reel-media-frame:has(.lb-venue-intro-bg){height:min(80vh,720px);}
 .fbl .lb-reel-media-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(32px) brightness(.55) saturate(1.15);transform:scale(1.15);}
 .fbl .lb-reel-media{position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:contain;}
 /* Host report: "the overlap in text" - the venue logo sits position:
@@ -1305,7 +1328,7 @@ button, input, select, textarea { font: inherit; }
 /* max-height was a percentage here too - the same unresolved-percentage
    bug found on .lb-reel-media-frame (see its comment). vh keeps this
    frame's real size stable regardless of any ancestor's own sizing. */
-.fbl .lb-reel-photos{position:relative;width:100%;height:100%;max-width:min(86%,980px);max-height:min(70vh,600px);margin:auto;overflow:hidden;}
+.fbl .lb-reel-photos{position:relative;width:100%;height:100%;max-width:min(94%,1400px);max-height:min(70vh,600px);margin:auto;overflow:hidden;}
 .fbl .lb-float-photo{position:absolute;left:50%;width:min(34%,260px);background:#fff;padding:10px 10px 34px;border-radius:6px;box-shadow:0 20px 40px rgba(0,0,0,.45);transform:translate(-50%,110%) rotate(-3deg);opacity:0;animation:lbFloatPhoto 9s ease-in-out infinite;}
 .fbl .lb-float-photo img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:2px;}
 .fbl .lb-float-photo-0{top:8%;transform:translate(-70%,110%) rotate(-4deg);}

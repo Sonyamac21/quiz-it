@@ -1991,15 +1991,11 @@ function DisplayScreenInner() {
                 <b>3.</b> Name your team
               </div>
             </div>
+            {/* Host, live: "take off the icons for 'teams in the room' just
+                leave number" - the crest+name row below this duplicated
+                what the count line above already says, just less legibly
+                from a distance across a venue. */}
             <div className={"lb-count" + (countPulsing ? " lb-count-pulse" : "")}><b>{teams.length} TEAM{teams.length === 1 ? "" : "S"}</b> IN THE ROOM</div>
-            <div className="lb-crests">
-              {teams.map((t) => (
-                <div key={t.team_name} className={"lb-team" + (flaringTeams.has(t.team_name) ? " new" : "")}>
-                  <div className="crest">{teamInitials(t.team_name)}</div>
-                  <span>{t.team_name}</span>
-                </div>
-              ))}
-            </div>
           </div>
           {renderVenueReel()}
           <div className="lb-foot">
@@ -2057,14 +2053,6 @@ function DisplayScreenInner() {
                 </div>
               </div>
               <div className={"lb-count" + (countPulsing ? " lb-count-pulse" : "")}><b>{teams.length} TEAM{teams.length === 1 ? "" : "S"}</b> IN THE ROOM</div>
-              <div className="lb-crests">
-                {teams.map((t) => (
-                  <div key={t.team_name} className={"lb-team" + (flaringTeams.has(t.team_name) ? " new" : "")}>
-                    <div className="crest">{teamInitials(t.team_name)}</div>
-                    <span>{t.team_name}</span>
-                  </div>
-                ))}
-              </div>
             </div>
             {renderVenueReel()}
             <div className="lb-foot">

@@ -2,7 +2,16 @@ export const PAIRS_PER_ROUND = 3;
 
 export type PairItem = {
   label: string;
-  image_url: string;
+  // Host, live: "still an issue with match made" / "find another way to do
+  // this" - generation used to require a Pixabay photo to pass a vision
+  // identity check for EVERY item (6 per question), and threw the whole
+  // pair away if even one item's search came up empty (common for
+  // hard-to-photograph nouns like "bookmark") - "Found 2 after 8 batches"
+  // with 0 added. A tile with no image just shows its label text instead
+  // (PairsRound's TileImage already renders a labelled placeholder box for
+  // a missing image), so a picture-search miss on one item no longer kills
+  // an otherwise-good pair.
+  image_url?: string;
 };
 
 export type PairRecord = {
@@ -86,9 +95,7 @@ export function isPairRecord(value: unknown): value is PairRecord {
   return Boolean(
     pair && typeof pair.pair_id === "string" && pair.pair_id.trim() &&
     typeof pair.a?.label === "string" && pair.a.label.trim() &&
-    typeof pair.a?.image_url === "string" && pair.a.image_url.trim() &&
-    typeof pair.b?.label === "string" && pair.b.label.trim() &&
-    typeof pair.b?.image_url === "string" && pair.b.image_url.trim(),
+    typeof pair.b?.label === "string" && pair.b.label.trim(),
   );
 }
 

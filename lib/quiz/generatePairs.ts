@@ -90,14 +90,27 @@ function parseArray(text: string): DraftPair[] {
   throw new Error("Pairs generator returned invalid JSON: no matching closing bracket");
 }
 
-async function sourceImage(query: string, label: string): Promise<string> {
+// Host, live: "still an issue with match made" / "find another way to do
+// this" - this used to throw when no image cleared the identity check,
+// which killed the WHOLE pair (see the try/catch around the call below)
+// even when both labels themselves were perfectly good pair content. Every
+// question needs 6 verified images (3 pairs x 2), so one hard-to-photograph
+// label (a real example that failed live: "bookmark") was enough to burn
+// all 8 batches and return nothing. sourceImage now returns null instead of
+// throwing on a genuine picture-search miss; the pair still gets built with
+// a text-only tile for that item (PairsRound's TileImage already renders a
+// labelled placeholder box when image_url is empty) rather than being
+// discarded outright. Configuration/network errors are logged and also
+// degrade to null rather than aborting generation - a partially-illustrated
+// round the host can actually use beats none at all.
+async function sourceImage(query: string, label: string): Promise<string | null> {
   // Check the verified-image cache before spending anything - a label that
   // has already succeeded once (this quiz, or any past one) returns
   // instantly here with zero API calls and zero chance of failing.
   const cached = await lookupCachedImage(label);
   if (cached) return cached;
   const key = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
-  if (!key) throw new Error("Pixabay is not configured");
+  if (!key) return null;
   const search = buildPixabaySearchQuery(query);
   // Widened from 8 to 20 - selectMatchingPixabayHit now picks randomly among
   // the top few qualifying matches rather than always the single best one,
@@ -108,11 +121,15 @@ async function sourceImage(query: string, label: string): Promise<string> {
   // Pixabay's search endpoint here hung the whole Match Made generation
   // indefinitely with the progress text frozen on "Creating Match Made
   // question X of Y..." and no way to recover short of reloading the page.
-  const response = await fetchWithTimeout(`https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(search)}&image_type=photo&per_page=20&safesearch=true`);
-  if (!response.ok) throw new Error("Picture search failed");
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(`https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(search)}&image_type=photo&per_page=20&safesearch=true`);
+  } catch {
+    return null;
+  }
+  if (!response.ok) return null;
   const data = await response.json();
   let candidates = Array.isArray(data?.hits) ? data.hits : [];
-  let reason = `No suitable picture found for ${label}`;
   // Raised from 3 to 5 - a pool of 20 Pixabay candidates often has several
   // that look plausible from the search query alone but fail the stricter
   // identity check (a set of pots shown when the label needs one clear
@@ -136,7 +153,7 @@ async function sourceImage(query: string, label: string): Promise<string> {
     // for a round that fails outright often enough to be unusable, so this
     // goes back to Sonnet until there's real evidence either way.
     const verdict = await checkPictureIdentity({ question_text: `Identify the ${label} in this picture.`, question_type: "picture", option_a: label, option_b: null, option_c: null, option_d: null, option_e: null, option_f: null, correct_answer: label, explanation: "", difficulty: "mixed", round_type: "pairs" }, source);
-    if (!verdict.ok) { reason = verdict.note; continue; }
+    if (!verdict.ok) continue;
     // Bug: persistPixabayImage's own design (see its file comment) is to
     // fall back to the original Pixabay URL when the re-host step fails,
     // on the reasoning that a hotlinked image today beats no question at
@@ -153,7 +170,7 @@ async function sourceImage(query: string, label: string): Promise<string> {
     if (saved.persisted) void cacheVerifiedImage(label, saved.url);
     return saved.url;
   }
-  throw new Error(reason);
+  return null;
 }
 
 export async function generatePairs(count: number, theme: string, exclusions: ExclusionState): Promise<PairRecord[]> {
@@ -217,14 +234,18 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
     try {
       // Deliberately reuse the exact Pixabay matching + permanent re-hosting
       // helpers used by picture questions; Pairs has no second media path.
+      // sourceImage returns null (never throws) on a genuine picture-search
+      // miss, so a hard-to-photograph label degrades to a text-only tile
+      // instead of discarding an otherwise-good pair - see sourceImage's
+      // comment for the live failure this fixes.
       const [aImage, bImage] = await Promise.all([sourceImage(aQuery, aLabel), sourceImage(bQuery, bLabel)]);
-      records.push({ pair_id: `p${records.length + 1}`, question_type: "pairs", round_type: "pairs", a: { label: aLabel, image_url: aImage }, b: { label: bLabel, image_url: bImage } });
+      records.push({ pair_id: `p${records.length + 1}`, question_type: "pairs", round_type: "pairs", a: { label: aLabel, image_url: aImage ?? undefined }, b: { label: bLabel, image_url: bImage ?? undefined } });
       exclusions.used.push(`${aLabel} + ${bLabel}`);
       exclusions.usedAnswers.push(fingerprint);
     } catch (error) {
-      // A missing or misleading stock image rejects the whole pair rather
-      // than saving a half-built round the host cannot play.
-      failures.push(error instanceof Error ? error.message : "image validation failed");
+      // A genuinely unexpected failure (e.g. the AI call itself erroring)
+      // still rejects just this one pair rather than the whole batch.
+      failures.push(error instanceof Error ? error.message : "Pair generation failed.");
     }
     }
   }

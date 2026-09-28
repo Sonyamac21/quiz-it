@@ -478,16 +478,27 @@ export default function QuizBuilderPage() {
   }
   function updateBulkConfig(roundId: string, patch: Partial<{ selected: boolean; count: number; theme: string; difficulty: string; allowedQuestionTypes: string[] }>) {
     setBulkConfig(prev => ({ ...prev, [roundId]: { ...prev[roundId], ...patch } }));
-    // Persist the target count itself (not just theme/difficulty, which were
-    // already saved elsewhere) the moment a host changes it, so "Hot Seat =
-    // 5" survives a reload instead of reverting to questions.length||10 -
-    // see the target_count migration/comment for the full story.
-    if (patch.count !== undefined && Number.isFinite(patch.count)) {
-      const count = patch.count;
-      const supabase = createSupabaseBrowserClient();
-      void supabase.from("quiz_rounds").update({ target_count: count }).eq("id", roundId);
-      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === roundId ? { ...r, target_count: count } : r) }));
-    }
+  }
+  // Host, live: "I set this for 5 questions as a test - it jumped back to
+  // 10. needs to reflect what was set by host." This used to persist
+  // target_count on every keystroke of the Questions field via a
+  // fire-and-forget write (no await, no error check) inside
+  // updateBulkConfig above, unlike every OTHER field in this exact settings
+  // panel (points, leaderboard, danger zone, max time bonus), which all
+  // persist on blur and check for errors. Firing on every keystroke raced
+  // against whichever DB write happened to land last (this one, or a
+  // sibling field's own awaited write+reload), and a silently failed write
+  // never surfaced anything to the host - the input would optimistically
+  // show "5" until the next reload pulled the still-unwritten (or since
+  // overwritten) DB value back. Moving this to onBlur, awaited, with an
+  // error toast, matches the reliable pattern every other field here
+  // already uses.
+  async function persistRoundTargetCount(round: QuizRound, count: number) {
+    if (!Number.isFinite(count) || count <= 0) return;
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.from("quiz_rounds").update({ target_count: count }).eq("id", round.id);
+    if (error) { showToast("Could not save the question count - try again.", "error"); return; }
+    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, target_count: count } : r) }));
   }
   const ROUND_TYPE_LABELS: Record<string, string> = {
     regular: "Regular",
@@ -1905,7 +1916,7 @@ export default function QuizBuilderPage() {
                             Questions
                             {activeRound.round_type === "pursuit" || activeRound.round_type === "hot_seat"
                               ? <span style={{ color: "#fff" }}>{targetQuestionCount(activeRound.round_type)} (fixed)</span>
-                              : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(activeRound.id, { count: Number(e.target.value) || 0 })} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
+                              : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(activeRound.id, { count: Number(e.target.value) || 0 })} onBlur={e => void persistRoundTargetCount(activeRound, Number(e.target.value) || 0)} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
                           </label>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Theme

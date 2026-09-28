@@ -300,6 +300,30 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [qWrapHeight, setQWrapHeight] = useState<number | undefined>(undefined);
   const [answerScale, setAnswerScale] = useState(1);
   const [answerHeight, setAnswerHeight] = useState<number | undefined>(undefined);
+  // Host, live, urgently, same exact cutoff every time regardless of
+  // question length: iOS Safari's 100dvh can stay pinned to its "large"
+  // (toolbars-collapsed) viewport size for the whole time a fixed,
+  // non-scrolling page like this one is open, since dvh only settles to
+  // the real, currently-visible size after a scroll gesture - which never
+  // happens here. Every measurement below inherits that wrong, too-tall
+  // number no matter how the JS math is tuned, because the real rendered
+  // boxes are themselves sized off it. window.visualViewport.height does
+  // NOT have this bug - it always reflects what's actually visible right
+  // now - so tracking it in JS and applying it as a real pixel height,
+  // instead of trusting the CSS unit, sidesteps the browser bug entirely.
+  const [viewportH, setViewportH] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    const measure = () => setViewportH(window.visualViewport?.height || window.innerHeight);
+    measure();
+    window.visualViewport?.addEventListener("resize", measure);
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", measure);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+    };
+  }, []);
 
   useLayoutEffect(() => {
     const scroll = qScrollRef.current;
@@ -2187,7 +2211,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     ].filter(o => o.text) as { key: string; text: string }[];
 
     return (
-      <div className={`qi-player-state qi-player-question-screen${phase === "hot_seat" ? " qi-player-question-screen--hot-seat" : ""}`} data-answer-type={question.question_type} style={{ height: "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
+      <div className={`qi-player-state qi-player-question-screen${phase === "hot_seat" ? " qi-player-question-screen--hot-seat" : ""}`} data-answer-type={question.question_type} style={{ height: viewportH ? `${viewportH}px` : "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
         <div className="qi-player-urgent-edge" style={{ boxShadow: timeLeft !== null && timeLeft > 0 && timeLeft <= 5
           ? `inset 0 0 ${60 + (6 - timeLeft) * 18}px ${10 + (6 - timeLeft) * 8}px rgba(255,59,78,${(0.15 + (6 - timeLeft) * 0.12).toFixed(3)})`
           : "none" }} />

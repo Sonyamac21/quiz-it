@@ -1237,14 +1237,18 @@ button, input, select, textarea { font: inherit; }
    independent of any ancestor's own sizing - removes that whole failure
    mode; width still also has a hard px ceiling and object-fit:contain
    still guarantees nothing is ever cropped, only shrunk. */
-/* Host, live: "the animation graphic is only in centre - use the
-   rectangular space available inc RHS of display screen." 980px was a
-   sensible cap on a laptop-sized preview, but on a real TV this column is
-   often 1300-1600px+ wide - object-fit:contain on the media inside (see
-   below) means widening this box never crops or distorts the actual
-   photo/video, it just gives it (and the blurred fill behind it) more of
-   the real rectangle to sit in instead of leaving both sides empty. */
-.fbl .lb-reel-media-frame{position:relative;width:min(94%,1400px);height:min(70vh,600px);margin:auto;overflow:hidden;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
+/* Host, live, twice now: "the sqare with the annimation is still in the
+   middle of the screen....extend it to a rectangle." A 980px, then a
+   1400px, px CEILING still left this narrower than the column on a big TV
+   (and shorter than it was wide once height was also capped), reading as
+   a centered square with dead space either side. Dropping the px ceiling
+   entirely (percentage-only, so it always tracks the real column width)
+   and lowering the height cap - object-fit:contain on the media inside
+   (see below) means widening/flattening this box never crops or distorts
+   the actual photo/video, it just gives it more of the real rectangle -
+   makes this unmistakably a wide rectangle instead of a square on any
+   screen size, not just closer to one on the biggest screens. */
+.fbl .lb-reel-media-frame{position:relative;width:97%;height:min(56vh,520px);margin:auto;overflow:hidden;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
 /* Host, live: "Alton info not fitting" - the no-hero-photo/video fallback
    (identified by its .lb-venue-intro-bg marker) stacks logo + name + time
    + tagline + host block, centered, inside the SAME fixed height the
@@ -1328,7 +1332,7 @@ button, input, select, textarea { font: inherit; }
 /* max-height was a percentage here too - the same unresolved-percentage
    bug found on .lb-reel-media-frame (see its comment). vh keeps this
    frame's real size stable regardless of any ancestor's own sizing. */
-.fbl .lb-reel-photos{position:relative;width:100%;height:100%;max-width:min(94%,1400px);max-height:min(70vh,600px);margin:auto;overflow:hidden;}
+.fbl .lb-reel-photos{position:relative;width:100%;height:100%;max-width:97%;max-height:min(56vh,520px);margin:auto;overflow:hidden;}
 .fbl .lb-float-photo{position:absolute;left:50%;width:min(34%,260px);background:#fff;padding:10px 10px 34px;border-radius:6px;box-shadow:0 20px 40px rgba(0,0,0,.45);transform:translate(-50%,110%) rotate(-3deg);opacity:0;animation:lbFloatPhoto 9s ease-in-out infinite;}
 .fbl .lb-float-photo img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:2px;}
 .fbl .lb-float-photo-0{top:8%;transform:translate(-70%,110%) rotate(-4deg);}

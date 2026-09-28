@@ -1248,7 +1248,14 @@ button, input, select, textarea { font: inherit; }
    the actual photo/video, it just gives it more of the real rectangle -
    makes this unmistakably a wide rectangle instead of a square on any
    screen size, not just closer to one on the biggest screens. */
-.fbl .lb-reel-media-frame{position:relative;width:97%;height:min(56vh,520px);margin:auto;overflow:hidden;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
+/* Host, live: "this doesn't work" - a venue photo/logo scene (name, time,
+   tagline, host card all anchored to the bottom ~34% of this frame) needs
+   real vertical room for that whole stack; 56vh/520px was short enough
+   that the name text effectively filled the entire frame and read as
+   dead-center-overlapping the photo instead of a bottom caption band.
+   Taller again while staying percentage-width (never re-capped in px), so
+   it's still unmistakably a wide rectangle, just with room to breathe. */
+.fbl .lb-reel-media-frame{position:relative;width:97%;height:min(66vh,640px);margin:auto;overflow:hidden;border-radius:clamp(18px,2vw,30px);background:rgba(10,1,24,.72);border:1px solid rgba(217,79,220,.38);box-shadow:0 26px 80px rgba(0,0,0,.38);}
 /* Host, live: "Alton info not fitting" - the no-hero-photo/video fallback
    (identified by its .lb-venue-intro-bg marker) stacks logo + name + time
    + tagline + host block, centered, inside the SAME fixed height the

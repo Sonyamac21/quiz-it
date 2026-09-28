@@ -2216,6 +2216,22 @@ export default function QuizBuilderPage() {
                                 {!isPairs && <HostButton className="qi-btn-sm" style={{ flex: 1 }} onClick={() => startEditQuestion(activeRound, qi, qr)} title="Edit this question">EDIT</HostButton>}
                                 <HostButton className="qi-btn-sm" style={{ flex: 1 }} onClick={() => swapRoundQuestion(activeRound, qi)} disabled={isSwapping} title="Replace this question">{isSwapping ? "REGEN..." : "REGEN"}</HostButton>
                               </div>
+                              {/* Host, prepping live: "I want to move Q1 into the library -
+                                  but the library option seems to have disappeared." The only
+                                  existing way to do this was dragging the card onto a drop
+                                  zone next to the library search panel, which only appears
+                                  mid-drag and can be scrolled out of reach on a long question
+                                  list - effectively invisible unless you already knew the
+                                  drag target existed. moveQuestionToLibrary already does
+                                  exactly what "move" implies (saves to question_bank, then
+                                  removes it from this round) - it just had no direct button.
+                                  Not offered for Pairs/Match Made questions, which store their
+                                  content as a `pairs` array with no question_text/
+                                  correct_answer of their own (see the comment on
+                                  addGeneratedQuestionsToLibrary above). */}
+                              {!isPairs && (
+                                <HostButton className="qi-btn-sm" style={{ width: "100%" }} onClick={() => { void moveQuestionToLibrary(activeRound, qi); showToast("Moved to the library.", "success", 2500); }} title="Save this question to the library and remove it from this round">TO LIBRARY</HostButton>
+                              )}
                               <span style={{ color: "#6B5A8E", font: "400 9px 'Inter'" }}>Drag to reorder</span>
                             </div>
                           );

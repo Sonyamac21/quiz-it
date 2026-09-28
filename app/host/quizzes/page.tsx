@@ -2195,7 +2195,7 @@ export default function QuizBuilderPage() {
                                     onChange={e => setEditDraft(d => ({ ...d, option_a: e.target.value }))}
                                     className="fbh-input"
                                     style={{ width: "100%", font: "400 12px 'Inter'", marginBottom: 6 }}
-                                    placeholder="Hint (e.g. To the nearest 10)"
+                                    placeholder="Optional hint (answer must stay exact - never a rounding hint)"
                                   />
                                 )}
                                 <input

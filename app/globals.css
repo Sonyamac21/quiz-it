@@ -1963,7 +1963,7 @@ button, input, select, textarea { font: inherit; }
   z-index: 1;
 }
 .qi-display-eyebrow {
-  font: 750 clamp(13px, 1.2vw, 22px)/1 var(--font-body), Inter, sans-serif;
+  font: 750 clamp(16px, 1.8vw, 30px)/1 var(--font-body), Inter, sans-serif;
   color: #d94fdc;
   letter-spacing: .3em;
   text-transform: uppercase;
@@ -2400,7 +2400,12 @@ button, input, select, textarea { font: inherit; }
    label sitting underneath a separate celebration screen that already
    played the same announcement seconds earlier. */
 .qi-display-spin-winner-wrap { position: relative; margin-top: 10px; }
-.qi-display-spin-winner-name { position: relative; display: inline-block; margin-top: 6px; color: #fff; font-size: clamp(28px,3.2vw,52px); font-weight: 900; letter-spacing: -.02em; text-shadow: 0 8px 32px rgba(190,38,193,.5); animation: nameSlam .55s .15s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
+/* Host, live, repeatedly: "THE TEXT IS TOO SMALL" - the Spin To Win
+   winner name (e.g. team name after "FASTEST CORRECT ANSWER") topped out
+   at 52px, dwarfed by the 104px SPIN TO WIN title right above it on the
+   same screen and unreadable on a real TV from across a room. Raised to
+   read as the actual headline moment it is. */
+.qi-display-spin-winner-name { position: relative; display: inline-block; margin-top: 6px; color: #fff; font-size: clamp(56px,9vw,150px); font-weight: 900; letter-spacing: -.02em; text-shadow: 0 8px 32px rgba(190,38,193,.5); animation: nameSlam .55s .15s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
 .qi-display-spin-winner-name::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,.75) 50%, transparent 60%); background-size: 250% 100%; background-position: 150% 0; mix-blend-mode: overlay; animation: nameShine 1s .65s ease-out both; pointer-events: none; }
 /* The "little extra" for Spin to Win specifically - a quick starburst of
    sparkle glints behind the winner name, distinct from the plain photo/ring

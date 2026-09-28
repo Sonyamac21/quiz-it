@@ -3112,7 +3112,14 @@ padding-bottom: calc(var(--qi-player-brand-bar-height, 64px) + 10px + env(safe-a
    left/right/bottom here (never top) means every .qi-player-state screen
    inherits the SAME top gap from the one shared rule, so the status row
    genuinely cannot move between screens. */
-.qi-player-question-screen { padding-left: 12px !important; padding-right: 12px !important; padding-bottom: max(6px,env(safe-area-inset-bottom)) !important; padding-top: max(22px,env(safe-area-inset-top)) !important; }
+/* Host, live: "cannot lock in the answer" - this rule's own padding-bottom
+   (max(6px,...)) was overriding the shared .qi-player-state rule's brand-bar
+   reservation (same specificity, this rule comes later in the file), so the
+   fixed bottom brand bar had zero real clearance on the question screen and
+   sat directly on top of the power-cards row / LOCK IT IN button, hiding it.
+   Matched back to the same reservation every other .qi-player-state screen
+   uses so the footer never overlaps live content here either. */
+.qi-player-question-screen { padding-left: 12px !important; padding-right: 12px !important; padding-bottom: calc(var(--qi-player-brand-bar-height, 64px) + 10px + env(safe-area-inset-bottom)) !important; padding-top: max(22px,env(safe-area-inset-top)) !important; }
 /* Host: "the team, points, regular round info is all too small and pushed
    up to the top of the screen too far - give it more space." This compact
    answering-mode override had shrunk every dimension of the status row

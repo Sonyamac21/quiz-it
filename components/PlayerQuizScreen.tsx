@@ -2336,8 +2336,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             this block and the bottom of the scroll container and scales
             the whole keypad down, uniformly, only if it doesn't fit -
             LOCK IT IN is now guaranteed to be on screen. */}
+        {/* Host, live: "thick black line above the powercards" - part of
+            what read as a solid dark band was this 16px gap between the
+            keypad and the cards row right after it, on the same dark
+            background. Down to a minimal gap. */}
         {timerReady && !isMultiChoice && !isSequence && !isMultiTap && !submitted && (
-          <ShrinkToFit ref={answerOuterRef} innerRef={answerInnerRef} scale={answerScale} height={answerHeight} className="qi-player-keypad-wrap" style={{ marginBottom: 16 }}>
+          <ShrinkToFit ref={answerOuterRef} innerRef={answerInnerRef} scale={answerScale} height={answerHeight} className="qi-player-keypad-wrap" style={{ marginBottom: 4 }}>
             {/* question_type alone isn't always reliable for this - a music
                 round question like "what year was this released?" can come
                 through tagged as a generic text type even though its
@@ -2364,12 +2368,10 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
         </div>
         {phase === "hot_seat" ? <div className="qi-player-cards-paused">You are in the Hot Seat</div> : phase === "pursuit" ? <div className="qi-player-cards-paused">Power Cards unavailable during The Pursuit</div> : allowPowerCards ? (
-          // Host, live: "trim the black strip they sit on to a thin line
-          // top and bottom only" - down to a hairline border on both edges
-          // with no real padding of its own; the caption text removed in
-          // UnoCards.tsx already frees up real room for the question/
-          // keypad area above, which is where that space is actually needed.
-          <div style={{ flexShrink: 0, paddingTop: 0, paddingBottom: 0, borderTop: "1px solid rgba(255,255,255,0.06)", borderBottom: "1px solid rgba(255,255,255,0.06)", background: bg }}>
+          // Host, live: "I want the thick black line above the powercards
+          // gone" - removed entirely rather than just thinned, per her
+          // literal ask. No border, no padding of its own.
+          <div style={{ flexShrink: 0, padding: 0, border: "none", background: bg }}>
             <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
           </div>
         ) : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}

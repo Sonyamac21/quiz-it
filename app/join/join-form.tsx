@@ -136,10 +136,27 @@ export function JoinForm() {
           return;
         }
         const supabase = createSupabaseBrowserClient();
-        const [{ data: session }, { data: team }] = await Promise.all([
-          supabase.from("sessions").select("status").eq("pin", parsed.sessionPin).single(),
-          supabase.from("teams").select("team_name").eq("session_pin", parsed.sessionPin).eq("team_name", parsed.teamName).maybeSingle(),
-        ]);
+        // Host, live: "when the quiz is running in a browser it goes black
+        // and times out" - this restore check has no timeout of its own,
+        // so a stalled/degraded connection (backgrounded tab reloaded by
+        // the OS, venue wifi hiccup, network handoff) left the black
+        // "Reconnecting..." screen up indefinitely, waiting on a network
+        // call that might never resolve rather than one that fails fast.
+        // Racing it against a hard timeout means a bad connection now falls
+        // through to the normal join/reconnect screen within a few
+        // seconds instead of hanging on a black screen forever.
+        const withTimeout = <T,>(p: PromiseLike<T>, ms: number): Promise<T> =>
+          Promise.race([
+            Promise.resolve(p),
+            new Promise<T>((_, reject) => setTimeout(() => reject(new Error("restore-timeout")), ms)),
+          ]);
+        const [{ data: session }, { data: team }] = await withTimeout(
+          Promise.all([
+            supabase.from("sessions").select("status").eq("pin", parsed.sessionPin).single(),
+            supabase.from("teams").select("team_name").eq("session_pin", parsed.sessionPin).eq("team_name", parsed.teamName).maybeSingle(),
+          ]),
+          8000
+        );
         if (session && session.status !== "finished" && team) {
           setTeamName(parsed.teamName);
           setSessionPin(parsed.sessionPin);

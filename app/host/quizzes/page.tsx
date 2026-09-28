@@ -177,6 +177,25 @@ export default function QuizBuilderPage() {
   const [draggedQuestionIndex, setDraggedQuestionIndex] = useState<number | null>(null);
   const [dragOverQuestionIndex, setDragOverQuestionIndex] = useState<number | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  // Host: "the hover to see full question was something I told you was
+  // essential weeks ago." Restored - a card with a long question and every
+  // option listed used to stretch tall while its neighbours stayed short,
+  // leaving a ragged grid, so cards are clipped to a uniform height and
+  // hovering reveals the untruncated text. The EARLIER version of this did
+  // it via an absolutely-positioned popover that took the card out of
+  // normal document flow, capped its own height against the whole
+  // viewport rather than the room actually left below it, and relocated
+  // the action buttons (including TO LIBRARY) into that same popover -
+  // so a card anywhere but the top of the page could push its buttons
+  // below the visible viewport with the page having no reason to grow
+  // scrollable height to reach them, and hovering the card AT ALL
+  // (including hovering toward the button) was the trigger. Growing the
+  // card in normal flow instead - height:auto instead of a fixed 190px
+  // while hovered - means the SAME grid growing taller is what makes the
+  // page scrollable to it, exactly like any other flow content, and the
+  // action buttons never move at all: they always render in the same
+  // place, directly after the (now taller, when hovered) text.
+  const [hoveredQuestionKey, setHoveredQuestionKey] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Record<string, string>>({});
   const [draggedQuestionSource, setDraggedQuestionSource] = useState<{ roundId: string; index: number } | null>(null);
   // Host request: "I want to add a question - I can simply search and drag
@@ -1943,6 +1962,7 @@ export default function QuizBuilderPage() {
                       .filter(o => !((isAudio || isPicture) && (o.letter === "a" || o.letter === "b")));
                     const editKey = activeRound.id + "-" + qi;
                     const isEditing = editingKey === editKey;
+                    const isCardHovered = !isEditing && hoveredQuestionKey === editKey;
                     return (
                       <div
                         key={qi}
@@ -1958,6 +1978,8 @@ export default function QuizBuilderPage() {
                           setDraggedQuestionSource(null);
                         }}
                         onDragEnd={() => { setDraggedQuestionIndex(null); setDragOverQuestionIndex(null); setDraggedQuestionSource(null); }}
+                        onMouseEnter={() => setHoveredQuestionKey(editKey)}
+                        onMouseLeave={() => setHoveredQuestionKey(prev => prev === editKey ? null : prev)}
                         style={{
                           // Left padding cleared to make room for the question-type
                           // corner badge (top:6/left:6, 18px) so it doesn't sit on
@@ -1966,11 +1988,16 @@ export default function QuizBuilderPage() {
                           border: dragOverQuestionIndex === qi && draggedQuestionIndex !== qi ? "1px dashed #BE26C1" : "1px solid #2E1A52",
                           opacity: draggedQuestionIndex === qi ? 0.4 : 1,
                           cursor: "grab",
-                          // Only clamp to a uniform height while just viewing (not
-                          // mid-edit, where the full form needs to stay visible).
+                          // Only clamp to a uniform height while just viewing, not
+                          // mid-edit (the full form needs to stay visible) and not
+                          // while hovered (grows in normal flow to show the full
+                          // untruncated text - see the note on hoveredQuestionKey
+                          // above for why this is height:auto in real document
+                          // flow rather than an absolutely-positioned popover).
                           // Shrunk from 260 to match SpeedQuizzing's denser card
-                          // size - hovering still pops the full untruncated text.
-                          height: isEditing || isPairs ? undefined : 190,
+                          // size.
+                          height: isEditing || isPairs || isCardHovered ? undefined : 190,
+                          zIndex: isCardHovered ? 5 : undefined,
                           display: isEditing ? undefined : "flex",
                           flexDirection: isEditing ? undefined : "column",
                         }}
@@ -2240,27 +2267,24 @@ export default function QuizBuilderPage() {
                           return (
                             <>
                               {/* Uniform-height collapsed view, clipped so every card in
-                                  the round lines up the same - matches the Question
-                                  Library's card treatment.
-                                  Host, live: "I cannot move to library - when I hover
-                                  over it, it extends and the button is off the bottom of
-                                  the screen, I cannot scroll as there is no extended
-                                  'off screen' question." This used to expand into an
-                                  absolutely-positioned popover on hover (to show
-                                  untruncated text), which took the buttons out of normal
-                                  document flow - the popover's own height cap was against
-                                  the whole viewport, not against the space actually left
-                                  between the card and the bottom of the screen, so on any
-                                  card not near the top it could render its action row
-                                  below the visible viewport with no page scroll to reach
-                                  it (an absolutely-positioned element doesn't grow the
-                                  page). Worse, the trigger was hovering the card AT ALL,
-                                  including hovering the button itself - so moving toward
-                                  TO LIBRARY to click it was exactly what pushed it out of
-                                  reach. Buttons now stay in normal flow always, in the
-                                  same place, never relocated by hover - full question
-                                  text is still one click away via EDIT. */}
-                              <div style={{ flex: 1, overflow: "hidden" }}>{cardBody}</div>
+                                  the round lines up the same, unless hovered - then it
+                                  grows to its full natural height, in normal document
+                                  flow (see hoveredQuestionKey above for why: the
+                                  EARLIER absolutely-positioned-popover version of this
+                                  took the card out of flow entirely, capped its height
+                                  against the whole viewport rather than the room
+                                  actually left below it, and relocated the action
+                                  buttons into the popover too - so on a card anywhere
+                                  but the top of the page, hovering it (including
+                                  hovering toward TO LIBRARY to click it) could push that
+                                  same button below the visible viewport with no way to
+                                  scroll to it, since an absolutely-positioned element
+                                  doesn't grow the page's scrollable height). Growing the
+                                  card itself in normal flow means the page genuinely
+                                  gets taller/scrollable to reach it, exactly like any
+                                  other flow content, and the actions below never move -
+                                  they're always in the same place whether hovered or not. */}
+                              <div style={{ flex: isCardHovered ? undefined : 1, overflow: isCardHovered ? "visible" : "hidden" }}>{cardBody}</div>
                               {questionActions}
                             </>
                           );

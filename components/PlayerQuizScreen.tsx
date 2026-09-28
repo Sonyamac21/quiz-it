@@ -2364,12 +2364,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         )}
         </div>
         {phase === "hot_seat" ? <div className="qi-player-cards-paused">You are in the Hot Seat</div> : phase === "pursuit" ? <div className="qi-player-cards-paused">Power Cards unavailable during The Pursuit</div> : allowPowerCards ? (
-          // Host, live: "take away the black strip above the powercards...
-          // make it a thin line only" - the 10px top padding was reading as
-          // a solid dark band (same background as the rest of the screen)
-          // between the border and the cards. Down to just enough to keep
-          // the border from touching the cards, reclaiming the rest.
-          <div style={{ flexShrink: 0, paddingTop: 0, paddingBottom: 2, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
+          // Host, live: "trim the black strip they sit on to a thin line
+          // top and bottom only" - down to a hairline border on both edges
+          // with no real padding of its own; the caption text removed in
+          // UnoCards.tsx already frees up real room for the question/
+          // keypad area above, which is where that space is actually needed.
+          <div style={{ flexShrink: 0, paddingTop: 0, paddingBottom: 0, borderTop: "1px solid rgba(255,255,255,0.06)", borderBottom: "1px solid rgba(255,255,255,0.06)", background: bg }}>
             <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
           </div>
         ) : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}

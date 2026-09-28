@@ -228,7 +228,6 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
       block:   { face: "linear-gradient(160deg,#062b4a,#04101d 70%)", ink: "#38A8FF", sig: "⏸", cname: "TIME-OUT" },
       reverse: { face: "linear-gradient(160deg,#4a0a12,#1a0306 70%)", ink: "#FF3B4E", sig: "↻", cname: "REVERSE" },
     };
-    const remaining = visibleCards.length;
     if (!inventoryReady) {
       return (
         <div className="fbl qi-player-card-inventory-loading" aria-busy="true" style={{ minHeight: 132, padding: "18px 14px 0", display: "grid", placeItems: "center" }}>
@@ -283,26 +282,16 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
             );
           })}
         </div>
-        {/* Host-reported bug (live screenshots): this caption is the one
-            place the "N cards remaining" status renders - unlike the
-            disabled/"unavailable" caption elsewhere (.qi-player-cards-paused
-            in globals.css), which already reserves right-hand clearance for
-            the fixed bottom-right brand pill (app/join/join-form.tsx), this
-            one never did. On a short screen its centered text sat directly
-            under the pill, letters superimposed. Same clearance treatment
-            here. The brand pill itself later became a full-width bar
-            glued to the true bottom of every .qi-player-state/-shell
-            screen (see globals.css), which already reserves its own
-            padding-bottom everywhere - so the old right-only clearance
-            hack is stale/no longer needed and just squeezed this text
-            into a narrow column. Plain, even padding now.
-            Host, separately: "warning text too small" - a rejection like
-            "Reconnect on the handset that joined this team to use
-            Reverse" is exactly the kind of message a host needs to
-            actually read at a glance, not squint at at 10px. */}
-        <div style={{ marginTop: 4, textAlign: "center", font: "700 11px 'Inter'", color: "#6B5A8E", letterSpacing: "0.08em", padding: "0 14px", lineHeight: 1.3 }}>
-          {feedback ? <span role="status" style={{ color: feedback.ok ? "#2EE06E" : "#FF7280", letterSpacing: ".02em" }}>{feedback.text}</span> : enabled ? `${remaining} CARD${remaining === 1 ? "" : "S"} REMAINING · EACH ONCE PER QUIZ` : "POWER CARDS ARE NOT AVAILABLE THIS ROUND"}
-        </div>
+        {/* Host, live: "take away the text '3 cards remaining...'" - the
+            static reminder cost real vertical room on an already-tight
+            screen for something a team only needs to know once. Still show
+            an actual play result or the "not available" state - those are
+            information, not decoration - just not the standing reminder. */}
+        {(feedback || !enabled) && (
+          <div style={{ marginTop: 4, textAlign: "center", font: "700 11px 'Inter'", color: "#6B5A8E", letterSpacing: "0.08em", padding: "0 14px", lineHeight: 1.3 }}>
+            {feedback ? <span role="status" style={{ color: feedback.ok ? "#2EE06E" : "#FF7280", letterSpacing: ".02em" }}>{feedback.text}</span> : "POWER CARDS ARE NOT AVAILABLE THIS ROUND"}
+          </div>
+        )}
       </div>
     );
   }

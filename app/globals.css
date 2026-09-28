@@ -1284,7 +1284,15 @@ button, input, select, textarea { font: inherit; }
    on the venue photo was silently present on all four of those scenes
    too, just not yet reported. vh instead of % resolves against the real
    viewport regardless of any ancestor's own sizing. */
-.fbl .lb-reel-brand-panel{position:relative;z-index:1;width:min(90%,760px);height:min(75vh,560px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(14px,2.2vh,28px);padding:clamp(22px,3vw,48px);overflow:hidden;}
+/* Host, live: "use RHS also. rectangle display for all quiz annimation" -
+   this card (Power Cards explainer, offers, prizes, social - every
+   .lb-reel-brand-panel scene) had the exact same px-ceiling-leaves-a-
+   centered-square problem as the venue photo card, fixed the same way:
+   drop the px ceiling so width always tracks the real column, and a
+   shorter height than the old 560-760px range keeps it reading as a
+   clearly wide rectangle rather than something that only gets closer to
+   square the bigger the screen is. */
+.fbl .lb-reel-brand-panel{position:relative;z-index:1;width:96%;height:min(52vh,480px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(14px,2.2vh,28px);padding:clamp(22px,3vw,48px);overflow:hidden;}
 .fbl .lb-reel-brand-logo{max-width:clamp(150px,22%,260px);max-height:clamp(110px,22vh,210px);width:auto;height:auto;object-fit:contain;border-radius:14px;margin:0;filter:drop-shadow(0 14px 28px rgba(0,0,0,.5));}
 .fbl .lb-reel-brand-headline{max-width:100%;font-size:clamp(28px,3.2vw,54px);line-height:1.16;overflow-wrap:anywhere;text-wrap:balance;}
 .fbl .lb-reel-brand-body{max-width:680px;font-size:clamp(18px,1.7vw,29px);line-height:1.42;text-wrap:balance;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:6;overflow:hidden;}
@@ -1300,7 +1308,7 @@ button, input, select, textarea { font: inherit; }
    rendered width against its container and scales to guarantee a fit -
    this rule just widens the panel it renders in and gives it a sane
    starting size for FitText to scale down from if needed. */
-.fbl .lb-reel-brand-social .lb-reel-brand-panel{width:min(94%,1200px);padding-left:clamp(14px,2vw,28px);padding-right:clamp(14px,2vw,28px);}
+.fbl .lb-reel-brand-social .lb-reel-brand-panel{width:96%;padding-left:clamp(14px,2vw,28px);padding-right:clamp(14px,2vw,28px);}
 /* The panel above is widened to 94%/1200px so FitText has room to work
    with, but the purple "card" everyone actually sees is a SEPARATE
    decorative box (.lb-reel-brand::before, inset 10% 7% 7%) drawn behind
@@ -1313,12 +1321,12 @@ button, input, select, textarea { font: inherit; }
 .fbl .lb-reel-brand-social::before{inset:10% 3% 7%;}
 .fbl .lb-reel-brand-social .lb-reel-brand-headline{font-size:clamp(28px,3.6vw,54px);}
 .fbl .lb-reel-brand-social .lb-reel-brand-headline svg{width:1em;height:1em;flex-shrink:0;}
-.fbl .lb-reel-host-panel{width:min(92%,900px);height:min(76%,580px);display:grid;grid-template-columns:minmax(0,1.15fr) minmax(220px,.85fr);gap:clamp(24px,3vw,54px);padding:clamp(18px,2.4vw,38px);}
+.fbl .lb-reel-host-panel{width:96%;height:min(58vh,540px);display:grid;grid-template-columns:minmax(0,1.15fr) minmax(220px,.85fr);gap:clamp(24px,3vw,54px);padding:clamp(18px,2.4vw,38px);}
 .fbl .lb-reel-host-frame{width:100%;height:100%;min-height:0;display:grid;place-items:center;overflow:hidden;border-radius:clamp(16px,2vw,26px);background:rgba(10,1,24,.65);border:1px solid rgba(217,79,220,.35);box-shadow:0 18px 55px rgba(0,0,0,.38);}
 .fbl .lb-reel-host-photo{display:block;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;border-radius:0;box-shadow:none;}
 .fbl .lb-reel-host-copy{min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:clamp(12px,2vh,24px);text-align:left;}
 .fbl .lb-reel-host-copy .lb-reel-brand-headline{text-align:left;}
-@media(max-aspect-ratio:4/3){.fbl .lb-reel-host-panel{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto;gap:16px}.fbl .lb-reel-host-copy{align-items:center;text-align:center}.fbl .lb-reel-host-copy .lb-reel-brand-headline{text-align:center}.fbl .lb-reel-brand-panel{height:min(78vh,620px)}}
+@media(max-aspect-ratio:4/3){.fbl .lb-reel-host-panel{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto;gap:16px}.fbl .lb-reel-host-copy{align-items:center;text-align:center}.fbl .lb-reel-host-copy .lb-reel-brand-headline{text-align:center}.fbl .lb-reel-brand-panel{height:min(60vh,560px)}}
 @keyframes lbBrandSlide{from{opacity:0;transform:translateX(-24px);}to{opacity:1;transform:none;}}
 @media (prefers-reduced-motion: reduce){.fbl .lb-reel-brand-headline,.fbl .lb-reel-brand-body{animation:none;}}
 /* Was full-height/full-width of the whole reel panel, so the floating
@@ -3070,7 +3078,11 @@ padding-bottom: calc(var(--qi-player-brand-bar-height, 64px) + 10px + env(safe-a
    proportions while retaining contained, undistorted imagery. */
 @media (min-aspect-ratio: 4/3) and (min-width: 900px) {
   .qi-display-lobby .lb-split { grid-template-columns:minmax(300px,.22fr) minmax(0,.78fr); }
-  .fbl .lb-reel-brand-panel { width:min(94%,1200px); height:min(82vh,760px); }
+  /* Host, live: "rectangle display for all quiz annimation" - this
+     widescreen-TV override was re-capping the panel back to 1200px/760px
+     right after the base rule dropped its px ceiling, undoing the fix on
+     exactly the real TVs it's meant for. Percentage-only width again. */
+  .fbl .lb-reel-brand-panel { width:96%; height:min(55vh,520px); }
   .fbl .lb-reel-brand-logo { max-width:min(42%,360px); max-height:min(30vh,280px); width:auto; height:auto; }
   .fbl .lb-venue-intro.has-media .lb-venue-intro-logo { left:3%; bottom:9%; max-width:min(36%,clamp(170px,19vw,320px)); max-height:clamp(120px,16vw,220px); width:auto; height:auto; }
 }

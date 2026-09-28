@@ -347,10 +347,30 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           if (child === qWrap || child === aOuter) continue;
           otherFixed += (child as HTMLElement).offsetHeight;
         }
-        const total = scroll.clientHeight;
+        // Host, live, all day: same small overflow every time regardless of
+        // question length. Real cause: the "does it fit" check below was a
+        // strict less-than with zero margin - any sub-pixel rounding,
+        // transform-scale imprecision, or a few px this measurement missed
+        // landed EXACTLY on the wrong side of that line, skipping the
+        // shrink branch entirely and rendering the keypad at full natural
+        // size when it was actually a little too tall. A fixed safety
+        // margin means it shrinks a little early rather than gambling on
+        // being pixel-perfect every time.
+        const SAFETY_MARGIN = 48;
+        const total = scroll.clientHeight - SAFETY_MARGIN;
         if (total <= 0) return;
+        // Host, live: "shorter questions fit... longer do not" - a longer
+        // question's own natural/leftover share of "total" was still
+        // capped only by minQuestion at the BOTTOM, with no ceiling at the
+        // top - so on a long question, this could hand the question wrap
+        // more height than it will ever actually use (CSS already caps its
+        // rendered text at 22dvh), while starving the keypad of exactly
+        // that much room instead of giving it back. Capping questionBudget
+        // to match that same CSS ceiling means any extra a long question
+        // doesn't need flows to the keypad instead of sitting unused.
         const minQuestion = 60;
-        const questionBudget = Math.max(minQuestion, total - answerNatural - otherFixed);
+        const maxQuestion = window.innerHeight * 0.22 + 40; // CSS's 22dvh cap + margin/timer-badge allowance
+        const questionBudget = Math.min(maxQuestion, Math.max(minQuestion, total - answerNatural - otherFixed));
         setQWrapHeight(questionBudget);
 
         const answerAvailable = total - questionBudget - otherFixed;

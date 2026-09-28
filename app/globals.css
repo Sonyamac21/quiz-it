@@ -3152,7 +3152,12 @@ padding-bottom: calc(var(--qi-player-brand-bar-height, 64px) + 10px + env(safe-a
 .qi-player-question-screen .qi-player-status__identity { flex: 1; }
 .qi-player-question-screen .qi-player-status__identity strong { font-size: 18px; max-width: 40vw; }
 .qi-player-question-screen .qi-player-status__identity small { font-size: 14px; max-width: 40vw; }
-.qi-player-question-screen .qi-player-question-text { font-size: clamp(24px,4.6dvh,36px); line-height: 1.2; margin: 2px 0 8px; flex-shrink: 0; }
+/* Host, live, repeatedly: "make all fit... make the question text slightly
+   smaller" - shrinking this guaranteed CSS cap (not just the JS budget
+   split, which has proven unreliable under real-world timing) so the
+   keypad/DELETE/LOCK IT IN always have real room left below it, on a fixed
+   ceiling rather than something that only helps when the JS math works out. */
+.qi-player-question-screen .qi-player-question-text { font-size: clamp(20px,3.6dvh,28px); line-height: 1.2; margin: 2px 0 8px; flex-shrink: 0; max-height: 22dvh; }
 .qi-player-question-screen .fbl .opt { min-height: 44px !important; padding: 7px 10px !important; margin-bottom: 5px; font-size: clamp(15px,2.4dvh,19px); border-radius: 12px; }
 .qi-player-question-screen .fbl .opt .chip { width: 30px; height: 30px; font-size: 14px; }
 .qi-player-question-screen .fbl .lockbar { min-height: 44px; margin-top: 5px; font-size: 16px; border-radius: 12px; }

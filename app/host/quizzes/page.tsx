@@ -2271,6 +2271,20 @@ export default function QuizBuilderPage() {
                                 </>
                               );
                             })()}
+                            {/* Host: "for questions like this - I need an
+                                explanation along with the answer.... Is
+                                this already done?" The AI already writes a
+                                1-2 sentence explanation for every question
+                                (see lib/quiz/questionGenerationCore.ts) and
+                                it already shows live on the host answer-key
+                                box, the celebration screen and the audience
+                                Display screen - this prep card was the one
+                                surface that never surfaced it, so there was
+                                no way to see it while actually building the
+                                quiz plan, only once live. */}
+                            {typeof qr.explanation === "string" && qr.explanation && (
+                              <div style={{ color: "#6B5A8E", font: "400 10px 'Inter'", fontStyle: "italic", marginTop: 4 }}>{qr.explanation}</div>
+                            )}
                             </>
                           );
                           const questionActions = (

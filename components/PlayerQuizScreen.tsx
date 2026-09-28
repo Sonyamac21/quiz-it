@@ -379,10 +379,25 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     observer.observe(scroll);
     if (aInner) observer.observe(aInner);
     window.addEventListener("resize", fit);
+    // Host, live, repeatedly, same amount every time regardless of question
+    // length: iOS Safari can report 100dvh against its "large" (toolbars
+    // collapsed) viewport size right after a fresh page load, before the
+    // real, currently-visible viewport size has settled - which this whole
+    // budget calculation inherits, since it measures real rendered DOM
+    // boxes that are themselves sized off that same wrong 100dvh. A plain
+    // window "resize" listener doesn't fire for that correction on iOS -
+    // window.visualViewport does, and settles shortly after load even with
+    // no scroll/interaction. Re-running fit() against it catches the
+    // correction as soon as Safari actually applies it.
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    vv?.addEventListener("resize", fit);
+    const settleTimer = setTimeout(fit, 400);
     return () => {
       cancelAnimationFrame(frame);
+      clearTimeout(settleTimer);
       observer.disconnect();
       window.removeEventListener("resize", fit);
+      vv?.removeEventListener("resize", fit);
     };
   }, [phase, question, questionIndex, submitted, timeLeft, hotSeatStatus, hotSeatTeam, teamName]);
   const [showScoreboardOnPhone, setShowScoreboardOnPhone] = useState(false);

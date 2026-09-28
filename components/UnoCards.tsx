@@ -253,13 +253,18 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
                 title={card.desc}
                 style={{
                   position: "relative", overflow: "hidden",
-                  flex: "1 1 0", minWidth: 0, maxWidth: 110, aspectRatio: "2 / 3", borderRadius: 12,
+                  // Host, live, mid-emergency: "make the powercards slightly
+                  // smaller?" - a direct, guaranteed win for the vertical
+                  // squeeze on the question screen, independent of any
+                  // question-length/keypad-mode math: shrinking these frees
+                  // up real space above the answer area no matter what.
+                  flex: "1 1 0", minWidth: 0, maxWidth: 80, aspectRatio: "2 / 2.5", borderRadius: 10,
                   border: "1px solid rgba(255,255,255,0.28)",
                   background: fb.face, color: fb.ink,
                   cursor: isLocked ? "not-allowed" : "pointer",
                   display: "flex", flexDirection: "column" as const,
                   alignItems: "flex-start", justifyContent: "space-between",
-                  padding: "9px 8px",
+                  padding: "7px 7px",
                   filter: isUsed ? "saturate(0.3) brightness(0.5)" : "none",
                   opacity: 1,
                   boxShadow: isLocked ? "0 6px 18px rgba(5,0,13,0.6)" : "0 10px 26px rgba(5,0,13,0.7), inset 0 0 0 1px rgba(255,255,255,0.08)",
@@ -295,7 +300,7 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
             "Reconnect on the handset that joined this team to use
             Reverse" is exactly the kind of message a host needs to
             actually read at a glance, not squint at at 10px. */}
-        <div style={{ marginTop: 8, textAlign: "center", font: "700 13px 'Inter'", color: "#6B5A8E", letterSpacing: "0.1em", padding: "0 14px", lineHeight: 1.4 }}>
+        <div style={{ marginTop: 4, textAlign: "center", font: "700 11px 'Inter'", color: "#6B5A8E", letterSpacing: "0.08em", padding: "0 14px", lineHeight: 1.3 }}>
           {feedback ? <span role="status" style={{ color: feedback.ok ? "#2EE06E" : "#FF7280", letterSpacing: ".02em" }}>{feedback.text}</span> : enabled ? `${remaining} CARD${remaining === 1 ? "" : "S"} REMAINING · EACH ONCE PER QUIZ` : "POWER CARDS ARE NOT AVAILABLE THIS ROUND"}
         </div>
       </div>

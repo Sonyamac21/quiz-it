@@ -2369,7 +2369,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           // a solid dark band (same background as the rest of the screen)
           // between the border and the cards. Down to just enough to keep
           // the border from touching the cards, reclaiming the rest.
-          <div style={{ flexShrink: 0, paddingTop: 2, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
+          <div style={{ flexShrink: 0, paddingTop: 0, paddingBottom: 2, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
             <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
           </div>
         ) : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}

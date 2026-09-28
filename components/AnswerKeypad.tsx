@@ -40,7 +40,10 @@ export function AnswerKeypad({ onSubmit, mode = "text", scrambled = false }: { o
   const keyStyle = {
     flex: 1,
     minWidth: 0,
-    padding: isCompact ? "clamp(8px, 2.2vh, 24px) 0" : "clamp(14px, 3.4vh, 30px) 0",
+    // Host, live: "slightly reduce the number keypad height" - number mode's
+    // key padding was noticeably taller than the text keyboard's (30px vs
+    // 24px ceiling) despite having far fewer rows to fit in the same space.
+    padding: isCompact ? "clamp(8px, 2.2vh, 24px) 0" : "clamp(10px, 2.6vh, 22px) 0",
     borderRadius: 12,
     background: "rgba(255,255,255,0.14)",
     border: "1.5px solid rgba(255,255,255,0.32)",

@@ -13,7 +13,7 @@ test("the first valid lock tap receives immediate visible acknowledgement", () =
 
 test("server timer rejection reopens the answer instead of showing a false lock", () => {
   const submit = player.slice(player.indexOf("async function submitAnswer"), player.indexOf("async function claimHotSeat"));
-  assert.match(submit, /if \(!answering \|\| movedOn \|\| timerNotStarted \|\| expired \|\| wrongHotSeatTeam\) \{[\s\S]*setSubmitted\(false\);[\s\S]*setSubmissionPending\(false\)/);
+  assert.match(submit, /if \(!answering \|\| movedOn \|\| expired \|\| wrongHotSeatTeam\) \{[\s\S]*setSubmitted\(false\);[\s\S]*setSubmissionPending\(false\)/);
 });
 
 test("multiple-choice and Multi Tap lock controls are real touch buttons", () => {

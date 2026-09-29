@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HardDeckPanel } from "@/components/HardDeckPanel";
 import { PursuitPanel } from "@/components/PursuitPanel";
+import { ShowAudioMixer } from "@/components/ShowAudioMixer";
 import { PairsPanel } from "@/components/PairsRound";
 import { PhotoApprovalPanel } from "@/components/PhotoApprovalPanel";
 import { downloadWinnerCard } from "@/components/SocialShareCard";
@@ -16,7 +17,7 @@ import { initTeamScore, initTeamScores, applyScoreDelta, setScoreAbsolute, reset
 import { TeamBadge } from "@/components/TeamBadge";
 import { IconBlock, IconShuffle, IconBolt } from "@/components/icons";
 import { BrandLockup, Button, Field, Input, StatusPill, useConfirmDialog, usePromptDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
-import { playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
+import { getShowAudioVolume, setShowAudioMix, playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 import { HostDiagnostics } from "@/components/HostDiagnostics";
 import { useDisplayHealth } from "@/lib/diagnostics/useDisplayHealth";
 import { diagnosticTimestamp } from "@/lib/diagnostics/time";
@@ -212,6 +213,8 @@ function QuizControllerInner() {
   // behind this single "Controls" drawer instead (see the qi-mc-rail JSX),
   // so the team section gets the rail's full height.
   const [controlsOpen, setControlsOpen] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const [showControlsOpen, setShowControlsOpen] = useState(false);
   // Toggle for the team list: normally sorted/shown by TOTAL points (the
   // running game score), but a host running a live show often wants "who's
   // winning THIS round" at a glance instead - e.g. to call out a round
@@ -224,7 +227,7 @@ function QuizControllerInner() {
   // columns and widens the rail to fit up to 50 teams on screen without each
   // card getting cramped. Purely a display toggle - `scores` itself is never
   // touched, same pattern as showRoundLeaders above.
-  const [showTwoColumns, setShowTwoColumns] = useState(false);
+  const [teamColumns, setTeamColumns] = useState<"auto" | 1 | 2 | 3 | 4>(1);
   // Manual drag-to-resize for the team rail (long team names get cut off in a
   // narrow rail, and the auto-width the two-column toggle picks isn't always
   // enough) - lets the host click-drag the divider between the question desk
@@ -383,6 +386,7 @@ function QuizControllerInner() {
   const spinTriggeredRef = useRef(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [audienceControlsOpen, setAudienceControlsOpen] = useState(false);
+  const [roundRunDownOpen, setRoundRunDownOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const displayHealth = useDisplayHealth(sessionPin, connected && FEATURE_FLAGS.diagnostics);
   const [connectedAt, setConnectedAt] = useState<number | null>(null);
@@ -600,6 +604,7 @@ function QuizControllerInner() {
   // running fine off the same session row the whole time. This is what makes
   // "refresh the host laptop mid-show" actually safe instead of disorienting.
   async function restoreSessionState(data: Record<string, unknown>) {
+    setShowAudioMix(data.audio_mix);
     const supabase = createSupabaseBrowserClient();
     if (data.current_session_round_id || data.round_id) {
       const { data: roundData } = data.current_session_round_id
@@ -1486,6 +1491,7 @@ function QuizControllerInner() {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: "pin=eq." + pin }, (payload) => {
         const s = payload.new as Record<string, unknown>;
         if (s.pin !== pin) return;
+        setShowAudioMix(s.audio_mix);
         setShowScoreboard(!!s.show_scoreboard_on_display);
         setShowScoreboardOnHandsets(!!s.show_scoreboard);
         setRealtimeLastSync(diagnosticTimestamp());
@@ -1558,6 +1564,7 @@ function QuizControllerInner() {
   }
 
   function startTickAudio(duration: number) {
+    stopTickAudio();
     try {
       const ctx = tickAudioRef.current && tickAudioRef.current.state !== "closed" ? tickAudioRef.current : new AudioContext();
       tickAudioRef.current = ctx;
@@ -1571,8 +1578,8 @@ function QuizControllerInner() {
         osc.connect(gain); gain.connect(ctx.destination);
         const progress = tick / duration;
         osc.frequency.value = progress > 0.7 ? 880 : 440;
-        gain.gain.setValueAtTime(0.3, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(Math.max(0.00001, getShowAudioVolume("timer", 0.3)), ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.08);
         osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
       }, PLATFORM_CONFIG.timers.tickMilliseconds);
     } catch {}
@@ -1594,6 +1601,22 @@ function QuizControllerInner() {
     stopVictorySong();
     const audio = playShowAudio(victorySongAudioFile(songFile), { channel: "music", volume: 0.8 });
     victorySongRef.current = audio;
+  }
+
+  async function restartQuiz() {
+    if (!sessionId || restarting) return;
+    if (scoringInProgressRef.current || advancingRef.current || pendingAdjustment) { showToast("Wait for the current action or score adjustment to finish before restarting.", "warning"); return; }
+    if (!await confirmDialog("Restart from round 1? This clears this session’s answers, scores and used power cards. Teams, photos, songs and the PIN stay connected. Use this after a sound check.", { tone: "destructive", confirmLabel: "Restart quiz" })) return;
+    setRestarting(true);
+    try {
+      const { error } = await createSupabaseBrowserClient().rpc("restart_quiz_session", { p_session_id: sessionId });
+      if (error) { showToast("Restart failed: " + error.message, "error", 9000); return; }
+      if (timerRef.current) clearInterval(timerRef.current);
+      stopTickAudio(); stopVictorySong();
+      clearHostPreviewRecovery(window.sessionStorage);
+      // Recreate all round-specific controllers and their idempotency guards.
+      window.location.reload();
+    } finally { setRestarting(false); }
   }
 
   // PHASE ACTIONS
@@ -2198,23 +2221,12 @@ function QuizControllerInner() {
       </div>
     );
   };
-  // A normal card rail is intentionally spacious, but the old thresholds here
-  // (3 columns only past 20 teams, 4 only past 36) meant every realistic venue
-  // team count - 6, 10, 15 teams, not just stress-test scale - stayed locked
-  // to a single column unless the host remembered to click 2-COL mid-game.
-  // Reported directly: "I only see up to 4 teams in the rows also... with
-  // more this will be difficult." Column count now grows automatically well
-  // before that, starting at a realistic pub-quiz size. The further
-  // "capacity" compaction (shrinks card padding/fonts and hides the per-team
-  // block/scramble/adjust controls) is kept on its own, later threshold below -
-  // those controls stay genuinely useful through 2-3 columns' worth of teams,
-  // and shouldn't disappear just because column count grew.
-  const automaticTeamColumns = teams.length > 32 ? 4 : teams.length > 18 ? 3 : teams.length > 8 ? 2 : null;
-  const teamColumnCount = automaticTeamColumns ?? (showTwoColumns ? 2 : 1);
-  // Manual 1/2-col toggle only makes sense while column count isn't already
-  // being decided automatically - once it is, the pill becomes a read-only
-  // "AUTO N-COL" indicator instead (see the button below).
-  const autoColumnsActive = automaticTeamColumns !== null;
+  // The host owns the layout: a joining team must never override it.
+  // Keep a single readable roster through 25 teams. Automatic mode only
+  // starts compacting once that limit is exceeded; the host's manual 1–4
+  // column choices remain available at every team count.
+  const automaticTeamColumns = teams.length > 50 ? 4 : teams.length > 35 ? 3 : teams.length > 25 ? 2 : 1;
+  const teamColumnCount = teamColumns === "auto" ? automaticTeamColumns : teamColumns;
   const highCapacityTeams = teamColumnCount >= 3;
 
   // Single place to choose tonight's round (used by the header dropdown and the
@@ -2355,6 +2367,14 @@ function QuizControllerInner() {
           : undefined
       }
     >
+      {sessionId && <div style={{ position: "fixed", right: 16, bottom: 12, zIndex: 500 }}>
+        <button type="button" className="fbh-btn" aria-expanded={showControlsOpen} onClick={() => setShowControlsOpen(open => !open)}>Audio & restart</button>
+        {showControlsOpen && <div role="dialog" aria-label="Show audio and restart" onKeyDown={event => event.stopPropagation()} style={{ position: "absolute", bottom: 44, right: 0, width: "min(340px,calc(100vw - 32px))", maxHeight: "75vh", overflowY: "auto", background: "#150A2E", color: "white", padding: 18, border: "1px solid #BE26C1", borderRadius: 14, boxShadow: "0 8px 40px #000" }}>
+          <ShowAudioMixer sessionId={sessionId} />
+          <button className="fbh-btn" disabled={restarting} onClick={() => void restartQuiz()}>{restarting ? "Restarting…" : "Restart quiz from round 1"}</button>
+          <button className="fbh-btn" onClick={() => setShowControlsOpen(false)} style={{ marginTop: 10 }}>Done</button>
+        </div>}
+      </div>}
       {confirmDialogEl}
       {promptDialogEl}
       {toastEl}
@@ -2513,6 +2533,30 @@ function QuizControllerInner() {
             <Button variant="destructive" className="qi-mc-toolbar__end" onClick={endQuizWithConfirm}>{hostPhase === "quiz_end" ? "Close Session" : "End quiz"}</Button>
           </div>
           <div className="qi-mc-header__bottom">
+            <div style={{ position: "relative" }}>
+              <button type="button" className="qi-mc-toolbar__toggle" aria-expanded={roundRunDownOpen} aria-controls="live-round-rundown" onClick={() => setRoundRunDownOpen(open => !open)}>
+                <span>Running order</span>
+                <strong>{selectedRound ? `Round ${(selectedRound.position ?? 0) + 1} of ${rounds.length}` : `${rounds.length} rounds`}</strong>
+                <i>{roundRunDownOpen ? "Hide" : "Show"}</i>
+              </button>
+              {roundRunDownOpen && <div id="live-round-rundown" role="dialog" aria-label="Live round running order" style={{ position: "absolute", zIndex: 20, top: "calc(100% + 8px)", left: 0, width: "min(360px, 86vw)", padding: 14, borderRadius: 14, background: "#16072d", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 18px 45px rgba(0,0,0,0.4)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <strong style={{ color: "#fff" }}>Tonight’s rounds</strong>
+                  {selectedRound && hostPhase !== "round_end" && hostPhase !== "quiz_end" && <button type="button" onClick={async () => { if (await confirmDialog("Skip the rest of this round and move on?")) { setRoundRunDownOpen(false); doEndRound(); } }} style={{ border: "0", borderRadius: 8, padding: "7px 10px", background: "rgba(217,79,220,0.22)", color: "#f3b8f2", fontWeight: 700, cursor: "pointer" }}>Skip this round</button>}
+                </div>
+                <div style={{ display: "grid", gap: 6 }}>
+                  {rounds.map(round => {
+                    const isCurrent = round.id === selectedRound?.id;
+                    const isPassed = !!round.completed_at;
+                    return <div key={round.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 9, background: isCurrent ? "rgba(190,38,193,0.2)" : "rgba(255,255,255,0.045)", border: isCurrent ? "1px solid rgba(231,133,230,0.55)" : "1px solid transparent", opacity: isPassed ? 0.62 : 1 }}>
+                      <span style={{ minWidth: 24, color: isCurrent ? "#fff" : "#b9a8d9", fontWeight: 800 }}>{(round.position ?? 0) + 1}.</span>
+                      <span style={{ flex: 1, color: "#fff" }}>{round.name}</span>
+                      <span style={{ color: isCurrent ? "#f3b8f2" : isPassed ? "#aaa" : "#b9a8d9", fontSize: 12, fontWeight: 700 }}>{isCurrent ? "LIVE" : isPassed ? "PASSED" : "UP NEXT"}</span>
+                    </div>;
+                  })}
+                </div>
+              </div>}
+            </div>
             <button type="button" className="qi-mc-toolbar__toggle" aria-expanded={audienceControlsOpen} onClick={() => setAudienceControlsOpen(open => !open)}><span>Audience</span><strong>{selectedRound?.hide_leaderboard ? "Leaderboards hidden for this round" : showScoreboard || showScoreboardOnHandsets ? "Leaderboard showing" : "Leaderboard controls"}</strong><i>{audienceControlsOpen ? "Hide" : "Show"}</i></button>
             {audienceControlsOpen && <div className="qi-mc-toolbar__controls">
               <Button variant={showScoreboardOnHandsets ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboardOnHandsets ? hideScoreboardFromHandsets : pushScoreboardToHandsets}>{selectedRound?.hide_leaderboard ? "Handsets hidden" : showScoreboardOnHandsets ? "Hide on handsets" : "Show on handsets"}</Button>
@@ -3045,12 +3089,9 @@ function QuizControllerInner() {
 
               <div className="fbh-lbl" style={{ margin: "0 0 10px" }}>Team list</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
-                <button
-                  onClick={() => setShowTwoColumns(v => !v)}
-                  disabled={autoColumnsActive}
-                  title="Switch the team list between one and two columns, widening the panel to fit more teams on screen"
-                  style={{ padding: "5px 10px", borderRadius: 8, background: teamColumnCount > 1 ? "rgba(190,38,193,0.25)" : "#150A2E", border: "1px solid " + (teamColumnCount > 1 ? "#D94FDC" : "#2E1A52"), color: teamColumnCount > 1 ? "#fff" : "#6B5A8E", font: "700 11px 'Inter'", letterSpacing: ".04em", cursor: autoColumnsActive ? "default" : "pointer", whiteSpace: "nowrap", opacity: autoColumnsActive ? .82 : 1 }}
-                >{autoColumnsActive ? `AUTO ${teamColumnCount}-COL` : showTwoColumns ? "2-COL" : "1-COL"}</button>
+                <label>Columns <select aria-label="Team list columns" value={teamColumns} onChange={event => setTeamColumns(event.target.value === "auto" ? "auto" : Number(event.target.value) as 1 | 2 | 3 | 4)} style={{ background: "#150A2E", color: "white", padding: 8 }}>
+                  <option value="1">1 column</option><option value="2">2 columns</option><option value="3">3 columns</option><option value="4">4 columns</option><option value="auto">Automatic</option>
+                </select></label>
                 <button
                   onClick={() => setShowRoundLeaders(v => !v)}
                   title="Sort and highlight by points scored in THIS round instead of the running total"
@@ -3231,7 +3272,7 @@ function QuizControllerInner() {
                   <span style={{ fontSize:18, fontWeight:800, color:medal||"rgba(255,255,255,0.45)", minWidth:26 }}>{i+1}.</span>
                   <TeamBadge name={s.team_name} size={24} avatarUrl={(() => { const t = teams.find(tm => tm.team_name === s.team_name); return t?.photo_approved ? t.photo_url : null; })()} style={{ fontSize:9, flexShrink:0 }} />
                   <span style={{ fontWeight:700, fontSize:16, minWidth:0, color:"#fff", display:"inline-flex", alignItems:"center", gap:5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>
-                    {s.team_name}
+                    <span dir="auto" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{s.team_name}</span>
                     {isFastest && <IconBolt style={{ color:"#FFC533" }} />}
                     {isBlocked && <IconBlock style={{ color:"#FF3B4E" }} />}
                     {isScrambled && <IconShuffle style={{ color:"#D94FDC" }} />}

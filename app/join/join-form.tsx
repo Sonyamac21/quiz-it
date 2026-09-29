@@ -221,7 +221,7 @@ export function JoinForm() {
       // A name-only reconnect deliberately does not inherit the private handset
       // token. It can answer as before, but cannot perform score-changing RPCs.
       setPlayerToken("");
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: match.team_name, sessionPin: pin, savedAt: Date.now() }));
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: match.team_name, sessionPin: pin, savedAt: Date.now() })); } catch { /* Keep the joined handset working when storage is blocked. */ }
       setDone(true);
     } catch (error) {
       console.error("RECONNECT FAILED:", error);
@@ -339,7 +339,7 @@ export function JoinForm() {
       }
       setSessionPin(pin);
       setPlayerToken(handsetToken);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin, playerToken: handsetToken, savedAt: Date.now() }));
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: teamName.trim(), sessionPin: pin, playerToken: handsetToken, savedAt: Date.now() })); } catch { /* In-memory state still has the authorised token. */ }
       setDone(true);
     } catch (error) {
       // eslint-disable-next-line no-console -- deliberate: this is currently

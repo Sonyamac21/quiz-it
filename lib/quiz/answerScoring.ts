@@ -156,7 +156,7 @@ export function normaliseAnswerText(s: string): string {
   // marks, so accented text folds to its plain-ASCII equivalent instead of
   // losing the letter entirely - the same technique already used for
   // Pixabay search terms in lib/quiz/pixabayMatch.ts.
-  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+  return s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9 ]/g, "").replace(/^(the|a|an) /i, "").trim();
 }
 

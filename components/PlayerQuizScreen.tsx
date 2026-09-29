@@ -342,6 +342,11 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         if (aOuter) aOuter.style.height = "auto";
 
         const answerNatural = aInner ? aInner.scrollHeight : 0;
+        if (aInner?.querySelector(".qi-player-keypad--native")) {
+          setQWrapHeight(Math.min(120, Math.max(60, scroll.clientHeight - answerNatural - 24)));
+          setAnswerScale(1); setAnswerHeight(undefined);
+          return;
+        }
         let otherFixed = 0;
         for (const child of Array.from(scroll.children)) {
           if (child === qWrap || child === aOuter) continue;
@@ -510,6 +515,8 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     const interval = setInterval(fetchPhoto, PLATFORM_CONFIG.polling.playerHeartbeatMilliseconds);
     return () => { cancelled = true; clearInterval(interval); };
   }, [sessionPin, teamName]);
+  const [roundStartedAt, setRoundStartedAt] = useState("");
+  const lastRoundStartedAtRef = useRef("");
   // mySubmittedDisplay/selectedAnswer/tappedItems are pure in-memory state,
   // set only at the moment this device submits an answer (see the
   // setMySubmittedDisplay call sites below). A phone locking, backgrounding,
@@ -559,7 +566,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       if (!cancelled) setAnswerRecoveryComplete(true);
     })();
     return () => { cancelled = true; };
-  }, [phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex, roundNumber]);
+  }, [phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex, roundNumber, roundStartedAt]);
   const [hardDeckGuess, setHardDeckGuess] = useState<string | null>(null);
   const [hardDeckStealGuesses, setHardDeckStealGuesses] = useState<Record<string, string>>({});
   const [hardDeckStealWinners, setHardDeckStealWinners] = useState<string[]>([]);
@@ -577,7 +584,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     const supabase = createSupabaseBrowserClient();
     let cancelled = false;
     supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin).eq("card_type", "reverse").then(({ data }) => {
-      if (!cancelled && data && data.length > 0) setReverseUsed(true);
+      if (!cancelled && data) setReverseUsed(data.length > 0);
     });
     const channel = supabase
       .channel("reverse-watch-" + sessionPin + "-" + teamName)
@@ -587,7 +594,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       })
       .subscribe();
     return () => { cancelled = true; supabase.removeChannel(channel); };
-  }, [sessionPin, teamName]);
+  }, [sessionPin, teamName, roundStartedAt]);
   const [stickGamblePressed, setStickGamblePressed] = useState<string | null>(null);
   const [spinOffered, setSpinOffered] = useState(false);
   const [spinChoice, setSpinChoice] = useState<string|null>(null);
@@ -668,6 +675,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const lastQTextRef = useRef("");
   const lastPhaseRef = useRef<string>("");
   const submittingAnswerRef = useRef(false);
+  const submissionEpochRef = useRef(0);
   // Mirrors the display's spin handling: force this handset into the
   // spin_to_win phase as soon as a spin (spin_choice="spin" + a fresh
   // spin_nonce) is seen, independent of whether the `phase` column write was
@@ -819,6 +827,25 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       if (video.parentNode) video.parentNode.removeChild(video);
     };
   }, [sessionStatus]);
+
+  // Android Chrome keeps its address bar in a normal tab. CSS cannot remove
+  // browser chrome, but fullscreen can be requested from the first real tap
+  // on the handset. Installed Quiz-It PWAs already launch standalone; this
+  // gesture covers players who joined from an ordinary browser tab.
+  useEffect(() => {
+    if (sessionStatus === "finished" || typeof document === "undefined") return;
+    const enterFullscreen = () => {
+      if (!document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => {});
+      document.removeEventListener("pointerdown", enterFullscreen);
+      document.removeEventListener("touchend", enterFullscreen);
+    };
+    document.addEventListener("pointerdown", enterFullscreen, { once: true, passive: true });
+    document.addEventListener("touchend", enterFullscreen, { once: true, passive: true });
+    return () => {
+      document.removeEventListener("pointerdown", enterFullscreen);
+      document.removeEventListener("touchend", enterFullscreen);
+    };
+  }, [sessionStatus]);
   const applySessionDataRef = useRef<(data: Record<string, unknown>) => void>(() => {});
 
   useEffect(() => {
@@ -831,7 +858,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     async function fetchSession() {
       const { data, error: fetchError } = await supabase
         .from("sessions")
-        .select("current_session_round_id, phase, status, round_number, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, hard_deck_steal_guesses, hard_deck_steal_winners, hard_deck_steal_points, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, venue_record_id, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, pairs_status, pairs_content, pairs_progress, pairs_round_id, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
+        .select("round_started_at, blocked_teams, scrambled_teams, current_session_round_id, phase, status, round_number, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, hard_deck_steal_guesses, hard_deck_steal_winners, hard_deck_steal_points, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, venue_record_id, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, pairs_status, pairs_content, pairs_progress, pairs_round_id, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
         .eq("pin", sessionPin)
         .single();
       if (fetchError) {
@@ -998,6 +1025,20 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   function applySessionData(data: Record<string, unknown>) {
     setSessionStatus((data.status as string) || "waiting");
     const newPhase = (data.phase as Phase) || "waiting";
+    if ((newPhase === "waiting" || String(newPhase) === "round_start") && lastPhaseRef.current !== newPhase) {
+      submissionEpochRef.current += 1;
+      submittingAnswerRef.current = false;
+      setSubmitted(false); setSubmissionPending(false); setFailedAnswer(null);
+    }
+    const incomingRoundStart = String(data.round_started_at || "");
+    const roundChanged = incomingRoundStart !== lastRoundStartedAtRef.current;
+    if (roundChanged) {
+      lastRoundStartedAtRef.current = incomingRoundStart;
+      setRoundStartedAt(incomingRoundStart);
+      setMySubmittedDisplay(""); setSubmitted(false); setSubmissionPending(false);
+      setFailedAnswer(null); setAnswerRecoveryComplete(false);
+      submittingAnswerRef.current = false; submissionEpochRef.current += 1;
+    }
     const newQ = data.current_question as Question | null;
     const newIdx = (data.current_question_index as number) ?? 0;
     const ft = (data.fastest_team as string) || null;
@@ -1087,7 +1128,8 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     // as an effective "question" phase so answer state resets between race questions.
     const inPursuitQuestion = newPhase === "pursuit" && newPursuitStatus === "question";
     const effPhase = inPursuitQuestion ? "question" : newPhase;
-    if ((effPhase === "question" || newPhase === "hot_seat") && (newIdx !== lastQIndexRef.current || lastPhaseRef.current !== effPhase || newQText !== lastQTextRef.current)) {
+    if ((effPhase === "question" || newPhase === "hot_seat") && (roundChanged || newIdx !== lastQIndexRef.current || lastPhaseRef.current !== effPhase || newQText !== lastQTextRef.current)) {
+      submissionEpochRef.current += 1;
       lastQIndexRef.current = newIdx;
       lastQTextRef.current = newQText;
       setQuestionIndex(newIdx);
@@ -1138,6 +1180,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
   async function submitAnswer(answer: string, retryCount = 0) {
     if (submitted || submittingAnswerRef.current || !answer.trim()) return;
+    const epoch = submissionEpochRef.current;
     submittingAnswerRef.current = true;
     if (phase === "hot_seat" && hotSeatTeam !== teamName) {
       setError("Only the team in the Hot Seat can answer.");
@@ -1169,10 +1212,15 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     // reject if the answering window has actually closed. This does not rely on the
     // phone UI being disabled. (A DB-level RLS/trigger would be even stronger but
     // requires a Supabase policy change, which is out of scope for this pass.)
-    if (retryCount === 0) {
-      const { data: live } = await supabase.from("sessions")
+    const controller = new AbortController();
+    const requestTimeout = window.setTimeout(() => controller.abort(), 8000);
+    try {
+    {
+      const { data: live, error: liveError } = await supabase.from("sessions")
         .select("phase, current_question_index, timer_started_at, timer_duration, hot_seat_team, hot_seat_answer_started_at, hot_seat_answer_duration")
-        .eq("pin", sessionPin).maybeSingle();
+        .eq("pin", sessionPin).abortSignal(controller.signal).maybeSingle();
+      if (epoch !== submissionEpochRef.current) return;
+      if (liveError || !live) throw new Error(liveError?.message || "Session unavailable");
       if (live) {
         const phase = live.phase as string;
         const answering = phase === "question" || phase === "timer" || phase === "pursuit" || phase === "hot_seat";
@@ -1184,15 +1232,18 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         // 1.5s network grace, matching the existing client-side allowance.
         const hotSeatStarted = live.hot_seat_answer_started_at ? new Date(live.hot_seat_answer_started_at as string).getTime() : null;
         const hotSeatDuration = typeof live.hot_seat_answer_duration === "number" ? live.hot_seat_answer_duration : HOT_SEAT_ANSWER_SECONDS;
-        const timerNotStarted = phase === "hot_seat" ? hotSeatStarted === null : started === null;
         const expired = phase === "hot_seat"
           ? hotSeatStarted !== null && Date.now() > hotSeatStarted + hotSeatDuration * 1000 + 1500
           : started !== null && dur !== null && Date.now() > started + dur * 1000 + 1500;
         const wrongHotSeatTeam = phase === "hot_seat" && live.hot_seat_team !== teamName;
-        if (!answering || movedOn || timerNotStarted || expired || wrongHotSeatTeam) {
+        // A question is answerable as soon as it is published. The host's
+        // timer button controls the countdown/deadline, but must not make the
+        // handset's answer button appear broken while the host is reading the
+        // question aloud. Once a timer exists, its expiry is still enforced.
+        if (!answering || movedOn || expired || wrongHotSeatTeam) {
           setSubmitted(false);
           setSubmissionPending(false);
-          setError(timerNotStarted ? "Wait for the host to start the timer." : "Time's up! No more answers accepted for this question.");
+          setError("Time's up! No more answers accepted for this question.");
           setTimeout(() => setError(""), 2500);
           submittingAnswerRef.current = false;
           return;
@@ -1210,11 +1261,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     }, {
       onConflict: "session_pin,team_name,round_number,question_index",
       ignoreDuplicates: true,
-    });
+    }).abortSignal(controller.signal);
+    if (epoch !== submissionEpochRef.current) return;
     if (error) {
       if (retryCount < 2) {
         // Quick silent retry first (covers brief connection blips)
-        setTimeout(() => { setSubmitted(false); submittingAnswerRef.current = false; submitAnswer(answer, retryCount + 1); }, 800);
+        setTimeout(() => { if (epoch !== submissionEpochRef.current) return; setSubmitted(false); submittingAnswerRef.current = false; submitAnswer(answer, retryCount + 1); }, 800);
       } else {
         setSubmitted(false);
         setSubmissionPending(false);
@@ -1240,6 +1292,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       setFailedAnswer(null);
       setSubmissionPending(false);
     }
+    } catch {
+      if (epoch !== submissionEpochRef.current) return;
+      setSubmitted(false); setSubmissionPending(false); submittingAnswerRef.current = false;
+      setFailedAnswer(answer); setError("Your answer was not confirmed. Please retry.");
+      setConnectionLost(true);
+    } finally { window.clearTimeout(requestTimeout); }
   }
 
   async function claimHotSeat() {
@@ -1345,7 +1403,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const powerCardsUsableNow = allowPowerCards && phase !== "pursuit" && phase !== "pairs" && phase !== "hot_seat" && phase !== "quiz_end";
   const PowerCards = () => (
     powerCardsUsableNow ? <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
-      <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={powerCardsUsableNow} />
+      <UnoPlayerCards key={roundStartedAt} teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={powerCardsUsableNow} />
     </div> : <div className="qi-player-cards-paused">{phase === "pursuit" ? "Power Cards unavailable during The Pursuit" : "Power Cards unavailable this round"}</div>
   );
 
@@ -1370,7 +1428,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
 
   if (phase === "pairs") {
     return <PairsPlayerBoard
-      key={pairsContent.map(pair => pair.pair_id).join("|")}
+      key={`${roundStartedAt}:${pairsContent.map(pair => pair.pair_id).join("|")}`}
       pairs={pairsContent}
       progress={pairsProgress}
       teamName={teamName}
@@ -1379,27 +1437,18 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       disabledReason={!playerToken ? "Use the original browser tab that joined this team. This name-only reconnect cannot submit matches." : undefined}
       revealed={pairsStatus === "complete" || pairsStatus === "celebration"}
       timeLeft={timeLeft}
-      onSelect={async tile => {
-        const supabase = createSupabaseBrowserClient();
-        const { data, error } = await supabase.rpc("submit_pairs_attempt", {
-          p_session_pin: sessionPin,
-          p_team_name: teamName,
-          p_player_token: playerToken,
-          p_first_tile_id: tile.id,
-          p_second_tile_id: null,
-        });
-        const row = Array.isArray(data) ? data[0] : data;
-        if (error || row?.reason !== "selected") throw new Error(error?.message || row?.reason || "Selection not confirmed");
-      }}
       onAttempt={async (first, second) => {
         const supabase = createSupabaseBrowserClient();
-        const { data, error: attemptError } = await supabase.rpc("submit_pairs_attempt", {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 8000);
+        const request = supabase.rpc("submit_pairs_attempt", {
           p_session_pin: sessionPin,
           p_team_name: teamName,
           p_player_token: playerToken,
           p_first_tile_id: first.id,
           p_second_tile_id: second.id,
-        });
+        }).abortSignal(controller.signal);
+        const { data, error: attemptError } = await Promise.resolve(request).finally(() => window.clearTimeout(timeout));
         if (attemptError) return { correct: false, reason: attemptError.message };
         const row = Array.isArray(data) ? data[0] : data;
         if (row?.correct || row?.reason === "wrong-pair") {
@@ -1993,7 +2042,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         })()}
         </div>
         <div style={{ flexShrink: 0, width: "100%" }}>
-          {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+          {allowPowerCards ? <UnoPlayerCards key={roundStartedAt} teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
         </div>
       </div>
     );
@@ -2169,7 +2218,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     const isSequence = question.question_type === "sequence";
     const isMultiTap = question.question_type === "multi_tap";
     const imageUrl = isPicture ? getMediaUrl(question.option_b) : null;
-    const timerReady = phase === "hot_seat" ? hotSeatStatus === "claimed" && timeLeft !== null && timeLeft > 0 : timeLeft !== null && timeLeft > 0;
+    // Normal questions are answerable as soon as they are published. A null
+    // timer means the host has not started the visible countdown yet; it is
+    // not a handset lockout. Once a countdown exists, zero still locks input.
+    const timerReady = phase === "hot_seat"
+      ? hotSeatStatus === "claimed" && timeLeft !== null && timeLeft > 0
+      : (phase === "question" || (phase === "pursuit" && pursuitStatus === "question")) && (timeLeft === null || timeLeft > 0);
 
     const isBlocked = !!blockUntil && blockTeam !== teamName && new Date(blockUntil).getTime() > Date.now();
     if (isBlocked && !submitted) {
@@ -2281,7 +2335,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           <div role="alert" style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, marginBottom: 10, textAlign: "center" as const }}>{error}</div>
         )}
 
-        {!timerReady && <div className="qi-player-waiting-timer">{timeLeft === 0 ? "TIME’S UP · ANSWERS LOCKED" : "WAITING FOR HOST TO START TIMER"}</div>}
+        {!timerReady && <div className="qi-player-waiting-timer">{timeLeft === 0 ? "TIME’S UP · ANSWERS LOCKED" : "WAITING FOR QUESTION"}</div>}
 
         {/* flexShrink:0 alone only stops this losing a shrink fight
             against the question text - it doesn't guarantee this block's
@@ -2369,7 +2423,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
                 QWERTY keyboard for what's obviously a numeric answer. A
                 digits-only correct_answer forces the numeric keypad
                 regardless of the stored question_type. */}
-            <AnswerKeypad key={`${questionIndex}:${question.question_type}`} mode={question.question_type === "number" || question.question_type === "nearest_wins" || /^\d+$/.test((question.correct_answer || "").trim()) ? "number" : "text"} scrambled={hostScrambledTeams.includes(teamName)} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
+            <AnswerKeypad key={`${roundStartedAt}:${questionIndex}:${question.question_type}`} mode={question.question_type === "number" || question.question_type === "nearest_wins" || /^\d+$/.test((question.correct_answer || "").trim()) ? "number" : "text"} scrambled={hostScrambledTeams.includes(teamName)} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
           </ShrinkToFit>
         )}
 
@@ -2392,7 +2446,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           // gone" - removed entirely rather than just thinned, per her
           // literal ask. No border, no padding of its own.
           <div style={{ flexShrink: 0, padding: 0, border: "none", background: bg }}>
-            <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
+            <UnoPlayerCards key={roundStartedAt} teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={allowPowerCards} />
           </div>
         ) : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
       </div>
@@ -2477,7 +2531,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
             "X OF Y CARDS REMAINING" caption sat flush against the viewport
             bottom and visually collided with that pill. */}
         <div style={{ paddingBottom: 46 }}>
-          {allowPowerCards ? <UnoPlayerCards teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
+          {allowPowerCards ? <UnoPlayerCards key={roundStartedAt} teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact enabled={allowPowerCards} /> : <div className="qi-player-cards-paused">Power Cards unavailable this round</div>}
         </div>
       </div>
     </div>

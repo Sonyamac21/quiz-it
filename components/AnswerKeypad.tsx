@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { IconShuffle } from "@/components/icons";
 
 const ROWS = [
@@ -23,6 +23,7 @@ function shuffleRow<T>(row: T[]): T[] {
 
 export function AnswerKeypad({ onSubmit, mode = "text", scrambled = false }: { onSubmit: (val: string) => void; mode?: "text" | "number"; scrambled?: boolean }) {
   const [value, setValue] = useState("");
+  const composing = useRef(false);
   const [pressedKey, setPressedKey] = useState<string | null>(null);
   // Host-only "mix up their keyboard" tool: each row's keys are shuffled
   // once per mount (the parent already remounts this component with a fresh
@@ -62,6 +63,26 @@ export function AnswerKeypad({ onSubmit, mode = "text", scrambled = false }: { o
     setTimeout(() => setPressedKey(prev => (prev === c ? null : prev)), 150);
   };
   const backspace = () => setValue(prev => prev.slice(0, -1));
+
+  // A real input opens the handset's familiar keyboard, including IME input.
+  // Keep the special scrambled-keyboard game available when the host uses it.
+  if (!scrambled) return (
+    <form className="qi-player-keypad qi-player-keypad--native" onSubmit={event => {
+      event.preventDefault();
+      if (composing.current || !value.trim()) return;
+      (document.activeElement as HTMLElement | null)?.blur();
+      onSubmit(value.normalize("NFKC").trim());
+    }} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <label htmlFor="native-answer" style={{ color: "#cfc2e7", fontSize: 14 }}>Your answer</label>
+      <input id="native-answer" aria-label="Your answer" type="text" inputMode={mode === "number" ? "decimal" : "text"} enterKeyHint="done"
+        autoComplete="off" autoCorrect="off" spellCheck={false} maxLength={300} value={value}
+        onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
+        onChange={event => setValue(event.target.value)}
+        placeholder={mode === "number" ? "Type a number…" : "Tap to type your answer…"}
+        style={{ width: "100%", boxSizing: "border-box", minWidth: 0, minHeight: 52, fontSize: 20, padding: "12px 14px", borderRadius: 12, background: "#150A2E", color: "white", border: "2px solid #BE26C1" }} />
+      <button type="submit" disabled={!value.trim()} className="qi-player-keypad__submit" style={{ minHeight: 48, borderRadius: 12, border: 0, background: value.trim() ? purple : "#2E1A52", color: "white", fontSize: 18, fontWeight: 800 }}>LOCK IT IN</button>
+    </form>
+  );
 
   return (
     <div className="qi-player-keypad" style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>

@@ -68,7 +68,14 @@ export default function SessionPage() {
   }, [selectedQuizId, quizzes, venues, preparedEvent]);
 
   useEffect(() => {
-    createSupabaseBrowserClient().from("quizzes").select("id,name,quiz_rounds(id,name,round_type,questions)").eq("archived", false).order("updated_at", { ascending: false }).then(({ data }) => setQuizzes((data ?? []) as QuizOption[]));
+    createSupabaseBrowserClient().from("quizzes").select("id,name,quiz_rounds(id,name,round_type,questions)").eq("archived", false).order("updated_at", { ascending: false }).then(({ data }) => {
+      const list = (data ?? []) as QuizOption[];
+      setQuizzes(list);
+      // The normal host path is tonight's latest prepared plan. Keep the
+      // selector available for changing it, but remove one decision from the
+      // first screen by selecting the most recently updated plan.
+      if (list.length > 0) setSelectedQuizId(list[0].id);
+    });
     createSupabaseBrowserClient().from("venues").select("id,venue_name,day_of_week").order("venue_name").then(({ data }) => {
       const list = (data ?? []) as { id: string; venue_name: string; day_of_week: number }[];
       setVenues(list);
@@ -507,14 +514,16 @@ export default function SessionPage() {
                     </div>
                   )}
                   <HostButton variant="pri" big onClick={createSession} disabled={creating || !selectedQuizId || selectedQuizPreflight?.ready === false}>
-                    {creating ? "PREPARING…" : "PREPARE JOIN SCREEN"}
+                    {creating ? "STARTING…" : "START TONIGHT’S QUIZ"}
                   </HostButton>
                   {createError && <div role="alert" style={{ color: "#D94FDC", marginTop: 10 }}>{createError}</div>}
                   {!quizzes.length && <a className="fbh-btn" href="/host/quizzes" style={{ marginTop: 12 }}>Build your first quiz</a>}
                 </div>
 
-                <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid #2E1A52", maxWidth: 460, marginInline: "auto" }}>
-                  <HostLabel>Already have a session running?</HostLabel>
+                <details style={{ marginTop: 28, paddingTop: 18, borderTop: "1px solid #2E1A52", maxWidth: 460, marginInline: "auto", textAlign: "left" }}>
+                  <summary style={{ cursor: "pointer", color: "#B9A8D9", font: "700 13px 'Inter'" }}>Recover an existing session</summary>
+                  <div style={{ paddingTop: 14 }}>
+                  <HostLabel>Enter the host PIN</HostLabel>
                   <div style={{ display: "flex", gap: 8 }}>
                     <HostInput
                       value={reconnectPin}
@@ -551,7 +560,8 @@ export default function SessionPage() {
                       )}
                     </div>
                   )}
-                </div>
+                  </div>
+                </details>
               </HostPad>
             </HostBody>
           </HostFrame>

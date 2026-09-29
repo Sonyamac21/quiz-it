@@ -2,12 +2,29 @@
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { platformLogger } from "@/lib/platform/logger";
 
+import { DEFAULT_AUDIO_MIX, readAudioMix, mixedVolume } from "./mixer";
+
 export type ShowAudioChannel = "cue" | "timer" | "music" | "ambient" | "spin";
 
 export const SHOW_AUDIO_VOLUME = PLATFORM_CONFIG.audio;
 
 const active = new Map<ShowAudioChannel, HTMLAudioElement>();
 const unlockedPlayers = new Map<ShowAudioChannel, HTMLAudioElement>();
+
+let audioMix = { ...DEFAULT_AUDIO_MIX };
+const sourceLevels = new WeakMap<HTMLAudioElement, { channel: ShowAudioChannel; level: number }>();
+export function getShowAudioVolume(channel: ShowAudioChannel, level = 1) { return mixedVolume(audioMix, channel, level); }
+export function setShowAudioMix(value: unknown) {
+  audioMix = readAudioMix(value);
+  for (const [channel, audio] of active) {
+    audio.volume = mixedVolume(audioMix, channel, sourceLevels.get(audio)?.level ?? 1);
+  }
+}
+export function setShowAudioLevel(audio: HTMLAudioElement, level: number, channel: ShowAudioChannel = "music") {
+  sourceLevels.set(audio, { channel, level });
+  audio.volume = mixedVolume(audioMix, channel, level);
+}
+export function getShowAudioLevel(audio: HTMLAudioElement) { return sourceLevels.get(audio)?.level ?? 1; }
 
 // Must run directly inside a tap handler. Keep these elements for later cues:
 // creating/cloning a new element would lose Safari's playback permission.
@@ -81,6 +98,11 @@ export function preloadShowAudio(files: string[]) {
 export function stopShowAudio(channel: ShowAudioChannel) {
   const audio = active.get(channel);
   if (!audio) return;
+  const file = activeFiles.get(channel);
+  if (file) {
+    recentlyStarted.delete(`${channel}:${file}`);
+    try { window.localStorage.removeItem(`qi-audio:${channel}:${file}`); } catch {}
+  }
   audio.pause();
   audio.currentTime = 0;
   active.delete(channel);
@@ -133,17 +155,22 @@ export function playShowAudio(
   // SAME file on the SAME channel needs to restart within a few seconds of
   // itself, so "music" gets a much longer window with no real risk of
   // ever swallowing a genuinely new, distinct trigger.
-  const dedupeWindowMs = channel === "music" ? 4000 : 600;
+  // Victory songs are long-running and are triggered independently by the
+  // host and display tabs. A four-second window still allowed the second tab
+  // to restart the same song a few seconds later, cutting the first copy off.
+  // Keep the cross-tab guard long enough to cover a full celebration; an
+  // explicit stopShowAudio call still clears it for an intentional replay.
+  const dedupeWindowMs = channel === "music" ? 30000 : 600;
   if (now - lastStarted < dedupeWindowMs) return active.get(channel) || null;
+  stopShowAudio(channel);
   recentlyStarted.set(dedupeKey, now);
   if (typeof window !== "undefined") {
     try { window.localStorage.setItem(`qi-audio:${dedupeKey}`, String(now)); } catch { /* storage may be blocked */ }
   }
-  stopShowAudio(channel);
   const cached = preloaded.get(file);
   const audio = unlockedPlayers.get(channel) ?? (cached ? cached.cloneNode() as HTMLAudioElement : new Audio(soundUrl(file)));
   if (unlockedPlayers.has(channel)) audio.src = soundUrl(file);
-  audio.volume = options.volume ?? SHOW_AUDIO_VOLUME[channel];
+  setShowAudioLevel(audio, options.volume ?? SHOW_AUDIO_VOLUME[channel], channel);
   audio.loop = options.loop ?? false;
   active.set(channel, audio);
   activeFiles.set(channel, file);

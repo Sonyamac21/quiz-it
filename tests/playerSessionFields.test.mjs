@@ -10,7 +10,7 @@ test('reconnected handset restores answers only from the current round', () => {
   assert.match(lookup, /\.eq\("question_index", questionIndex\)/);
   assert.match(source, /find\(row => sameTeamName\(row\.team_name as string, teamName\)\)/);
   assert.match(source, /const attempts = phase === "question" \? 1 : 4/);
-  assert.match(source, /\[phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex, roundNumber\]/);
+  assert.match(source, /\[phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex, roundNumber, roundStartedAt\]/);
 });
 
 test('handset never claims no answer before authoritative recovery completes', () => {

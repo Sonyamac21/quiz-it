@@ -13,9 +13,9 @@
 export const TIMER_BY_TYPE: Record<string, number> = {
   multiple_choice: 15,
   sequence: 15,
-  multi_tap: 15,
-  number: 15,
-  text_answer: 30,
+  multi_tap: 10,
+  number: 10,
+  text_answer: 20,
   // Slightly longer than a plain Number question - a closest-guess estimate
   // (e.g. "How many floors does the Burj Khalifa have?") genuinely takes a
   // beat longer to reason about than an exact-answer number question does.

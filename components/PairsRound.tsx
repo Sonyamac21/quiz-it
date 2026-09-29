@@ -28,7 +28,7 @@ const shell = "radial-gradient(ellipse 70% 55% at 50% 20%,rgba(190,38,193,.16),t
 // (and the same client-side elapsed-time computation) every other round
 // type already uses, so the host console, display screen and player
 // handset all derive the same countdown from one shared pair of columns.
-export const PAIRS_TIMER_SECONDS = 30;
+export const PAIRS_TIMER_SECONDS = 5;
 
 // Kept in sync with supabase/migrations/202609220001_pairs_two_points_per_match.sql
 // (the actual award happens server-side in submit_pairs_attempt) - this constant
@@ -88,6 +88,11 @@ export function PairsDisplayBoard({ pairs, progress, teamNames, complete = false
   const tiles = tilesForTeam(pairs, "venue-display");
   const fastest = fastestPairsTeam(progress);
   const completed = teamNames.filter(name => pairProgressForTeam(progress, name).solved_pair_ids.length >= PAIRS_PER_ROUND).length;
+  if (celebrating) return <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "5vw", background: shell, textAlign: "center", color: "white" }}>
+    <div style={{ color: "#FFC533", letterSpacing: 4, fontSize: "clamp(18px,2vw,32px)" }}>MATCH MADE · FASTEST TEAM</div>
+    <h1 style={{ fontSize: "clamp(42px,7vw,110px)", overflowWrap: "anywhere", margin: "3vh 0", color: "#2EE06E" }}>{fastestTeamName || "No team finished all three"}</h1>
+    <p style={{ fontSize: "clamp(24px,3vw,48px)" }}>{fastestTeamName ? `+${PAIRS_POINTS_PER_MATCH} bonus points` : "Every correct match still earns points"}</p>
+  </div>;
   return (
     <div style={{ height: "100%", width: "100%", boxSizing: "border-box", background: shell, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "clamp(24px,4vh,64px)" }}>
       <div style={{ width: "min(86vw,1400px)", display: "flex", alignItems: "center", gap: 16 }}>
@@ -146,7 +151,7 @@ export function PairsDisplayBoard({ pairs, progress, teamNames, complete = false
   );
 }
 
-export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, disabledReason, timeLeft, revealed, onSelect, onAttempt }: { pairs: PairRecord[]; progress: PairsProgress; teamName: string; points?: number; disabled?: boolean; disabledReason?: string; timeLeft?: number | null; revealed?: boolean; onSelect: (tile: PairTile) => Promise<void>; onAttempt: (first: PairTile, second: PairTile) => Promise<{ correct: boolean; reason?: string }> }) {
+export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, disabledReason, timeLeft, revealed, onAttempt }: { pairs: PairRecord[]; progress: PairsProgress; teamName: string; points?: number; disabled?: boolean; disabledReason?: string; timeLeft?: number | null; revealed?: boolean; onSelect?: (tile: PairTile) => Promise<void>; onAttempt: (first: PairTile, second: PairTile) => Promise<{ correct: boolean; reason?: string }> }) {
   const tiles = useMemo(() => tilesForTeam(pairs, teamName), [pairs, teamName]);
   const mine = pairProgressForTeam(progress, teamName);
   const [selected, setSelected] = useState<PairTile[]>([]);
@@ -166,18 +171,22 @@ export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, 
     if (restored) { restoredSelectionRef.current = restored.id; setSelected([restored]); }
   }, [mine.selected_tile_id, selected.length, solved, tiles]);
 
+  const selectedRef = useRef<PairTile | null>(null);
+
   async function tap(tile: PairTile) {
     if (locked || attemptRef.current || busy || done || solved.has(tile.pair_id) || selected.some(item => item.id === tile.id)) return;
+    const first = selectedRef.current || selected[0];
+    if (!first) { selectedRef.current = tile; restoredSelectionRef.current = tile.id; setSelected([tile]); return; }
+    if (first.id === tile.id) { selectedRef.current = null; setSelected([]); return; }
+    selectedRef.current = null;
     attemptRef.current = true;
     setBusy(true); setMessage("");
     try {
-    if (selected.length === 0) { restoredSelectionRef.current = tile.id; setSelected([tile]); await onSelect(tile); return; }
-    const first = selected[0];
     setSelected([first, tile]); setBusy(true); setMessage("");
     const result = await onAttempt(first, tile);
     if (result.reason === "wrong-pair") {
       setWrong([first.id, tile.id]);
-      await new Promise(resolve => window.setTimeout(resolve, 550));
+      await new Promise(resolve => window.setTimeout(resolve, 250));
       setWrong([]); setSelected([]);
     } else setSelected([]);
     if (result.reason && !["ok", "wrong-pair", "already-solved"].includes(result.reason)) setMessage("That match was not confirmed. Tap it again.");
@@ -340,8 +349,7 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
   }, [autoStartRoundId, start]);
 
   const rows = teamNames.map(name => ({ name, ...pairProgressForTeam(progress, name) }));
-  const everyoneDone = rows.length > 0 && rows.every(row => row.solved_pair_ids.length >= PAIRS_PER_ROUND);
-  useEffect(() => { if (everyoneDone && status === "live") void supabase.from("sessions").update({ pairs_status: "complete" }).eq("id", sessionId).eq("current_question_index", questionIndex).eq("pairs_round_id", roundId); }, [everyoneDone, sessionId, status, supabase, questionIndex, roundId]);
+  // Reveal is a deliberate host step, even when all teams have finished.
 
   async function finish() {
     if (finishingRef.current) return; finishingRef.current = true;
@@ -366,10 +374,16 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
     // (previously reachable straight from "complete") runs.
     if (status === "complete") {
       try {
-        const fastest = fastestPairsTeam(progress);
+        // Read after the reveal write: the last in-flight match may have finished
+        // before that write acquired the session lock.
+        const { data: final, error: readError } = await supabase.from("sessions").select("pairs_progress").eq("id", sessionId).single();
+        if (readError) { setError(readError.message); return; }
+        const finalProgress = readPairsProgress(final.pairs_progress);
+        setProgress(finalProgress);
+        const fastest = fastestPairsTeam(finalProgress);
         if (fastest) {
           const bonus = await applyScoreDelta(supabase, sessionPin, fastest, PAIRS_POINTS_PER_MATCH, { eventKey: `pairs-fastest:${sessionId}:${roundId}:${questionIndex}`, isFastest: true });
-          if (bonus.error) setError("Could not award the fastest-team bonus: " + bonus.error);
+          if (bonus.error) { setError("Could not award the fastest-team bonus: " + bonus.error); return; }
         }
         const { error: writeError } = await supabase.from("sessions").update({ pairs_status: "celebration", fastest_team: fastest, fastest_points: fastest ? PAIRS_POINTS_PER_MATCH : null, updated_at: new Date().toISOString() }).eq("id", sessionId).eq("pairs_round_id", roundId).eq("current_question_index", questionIndex);
         if (writeError) setError("Could not reveal the fastest team: " + writeError.message);
@@ -395,11 +409,16 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
   // pairs_status/phase write finish()'s own last-question branch makes, so
   // player handsets and the display screen leave the pairs phase cleanly
   // instead of being left stuck mid-round.
-  function skip() {
-    setOpen(false);
-    void supabase.from("sessions").update({ pairs_status: "complete", phase: "intermission" }).eq("id", sessionId).eq("pairs_round_id", roundId).eq("current_question_index", questionIndex);
-    onRoundComplete?.();
+  async function skip() {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
+    try {
+      const { error: writeError } = await supabase.from("sessions").update({ pairs_status: "complete", phase: "intermission", timer_started_at: null }).eq("id", sessionId).eq("pairs_round_id", roundId).eq("current_question_index", questionIndex);
+      if (writeError) { setError("Could not skip round: " + writeError.message); return; }
+      setOpen(false); onRoundComplete?.();
+    } finally { finishingRef.current = false; }
   }
+
   useEffect(() => {
     if (!open) return;
     const key = (event: KeyboardEvent) => { if ((event.target as HTMLElement)?.closest("input,textarea,select,[contenteditable=true]")) return; if ((event.code === "Space" || event.key === " ") && !event.repeat) { event.preventDefault(); void finish(); } };

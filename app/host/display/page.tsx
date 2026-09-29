@@ -17,7 +17,7 @@ import { PairsDisplayBoard } from "@/components/PairsRound";
 import { PairRecord, PairsProgress, readPairs, readPairsProgress } from "@/lib/quiz/pairs";
 import { teamInitials } from "@/components/TeamBadge";
 import { RoundStart, RoundEnd, Intermission, IntermissionGallery, WaitingForHost } from "@/components/fable/DisplayStates";
-import { enableShowAudio, playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
+import { setShowAudioMix, setShowAudioLevel, getShowAudioLevel, enableShowAudio, playShowAudio, preloadShowAudio, stopAllShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
 import { PLATFORM_CONFIG } from "@/lib/platform/config";
 import { displaySnapshot, type DisplaySnapshot } from "@/lib/diagnostics/displayHealth";
 import { useDisplayResponder } from "@/lib/diagnostics/useDisplayHealth";
@@ -276,35 +276,36 @@ function LiveAudioPlayer({ question }: { question: Question }) {
     }, 350);
     el.loop = question.replay_mode === "unlimited";
     const fadeMs = 1200;
-    if (question.fade_in) el.volume = 0; else el.volume = 1;
+    let fadeFrame = 0;
+    let fadingOut = false;
+    setShowAudioLevel(el, question.fade_in ? 0 : 1);
 
     function rampVolume(target: number, ms: number) {
       const audioEl = el as HTMLAudioElement;
-      const start = audioEl.volume;
+      const start = getShowAudioLevel(audioEl);
       const startTime = performance.now();
       function step(now: number) {
         const t = Math.min(1, (now - startTime) / ms);
-        audioEl.volume = start + (target - start) * t;
-        if (t < 1) requestAnimationFrame(step);
+        setShowAudioLevel(audioEl, start + (target - start) * t);
+        if (t < 1) fadeFrame = requestAnimationFrame(step);
       }
-      requestAnimationFrame(step);
+      cancelAnimationFrame(fadeFrame);
+      fadeFrame = requestAnimationFrame(step);
     }
 
     if (question.fade_in) rampVolume(1, fadeMs);
 
-    if (question.fade_out && el.duration) {
-      const onTimeUpdate = () => {
-        if (el.duration - el.currentTime <= fadeMs / 1000 && !el.loop) {
-          rampVolume(0, fadeMs);
-        }
-      };
-      el.addEventListener("timeupdate", onTimeUpdate);
-      return () => {
-        window.clearTimeout(blockedCheck);
-        el.removeEventListener("timeupdate", onTimeUpdate);
-      };
-    }
-    return () => window.clearTimeout(blockedCheck);
+    const onTimeUpdate = () => {
+      if (question.fade_out && !fadingOut && Number.isFinite(el.duration) && el.duration - el.currentTime <= fadeMs / 1000 && !el.loop) {
+        fadingOut = true; rampVolume(0, fadeMs);
+      }
+    };
+    el.addEventListener("timeupdate", onTimeUpdate);
+    return () => {
+      window.clearTimeout(blockedCheck);
+      cancelAnimationFrame(fadeFrame);
+      el.removeEventListener("timeupdate", onTimeUpdate);
+    };
   }, [url, question.fade_in, question.fade_out, question.replay_mode, question.playback_mode, isLegacyYouTube]);
 
   if (!url || isLegacyYouTube) return null;
@@ -543,8 +544,8 @@ function DisplayScreenInner() {
   // from replaying either sound.
   useEffect(() => {
     if (phase !== "hot_seat" || hotSeatStatus !== "claimed" || !hotSeatTeam || timeLeft === null) return;
-    const attemptKey = `${questionIndex}:${hotSeatTeam}`;
-    if (timeLeft === 5 && hotSeatUrgentPlayedRef.current !== attemptKey) {
+    const attemptKey = `${roundStartedAt}:${questionIndex}:${hotSeatTeam}`;
+    if (timeLeft > 0 && timeLeft <= 5 && hotSeatUrgentPlayedRef.current !== attemptKey) {
       hotSeatUrgentPlayedRef.current = attemptKey;
       playSound("countdown-urgent.mp3", 0.35);
     }
@@ -552,22 +553,8 @@ function DisplayScreenInner() {
       hotSeatLockPlayedRef.current = attemptKey;
       playSound("lock.mp3", 0.5);
     }
-  }, [phase, hotSeatStatus, hotSeatTeam, timeLeft, questionIndex]);
-  // Match Made's countdown reuses the same shared timer state every other
-  // timed round drives its final-five/lock cues from - this brings it in
-  // line with the rest of the show instead of running silently.
-  useEffect(() => {
-    if (phase !== "pairs" || timeLeft === null) return;
-    const gateKey = String(questionIndex);
-    if (timeLeft === 5 && pairsUrgentPlayedRef.current !== gateKey) {
-      pairsUrgentPlayedRef.current = gateKey;
-      playSound("countdown-urgent.mp3", 0.35);
-    }
-    if (timeLeft === 0 && pairsLockPlayedRef.current !== gateKey) {
-      pairsLockPlayedRef.current = gateKey;
-      playSound("lock.mp3", 0.5);
-    }
-  }, [phase, timeLeft, questionIndex]);
+  }, [phase, hotSeatStatus, hotSeatTeam, timeLeft, questionIndex, roundStartedAt]);
+
   const [pinInput, setPinInput] = useState("");
   const [connected, setConnected] = useState(false);
   const [sessionPin, setSessionPin] = useState("");
@@ -667,6 +654,19 @@ function DisplayScreenInner() {
   const [pairsContent, setPairsContent] = useState<PairRecord[]>([]);
   const [pairsProgress, setPairsProgress] = useState<PairsProgress>({});
   const [pairsStatus, setPairsStatus] = useState("idle");
+  useEffect(() => {
+    if (phase !== "pairs" || pairsStatus !== "live" || timeLeft === null) return;
+    const gateKey = `${roundStartedAt}:${questionIndex}`;
+    if (timeLeft > 0 && pairsUrgentPlayedRef.current !== gateKey) {
+      pairsUrgentPlayedRef.current = gateKey;
+      playSound("countdown-urgent.mp3", 0.35, true);
+    }
+    if (timeLeft === 0 && pairsLockPlayedRef.current !== gateKey) {
+      pairsLockPlayedRef.current = gateKey;
+      stopShowAudio("timer");
+      playSound("lock.mp3", 0.5);
+    }
+  }, [phase, pairsStatus, timeLeft, questionIndex, roundStartedAt]);
   // Bug: if the host reveals Match Made results early (spacebar, before the
   // countdown reaches 0), nothing ever stopped the still-playing
   // countdown-urgent.mp3 - Pursuit has this exact cleanup (its own
@@ -997,6 +997,7 @@ function DisplayScreenInner() {
       if (incomingUpdatedAt < lastAppliedUpdatedAtRef.current) return;
       lastAppliedUpdatedAtRef.current = incomingUpdatedAt;
     }
+    setShowAudioMix(data.audio_mix);
     const newPhase = (data.phase as Phase) || "waiting";
     const isRoundOpening = newPhase === "round_start"
       || (newPhase === "pursuit" && readPursuitState(data).status === "intro")
@@ -1009,6 +1010,7 @@ function DisplayScreenInner() {
       const roundKey = String(data.round_started_at ?? `${data.current_session_round_id ?? data.round_id ?? "round"}:${data.round_number ?? "?"}`);
       if (lastRoundStartCueRef.current !== roundKey) {
         lastRoundStartCueRef.current = roundKey;
+        stopAllShowAudio();
         playSound("airhorn.mp3", 0.9);
       }
     }
@@ -1256,31 +1258,10 @@ function DisplayScreenInner() {
       prevPursuitRaceRef.current = newRace;
     }
     {
-      // MATCH MADE — diff the incoming per-team progress against the last
-      // snapshot so a solved-pair or mistake cue fires only the instant it
-      // actually happens, the same way every other round's reveal audio is
-      // keyed off a real change rather than every payload delivery.
+      // Match attempts stay silent; only host reveal/celebration gets a cue.
       const newProgress = readPairsProgress(data.pairs_progress);
       const newStatus = String(data.pairs_status || "idle");
       const newQuestionIndex = (data.current_question_index as number) ?? 0;
-      const prevProgress = prevPairsProgressRef.current;
-      const sameQuestion = prevPairsQuestionIndexRef.current === newQuestionIndex && prevPairsStatusRef.current !== "idle";
-      // Host, live tonight: "take away the 'ding' every time a team gets any
-      // match correct. it doesn't need to be audible." Every single solved
-      // pair across every team fired its own correct-chime, so a busy round
-      // with several teams matching at once was near-constant dinging - not
-      // the occasional cue every other round's audio is, just noise. Kept
-      // the mistake trombone (not what was reported) and moved the "big"
-      // celebratory sounds to the two real beats this round now has: a
-      // cheer on the reveal itself, an airhorn on the fastest-team bonus.
-      if (sameQuestion) {
-        for (const name of Object.keys(newProgress)) {
-          const before = prevProgress[name];
-          const after = newProgress[name];
-          if (!before || !after) continue;
-          if (after.mistakes > before.mistakes) playSound("sad-trombone.mp3", 0.35);
-        }
-      }
       if (newStatus === "complete" && prevPairsStatusRef.current !== "complete") {
         playSound("crowd-cheer.mp3", 0.6);
       }
@@ -1290,7 +1271,9 @@ function DisplayScreenInner() {
       // already gets (see PairsRound.tsx's finish()) - this is that beat's
       // audio, matching the airhorn every other round's fastest reveal gets.
       if (newStatus === "celebration" && prevPairsStatusRef.current !== "celebration") {
-        playSound("airhorn.mp3", 0.5);
+        const winner = teamsRef.current.find(team => team.team_name === data.fastest_team);
+        if (winner) playSound("airhorn.mp3", 0.5);
+        if (winner?.victory_song) playShowAudio(victorySongAudioFile(winner.victory_song), { channel: "music", volume: 0.8 });
       }
       prevPairsProgressRef.current = newProgress;
       prevPairsStatusRef.current = newStatus;
@@ -1341,7 +1324,6 @@ function DisplayScreenInner() {
         trophyCelebrationFiredRef.current = false;
         winnerCelebrationFiredRef.current = false;
         stopClapping();
-        stopShowAudio("music");
         playShowAudio("clapping-scores.mp3", { channel: "ambient", volume: 0.45, loop: true });
       } else if (syncedCount > prevQuizEndRevealedRef.current) {
         prevQuizEndRevealedRef.current = syncedCount;
@@ -1384,7 +1366,6 @@ function DisplayScreenInner() {
       // the room a clear, deliberate "nobody got it" beat instead of dead air.
       if (celebrationPlayingForRef.current !== "__no_winner__") {
         celebrationPlayingForRef.current = "__no_winner__";
-        playSound("sad-trombone.mp3", 0.9);
       }
     } else if (newPhase === "spin_to_win") {
       // The host now moves the Display into this phase as soon as they click
@@ -1400,7 +1381,9 @@ function DisplayScreenInner() {
       // clears the spin_* columns) - if this ref were nulled out, that return
       // trip would look like "a genuinely new celebration" for the same team
       // and replay the victory song a second time.
-      if (data.spin_target_idx != null) stopShowAudio("music");
+      // A wheel offer/spin must not cut the winning team's song short. The
+      // music channel is allowed to finish naturally; the next deliberate
+      // music cue will replace it when it actually begins.
     } else if (newPhase === "quiz_end") {
       // The podium winner celebration owns the music channel during the finale.
       // Do NOT let the generic celebration-exit cleanup below
@@ -1413,17 +1396,16 @@ function DisplayScreenInner() {
       // (even for the same team on a later question) must be treated as new.
       if (celebrationPlayingForRef.current !== null) {
         celebrationPlayingForRef.current = null;
-        stopShowAudio("music");
       }
     }
-    if (newPhase !== "hot_seat" && data.timer_started_at && data.timer_duration) {
+    if ((newPhase === "question" || (newPhase === "pairs" && data.pairs_status === "live") || (newPhase === "pursuit" && readPursuitState(data).status === "question")) && data.timer_started_at && data.timer_duration) {
       const started = new Date(data.timer_started_at as string).getTime();
       const duration = data.timer_duration as number;
       timerTotalRef.current = duration;
       const elapsed = Math.floor((Date.now() - started) / 1000);
       const remaining = Math.max(0, duration - elapsed);
       startCountdown(remaining);
-    } else if (newPhase === "pursuit" && !data.timer_started_at) {
+    } else if (newPhase !== "hot_seat") {
       if (timerRef.current) clearInterval(timerRef.current);
       setTimeLeft(null);
       stopShowAudio("timer");
@@ -1436,12 +1418,12 @@ function DisplayScreenInner() {
     if (timerRef.current) clearInterval(timerRef.current);
     setTimeLeft(seconds);
     if (seconds <= 0) return;
+    const deadline = Date.now() + seconds * 1000;
     timerRef.current = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev === null || prev <= 1) { if (timerRef.current) clearInterval(timerRef.current); return 0; }
-        return prev - 1;
-      });
-    }, PLATFORM_CONFIG.timers.tickMilliseconds);
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setTimeLeft(left);
+      if (left === 0 && timerRef.current) clearInterval(timerRef.current);
+    }, 200);
   }
 
   async function connect() {

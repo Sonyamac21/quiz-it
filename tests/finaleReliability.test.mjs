@@ -45,3 +45,18 @@ test("reveal-all path also verifies scores and disables post-game cards", () => 
   assert.match(fn, /allow_power_cards: false/);
   assert.match(fn, /if \(error \|\| !data\?\.length\)/);
 });
+
+test("final reveal keeps new higher-ranked teams visible in a bounded scroll region", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(display, /\[\.\.\.revealed\]\.reverse\(\)\.map/);
+  assert.match(display, /ref=\{finalListRef\} className="qi-display-final-list"/);
+  assert.match(display, /finalListRef\.current\?\.scrollTo\(\{ top: 0, behavior: "instant" \}\)/);
+  assert.match(display, /\[phase, revealedCount, trophyVisible\]/);
+  assert.match(css, /\.qi-display-final-list\s*\{[^}]*min-height:0;[^}]*overflow-y:auto;[^}]*overflow-anchor:none/);
+});
+
+test("running order rounds are clickable and colour completed versus upcoming rounds", () => {
+  assert.match(host, /onClick=\{\(\) => \{ if \(!isCurrent\)/);
+  assert.match(host, /statusColor = isCurrent \? "#f3b8f2" : isPassed \? "#ff6678" : "#52e889"/);
+  assert.match(host, /void chooseRound\(round\)/);
+});

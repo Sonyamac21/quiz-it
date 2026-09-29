@@ -800,6 +800,14 @@ function DisplayScreenInner() {
   const [revealedCount, setRevealedCount] = useState(0);
   const [quizEndScores, setQuizEndScores] = useState<Score[]>([]);
   const [trophyVisible, setTrophyVisible] = useState(false);
+  const finalListRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (phase !== "quiz_end" || trophyVisible) return;
+    // Higher-scoring teams are prepended. Keep the new row visible instead
+    // of letting browser scroll anchoring follow an older, lower-ranked row.
+    finalListRef.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [phase, revealedCount, trophyVisible]);
+
   const [intermissionOffers, setIntermissionOffers] = useState("");
   const [intermissionWhatsapp, setIntermissionWhatsapp] = useState("");
   const [intermissionOtherQuizzes, setIntermissionOtherQuizzes] = useState("");
@@ -2206,7 +2214,7 @@ function DisplayScreenInner() {
       <div className="qi-display-final-reveal">
         <div className="qi-display-eyebrow">TONIGHT&apos;S RESULTS</div>
         <div className="qi-display-final-title">FINAL LEADERBOARD</div>
-        <div className="qi-display-final-list">
+        <div ref={finalListRef} className="qi-display-final-list" role="region" aria-label="Final leaderboard results" tabIndex={0}>
           {[...revealed].reverse().map((s, i) => {
             const pos = sorted.length - revealed.length + 1 + i;
             const isTop = pos <= 3;

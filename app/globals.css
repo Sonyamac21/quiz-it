@@ -2301,9 +2301,12 @@ button, input, select, textarea { font: inherit; }
 .qi-display-scoreboard .ld-row .name { font-size: clamp(21px,2.2vw,38px); }
 .qi-display-scoreboard .ld-row .pts { font-size: clamp(25px,2.8vw,48px); }
 .qi-display-scoreboard .ld-row .rank { font-size: clamp(20px,2.2vw,38px); }
-.qi-display-final-reveal { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--qi-display-safe-y) var(--qi-display-safe-x); }
+.qi-display-final-reveal { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: var(--qi-display-safe-y) var(--qi-display-safe-x); }
 .qi-display-final-title { margin: 14px 0 4vh; font-size: clamp(38px,4.5vw,76px); }
-.qi-display-final-list { width: min(92vw, 1100px); }
+.qi-display-final-list { width: min(92vw, 1100px); flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; overflow-anchor:none; overscroll-behavior:contain; padding:4px; }
+.qi-display-final-reveal > .qi-display-eyebrow,
+.qi-display-final-reveal > .qi-display-final-title,
+.qi-display-final-reveal > .qi-display-powered { flex-shrink:0; }
 .qi-display-final-row { --qi-medal: #d94fdc; display: grid; grid-template-columns: clamp(52px,5vw,82px) 1fr auto; align-items: center; gap: clamp(16px,2vw,32px); min-height: clamp(72px,9vh,112px); padding: 1.5vh 2vw; border-radius: 20px; background: rgba(28,13,58,.82); border: 1px solid rgba(255,255,255,.12); margin-bottom: 1.2vh; animation: qiDisplayResultIn .5s var(--ease-settle, ease-out) both; }
 .qi-display-final-row.is-podium { border-color: var(--qi-medal); background: linear-gradient(90deg,color-mix(in srgb,var(--qi-medal) 13%,transparent),rgba(28,13,58,.88)); }
 .qi-display-final-rank { color: var(--qi-medal); font-size: clamp(28px,3vw,50px); font-weight: 900; }
@@ -3349,3 +3352,4 @@ padding-bottom: calc(var(--qi-player-brand-bar-height, 64px) + 10px + env(safe-a
 
 /* Reserve a short, predictable card row below the scrolling answer controls. */
 .qi-player-power-cards .qi-player-card-rail { padding:2px 2px 4px; }
+#live-round-rundown button:hover { background:rgba(190,38,193,.18) !important; border-color:rgba(231,133,230,.5) !important; }

@@ -2550,11 +2550,12 @@ function QuizControllerInner() {
                   {rounds.map(round => {
                     const isCurrent = round.id === selectedRound?.id;
                     const isPassed = !!round.completed_at;
-                    return <div key={round.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 9, background: isCurrent ? "rgba(190,38,193,0.2)" : "rgba(255,255,255,0.045)", border: isCurrent ? "1px solid rgba(231,133,230,0.55)" : "1px solid transparent", opacity: isPassed ? 0.62 : 1 }}>
-                      <span style={{ minWidth: 24, color: isCurrent ? "#fff" : "#b9a8d9", fontWeight: 800 }}>{(round.position ?? 0) + 1}.</span>
+                    const statusColor = isCurrent ? "#f3b8f2" : isPassed ? "#ff6678" : "#52e889";
+                    return <button key={round.id} type="button" onClick={() => { if (!isCurrent) { setRoundRunDownOpen(false); void chooseRound(round); } }} aria-current={isCurrent ? "step" : undefined} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "9px 10px", borderRadius: 9, background: isCurrent ? "rgba(190,38,193,0.2)" : "rgba(255,255,255,0.045)", border: isCurrent ? "1px solid rgba(231,133,230,0.55)" : "1px solid transparent", opacity: 1, color: "#fff", textAlign: "left", cursor: isCurrent ? "default" : "pointer" }}>
+                      <span style={{ minWidth: 24, color: statusColor, fontWeight: 800 }}>{(round.position ?? 0) + 1}.</span>
                       <span style={{ flex: 1, color: "#fff" }}>{round.name}</span>
-                      <span style={{ color: isCurrent ? "#f3b8f2" : isPassed ? "#aaa" : "#b9a8d9", fontSize: 12, fontWeight: 700 }}>{isCurrent ? "LIVE" : isPassed ? "PASSED" : "UP NEXT"}</span>
-                    </div>;
+                      <span style={{ color: statusColor, fontSize: 12, fontWeight: 800 }}>{isCurrent ? "LIVE" : isPassed ? "DONE" : "UP NEXT"}</span>
+                    </button>;
                   })}
                 </div>
               </div>}

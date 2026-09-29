@@ -1,6 +1,6 @@
 export const PLATFORM_CONFIG = Object.freeze({
   timers: {
-    defaultSeconds: 30,
+    defaultSeconds: 20,
     fixedQuestionSeconds: 10,
     writtenAnswerSeconds: 20,
     tickMilliseconds: 1000,

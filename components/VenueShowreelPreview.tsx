@@ -139,7 +139,8 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
             })()}
             <div className="lb-steps">
                 <div className="lb-pin"><small>ENTER PIN</small>0000</div>
-              <b>1.</b> Go to {typeof window !== "undefined" && window.location.host ? window.location.host : "quiz-it.macentertainmentuae.com"} or scan<br />
+              <b>1.</b> Scan the QR or visit
+              <FitText className="lb-join-address">{typeof window !== "undefined" && window.location.host ? window.location.host : "quiz-it.macentertainmentuae.com"}</FitText>
               <b>2.</b> Enter the PIN<br />
               <b>3.</b> Name your team
             </div>

@@ -230,14 +230,14 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
     };
     if (!inventoryReady) {
       return (
-        <div className="fbl qi-player-card-inventory-loading" aria-busy="true" style={{ minHeight: 132, padding: "18px 14px 0", display: "grid", placeItems: "center" }}>
+        <div className="fbl qi-player-card-inventory-loading" aria-busy="true" style={{ minHeight: 58, padding: "6px 6px 0", display: "grid", placeItems: "center" }}>
           <span style={{ font: "700 10px 'Inter'", color: "#8f7cac", letterSpacing: ".14em" }}>CHECKING YOUR POWER CARDS…</span>
         </div>
       );
     }
     return (
-      <div className="fbl" style={{ padding: "2px 14px 0" }}>
-        <div className="qi-player-card-rail" style={{ display: "flex", gap: 10 }}>
+      <div className="fbl qi-player-power-cards" style={{ padding: "6px 6px 0", flexShrink: 0 }}>
+        <div className="qi-player-card-rail" style={{ display: "flex", gap: 6 }}>
           {visibleCards.map(card => {
             const isUsed = used.includes(card.type);
             const isReverseOutOfRound = card.type === "reverse" && (!roundNumber || roundNumber > 2);
@@ -252,21 +252,17 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
                 title={card.desc}
                 style={{
                   position: "relative", overflow: "hidden",
-                  // Host, live, mid-emergency: "make the powercards slightly
-                  // smaller?" - a direct, guaranteed win for the vertical
-                  // squeeze on the question screen, independent of any
-                  // question-length/keypad-mode math: shrinking these frees
-                  // up real space above the answer area no matter what.
-                  flex: "1 1 0", minWidth: 0, maxWidth: 80, aspectRatio: "2 / 2.5", borderRadius: 10,
+                  flex: "1 1 0", minWidth: 0, maxWidth: 140, height: 48, borderRadius: 10,
+                  containerType: "inline-size",
                   border: "1px solid rgba(255,255,255,0.28)",
                   background: fb.face, color: fb.ink,
                   cursor: isLocked ? "not-allowed" : "pointer",
                   display: "flex", flexDirection: "column" as const,
-                  alignItems: "flex-start", justifyContent: "space-between",
-                  padding: "7px 7px",
+                  alignItems: "center", justifyContent: "center", gap: 2, textAlign: "center",
+                  padding: "4px",
                   filter: isUsed ? "saturate(0.3) brightness(0.5)" : "none",
                   opacity: 1,
-                  boxShadow: isLocked ? "0 6px 18px rgba(5,0,13,0.6)" : "0 10px 26px rgba(5,0,13,0.7), inset 0 0 0 1px rgba(255,255,255,0.08)",
+                  boxShadow: isLocked ? "0 2px 4px rgba(5,0,13,0.4)" : "0 2px 4px rgba(5,0,13,0.4), inset 0 0 0 1px rgba(255,255,255,0.08)",
                   transform: isPlaying ? "scale(0.95)" : "scale(1)",
                   transition: "all 0.15s",
                 }}
@@ -276,8 +272,8 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
                     background: "linear-gradient(115deg,transparent 30%,rgba(255,255,255,0.14) 45%,transparent 60%)",
                     animation: "fblFoil 5s ease-in-out infinite" }} />
                 )}
-                <span style={{ position: "relative", font: "800 8px 'Inter'", letterSpacing: "0.2em" }}>{fb.cname}</span>
-                <span style={{ position: "relative", fontSize: 22, lineHeight: 1 }}>{isUsed ? "✓" : fb.sig}</span>
+                <span style={{ position: "relative", font: "800 clamp(11px, 15cqw, 18px)/1.1 'Inter'", whiteSpace: "nowrap", letterSpacing: "0.01em" }}>{fb.cname}</span>
+                <span style={{ position: "relative", fontSize: 16, lineHeight: 1 }}>{isUsed ? "✓" : fb.sig}</span>
               </button>
             );
           })}

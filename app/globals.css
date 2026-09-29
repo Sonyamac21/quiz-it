@@ -2779,7 +2779,7 @@ padding-bottom: calc(var(--qi-player-brand-bar-height, 64px) + 10px + env(safe-a
 .qi-player-live-root .qi-player-card-rail { width: 100%; justify-content: center; }
 .qi-player-live-root .qi-player-card-rail > button {
   aspect-ratio: auto !important;
-  height: clamp(58px, 10dvh, 82px);
+  height: 48px;
   min-height: 48px;
   max-width: 140px !important;
 }
@@ -3345,3 +3345,7 @@ padding-bottom: calc(var(--qi-player-brand-bar-height, 64px) + 10px + env(safe-a
   transform:none;
   white-space:normal;
 }
+.fbl .lb-join-address { font-size:clamp(14px,1vw,20px); font-weight:700; white-space:nowrap; overflow-wrap:normal; }
+
+/* Reserve a short, predictable card row below the scrolling answer controls. */
+.qi-player-power-cards .qi-player-card-rail { padding:2px 2px 4px; }

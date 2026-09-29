@@ -1972,7 +1972,8 @@ function DisplayScreenInner() {
               })()}
               <div className="lb-steps">
                 <div className="lb-pin"><small>ENTER PIN</small>{sessionPin}</div>
-                <b>1.</b> Scan the QR or visit {displayHost}<br />
+                <b>1.</b> Scan the QR or visit
+                <FitText className="lb-join-address">{displayHost}</FitText>
                 <b>2.</b> Enter the PIN<br />
                 <b>3.</b> Name your team
               </div>
@@ -2027,7 +2028,8 @@ function DisplayScreenInner() {
                 })()}
                 <div className="lb-steps">
                 <div className="lb-pin"><small>ENTER PIN</small>{sessionPin}</div>
-                  <b>1.</b> Scan the QR or visit {displayHost}<br />
+                  <b>1.</b> Scan the QR or visit
+                <FitText className="lb-join-address">{displayHost}</FitText>
                   <b>2.</b> Enter the PIN<br />
                   <b>3.</b> Name your team
                 </div>

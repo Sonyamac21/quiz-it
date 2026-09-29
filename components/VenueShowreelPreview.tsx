@@ -122,7 +122,7 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
       <div className="lb lb-split">
         <div className="lb-join">
           <div className="lb-kicker">JOIN TONIGHT&rsquo;S SHOW</div>
-          <div className="lb-pin"><small>ENTER PIN</small>0000</div>
+
           <div className="lb-how">
             {(() => {
               // Same real-domain fix as app/host/display/page.tsx - see the
@@ -130,7 +130,7 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
               // an owned/pointed domain; the confirmed live one is
               // quiz-it.macentertainmentuae.com.
               const displayHost = typeof window !== "undefined" && window.location.host ? window.location.host : "quiz-it.macentertainmentuae.com";
-              const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent("https://" + displayHost + "/join");
+              const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=16&data=" + encodeURIComponent("https://" + displayHost + "/join");
               return !brokenImageUrls.has(joinQrSrc) ? (
                 <img className="lb-qr" src={joinQrSrc} alt="Scan to join" onError={() => markImageBroken(joinQrSrc)} />
               ) : (
@@ -138,15 +138,18 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
               );
             })()}
             <div className="lb-steps">
+                <div className="lb-pin"><small>ENTER PIN</small>0000</div>
               <b>1.</b> Go to {typeof window !== "undefined" && window.location.host ? window.location.host : "quiz-it.macentertainmentuae.com"} or scan<br />
               <b>2.</b> Enter the PIN<br />
               <b>3.</b> Name your team
             </div>
           </div>
-          <div className="lb-count"><b>0 TEAMS</b> IN THE ROOM</div>
         </div>
         <div className="lb-cardstage lb-reel">
-          <div className="lb-reel-title">{venue.venue_name ? `TONIGHT AT ${venue.venue_name.toUpperCase()}` : "TONIGHT'S SHOW"}</div>
+          <div className="lb-reel-heading">
+            <div className="lb-reel-start">SHOW STARTS SOON</div>
+            <div className="lb-reel-title">{venue.venue_name ? `TONIGHT AT ${venue.venue_name.toUpperCase()}` : "TONIGHT'S SHOW"}</div>
+          </div>
 
           {currentReelScene === "venue" && (() => {
             const hasMedia = !!((venue.hero_video_url && !videoFailed) || (venue.hero_image_url && !brokenImageUrls.has(venue.hero_image_url)));
@@ -250,9 +253,6 @@ export function VenueShowreelPreview({ venue }: { venue: PreviewVenue }) {
               </div>
             </div>
           )}
-        </div>
-        <div className="lb-foot">
-          <div className="lb-start">SHOW STARTS SOON</div>
         </div>
       </div>
       <QuizItBadge />

@@ -62,3 +62,21 @@ test('invalid mixer settings are bounded and partial saved settings have default
   assert.equal(mix.cue, 0);
   assert.equal(mix.music, mixer.DEFAULT_AUDIO_MIX.music);
 });
+
+test('live timer preview changes playing audio and survives stale session polling', () => {
+  const { api } = harness();
+  api.setShowAudioMix({ master: 1, timer: 1 });
+  const timer = api.playShowAudio('countdown.mp3', { channel: 'timer', volume: 0.8 });
+  api.previewShowAudioMix({ master: 1, timer: 0.25 });
+  assert.equal(timer.volume, 0.2);
+  api.setShowAudioMix({ master: 1, timer: 1 });
+  assert.equal(timer.volume, 0.2);
+  api.previewShowAudioMix({ master: 1, timer: 0 });
+  assert.equal(timer.volume, 0);
+  assert.equal(api.getShowAudioVolume('timer', 0.3), 0, 'synthesized ticks use the live preview too');
+  api.setShowAudioMix({ master: 1, timer: 0 });
+  api.previewShowAudioMix(null);
+  assert.equal(timer.volume, 0, 'closing the controls retains saved mute');
+  api.stopShowAudio('timer');
+  assert.equal(api.playShowAudio('lock.mp3', { channel: 'timer' }).volume, 0);
+});

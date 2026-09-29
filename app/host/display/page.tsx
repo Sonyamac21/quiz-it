@@ -1753,7 +1753,10 @@ function DisplayScreenInner() {
   function renderVenueReel() {
     return (
       <div className="lb-cardstage lb-reel">
-        <div className="lb-reel-title">{venueName ? `TONIGHT AT ${venueName.toUpperCase()}` : "TONIGHT'S SHOW"}</div>
+        <div className="lb-reel-heading">
+          {phase === "waiting" && <div className="lb-reel-start">SHOW STARTS SOON</div>}
+          <div className="lb-reel-title">{venueName ? `TONIGHT AT ${venueName.toUpperCase()}` : "TONIGHT'S SHOW"}</div>
+        </div>
 
         {currentReelScene === "venue" && (() => {
           const heroVideoOk = venueHeroVideoUrl && !venueHeroVideoFailed;
@@ -1950,7 +1953,7 @@ function DisplayScreenInner() {
         <div className="lb lb-split">
           <div className="lb-join">
             <div className="lb-kicker">JOIN TONIGHT&rsquo;S SHOW</div>
-            <div className="lb-pin"><small>ENTER PIN</small>{sessionPin}</div>
+
             <div className="lb-how">
               {(() => {
                 // Bug: this was a bare styled div with no actual QR data
@@ -1960,7 +1963,7 @@ function DisplayScreenInner() {
                 // as a QR code. Same api.qrserver.com approach already
                 // proven for the WhatsApp QR below in this file, encoding
                 // the real join URL (joinUrl, derived above).
-                const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent(joinUrl);
+                const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=16&data=" + encodeURIComponent(joinUrl);
                 return !brokenImageUrls.has(joinQrSrc) ? (
                   <img className="lb-qr" src={joinQrSrc} alt="Scan to join" onError={() => markImageBroken(joinQrSrc)} />
                 ) : (
@@ -1968,21 +1971,15 @@ function DisplayScreenInner() {
                 );
               })()}
               <div className="lb-steps">
-                <b>1.</b> Go to {displayHost} or scan<br />
+                <div className="lb-pin"><small>ENTER PIN</small>{sessionPin}</div>
+                <b>1.</b> Scan the QR or visit {displayHost}<br />
                 <b>2.</b> Enter the PIN<br />
                 <b>3.</b> Name your team
               </div>
             </div>
-            {/* Host, live: "take off the icons for 'teams in the room' just
-                leave number" - the crest+name row below this duplicated
-                what the count line above already says, just less legibly
-                from a distance across a venue. */}
-            <div className={"lb-count" + (countPulsing ? " lb-count-pulse" : "")}><b>{teams.length} TEAM{teams.length === 1 ? "" : "S"}</b> IN THE ROOM</div>
+
           </div>
           {renderVenueReel()}
-          <div className="lb-foot">
-            <div className="lb-start">SHOW STARTS SOON</div>
-          </div>
         </div>
         <QuizItBadge />
       </div>
@@ -2018,10 +2015,10 @@ function DisplayScreenInner() {
           <div className="lb lb-split">
             <div className="lb-join">
               <div className="lb-kicker">JOIN TONIGHT&rsquo;S SHOW</div>
-              <div className="lb-pin"><small>ENTER PIN</small>{sessionPin}</div>
+
               <div className="lb-how">
                 {(() => {
-                  const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent(joinUrl);
+                  const joinQrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=16&data=" + encodeURIComponent(joinUrl);
                   return !brokenImageUrls.has(joinQrSrc) ? (
                     <img className="lb-qr" src={joinQrSrc} alt="Scan to join" onError={() => markImageBroken(joinQrSrc)} />
                   ) : (
@@ -2029,12 +2026,12 @@ function DisplayScreenInner() {
                   );
                 })()}
                 <div className="lb-steps">
-                  <b>1.</b> Go to {displayHost} or scan<br />
+                <div className="lb-pin"><small>ENTER PIN</small>{sessionPin}</div>
+                  <b>1.</b> Scan the QR or visit {displayHost}<br />
                   <b>2.</b> Enter the PIN<br />
                   <b>3.</b> Name your team
                 </div>
               </div>
-              <div className={"lb-count" + (countPulsing ? " lb-count-pulse" : "")}><b>{teams.length} TEAM{teams.length === 1 ? "" : "S"}</b> IN THE ROOM</div>
             </div>
             {renderVenueReel()}
             <div className="lb-foot">
@@ -2261,7 +2258,7 @@ function DisplayScreenInner() {
             <div className="qi-display-eyebrow qi-display-fastest-eyebrow">{question?.question_type === "nearest_wins" ? "CLOSEST GUESS" : "FASTEST CORRECT ANSWER"}</div>
             {/* Host, live: "text too small. increase team name size!!" on the
                 fastest-correct-answer celebration screen. */}
-            <FitBlockText className="qi-display-fastest-team" maxViewportHeight={0.3} minFontSize={48}>
+            <FitBlockText className="qi-display-fastest-team" maxViewportHeight={0.85} minFontSize={48}>
               {fastestTeam || ""}
             </FitBlockText>
             {/* Never shown until a host has approved this team's photo - see
@@ -2339,7 +2336,7 @@ function DisplayScreenInner() {
             <div className="qi-display-answer-hero-wrap">
               <div className="qi-display-answer-hero">
                 <div className="qi-display-answer-hero-label">CORRECT ANSWER</div>
-                <FitBlockText className="qi-display-answer-hero-text" maxViewportHeight={0.24} minFontSize={28}>{correctText}</FitBlockText>
+                <FitBlockText className="qi-display-answer-hero-text" maxViewportHeight={0.85} minFontSize={28}>{correctText}</FitBlockText>
               </div>
             </div>
           )}

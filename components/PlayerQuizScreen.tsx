@@ -276,28 +276,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [fastestSongName, setFastestSongName] = useState<string | null>(null);
   const [fastestPoints, setFastestPoints] = useState(0);
 
-  // Host, live: "even here - lots of space" / "missing all of the
-  // options". The question-text wrap and the answer area (multi-choice
-  // options, multi-tap grid, or the keypad) each used to size themselves
-  // independently - the wrap via flex-grow (so FitBlockText had room to
-  // grow short questions bigger), the answer area via its own
-  // measure-and-shrink pass (ShrinkToFit) - with neither aware of what
-  // the other actually needed. flex-grow claimed ALL leftover space for
-  // the question regardless of whether the text used it (the empty gap
-  // under a short question), which then starved the answer area's OWN
-  // measurement of real room, shrinking options until one went missing
-  // off the top and the lock-in row was reduced to a sliver.
-  // This single controller measures every sibling's real natural size
-  // once, gives the answer area its full natural height first (never
-  // shrinking it unless there truly isn't enough room even with the
-  // question at a sane floor), and gives the question exactly what's
-  // left over - so short questions no longer leave a dead gap, and the
-  // answer area is never crowded out by one.
+  // Question geometry stays fixed; only the answer region is measured and scaled.
   const qScrollRef = useRef<HTMLDivElement>(null);
   const qWrapRef = useRef<HTMLDivElement>(null);
   const answerOuterRef = useRef<HTMLDivElement>(null);
   const answerInnerRef = useRef<HTMLDivElement>(null);
-  const [qWrapHeight, setQWrapHeight] = useState<number | undefined>(undefined);
+  const qWrapHeight = 152;
   const [answerScale, setAnswerScale] = useState(1);
   const [answerHeight, setAnswerHeight] = useState<number | undefined>(undefined);
   // Host, live, urgently, same exact cutoff every time regardless of
@@ -312,14 +296,23 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // now - so tracking it in JS and applying it as a real pixel height,
   // instead of trusting the CSS unit, sidesteps the browser bug entirely.
   const [viewportH, setViewportH] = useState<number | undefined>(undefined);
+  const [viewportTop, setViewportTop] = useState(0);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   useLayoutEffect(() => {
-    const measure = () => setViewportH(window.visualViewport?.height || window.innerHeight);
+    const measure = () => {
+      const viewport = window.visualViewport;
+      setViewportH(viewport?.height || window.innerHeight);
+      setViewportTop(viewport?.offsetTop || 0);
+      setKeyboardOpen(window.innerHeight - (viewport?.height || window.innerHeight) > 150);
+    };
     measure();
     window.visualViewport?.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("scroll", measure);
     window.addEventListener("resize", measure);
     window.addEventListener("orientationchange", measure);
     return () => {
       window.visualViewport?.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("scroll", measure);
       window.removeEventListener("resize", measure);
       window.removeEventListener("orientationchange", measure);
     };
@@ -337,13 +330,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         // Measure everyone's real, unadjusted size first.
-        qWrap.style.height = "auto";
+        // The question owns a fixed area outside the scrolling answer region.
         if (aInner) aInner.style.transform = "none";
         if (aOuter) aOuter.style.height = "auto";
 
         const answerNatural = aInner ? aInner.scrollHeight : 0;
         if (aInner?.querySelector(".qi-player-keypad--native")) {
-          setQWrapHeight(Math.min(120, Math.max(60, scroll.clientHeight - answerNatural - 24)));
           setAnswerScale(1); setAnswerHeight(undefined);
           return;
         }
@@ -364,21 +356,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         const SAFETY_MARGIN = 48;
         const total = scroll.clientHeight - SAFETY_MARGIN;
         if (total <= 0) return;
-        // Host, live: "shorter questions fit... longer do not" - a longer
-        // question's own natural/leftover share of "total" was still
-        // capped only by minQuestion at the BOTTOM, with no ceiling at the
-        // top - so on a long question, this could hand the question wrap
-        // more height than it will ever actually use (CSS already caps its
-        // rendered text at 22dvh), while starving the keypad of exactly
-        // that much room instead of giving it back. Capping questionBudget
-        // to match that same CSS ceiling means any extra a long question
-        // doesn't need flows to the keypad instead of sitting unused.
-        const minQuestion = 60;
-        const maxQuestion = window.innerHeight * 0.22 + 40; // CSS's 22dvh cap + margin/timer-badge allowance
-        const questionBudget = Math.min(maxQuestion, Math.max(minQuestion, total - answerNatural - otherFixed));
-        setQWrapHeight(questionBudget);
-
-        const answerAvailable = total - questionBudget - otherFixed;
+        const answerAvailable = total - otherFixed;
         if (answerNatural > 0 && answerAvailable < answerNatural) {
           // A scaled-down transform doesn't shrink the outer box's own
           // LAYOUT height (transform is purely visual, box model is
@@ -2285,34 +2263,14 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     ].filter(o => o.text) as { key: string; text: string }[];
 
     return (
-      <div className={`qi-player-state qi-player-question-screen${phase === "hot_seat" ? " qi-player-question-screen--hot-seat" : ""}`} data-answer-type={question.question_type} style={{ height: viewportH ? `${viewportH}px` : "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
+      <div className={`qi-player-state qi-player-question-screen${phase === "hot_seat" ? " qi-player-question-screen--hot-seat" : ""}`} data-answer-type={question.question_type} data-keyboard-open={keyboardOpen} style={{ position: "fixed", top: viewportTop, left: 0, right: 0, minHeight: 0, height: viewportH ? `${viewportH}px` : "100dvh", background: bg, display: "flex", flexDirection: "column", padding: "14px 16px", fontFamily: font, color: "#fff", boxSizing: "border-box" as const, overflow: "hidden" }}>
         <div className="qi-player-urgent-edge" style={{ boxShadow: timeLeft !== null && timeLeft > 0 && timeLeft <= 5
           ? `inset 0 0 ${60 + (6 - timeLeft) * 18}px ${10 + (6 - timeLeft) * 8}px rgba(255,59,78,${(0.15 + (6 - timeLeft) * 0.12).toFixed(3)})`
           : "none" }} />
         <PlayerStatusBar teamName={teamName} roundName={roundName} powerCardsEnabled={powerCardsUsableNow} photoUrl={teamPhotoUrl} points={myRunningPoints} />
-        {/* Host: "the question can also move up and wrap around the timer
-            - if needed." The Q-number + timer used to be their own fixed
-            flex row ABOVE the scroll area, permanently reserving a full
-            row's height whether or not the question actually needed it.
-            Floating the Q-number/timer block to the right of the question
-            text instead - inside the same scroll area - lets the text's
-            first lines wrap around it and reclaim that row's height for
-            itself; a short question still shows the timer beside it, a
-            long one just flows past it once its lines pass the float's
-            height, same as any other float. */}
-        {/* Host, live, repeatedly: "the lock it in button is still not
-            visible" - a long question paired with a tall keypad/on-screen
-            keyboard can still exceed the ShrinkToFit scale floor (0.55) on
-            some device/content combinations no matter how the JS budget
-            math above is tuned - this has recurred several times even
-            after each fix. overflow:hidden meant the ONLY way to reach
-            LOCK IT IN in that case was already off-screen with literally no
-            way to get to it. overflow-y:auto keeps the JS scaling as the
-            normal no-scroll experience but adds scrolling as a guaranteed
-            last resort, so the button is never truly unreachable again. */}
-        <div ref={qScrollRef} className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
-        <div ref={qWrapRef} className="qi-player-question-wrap" style={{ flex: "0 0 auto", minHeight: 0, overflow: "hidden", marginBottom: 8, height: qWrapHeight }}>
-          <div className="qi-player-timer-badge" style={{ float: "right", marginLeft: 12, marginBottom: 6, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+        {/* Reserve the same text and timer space through typing and submission. */}
+        <div ref={qWrapRef} className="qi-player-question-wrap" style={{ flex: "0 0 auto", minHeight: 0, overflow: "hidden", marginBottom: 8, height: qWrapHeight, position: "relative", paddingRight: 60 }}>
+          <div className="qi-player-timer-badge" style={{ position: "absolute", right: 0, top: 2, width: 48, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
             <div style={{ fontSize: 11, letterSpacing: 3, color: "rgba(255,255,255,0.3)" }}>Q{questionIndex + 1}</div>
             {timeLeft !== null && timeLeft > 0 && (
               <div style={{ width: 44, height: 44, borderRadius: "50%", background: timeLeft <= 3 ? "rgba(239,68,68,0.3)" : "rgba(190,38,193,0.2)", border: "2px solid " + (timeLeft <= 3 ? "#ef4444" : purple), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 800, color: timeLeft <= 3 ? "#ef4444" : purple, flexShrink: 0 }}>
@@ -2320,17 +2278,11 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
               </div>
             )}
           </div>
-          {/* maxViewportHeight is a fraction of THIS wrap's own height, not
-              the whole screen - and the wrap above is now sized to exactly
-              the real leftover room after the answer area's natural size
-              (see the controller near the top of this component), so a
-              generous fraction here fills that dedicated space nicely
-              instead of the old fixed 32%-of-flex-grown-box, which left a
-              visible gap under short questions. */}
-          <FitBlockText className="qi-player-question-text" maxViewportHeight={0.78} minFontSize={13}>
+          <FitBlockText className="qi-player-question-text qi-player-question-text--stable" fixedHeight={qWrapHeight - 12} minFontSize={13}>
             {question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
           </FitBlockText>
         </div>
+        <div ref={qScrollRef} className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
         {error && (
           <div role="alert" style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, marginBottom: 10, textAlign: "center" as const }}>{error}</div>
         )}

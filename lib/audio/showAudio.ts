@@ -12,17 +12,26 @@ const active = new Map<ShowAudioChannel, HTMLAudioElement>();
 const unlockedPlayers = new Map<ShowAudioChannel, HTMLAudioElement>();
 
 let audioMix = { ...DEFAULT_AUDIO_MIX };
+let previewMix: typeof audioMix | null = null;
 const sourceLevels = new WeakMap<HTMLAudioElement, { channel: ShowAudioChannel; level: number }>();
-export function getShowAudioVolume(channel: ShowAudioChannel, level = 1) { return mixedVolume(audioMix, channel, level); }
+export function getShowAudioVolume(channel: ShowAudioChannel, level = 1) { return mixedVolume(previewMix ?? audioMix, channel, level); }
 export function setShowAudioMix(value: unknown) {
   audioMix = readAudioMix(value);
+  refreshAudioVolumes();
+}
+// Keep a live slider preview stable when session polling delivers older levels.
+export function previewShowAudioMix(value: unknown | null) {
+  previewMix = value === null ? null : readAudioMix(value);
+  refreshAudioVolumes();
+}
+function refreshAudioVolumes() {
   for (const [channel, audio] of active) {
-    audio.volume = mixedVolume(audioMix, channel, sourceLevels.get(audio)?.level ?? 1);
+    audio.volume = getShowAudioVolume(channel, sourceLevels.get(audio)?.level ?? 1);
   }
 }
 export function setShowAudioLevel(audio: HTMLAudioElement, level: number, channel: ShowAudioChannel = "music") {
   sourceLevels.set(audio, { channel, level });
-  audio.volume = mixedVolume(audioMix, channel, level);
+  audio.volume = getShowAudioVolume(channel, level);
 }
 export function getShowAudioLevel(audio: HTMLAudioElement) { return sourceLevels.get(audio)?.level ?? 1; }
 

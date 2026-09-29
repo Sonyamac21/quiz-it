@@ -33,3 +33,14 @@ test("handsets continuously recover native and iOS screen-awake protection", () 
   assert.match(player, /z-index:0;transform:translateZ\(0\)/);
   assert.match(player, /video\.addEventListener\("pause", resume\)/);
 });
+
+test("question remains outside the scrolling answers with a phase-independent size", () => {
+  const start = player.indexOf('data-keyboard-open={keyboardOpen}');
+  const surface = player.slice(start);
+  assert.ok(surface.indexOf('ref={qWrapRef}') < surface.indexOf('ref={qScrollRef}'));
+  assert.match(surface, /fixedHeight=\{qWrapHeight - 12\}/);
+  assert.doesNotMatch(player, /setQWrapHeight/);
+  assert.match(surface, /paddingRight: 60/);
+  assert.match(player, /setViewportTop\(viewport\?\.offsetTop \|\| 0\)/);
+  assert.match(css, /qi-player-question-text--stable\s*\{\s*font-size: 24px/);
+});

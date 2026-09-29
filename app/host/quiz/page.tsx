@@ -173,7 +173,7 @@ const ROUND_TYPE_LABEL: Record<string,string> = { regular: "Regular", multi_tap:
 type HostPhase = "waiting" | "round_start" | "preview" | "question" | "timer" | "hot_seat" | "pairs" | "answer" | "celebration" | "round_end" | "quiz_end";
 
 function playSound(file: string, volume = 1.0) {
-  return playShowAudio(file, { channel: file.includes("countdown") ? "timer" : "cue", volume });
+  return playShowAudio(file, { channel: file.includes("countdown") || file === "lock.mp3" ? "timer" : "cue", volume });
 }
 
 function QuizControllerInner() {
@@ -1573,12 +1573,14 @@ function QuizControllerInner() {
       tickIntervalRef.current = setInterval(() => {
         tick++;
         if (tick > duration) { stopTickAudio(); return; }
+        const volume = getShowAudioVolume("timer", 0.3);
+        if (volume === 0) return;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain); gain.connect(ctx.destination);
         const progress = tick / duration;
         osc.frequency.value = progress > 0.7 ? 880 : 440;
-        gain.gain.setValueAtTime(Math.max(0.00001, getShowAudioVolume("timer", 0.3)), ctx.currentTime);
+        gain.gain.setValueAtTime(volume, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.08);
         osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
       }, PLATFORM_CONFIG.timers.tickMilliseconds);

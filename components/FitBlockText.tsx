@@ -9,10 +9,11 @@ type FitBlockTextProps = {
   maxViewportHeight?: number;
   minFontSize?: number;
   style?: CSSProperties;
+  fixedHeight?: number;
 };
 
 /** Fit complete wrapped copy without line-clamping away quiz information. */
-export function FitBlockText({ as = "div", children, className, maxViewportHeight = 0.22, minFontSize = 13, style }: FitBlockTextProps) {
+export function FitBlockText({ as = "div", children, className, maxViewportHeight = 0.22, minFontSize = 13, style, fixedHeight }: FitBlockTextProps) {
   const ref = useRef<HTMLElement | null>(null);
   const [fontSize, setFontSize] = useState<number | null>(null);
 
@@ -77,7 +78,7 @@ export function FitBlockText({ as = "div", children, className, maxViewportHeigh
         }
         const remaining = availableHeight - siblingsHeight;
         const ceiling = Math.max(48, availableHeight * maxViewportHeight);
-        const limit = Math.max(48, Math.min(ceiling, remaining > 0 ? remaining : ceiling)) * 0.94;
+        const limit = fixedHeight ?? Math.max(48, Math.min(ceiling, remaining > 0 ? remaining : ceiling)) * 0.94;
         let next = authored;
         element.style.fontSize = `${next}px`;
         for (let attempt = 0; attempt < 10 && element.scrollHeight > limit && next > minFontSize; attempt += 1) {
@@ -95,7 +96,7 @@ export function FitBlockText({ as = "div", children, className, maxViewportHeigh
         // instant a step would overflow it - so a short question on an
         // otherwise-empty screen actually fills the space it's been given,
         // the same way FitScaleBlock does for the host console.
-        for (let attempt = 0; attempt < 12 && next < ceiling && element.scrollHeight < limit * 0.92; attempt += 1) {
+        for (let attempt = 0; fixedHeight === undefined && attempt < 12 && next < ceiling && element.scrollHeight < limit * 0.92; attempt += 1) {
           const candidate = Math.min(ceiling, next * 1.12);
           element.style.fontSize = `${candidate}px`;
           if (element.scrollHeight > limit) { element.style.fontSize = `${next}px`; break; }
@@ -115,7 +116,7 @@ export function FitBlockText({ as = "div", children, className, maxViewportHeigh
       window.removeEventListener("resize", fit);
       document.fonts?.removeEventListener?.("loadingdone", fit);
     };
-  }, [children, maxViewportHeight, minFontSize]);
+  }, [children, maxViewportHeight, minFontSize, fixedHeight]);
 
   const Tag = as;
   return <Tag ref={ref as never} className={className} style={{ ...style, ...(fontSize == null ? {} : { fontSize }) }}>{children}</Tag>;

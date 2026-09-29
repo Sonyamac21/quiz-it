@@ -2541,7 +2541,7 @@ function QuizControllerInner() {
                 <strong>{selectedRound ? `Round ${(selectedRound.position ?? 0) + 1} of ${rounds.length}` : `${rounds.length} rounds`}</strong>
                 <i>{roundRunDownOpen ? "Hide" : "Show"}</i>
               </button>
-              {roundRunDownOpen && <div id="live-round-rundown" role="dialog" aria-label="Live round running order" style={{ position: "absolute", zIndex: 20, top: "calc(100% + 8px)", left: 0, width: "min(360px, 86vw)", padding: 14, borderRadius: 14, background: "#16072d", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 18px 45px rgba(0,0,0,0.4)" }}>
+              {roundRunDownOpen && <div id="live-round-rundown" role="dialog" aria-label="Live round running order" style={{ position: "fixed", zIndex: 200, top: 112, left: 24, width: "min(360px, 86vw)", maxHeight: "min(70vh, 620px)", overflowY: "auto", padding: 14, borderRadius: 14, background: "#16072d", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 18px 45px rgba(0,0,0,0.4)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <strong style={{ color: "#fff" }}>Tonight’s rounds</strong>
                   {selectedRound && hostPhase !== "round_end" && hostPhase !== "quiz_end" && <button type="button" onClick={async () => { if (await confirmDialog("Skip the rest of this round and move on?")) { setRoundRunDownOpen(false); doEndRound(); } }} style={{ border: "0", borderRadius: 8, padding: "7px 10px", background: "rgba(217,79,220,0.22)", color: "#f3b8f2", fontWeight: 700, cursor: "pointer" }}>Skip this round</button>}
@@ -2566,6 +2566,11 @@ function QuizControllerInner() {
               <Button variant={showScoreboard ? "primary" : "secondary"} disabled={!!selectedRound?.hide_leaderboard} onClick={showScoreboard ? hideScoreboard : pushScoreboardToScreen}>{selectedRound?.hide_leaderboard ? "Display hidden" : showScoreboard ? "Hide on display" : "Show on display"}</Button>
             </div>}
             {sessionId && <PhotoApprovalPanel sessionId={sessionId} sessionPin={sessionPin} />}
+            {selectedRound && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
+              <Button variant="secondary" onClick={async () => {
+                if (await confirmDialog("Skip the rest of this round and move on?")) await doEndRound();
+              }}>Skip Round</Button>
+            )}
             {!nextActionLabel && spacebarHint ? <span className="qi-mc-toolbar__hint">{spacebarHint}</span> : null}
             <div className="qi-mc-toolbar__group">
               {/* Escape hatch for a round that's stuck with no question to
@@ -2576,9 +2581,6 @@ function QuizControllerInner() {
                   Answer"/Space doing nothing forever with no other way
                   forward. Always visible during a round (not just when
                   stuck) so the host never has to hunt for it mid-show. */}
-              {selectedRound && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
-                <Button variant="secondary" onClick={async () => { if (await confirmDialog("Skip the rest of this round and move on? Use this if the round is stuck (e.g. Space isn't doing anything).")) doEndRound(); }}>Skip Round</Button>
-              )}
               {/* Escape hatch for "nobody's going to buzz in" - previously the
                   only way to end a Hot Seat question was to let every
                   remaining team individually claim it, answer wrong, and get

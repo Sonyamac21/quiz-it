@@ -386,12 +386,28 @@ button, input, select, textarea { font: inherit; }
      toolbar are. The column-width logic (drag-to-resize, auto-widening for
      more team columns) moves here from .qi-mc-workspace, unchanged. */
   display: grid;
+  container-type: inline-size;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 29vw);
   overflow: hidden;
   background:
     radial-gradient(ellipse 70% 55% at 45% 42%, rgb(190 38 193 / 0.1), transparent 72%),
     var(--qi-bg-stage);
   color: var(--qi-text-primary);
+}
+
+/* A wide team rail leaves a narrower question desk. Compact the host chrome
+   at the desk's actual available width so the live question keeps the room. */
+@container (max-width: 1050px) {
+  .qi-mc-header { padding-block: 4px; gap: 4px 10px; }
+  .qi-mc-header__content { gap: 4px; }
+  .qi-mc-header__top, .qi-mc-header__bottom { gap: 4px 6px; }
+  .qi-mc-header__top .qi-button, .qi-mc-header__bottom .qi-button,
+  .qi-mc-toolbar__toggle { min-height: 30px; padding-block: 3px; }
+  .qi-mc-brand { transform: scale(.82); transform-origin: left center; }
+  .qi-mc-round-select { font-size: .9rem; }
+  .qi-mc-next { min-height: 54px !important; padding-block: 6px !important; }
+  .qi-mc-manual { padding-block: 4px !important; gap: 4px !important; }
+  .qi-mc-manual__button, .qi-mc-manual__last { min-height: 28px !important; padding: 3px 8px !important; font-size: .78rem !important; }
 }
 .qi-mc-main-column { grid-column: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .qi-mc-connect { width: min(100%, 30rem); padding: clamp(1.5rem, 4vw, 2.5rem); }
@@ -893,7 +909,7 @@ button, input, select, textarea { font: inherit; }
   /* .qi-mc-nav no longer exists in the markup (see .qi-mc-header__top/
      __bottom above) - kept as inert legacy CSS rather than deleted. */
   .qi-mc-nav { grid-column: 1 / -1; justify-content: flex-start; overflow-x: auto; padding-bottom: 2px; }
-  .qi-mc-header__top, .qi-mc-header__bottom { overflow-x: auto; padding-bottom: 2px; }
+  .qi-mc-header__top, .qi-mc-header__bottom { overflow: visible; padding-bottom: 2px; }
   .qi-mc-round-select { flex: 1; min-width: 12rem; }
   .qi-mc-shell { grid-template-columns: minmax(0, 1fr) minmax(330px, 38vw); }
 }

@@ -445,14 +445,14 @@ button, input, select, textarea { font: inherit; }
    just whichever of the two is naturally taller (brand, in this case),
    with no phantom second row left over. */
 .qi-mc-header > .qi-mc-brand { grid-column: 1; align-self: center; }
-.qi-mc-header__content { grid-column: 2; min-width: 0; display: flex; flex-direction: column; gap: var(--qi-space-2); overflow: hidden; }
+.qi-mc-header__content { grid-column: 2; min-width: 0; display: flex; flex-direction: column; gap: var(--qi-space-2); overflow: visible; }
 /* Host request: "why do I have 3 rows at the top? I asked for two." -
    flex-wrap here let the recovery-button group (flex-shrink:0, so it
    always demands its full width) drop to a THIRD line rather than shrink
    or share the second line, whenever the row ran a little short on space.
    nowrap + horizontal scroll keeps this to exactly the two rows asked for -
    there's normally plenty of width for both anyway. */
-.qi-mc-header__top, .qi-mc-header__bottom { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--qi-space-2) var(--qi-space-3); overflow-x: auto; scrollbar-width: none; }
+.qi-mc-header__top, .qi-mc-header__bottom { display: flex; flex-wrap: wrap; align-items: center; gap: var(--qi-space-2) var(--qi-space-3); overflow: visible; scrollbar-width: none; }
 .qi-mc-header__top::-webkit-scrollbar, .qi-mc-header__bottom::-webkit-scrollbar { display: none; }
 .qi-mc-header__top > *, .qi-mc-header__bottom > * { flex-shrink: 0; }
 .qi-mc-header__top .qi-mc-toolbar__end { margin-left: auto; }
@@ -543,7 +543,7 @@ button, input, select, textarea { font: inherit; }
    unit (flex-shrink:0, its own nowrap-safe flex row) so these recovery
    buttons land on the same line together or drop to the next line
    together, instead of the toolbar's own wrap splitting them apart. */
-.qi-mc-toolbar__group { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; gap: var(--qi-space-3); }
+.qi-mc-toolbar__group { display: flex; flex-shrink: 1; flex-wrap: wrap; align-items: center; gap: var(--qi-space-3); }
 .qi-mc-toolbar__end { margin-left: auto; flex-shrink: 0; }
 .qi-mc-toolbar__hint + .qi-mc-toolbar__end { margin-left: 0; }
 

@@ -2549,7 +2549,7 @@ function QuizControllerInner() {
                 <div style={{ display: "grid", gap: 6 }}>
                   {rounds.map(round => {
                     const isCurrent = round.id === selectedRound?.id;
-                    const isPassed = !!round.completed_at;
+                    const isPassed = !!round.completed_at || (selectedRound?.position != null && (round.position ?? 0) < selectedRound.position);
                     const statusColor = isCurrent ? "#f3b8f2" : isPassed ? "#ff6678" : "#52e889";
                     return <button key={round.id} type="button" onClick={() => { if (!isCurrent) { setRoundRunDownOpen(false); void chooseRound(round); } }} aria-current={isCurrent ? "step" : undefined} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "9px 10px", borderRadius: 9, background: isCurrent ? "rgba(190,38,193,0.2)" : "rgba(255,255,255,0.045)", border: isCurrent ? "1px solid rgba(231,133,230,0.55)" : "1px solid transparent", opacity: 1, color: "#fff", textAlign: "left", cursor: isCurrent ? "default" : "pointer" }}>
                       <span style={{ minWidth: 24, color: statusColor, fontWeight: 800 }}>{(round.position ?? 0) + 1}.</span>
@@ -2576,7 +2576,7 @@ function QuizControllerInner() {
                   Answer"/Space doing nothing forever with no other way
                   forward. Always visible during a round (not just when
                   stuck) so the host never has to hunt for it mid-show. */}
-              {hostPhase !== "waiting" && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
+              {selectedRound && hostPhase !== "round_end" && hostPhase !== "quiz_end" && (
                 <Button variant="secondary" onClick={async () => { if (await confirmDialog("Skip the rest of this round and move on? Use this if the round is stuck (e.g. Space isn't doing anything).")) doEndRound(); }}>Skip Round</Button>
               )}
               {/* Escape hatch for "nobody's going to buzz in" - previously the

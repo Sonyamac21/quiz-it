@@ -229,7 +229,7 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
     attemptedLabels.add(aLabel.toLowerCase());
     attemptedLabels.add(bLabel.toLowerCase());
     const fingerprint = [aLabel, bLabel].map(value => value.toLowerCase()).sort().join(" + ");
-    if (seen.has(fingerprint) || exclusions.used.slice(-300).some(value => String(value || "").toLowerCase() === fingerprint)) { duplicateSkips++; continue; }
+    if (seen.has(fingerprint) || (exclusions.usedAnswers.includes(fingerprint) || exclusions.used.some(value => String(value || "").toLowerCase() === fingerprint))) { duplicateSkips++; continue; }
     seen.add(fingerprint);
     try {
       // Deliberately reuse the exact Pixabay matching + permanent re-hosting

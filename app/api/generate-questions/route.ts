@@ -228,6 +228,7 @@ export async function POST(req: NextRequest) {
       }];
     }
 
+    const startedAt = Date.now();
     const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -236,6 +237,7 @@ export async function POST(req: NextRequest) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify(requestBody),
+      signal: AbortSignal.any([req.signal, AbortSignal.timeout(45_000)]),
     });
 
     const text = await apiRes.text();
@@ -258,6 +260,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    console.info("quiz_ai_usage", JSON.stringify({
+      model: resolvedModel,
+      stage: imageData ? "vision" : combinedValidation ? "validation" : webSearch ? "search" : structuredOutput ? "check" : "generation",
+      durationMs: Date.now() - startedAt,
+      usage: responseData.usage,
+      stopReason: responseData.stop_reason,
+    }));
     return NextResponse.json(responseData, { headers: res.headers });
   } catch (e) {
     // Catches everything - including createSupabaseServerClient() throwing on

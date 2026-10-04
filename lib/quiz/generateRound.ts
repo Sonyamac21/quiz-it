@@ -254,7 +254,8 @@ export async function generateValidatedRound(
   const shuffledPictureTopics = shuffle(PICTURE_TOPICS);
   const good: Question[] = [];
   let attempts = 0;
-  const maxAttempts = roundType === "multi_tap" ? count * 24 : count * 18;
+  const maxAttempts = Math.max(12, count * 6);
+  let replacementFeedback = "";
   const generationStartedAt = Date.now();
   const baseWallClockBudgetMs = roundType === "multi_tap"
     ? Math.max(150_000, count * 35_000)
@@ -370,12 +371,11 @@ export async function generateValidatedRound(
     // duplicate/memory rejections in a row. Now also fires proactively on a
     // portion of candidates from the start.
     const proactiveObscure = Math.random() < 0.3;
-    pending.push({ type, candidateDifficulty, multiTapCorrectCount, context, promise: generateOne(type, topic, context, { theme, difficulty: candidateDifficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure, multiTapCorrectCount }) });
+    pending.push({ type, candidateDifficulty, multiTapCorrectCount, context, promise: generateOne(type, topic, context, { theme, difficulty: candidateDifficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure, multiTapCorrectCount, replacementFeedback }) });
   };
   const refillPipeline = () => {
-    // Deliberately keeps up to 3 candidates in flight even once `count` is
-    // nearly/already covered by good+pending.
-    while (pending.length < 3 && attempts < maxAttempts) launchCandidate();
+    // Never pay for candidates beyond the remaining question slots.
+    while (pending.length < 3 && good.length + pending.length < count && attempts < maxAttempts && Date.now() - generationStartedAt < wallClockBudgetMs) launchCandidate();
   };
   refillPipeline();
 
@@ -394,6 +394,7 @@ export async function generateValidatedRound(
     if (multiTapCorrectCount) inFlightMultiTapCounts[multiTapCorrectCount] = Math.max(0, (inFlightMultiTapCounts[multiTapCorrectCount] || 0) - 1);
     if (!q) {
       reportGeneratedFailure(context, type);
+      replacementFeedback = context.error.slice(0, 400);
       consecutiveFailures++;
       const err = context.error.toLowerCase();
       const isAuthError = err.includes("unauthorized") || err.includes("not logged in") || err.includes("authentication");
@@ -457,47 +458,46 @@ export async function generateValidatedRound(
       continue;
     }
     if (validation.ok) {
-      await commitToMemory(q, () => { memoryDegradedCount++; });
+      // Reserve locally before awaiting persistence so sibling rounds cannot
+      // accept the same candidate during the database round trip.
+      registerAccepted(exclusions, q);
+      onAccept?.(q);
+      try {
+        await commitToMemory(q, () => { memoryDegradedCount++; });
+      } catch (error) {
+        const finalStatus = error instanceof Error ? error.message : "Question memory save failed";
+        onProgress?.(finalStatus);
+        return { spec, questions: good, report, finalStatus, stoppedEarly: true };
+      }
       good.push(q);
       acceptedCounts[type] = (acceptedCounts[type] || 0) + 1;
       acceptedDifficultyCounts[candidateDifficulty] = (acceptedDifficultyCounts[candidateDifficulty] || 0) + 1;
       if (multiTapCorrectCount) acceptedMultiTapCounts[multiTapCorrectCount] = (acceptedMultiTapCounts[multiTapCorrectCount] || 0) + 1;
-      registerAccepted(exclusions, q);
-      onAccept?.(q);
       addReportEntry({ outcome: "accepted", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       consecutiveCheckFailures = 0;
       consecutiveMemoryFailures = 0;
     } else {
-      if (validation.category === "Moderation unavailable") {
+      if (validation.category === "Moderation unavailable" || validation.category === "Memory unavailable") {
         addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
-        const finalStatus = "Generation stopped because moderation could not be reached. " + validation.reason + degradedSuffix();
+        const finalStatus = "Generation stopped because a required check could not be reached. " + validation.reason + degradedSuffix();
         onProgress?.(finalStatus);
         return { spec, questions: good, report, finalStatus, stoppedEarly: true };
       }
       blacklistRejected(exclusions, q);
+      replacementFeedback = `${validation.category}: ${validation.reason}`.slice(0, 400);
       addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       consecutiveCheckFailures++;
       totalCheckFailures++;
       consecutiveMemoryFailures = (validation.category === "Duplicate" || validation.category === "Permanent memory") ? consecutiveMemoryFailures + 1 : 0;
       const failReason = (validation.reason || "Unknown reason").substring(0, 40);
       onProgress?.("Question " + (good.length + 1) + " failed check (" + failReason + ") - retrying..." + (consecutiveMemoryFailures >= 4 ? " (widening search for a fresh angle)" : ""));
-      if (consecutiveCheckFailures >= 45) {
+      if (consecutiveCheckFailures >= 12) {
         const finalStatus = "Generation stalled after " + consecutiveCheckFailures + " questions in a row failing validation (latest: " + validation.category + " — " + (validation.reason || "Unknown reason").substring(0, 60) + "). Got " + good.length + " of " + count + ". This topic/theme may be close to exhausted in your saved question history - try a different or more specific theme. See Generation Report for details." + degradedSuffix();
         onProgress?.(finalStatus);
         return { spec, questions: good, report, finalStatus, stoppedEarly: true };
       }
-      // A hard ceiling on total billed validation spend for this round, not
-      // just on losing streaks. consecutiveCheckFailures resets to 0 on
-      // every accepted question, so a round that succeeds occasionally
-      // between long-but-under-45 losing streaks could otherwise keep
-      // paying for validateCandidate() calls (one real Anthropic charge
-      // each, win or lose) all the way out to maxAttempts/the wall clock -
-      // confirmed live as the direct cause of a $2 charge for a round that
-      // still only delivered 4 of 6 questions. count * 10 gives real themes
-      // plenty of room (a normal round rarely sees more than 1-2 rejections
-      // per accepted question) while keeping a genuinely bad run's cost
-      // predictable and bounded.
-      if (totalCheckFailures >= Math.max(45, count * 10)) {
+      // Bound total rejected checks even when occasional successes reset the streak.
+      if (totalCheckFailures >= Math.max(12, count * 3)) {
         const finalStatus = "Generation stopped after " + totalCheckFailures + " failed validation checks to keep cost bounded. Got " + good.length + " of " + count + " - use Generate More to top up the rest, or try a different/more specific theme." + degradedSuffix();
         onProgress?.(finalStatus);
         return { spec, questions: good, report, finalStatus, stoppedEarly: true };
@@ -533,6 +533,7 @@ export async function generateAllRounds(
   // round's in-flight state.
   const perRoundExclusions = specs.map(() => ({
     used: [...baseExclusions.used],
+    historyQuestions: [...(baseExclusions.historyQuestions || [])],
     usedFingerprints: new Set(baseExclusions.usedFingerprints),
     usedAnswers: [...baseExclusions.usedAnswers],
     rejectedFingerprints: new Set(baseExclusions.rejectedFingerprints),

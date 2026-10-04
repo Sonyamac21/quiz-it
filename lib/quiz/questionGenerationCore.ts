@@ -254,14 +254,16 @@ const aiRequestQueue: Array<() => void> = [];
 async function withAiRequestSlot<T>(task: () => Promise<T>): Promise<T> {
   if (activeAiRequests >= MAX_AI_CONCURRENCY) {
     await new Promise<void>(resolve => aiRequestQueue.push(resolve));
+  } else {
+    activeAiRequests++;
   }
-  activeAiRequests++;
   try {
     return await task();
   } finally {
-    activeAiRequests--;
+    // Transfer the reserved slot to the next waiter without a race window.
     const next = aiRequestQueue.shift();
     if (next) next();
+    else activeAiRequests--;
   }
 }
 
@@ -287,7 +289,7 @@ export function shuffle<T>(arr: T[]): T[] {
 }
 
 export function normalizeQuestionText(s: string): string {
-  return (s || "").toLowerCase().trim().replace(/\s+/g, " ");
+  return (s || "").toLowerCase().normalize("NFKC").replace(/[^\p{L}\p{N}\s]/gu, " ").trim().replace(/\s+/g, " ");
 }
 
 // Generic stems such as "Name this song" and "Which of these are..." are not
@@ -358,6 +360,7 @@ export function stageLabel(stage: ValidationStage): string {
 
 export type ExclusionState = {
   used: string[];
+  historyQuestions?: Question[];
   usedFingerprints: Set<string>;
   usedAnswers: string[];
   rejectedFingerprints: Set<string>;
@@ -374,23 +377,25 @@ export function emptyExclusionState(): ExclusionState {
 // let genuinely-repeated questions resurface once they aged past the window.
 export async function loadUsedQuestions(): Promise<ExclusionState> {
   const supabase = createSupabaseBrowserClient();
-  // Read the saved Quiz Plan directly: library synchronisation happens later
-  // and cannot be the source of truth for back-to-back generation requests.
-  const loadPlanQuestions = async () => {
-    const questions: Question[] = [];
+  // Supabase caps unpaginated selects. Read every source in stable ID order,
+  // and never interpret a failed history query as an empty history.
+  const loadAll = async (table: string, columns: string): Promise<Record<string, unknown>[]> => {
+    const rows: Record<string, unknown>[] = [];
     for (let offset = 0; ; offset += 500) {
-      const { data, error } = await supabase.from("quiz_rounds").select("id,questions").order("id").range(offset, offset + 499);
-      if (error) throw new Error("Could not check saved Quiz Plans for repeated questions. Please retry. " + error.message);
-      for (const row of data || []) if (Array.isArray(row.questions)) questions.push(...row.questions);
-      if (!data || data.length < 500) return questions;
+      const { data, error } = await supabase.from(table).select(columns).order("id").range(offset, offset + 499);
+      if (error) throw new Error("Could not check saved Quiz Plans/question history (" + table + "). Please retry. " + error.message);
+      rows.push(...((data || []) as unknown as Record<string, unknown>[]));
+      if (!data || data.length < 500) return rows;
     }
   };
-  const [{ data: rounds }, { data: bank }, { data: library }, planQuestions] = await Promise.all([
-    supabase.from("rounds").select("questions"),
-    supabase.from("question_bank").select("question_text,question_type,option_a,option_b,option_c,option_d,option_e,option_f,correct_answer"),
-    supabase.from("questions").select("question_text,question_type,option_a,option_b,option_c,option_d,option_e,option_f,correct_answer"),
-    loadPlanQuestions(),
+  const fields = "question_text,question_type,option_a,option_b,option_c,option_d,option_e,option_f,correct_answer";
+  const [rounds, bank, library, plans] = await Promise.all([
+    loadAll("rounds", "id,questions"),
+    loadAll("question_bank", "id," + fields),
+    loadAll("questions", "id," + fields),
+    loadAll("quiz_rounds", "id,questions"),
   ]);
+  const planQuestions = plans.flatMap(row => Array.isArray(row.questions) ? row.questions as Question[] : []);
   const state = emptyExclusionState();
   const remember = (q: Question) => {
     if (!q || typeof q !== "object") return;
@@ -398,10 +403,13 @@ export async function loadUsedQuestions(): Promise<ExclusionState> {
     if (Array.isArray(pairs)) {
       for (const pair of pairs) {
         const labels = [pair?.a?.label, pair?.b?.label].filter((label): label is string => typeof label === "string" && Boolean(label.trim()));
-        if (labels.length === 2) state.usedAnswers.push(labels.join(" + ").toLowerCase());
+        if (labels.length === 2) state.usedAnswers.push(labels.map(label => label.trim().toLowerCase()).sort().join(" + "));
       }
     }
-    if (q.question_text) state.used.push(q.question_text);
+    if (q.question_text) {
+      state.used.push(q.question_text);
+      (state.historyQuestions ??= []).push(q);
+    }
     state.usedFingerprints.add(questionFingerprint(q));
     // Picture/audio questions draw from a deliberately tiny topic pool
     // (PICTURE_TOPICS has only ~15 broad categories - "classic desserts and
@@ -423,32 +431,21 @@ export async function loadUsedQuestions(): Promise<ExclusionState> {
       if (answer) state.usedAnswers.push(answer);
     }
   };
-  if (rounds) rounds.forEach((r: { questions: Question[] }) => r.questions?.forEach(remember));
+  rounds.forEach(r => { if (Array.isArray(r.questions)) r.questions.forEach(remember); });
   if (bank) bank.forEach((q) => remember(q as Question));
   if (library) library.forEach((q) => remember(q as Question));
   planQuestions.forEach(remember);
   return state;
 }
 
-// A lighter-weight alternative to loadUsedQuestions() for regenerating ONE
-// question (the REGENERATE button on a single question, in either the Quiz
-// Plan builder or Music Prep). loadUsedQuestions() deliberately fetches the
-// entire all-time history across three tables to seed exclusions - correct
-// for a full "Generate All" batch, but overkill for swapping a single
-// question, where that same full fetch was making the button visibly slow
-// to respond, especially as an account's saved-question history grows over
-// months of use. The permanent, all-time duplicate catch still happens
-// regardless - it's server-side, per-candidate, via check_question_memory
-// in isDuplicateInMemory() - so skipping the big client-side preload here
-// only means the model's prompt has fewer "don't repeat these" examples
-// up front, not that duplicates can slip through unchecked.
+// Supplement full history with unsaved questions in the active round.
 export function quickExclusionState(currentRoundQuestions: Record<string, unknown>[]): ExclusionState {
   const state = emptyExclusionState();
   currentRoundQuestions.forEach(q => {
     const pairs = (q as { pairs?: Array<{ a?: { label?: string }; b?: { label?: string } }> }).pairs;
     if (Array.isArray(pairs)) pairs.forEach(pair => {
       const labels = [pair.a?.label, pair.b?.label].filter((label): label is string => typeof label === "string" && Boolean(label.trim()));
-      if (labels.length === 2) state.usedAnswers.push(labels.join(" + ").toLowerCase());
+      if (labels.length === 2) state.usedAnswers.push(labels.map(label => label.trim().toLowerCase()).sort().join(" + "));
     });
     const text = q.question_text as string | undefined;
     if (text) state.used.push(text);
@@ -477,6 +474,7 @@ export function registerAccepted(state: ExclusionState, q: Question) {
   }
   if (typeof q.question_text === "string" && q.question_text.trim()) state.used.push(q.question_text);
   state.usedFingerprints.add(questionFingerprint(q));
+  (state.historyQuestions ??= []).push(q);
   const normAnswer = resolveAnswerText(q).toLowerCase().trim();
   if (normAnswer) state.usedAnswers = [...state.usedAnswers, normAnswer];
 }
@@ -727,7 +725,7 @@ export async function generateOne(
   type: string,
   topic: string,
   context: GenerationContext,
-  opts: { theme: string; difficulty: string; roundType: string; exclusions: ExclusionState; forceObscure?: boolean; multiTapCorrectCount?: number },
+  opts: { theme: string; difficulty: string; roundType: string; exclusions: ExclusionState; forceObscure?: boolean; multiTapCorrectCount?: number; replacementFeedback?: string },
 ): Promise<Question | null> {
   const { theme, difficulty, roundType, exclusions, forceObscure, multiTapCorrectCount } = opts;
   context.error = "";
@@ -767,6 +765,7 @@ export async function generateOne(
 BEFORE writing any question, ask yourself: "Would 8 friends sitting in a pub enjoy answering this?" If no, do not write it.
 FIRST-PASS CHECK (do silently): consider several different facts and entities; reject any that paraphrase an excluded question or reuse its entity, answer or knowledge test; then choose the strongest stable fact with one clear natural answer. Check only player-visible content for venue suitability—unseen plots, lyrics and themes do not make a mainstream work unsuitable.
 TOPIC: ${topic}
+${opts.replacementFeedback ? "Avoid the problem in the previous rejected candidate: " + opts.replacementFeedback : ""}
 ${roundType === "bonus" ? `BONUS THEME CONTRACT: Every question must directly test the host's theme "${theme || topic}". Use a different fact and subject for each question. Do not drift into movie/music trivia merely associated with the theme. For a colour theme, ask about colours themselves in varied contexts (nature, flags, everyday objects, art or sport), not the name of a film with colourful characters. All text must stand alone: never say "this bird", "this picture" or "this song" without supplied media. Prefer natural, specific questions over tenuous associations.` : ""}
 TYPE: ${typeInstructions[type]}
 DIFFICULTY: ${difficulty === "easy" ? "EASY - almost everyone in the room should get this right" : difficulty === "hard" ? "HARD - a well-informed pub team might know this, but it is still based on widely-known popular culture or history, never specialist academic knowledge" : "MEDIUM - a mixed group of adults has a fair chance, about half the room gets it right"}
@@ -826,6 +825,16 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     }
     if (q) { q.question_type = type; }
     if (q) { context.report.questionText = q.question_text || "Untitled candidate"; }
+    if (!q || typeof q.question_text !== "string" || typeof q.correct_answer !== "string") {
+      throw new Error("The AI returned incomplete question data - retrying.");
+    }
+    // Reject known repeats before theme, search verification or media calls.
+    const earlyDuplicate = duplicateRejectionReason(q, [], theme, exclusions);
+    if (earlyDuplicate) {
+      context.error = earlyDuplicate + " - retrying";
+      context.report.stages.duplicate = { status: "failed", note: earlyDuplicate };
+      return null;
+    }
     if (q && isRecencyTopic) {
       q._recency = true;
       try {
@@ -838,7 +847,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         // No verification note is fine.
       }
     }
-    if (q && theme && theme.trim()) {
+    if (q && theme && theme.trim() && ["picture", "audio"].includes(type)) {
       const themeCheck = await checkThemeRelevance(q, theme.trim());
       context.report.stages.theme = { status: themeCheck.ok ? "passed" : "failed", note: themeCheck.note };
       if (!themeCheck.ok) {
@@ -849,7 +858,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     if (q && q.question_type === "audio" && q.option_a) {
       try {
         const ytKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
-        const ytRes = await fetch(
+        const ytRes = await fetchWithTimeout(
           "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=" +
           encodeURIComponent(q.option_a) + "&key=" + ytKey
         );
@@ -876,7 +885,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       try {
         const pixabayKey = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
         const pixabayQuery = buildPixabaySearchQuery(q.option_a);
-        const pixRes = await fetch(
+        const pixRes = await fetchWithTimeout(
           "https://pixabay.com/api/?key=" + pixabayKey +
           "&q=" + encodeURIComponent(pixabayQuery) +
           "&image_type=photo&per_page=5&safesearch=true"
@@ -1024,28 +1033,29 @@ export function duplicateRejectionReason(q: Question, currentRound: Question[], 
   const themeTokens = (theme || "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
   const ignore = new Set<string>([...COMMON, ...themeTokens]);
   const sigWords = (s: string) => (typeof s === "string" ? s : "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
-  const sigPairs = (s: string) => {
-    const words = sigWords(s);
-    return new Set(words.slice(0, -1).map((word, index) => word + " " + words[index + 1]));
-  };
   const normAnswer = resolveAnswerText(q).toLowerCase().trim();
   const fingerprint = questionFingerprint(q);
   if (exclusions.rejectedFingerprints.has(fingerprint)) return "blacklist";
   if (exclusions.usedFingerprints.has(fingerprint)) return "exact-question:used-or-history";
-  if (exclusions.used.some(text => normalizeQuestionText(text) === normalizeQuestionText(q.question_text))) return "same-question-text:quiz-or-history";
+  if (!["picture", "audio"].includes(q.question_type) && exclusions.used.some(text => normalizeQuestionText(text) === normalizeQuestionText(q.question_text))) return "same-question-text:quiz-or-history";
   if (currentRound.some(g => questionFingerprint(g) === fingerprint)) return "exact-question:current-round";
   if (normAnswer && currentRound.some(g =>
     resolveAnswerText(g).toLowerCase().trim() === normAnswer
   )) return "same-answer:current-round";
   if (normAnswer && exclusions.usedAnswers.includes(normAnswer)) return "same-answer:quiz-plan";
+  // Resolve option letters to answer text so changing format or shuffling
+  // choices cannot conceal the same fact. A shared answer alone is not enough.
+  const candidateWords = new Set(sigWords(q.question_text));
+  for (const previous of exclusions.historyQuestions || []) {
+    if (normalizeQuestionText(resolveAnswerText(previous)) !== normalizeQuestionText(resolveAnswerText(q))) continue;
+    if (["picture", "audio"].includes(q.question_type) && previous.question_type === q.question_type) return "same-media-answer:history";
+    if (sigWords(previous.question_text).some(word => candidateWords.has(word))) return "same-answer-and-subject:history";
+  }
   const newWords = sigWords(q.question_text);
-  const newPairs = sigPairs(q.question_text);
-  if (newWords.length >= 2) {
-    for (const usedText of exclusions.used.slice(-100)) {
+  if (!["picture", "audio"].includes(q.question_type) && newWords.length >= 2) {
+    for (const usedText of exclusions.used) {
       const usedWords = sigWords(usedText);
       if (usedWords.length < 2) continue;
-      const usedPairs = sigPairs(usedText);
-      if ([...newPairs].some(pair => usedPairs.has(pair))) return "same-primary-entity:quiz-or-history";
       const shared = newWords.filter(w => usedWords.includes(w)).length;
       if (shared >= 2 && shared / Math.min(newWords.length, usedWords.length) >= 0.75) return "same-fact-reworded:quiz-or-history";
     }
@@ -1148,6 +1158,7 @@ export async function runCombinedValidation(q: Question, currentRound: Question[
     "Perform three INDEPENDENT checks on one commercial pub-quiz question and return all three verdicts in one tool call. " +
     "MODERATION: Judge only player-visible Question, Options, Answer and explicitly described player-visible media. Internal media lookup is private metadata: use its literal title/artist/subject only to identify and fact-check the answer. Never infer or analyse lyrics, plot, themes, subtext, artist history or character history. Allow mainstream commercial music, films, books and TV unless the actual presented title/content is inappropriate. A neutral factual alcohol reference is allowed; promotion is not. Reject only genuinely explicit sexual material, crude anatomical language, illegal-drug promotion, pork promotion, religious or LGBTQ+ advocacy or sensitive discussion, Iran or Israel political content, hate speech, slurs, harassment, discrimination, graphic violence, or clearly offensive/prohibited presented content. 'Name this song' with lookup 'Mr. Brightside - The Killers' must pass. Also verify the answer is factually correct. " +
     "ROUND BALANCE: Compare only with accepted questions. Reject only with HIGH confidence for the same primary entity, same narrow subtopic, or effectively the same underlying knowledge. Broad-category overlap is allowed; incidental/weak relationships pass; never reject merely for the same country. If themed, the shared theme is intentional, but repeated franchises/entities inside it are not. conflict_index is the 1-based accepted-question index, otherwise null. " +
+    "THEME RELEVANCE: If a theme is supplied, quality_ok must be false unless the question directly tests that theme; a tangential association is insufficient. " +
     "FINAL QUALITY AND FACTUAL ACCURACY: Independently verify that the exact answer is a real, complete, factually correct answer to the exact wording. Pass only if an experienced professional host would willingly use it. Reject invented or truncated names, unnatural/ambiguous/trivial/misleading wording, answers players would not naturally give, answer giveaways, multiple reasonable answers, category/event/gender ambiguity, poor quiz design, or media that does not directly support the question. Example that MUST fail: 'What trophy is awarded to the winner of Wimbledon?' answer 'Venus'—there is no trophy called Venus, and the event is unspecified; the women's trophy is the Venus Rosewater Dish and the men's is the Gentlemen's Singles Trophy. Do not rely on the explanation. " +
     "Return moderation_ok/note, balance_ok/note/confidence, quality_ok/note, candidate_subtopic, candidate_entity, conflict_index and rejection_reason. Uncertainty in balance must pass. " +
     (recencyNote
@@ -1177,13 +1188,14 @@ export async function runCombinedValidation(q: Question, currentRound: Question[
       balance: { ok: !highConfidenceConflict, note: highConfidenceConflict ? (details.rejection_reason || "High-confidence repeated subject") : (parsed.balance_note || "No high-confidence round-balance conflict"), details },
       quality: { ok: parsed.quality_ok === true, note: parsed.quality_note || (parsed.quality_ok ? "OK" : "Final quality rejected") },
     };
-  } catch {
-    const [moderation, balance, quality] = await Promise.all([
-      checkQuestion(q, theme, recencyNote),
-      checkRoundBalance(q, currentRound, theme),
-      finalQualityCheck(q, theme, recencyNote),
-    ]);
-    return { moderation, balance, quality };
+  } catch (error) {
+    // Fail closed without multiplying a provider failure into three paid calls.
+    const note = "Validation unavailable: " + (error instanceof Error ? error.message : "unknown error");
+    return {
+      moderation: { ok: false, unavailable: true, note },
+      balance: { ok: true, note: "Not checked", details: { candidate_subtopic: null, candidate_entity: null, conflict_index: null, rejection_reason: "" } },
+      quality: { ok: false, note },
+    };
   }
 }
 
@@ -1193,17 +1205,17 @@ export async function isDuplicateInMemory(q: Question, exclusions: ExclusionStat
     const supabase = createSupabaseBrowserClient();
     const { data, error } = await supabase.rpc("check_question_memory", {
       p_text: memoryText(q),
-      p_type: q.question_type,
+      p_type: ["picture", "audio"].includes(q.question_type) ? q.question_type : null,
       // Catch the same fact when it has been reworded more substantially.
-      // The database function also scopes comparisons by question type.
+      // Text facts are checked across formats; media keeps its own identity.
       p_threshold: 0.68,
     });
-    if (error) { console.error("Question Memory check unavailable (allowing question):", error.message); onDegraded?.(); return false; }
+    if (error) throw new Error(error.message);
     return data != null;
   } catch (e) {
     console.error("Question Memory check error (allowing question):", e);
     onDegraded?.();
-    return false;
+    throw new Error("Question history is unavailable. Generation stopped to prevent repeats.");
   }
 }
 
@@ -1219,7 +1231,14 @@ export async function validateCandidate(
   stages.duplicate = duplicateReason ? { status: "failed", note: duplicateReason } : { status: "passed", note: "No session or round duplicate" };
   if (duplicateReason) return { ok: false, category: "Duplicate", reason: duplicateReason, stages };
 
-  const memoryDuplicate = await isDuplicateInMemory(q, exclusions, onMemoryDegraded);
+  let memoryDuplicate: boolean;
+  try {
+    memoryDuplicate = await isDuplicateInMemory(q, exclusions, onMemoryDegraded);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "Question history unavailable";
+    stages.memory = { status: "failed", note: reason };
+    return { ok: false, category: "Memory unavailable", reason, stages };
+  }
   stages.memory = memoryDuplicate ? { status: "failed", note: "Matched permanent Question Memory" } : { status: "passed", note: "No permanent-memory match" };
   if (memoryDuplicate) return { ok: false, category: "Permanent memory", reason: stages.memory.note, stages };
 
@@ -1227,6 +1246,9 @@ export async function validateCandidate(
   stages.moderation = { status: moderation.ok ? "passed" : "failed", note: moderation.note };
   stages.balance = { status: balance.ok ? "passed" : "failed", note: balance.note, details: balance.details };
   stages.quality = { status: quality.ok ? "passed" : "failed", note: quality.note };
+  if (theme.trim() && stages.theme.status === "not_run") {
+    stages.theme = { status: quality.ok ? "passed" : "failed", note: "Theme included in combined quality check: " + quality.note };
+  }
   if (!moderation.ok) return { ok: false, category: moderation.unavailable ? "Moderation unavailable" : "Moderation", reason: moderation.note, stages };
   if (balance && !balance.ok) return { ok: false, category: "Round balance", reason: balance.note, stages };
   if (!quality.ok) return { ok: false, category: "Final quality", reason: quality.note, stages };
@@ -1263,24 +1285,27 @@ export async function commitToMemory(q: Question, onDegraded?: () => void) {
       question_type: q.question_type,
       media_url: ["picture", "audio"].includes(q.question_type) ? q.option_b : null,
     };
-    const { data: libData } = await supabase
+    const { data: libData, error: saveError } = await supabase
       .from("questions")
       .upsert(libRow, { onConflict: "question_text,question_type", ignoreDuplicates: true })
       .select("id")
       .maybeSingle();
+    if (saveError) throw new Error(saveError.message);
     if (libData?.id) {
       q.id = libData.id;
     } else {
-      const { data: existing } = await supabase
+      const { data: existing, error: lookupError } = await supabase
         .from("questions")
         .select("id")
-        .ilike("question_text", memoryText(q))
+        .eq("question_text", memoryText(q))
         .eq("question_type", q.question_type)
         .maybeSingle();
-      if (existing?.id) q.id = existing.id;
+      if (lookupError || !existing?.id) throw new Error(lookupError?.message || "Question memory save was not confirmed");
+      q.id = existing.id;
     }
   } catch (libErr) {
     console.error("Failed to save question to permanent memory:", libErr);
     onDegraded?.();
+    throw new Error("Could not save question history. Generation stopped to prevent future repeats.");
   }
 }

@@ -190,13 +190,36 @@ export default function QuestionsPage() {
     });
   }
 
-  useEffect(() => { refreshUsedQuestions(); }, []);
+  useEffect(() => { void refreshUsedQuestions().catch(error => setStatus(String(error))); }, []);
 
   // Wraps the shared loadUsedQuestions() (same permanent all-time history
   // fetch generateRound.ts uses) and stores it into this page's single
   // ExclusionState ref.
   async function refreshUsedQuestions() {
     exclusionsRef.current = await loadUsedQuestionsCore();
+  }
+
+  async function prepareGenerationHistory(): Promise<boolean> {
+    try {
+      await refreshUsedQuestions();
+      questions.forEach(registerAccepted);
+      return true;
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Question history unavailable");
+      setLoading(false);
+      return false;
+    }
+  }
+
+  async function saveGenerationMemory(question: Question): Promise<boolean> {
+    try {
+      await commitToMemory(question);
+      return true;
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Question memory save failed");
+      setLoading(false);
+      return false;
+    }
   }
 
   // Converts a questions-table row back into the in-app Question shape,
@@ -276,6 +299,7 @@ export default function QuestionsPage() {
 
   async function generate() {
     setLoading(true);
+    if (!await prepareGenerationHistory()) return;
     setQuestions([]);
     setGenerationReport([]);
     setRoundName("");
@@ -348,7 +372,7 @@ export default function QuestionsPage() {
     // request with no time-based safety net, while also giving up sooner
     // than necessary on a recoverable retry streak. Matching both to
     // generateRound.ts's tuned values.
-    const maxAttempts = count * 18;
+    const maxAttempts = Math.max(12, count * 6);
     const generationStartedAt = Date.now();
     const wallClockBudgetMs = Math.max(120_000, count * 25_000);
     let i = 0;
@@ -474,7 +498,7 @@ export default function QuestionsPage() {
       // AI checks only run once the cheaper ones pass; the final quality judge is
       // the very last gate before acceptance.
       if (validation.ok) {
-        await commitToMemory(q); // accepted -> becomes part of permanent memory
+        if (!await saveGenerationMemory(q)) return;
         good.push(q);
         acceptedCounts[type] = (acceptedCounts[type] || 0) + 1;
         if (multiTapCorrectCount) acceptedMultiTapCounts[multiTapCorrectCount] = (acceptedMultiTapCounts[multiTapCorrectCount] || 0) + 1;
@@ -488,9 +512,9 @@ export default function QuestionsPage() {
         addReportEntry({ outcome: "accepted", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
         consecutiveCheckFailures = 0;
       } else {
-        if (validation.category === "Moderation unavailable") {
+        if ((validation.category === "Moderation unavailable" || validation.category === "Memory unavailable")) {
           addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
-          setStatus("Generation stopped because moderation could not be reached. " + validation.reason);
+          setStatus("Generation stopped because a required check could not be reached. " + validation.reason);
           setLoading(false);
           return;
         }
@@ -540,6 +564,7 @@ export default function QuestionsPage() {
   async function removeAndReplace(i: number) {
     const removed = questions[i];
     if (!removed) return;
+    if (!await prepareGenerationHistory()) return;
     const removedUid = removed._uid;
 
     // IMPORTANT: do NOT remove the question yet. Generate a valid replacement
@@ -580,9 +605,9 @@ export default function QuestionsPage() {
         newQ = candidate;
         addReportEntry({ outcome: "accepted", questionText: candidate.question_text, questionType: candidate.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       } else {
-        if (validation.category === "Moderation unavailable") {
+        if ((validation.category === "Moderation unavailable" || validation.category === "Memory unavailable")) {
           addReportEntry({ outcome: "rejected", questionText: candidate.question_text, questionType: candidate.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
-          setStatus("Replacement stopped because moderation could not be reached. " + validation.reason);
+          setStatus("Replacement stopped because a required check could not be reached. " + validation.reason);
           return;
         }
         addReportEntry({ outcome: "rejected", questionText: candidate.question_text, questionType: candidate.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
@@ -601,7 +626,7 @@ export default function QuestionsPage() {
     // We have a valid replacement. Now commit the removal bookkeeping for the old
     // question and swap it out atomically, in place, keeping its position.
     const replacement: Question = newQ;
-    await commitToMemory(replacement); // accepted -> becomes part of permanent memory
+    if (!await saveGenerationMemory(replacement)) return;
     try {
       const supabase = createSupabaseBrowserClient();
       await supabase.from("question_bank").insert({
@@ -635,6 +660,7 @@ export default function QuestionsPage() {
     const current = questions;
     const needed = count - current.length;
     if (needed <= 0) return;
+    if (!await prepareGenerationHistory()) return;
     setStatus("Topping up " + needed + " question(s)...");
     // Must match the same round-type-aware type selection used in generate() -
     // otherwise Music/Multi Tap rounds get topped up with generic mixed question
@@ -665,15 +691,15 @@ export default function QuestionsPage() {
       const currentForTopup = [...questions, ...added];
       const validation = await runValidateCandidate(q, currentForTopup, context.report.stages);
       if (validation.ok) {
-        await commitToMemory(q); // accepted -> becomes part of permanent memory
+        if (!await saveGenerationMemory(q)) return;
         registerAccepted(q);
         added.push(q);
         setQuestions(prev => [...prev, q]);
         addReportEntry({ outcome: "accepted", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       } else {
-        if (validation.category === "Moderation unavailable") {
+        if ((validation.category === "Moderation unavailable" || validation.category === "Memory unavailable")) {
           addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
-          setStatus("Top Up stopped because moderation could not be reached. " + validation.reason);
+          setStatus("Top Up stopped because a required check could not be reached. " + validation.reason);
           return;
         }
         addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
@@ -698,7 +724,7 @@ export default function QuestionsPage() {
     setStatus("Round saved!");
     setQuestions([]);
     setRoundName("");
-    refreshUsedQuestions();
+    void refreshUsedQuestions().catch(error => setStatus(String(error)));
   }
 
   const onDragStart = (i: number) => { dragIdx.current = i; };

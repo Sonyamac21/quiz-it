@@ -902,11 +902,7 @@ export default function QuizBuilderPage() {
     try {
       const cfg = bulkConfig[round.id];
       const { theme, difficulty } = resolveRoundGenerationSettings(round, cfg);
-      // Regenerating ONE question uses the fast, local-only exclusion seed
-      // (just this round's own questions) instead of the full all-time
-      // history fetch - that fetch is what was making REGENERATE feel slow.
-      // The permanent duplicate check still runs server-side per candidate
-      // regardless, so this doesn't weaken duplicate protection.
+      // Include all saved history as well as the unsaved current round.
       const validExisting = validQuestionsForRound(round.round_type, round.questions);
       const exclusions = await loadUsedQuestions();
       const local = quickExclusionState(validExisting as Record<string, unknown>[]);

@@ -5,7 +5,7 @@ import { encodeWavFromBuffer, sliceAudioBuffer } from "@/lib/audio/wavEncoder";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { HostShell, HostButton, HostLoading, HostEmpty } from "@/components/fable/HostConsole";
 import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
-import { generateValidatedRound, quickExclusionState } from "@/lib/quiz/generateRound";
+import { generateValidatedRound, loadUsedQuestions, type Question as GeneratedQuestion } from "@/lib/quiz/generateRound";
 
 const purple = "#BE26C1";
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -374,14 +374,12 @@ export default function MusicPrepPage() {
   async function regenerateQuestion(round: Round, qIdx: number) {
     setRegeneratingIdx(qIdx);
     try {
-      // Fast local-only exclusion seed instead of the full all-time history
-      // fetch - permanent duplicate protection still runs server-side per
-      // candidate, this just avoids the slow full fetch on every REGENERATE.
-      const exclusions = quickExclusionState(round.questions as unknown as Record<string, unknown>[]);
+      // Replacements must respect all previous quiz generations too.
+      const exclusions = await loadUsedQuestions();
       // Force type "audio" regardless of the containing round's own type -
       // this slot needs a music question specifically, not whatever mix a
       // "regular" round would normally generate.
-      const result = await generateValidatedRound({ roundType: "music", difficulty: "mixed", theme: "", count: 1 }, exclusions);
+      const result = await generateValidatedRound({ roundType: "music", difficulty: "mixed", theme: "", count: 1, existingQuestions: round.questions as unknown as GeneratedQuestion[] }, exclusions);
       if (result.questions.length === 0) {
         setStatus("Couldn't generate a replacement question: " + result.finalStatus);
         setTimeout(() => setStatus(""), 4000);

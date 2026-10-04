@@ -29,7 +29,7 @@ test("Match Made history cannot crash subsequent ordinary round candidates", () 
     assert.equal(duplicateRejectionReason(q, [pairs], "", state), null);
     registerAccepted(state, q);
     assert.ok(duplicateRejectionReason(q, [], "", state));
-    state.used.length = 0; state.usedAnswers.length = 0; state.usedFingerprints.clear();
+    state.used.length = 0; state.usedAnswers.length = 0; state.usedFingerprints.clear(); state.historyQuestions = [];
   }
 });
 
@@ -44,19 +44,77 @@ test("stale undefined history entries are tolerated without disabling duplicate 
 
 test("saved Quiz Plan pairs are excluded before library sync finishes", async () => {
   database = { from(table) { return { select() {
-    if (table !== "quiz_rounds") return Promise.resolve({ data: [] });
-    return { order() { return { range() { return Promise.resolve({ data: [{ questions: [pairs] }] }); } }; } };
+    return { order() { return { range() { return Promise.resolve({ data: table === "quiz_rounds" ? [{ questions: [pairs] }] : [] }); } }; } };
   } }; } };
   const history = await exports.loadUsedQuestions();
   assert.ok(history.usedAnswers.includes("hammer + nail"));
-  assert.ok(history.usedAnswers.includes("lock + key"));
+  assert.ok(history.usedAnswers.includes("key + lock"));
   assert.equal(history.used.includes(undefined), false);
 });
 
 test("failed Quiz Plan history read does not silently generate repeated content", async () => {
   database = { from(table) { return { select() {
-    if (table !== "quiz_rounds") return Promise.resolve({ data: [] });
     return { order() { return { range() { return Promise.resolve({ data: null, error: { message: "offline" } }); } }; } };
   } }; } };
   await assert.rejects(exports.loadUsedQuestions(), /Could not check saved Quiz Plans/);
+});
+
+const question = (text, answer = 'Paris', type = 'text_answer') => ({ question_text: text, correct_answer: answer, question_type: type });
+
+test('every history source is paginated beyond the API row limit', async () => {
+  const calls = [];
+  database = { from(table) { return { select() { return { order() { return { range(start, end) {
+    calls.push([table, start, end]);
+    const rows = Array.from({ length: 1001 }, (_, i) => table === 'rounds' || table === 'quiz_rounds'
+      ? { questions: [question(`${table} history ${i}`)] }
+      : question(`${table} history ${i}`));
+    return Promise.resolve({ data: rows.slice(start, end + 1) });
+  } }; } }; } }; } };
+  const history = await exports.loadUsedQuestions();
+  for (const table of ['rounds', 'quiz_rounds', 'question_bank', 'questions']) {
+    assert.ok(history.used.includes(`${table} history 1000`));
+    assert.ok(calls.some(([name, start]) => name === table && start === 1000));
+  }
+});
+
+test('a failed source cannot silently remove part of the saved history', async () => {
+  for (const failed of ['rounds', 'question_bank', 'questions', 'quiz_rounds']) {
+    database = { from(table) { return { select() { return { order() { return { range() {
+      return Promise.resolve(table === failed ? { error: { message: 'offline' } } : { data: [] });
+    } }; } }; } }; } };
+    await assert.rejects(exports.loadUsedQuestions(), /Could not check saved/);
+  }
+});
+
+test('rewording checks include questions older than the latest hundred', () => {
+  const state = emptyExclusionState();
+  state.used = ['Which scientist discovered penicillin?', ...Array.from({ length: 150 }, (_, i) => `Unrelated saved item ${i}`)];
+  assert.ok(duplicateRejectionReason(question('Who discovered penicillin?', 'Fleming'), [], '', state));
+});
+
+test('the same fact is caught across answer formats and paraphrases', () => {
+  const state = emptyExclusionState();
+  state.historyQuestions = [{ ...question('Which city is the capital of France?', 'b', 'multiple_choice'), option_a: 'Rome', option_b: 'Paris' }];
+  assert.equal(duplicateRejectionReason(question('Name the French capital in France.'), [], '', state), 'same-answer-and-subject:history');
+  assert.equal(duplicateRejectionReason(question('Which Trojan prince judged the beauty contest?'), [], '', state), null);
+});
+
+test('punctuation and format changes cannot disguise an identical question', () => {
+  const state = emptyExclusionState();
+  state.used = ['Who wrote “Hamlet”?'];
+  assert.ok(duplicateRejectionReason(question('Who wrote Hamlet!', 'Shakespeare', 'multiple_choice'), [], '', state));
+});
+
+test('database memory checks span text formats and fail closed on errors', async () => {
+  let requestedType = 'not-called';
+  database = { rpc: async (name, args) => { requestedType = args.p_type; return { data: 12 }; } };
+  assert.equal(await exports.isDuplicateInMemory(question('Capital of France?'), emptyExclusionState()), true);
+  assert.equal(requestedType, null);
+  database = { rpc: async () => ({ error: { message: 'offline' } }) };
+  await assert.rejects(exports.isDuplicateInMemory(question('Capital of France?'), emptyExclusionState()), /history is unavailable/);
+});
+
+test('failed persistence cannot report an accepted question as remembered', async () => {
+  database = { from() { return { upsert() { return { select() { return { maybeSingle: async () => ({ error: { message: 'write failed' } }) }; } }; } }; } };
+  await assert.rejects(exports.commitToMemory(question('Capital of France?')), /Could not save question history/);
 });

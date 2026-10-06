@@ -36,6 +36,21 @@ import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pi
 
 // ── Types ────────────────────────────────────────────────────────────────
 
+export type QuizAudience = "adults" | "families";
+export function audienceBrief(audience: QuizAudience = "adults"): string {
+  return audience === "families"
+    ? "AUDIENCE: Kids and families, roughly ages 7-12 playing with adults. Use short, plain wording and familiar animals, nature, space, everyday life, geography, sport, family films and children's books. Children must be able to contribute without adult nostalgia, celebrity gossip, nightlife, alcohol or specialist knowledge. Easy means most children can answer; medium means children and adults can work it out together; hard means a fair family challenge, not an adult pub-quiz deep cut. This audience requirement overrides any generic pub-quiz style guidance. Respect the requested theme and question type."
+    : "AUDIENCE: Adults aged 25-55 at a social pub quiz. Match the requested difficulty.";
+}
+export const FAMILY_TOPIC_BUCKETS = [
+  ["familiar animals and their habitats", "pets and farm animals", "dinosaurs"],
+  ["the solar system", "weather and seasons", "plants and everyday nature"],
+  ["world flags and familiar countries", "oceans and continents", "famous landmarks"],
+  ["family animation and films", "popular children's books", "familiar fairy tales"],
+  ["everyday food and objects", "popular sports and their rules", "toys and family games"],
+];
+export const FAMILY_MUSIC_TOPICS = ["well-known songs from family animated films", "familiar children's singalong songs", "clean upbeat songs familiar to children and parents"];
+
 export type Question = {
   id?: number;
   _uid?: string;
@@ -45,6 +60,7 @@ export type Question = {
   // verification call succeeded - a short note the validators can use to
   // confirm the fact instead of rejecting it purely because Haiku's own
   // frozen training data doesn't recognise something genuinely recent.
+  _audience?: QuizAudience;
   _recency?: boolean;
   _recencyNote?: string;
   question_text: string;
@@ -742,7 +758,7 @@ export async function generateOne(
   type: string,
   topic: string,
   context: GenerationContext,
-  opts: { theme: string; difficulty: string; roundType: string; exclusions: ExclusionState; forceObscure?: boolean; multiTapCorrectCount?: number; replacementFeedback?: string },
+  opts: { theme: string; difficulty: string; roundType: string; exclusions: ExclusionState; forceObscure?: boolean; multiTapCorrectCount?: number; replacementFeedback?: string; audience?: QuizAudience },
 ): Promise<Question | null> {
   const { theme, difficulty, roundType, exclusions, forceObscure, multiTapCorrectCount } = opts;
   context.error = "";
@@ -781,7 +797,8 @@ export async function generateOne(
     ? " IMPORTANT - pick a well-known song: either a genuinely famous track a pub crowd would clap along to, OR any other song (even a deeper cut, B-side, or later single) by a genuinely famous, widely recognised artist/band - the artist being well-known is enough on its own, the specific song does not also have to be their single most famous hit. Not obscure/unknown artists either way. Vary the decade/genre/artist from recent picks."
     : " IMPORTANT - avoid defaulting to the single most famous, first-thought-of example for this topic (e.g. for 'Disney songs' don't always pick Let It Go or Circle of Life). Where possible, lean toward something " + angle + ". Vary your answer choices across different eras, genres, and sub-topics rather than the most obvious pick. " +
       "ALSO vary the QUESTION SENTENCE STRUCTURE itself, not just the topic and answer - do not default to the generic 'Which [brand/company]'s [logo/mascot/product] is/features/has [X]?' template. Mix in different natural phrasings appropriate to the fact: who/what/where/when/how questions, 'In [film/show], who/what...', 'What is the name of...', 'How many...', direct trivia phrasing, etc. Two consecutive questions in the same round should not read like the same template with the nouns swapped.";
-  const prompt = `You are writing questions for a LIVE PUB QUIZ at a bar or restaurant. Your audience is adults aged 25-55 having a social night out. This is entertainment, not education.
+  const prompt = `You are writing questions for a live social quiz.
+${audienceBrief(opts.audience)}
 BEFORE writing any question, ask yourself: "Would 8 friends sitting in a pub enjoy answering this?" If no, do not write it.
 FIRST-PASS CHECK (do silently): consider several different facts and entities; reject any that paraphrase an excluded question or reuse its entity, answer or knowledge test; then choose the strongest stable fact with one clear natural answer. Check only player-visible content for venue suitability—unseen plots, lyrics and themes do not make a mainstream work unsuitable.
 TOPIC: ${topic}
@@ -844,7 +861,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       // candidate as a fatal quota failure and abandon its remaining retries.
       throw new Error("The AI returned commentary instead of valid question data. Retrying with another candidate.");
     }
-    if (q) { q.question_type = type; }
+    if (q) { q.question_type = type; q._audience = opts.audience || "adults"; }
     if (q) { context.report.questionText = q.question_text || "Untitled candidate"; }
     if (!q || typeof q.question_text !== "string" || typeof q.correct_answer !== "string") {
       throw new Error("The AI returned incomplete question data - retrying.");
@@ -1182,6 +1199,7 @@ export async function runCombinedValidation(q: Question, currentRound: Question[
     internal_media_lookup: ["picture", "audio"].includes(existing.question_type) ? (existing.option_a || "None") : "None",
   }));
   const prompt =
+    audienceBrief(q._audience) + " FINAL QUALITY must reject questions unsuitable for this audience, including adult-level assumed knowledge in kids/families mode. " +
     "Perform three INDEPENDENT checks on one commercial pub-quiz question and return all three verdicts in one tool call. " +
     "MODERATION: Judge only player-visible Question, Options, Answer and explicitly described player-visible media. Internal media lookup is private metadata: use its literal title/artist/subject only to identify and fact-check the answer. Never infer or analyse lyrics, plot, themes, subtext, artist history or character history. Allow mainstream commercial music, films, books and TV unless the actual presented title/content is inappropriate. A neutral factual alcohol reference is allowed; promotion is not. Reject only genuinely explicit sexual material, crude anatomical language, illegal-drug promotion, pork promotion, religious or LGBTQ+ advocacy or sensitive discussion, Iran or Israel political content, hate speech, slurs, harassment, discrimination, graphic violence, or clearly offensive/prohibited presented content. 'Name this song' with lookup 'Mr. Brightside - The Killers' must pass. Also verify the answer is factually correct. " +
     "ROUND BALANCE: Different countries' flags are different subjects. Shared flag vocabulary, colours, or identification format alone is not repetition. In any explicitly themed round, allow repeated theme vocabulary and task format when the tested facts or entities differ. Compare only with accepted questions. Reject only with HIGH confidence for the same primary entity, same narrow subtopic, or effectively the same underlying knowledge. Broad-category overlap is allowed; incidental/weak relationships pass; never reject merely for the same country. If themed, the shared theme is intentional, but repeated franchises/entities inside it are not. conflict_index is the 1-based accepted-question index, otherwise null. " +

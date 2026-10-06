@@ -26,7 +26,7 @@ function runner(rejectCount = 0, overrides = {}) {
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
     exports, require: () => core, console,
   });
-  return { run: count => exports.generateValidatedRound({ count, roundType: 'regular', difficulty: 'medium', theme: '', allowedQuestionTypes: ['number'] }, {}), calls: () => calls, feedback };
+  return { run: (count, audience) => exports.generateValidatedRound({ count, audience, roundType: 'regular', difficulty: 'medium', theme: '', allowedQuestionTypes: ['number'] }, {}), calls: () => calls, feedback };
 }
 
 test('successful rounds and single-question top-ups never launch surplus candidates', async () => {
@@ -117,4 +117,34 @@ test('early duplicate drafts are blacklisted and included in the next paid promp
   assert.equal(r.requests.length, 2);
   assert.match(r.requests[0].prompt, /FRESH SUBJECT:/);
   assert.ok(r.requests[1].prompt.includes(r.exports.normalizeQuestionText(duplicate.question_text)));
+});
+
+
+test('family round generation uses family topics and passes audience into every draft', async () => {
+  const seen = [];
+  const r = runner(0, {
+    FAMILY_TOPIC_BUCKETS: [['animals', 'space']], FAMILY_MUSIC_TOPICS: ['family songs'],
+    generateOne: async (type, topic, context, opts) => {
+      seen.push({ topic, audience: opts.audience });
+      return { question_type: type, question_text: topic };
+    },
+  });
+  const result = await r.run(2, 'families');
+  assert.equal(result.questions.length, 2);
+  assert.deepEqual(seen, [{ topic: 'animals', audience: 'families' }, { topic: 'space', audience: 'families' }]);
+});
+
+test('family audience reaches the writer and the final quality checker', async () => {
+  const r = validationRunner({ content: [{ type: 'text', text: JSON.stringify([candidate]) }] });
+  const q = await r.exports.generateOne('number', 'animals', r.exports.createGenerationContext('number', false), {
+    theme: '', difficulty: 'easy', roundType: 'regular', audience: 'families', exclusions: r.exports.emptyExclusionState(),
+  });
+  assert.ok(q);
+  assert.equal(q._audience, 'families');
+  assert.match(r.requests[0].prompt, /Kids and families/);
+  assert.match(r.requests[0].prompt, /Easy means most children can answer/);
+  await r.exports.runCombinedValidation(q, [], '');
+  assert.match(r.requests[1].prompt, /Kids and families/);
+  assert.match(r.requests[1].prompt, /reject questions unsuitable for this audience/);
+  assert.match(r.exports.audienceBrief(), /Adults aged 25-55/);
 });

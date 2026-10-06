@@ -1,4 +1,5 @@
 "use client";
+import type { QuizAudience } from "@/lib/quiz/questionGenerationCore";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -138,6 +139,21 @@ export default function QuizBuilderPage() {
   const [quizzes, setQuizzes] = useState<QuizDefinition[]>([]);
   const [rounds, setRounds] = useState<LibraryRound[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [audiences, setAudiences] = useState<Record<string, QuizAudience>>({});
+  const audience = audiences[selectedId || "new"] || "adults";
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("quiz-generation-audiences") || "{}");
+      const timer = window.setTimeout(() => setAudiences(saved && typeof saved === "object" ? saved : {}), 0);
+      return () => window.clearTimeout(timer);
+    } catch { /* Default to the existing adult audience. */ }
+  }, []);
+  function rememberAudience(key: string, value: QuizAudience) {
+    const next = { ...audiences, [key]: value };
+    setAudiences(next);
+    try { localStorage.setItem("quiz-generation-audiences", JSON.stringify(next)); } catch { /* Still usable this session. */ }
+  }
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
@@ -909,7 +925,7 @@ export default function QuizBuilderPage() {
       exclusions.used.push(...local.used);
       local.usedAnswers.forEach(answer => { if (!exclusions.usedAnswers.includes(answer)) exclusions.usedAnswers.push(answer); });
       const result = await generateValidatedRound(
-        { roundType: round.round_type, difficulty, theme, count: 1, existingQuestions: validExisting.filter(q => q !== round.questions[qIndex]) },
+        { roundType: round.round_type, audience, difficulty, theme, count: 1, existingQuestions: validExisting.filter(q => q !== round.questions[qIndex]) },
         exclusions,
       );
       if (result.questions.length === 0) {
@@ -1026,6 +1042,7 @@ export default function QuizBuilderPage() {
     }
     const specs: RoundGenerationSpec[] = runTargets.map(r => ({
       roundType: r.round_type,
+      audience,
       difficulty: bulkConfig[r.id]?.difficulty || r.difficulty || "mixed",
       theme: bulkConfig[r.id]?.theme ?? r.theme ?? "",
       count: shortfalls[r.id],
@@ -1166,7 +1183,7 @@ export default function QuizBuilderPage() {
         // takes priority over the round-level Include: Picture/Music
         // checkboxes below - so a host can ask for "just one picture
         // question" without having to change the round's default mix.
-        [{ roundType: round.round_type, difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions), allowedQuestionTypes: typeOverride ?? cfg?.allowedQuestionTypes }],
+        [{ roundType: round.round_type, audience, difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions), allowedQuestionTypes: typeOverride ?? cfg?.allowedQuestionTypes }],
         (_idx, status) => setGeneratingMoreStatus(status + capNote),
       );
       // Same stale-snapshot bug as runBulkGenerate above: `round` here is
@@ -1321,6 +1338,7 @@ export default function QuizBuilderPage() {
     setSaving(true); setError("");
     const { data, error: saveError } = await createSupabaseBrowserClient().from("quizzes").insert({ name: name.trim(), description: description.trim() || null }).select().single();
     if (saveError) { setError(saveError.message); setSaving(false); return; }
+    rememberAudience(data.id, audience);
     setName(""); setDescription("");
     if (guidedIntent === "create" && guidedEvent) { await assignQuizToEvent(data.id); return; }
     await load(); setSelectedId(data.id);
@@ -1444,6 +1462,7 @@ export default function QuizBuilderPage() {
     const supabase = createSupabaseBrowserClient();
     const { data, error: copyError } = await supabase.from("quizzes").insert({ name: quiz.name + " (Copy)", description: quiz.description, venue_id: quiz.venue_id, host_id: quiz.host_id }).select().single();
     if (copyError || !data) { setError(copyError?.message || "Could not duplicate quiz"); setDuplicating(false); return; }
+    rememberAudience(data.id, audiences[quiz.id] || "adults");
     if (quiz.quiz_rounds.length) await supabase.from("quiz_rounds").insert(quiz.quiz_rounds.map(round => ({ quiz_id: data.id, source_round_id: round.source_round_id, position: round.position, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: [], hide_leaderboard: round.hide_leaderboard, allow_power_cards: round.allow_power_cards, points_per_question: round.points_per_question ?? null, notes: round.notes, sponsor: round.sponsor, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5, max_time_bonus: round.max_time_bonus ?? 5 })));
     if (guidedIntent === "duplicate" && guidedEvent) {
       // Attach the copy to the event right away so it's linked even if the
@@ -1533,7 +1552,16 @@ export default function QuizBuilderPage() {
     </section>}
     {loading ? <HostLoading title="Quiz Library" note="Loading Quiz Plans and rounds…" /> : error && !quizzes.length ? <section className="qi-bo-setup-state" role="alert"><span>Setup required</span><h2>Quiz Library is not available yet</h2><p>The existing Quiz Builder database migration must be applied before Quiz Plans can be created. No data has been changed.</p><details><summary>Technical detail</summary><code>{error}</code></details></section> : <div className="qi-quiz-builder-grid" style={{ display: "block", maxWidth: "none", marginTop: 8 }}>
 
-      <section className="fbh-panel" style={{ width: "100%" }}>{!selected ? (
+      <section className="fbh-panel" style={{ width: "100%" }}>
+        <div style={{ marginBottom: 16 }}>
+          <label htmlFor="quiz-audience">Question audience</label>
+          <select id="quiz-audience" value={audience} onChange={e => rememberAudience(selectedId || "new", e.target.value as QuizAudience)} disabled={bulkRunning || generatingMoreId !== null || swappingKey !== null} style={{ marginLeft: 12, padding: 10, background: "#160B2D", color: "white", border: "1px solid #443065", borderRadius: 8 }}>
+            <option value="adults">Adults / pub quiz</option>
+            <option value="families">Kids &amp; families (ages 7–12 with adults)</option>
+          </select>
+          <p style={{ color: "#B9A8D9", marginTop: 8 }}>Applies to new questions, top-ups and replacements across this quiz. Choose Easy in each round for a gentler quiz. Existing questions stay unchanged.</p>
+        </div>
+        {!selected ? (
         <div style={{ maxWidth: 480 }}>
           <HostInput value={name} onChange={e => setName(e.target.value)} placeholder="Thursday Night Quiz" />
           <HostButton variant="pri" onClick={createQuiz} disabled={!name.trim() || saving || assigning} style={{ width: "100%", marginTop: 10 }}>{guidedIntent === "create" ? "CREATE & ASSIGN TO EVENT" : "CREATE QUIZ PLAN"}</HostButton>

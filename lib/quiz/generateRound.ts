@@ -31,6 +31,9 @@ import { generatePairsQuestions } from "@/lib/quiz/pairs";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   type Question,
+  type QuizAudience,
+  FAMILY_TOPIC_BUCKETS,
+  FAMILY_MUSIC_TOPICS,
   type ExclusionState,
   type GenerationContext,
   type GenerationReportEntry,
@@ -104,6 +107,7 @@ function allocateMixedDifficulties(count: number): string[] {
 
 export type RoundGenerationSpec = {
   roundType: string;
+  audience?: QuizAudience;
   difficulty: string;
   theme: string;
   count: number;
@@ -155,7 +159,7 @@ export async function generateValidatedRound(
     const count = Math.max(0, Math.floor(spec.count));
     const batch = await generatePairsQuestions(count, async index => {
       onProgress?.(`Creating Match Made question ${index + 1} of ${count} (3 pairs / 6 tiles each)…`);
-      return generatePairs(3, theme, exclusions);
+      return generatePairs(3, theme, exclusions, spec.audience);
     }, question => onAccept?.(question as unknown as Question));
     const questions = batch.questions as unknown as Question[];
     if (batch.error) return { spec, questions, report: [], finalStatus: `Created ${questions.length} of ${count} complete Match Made questions. ${batch.error}`, stoppedEarly: true };
@@ -235,7 +239,7 @@ export async function generateValidatedRound(
   // random not-yet-used topic within whichever bucket is due next)
   // guarantees every category gets a fair, spread-out share of every
   // unthemed round.
-  const shuffledBuckets = GENERAL_TOPIC_BUCKETS.map(shuffle);
+  const shuffledBuckets = spec.audience === "families" ? FAMILY_TOPIC_BUCKETS.map(shuffle) : GENERAL_TOPIC_BUCKETS.map(shuffle);
   const triedGeneralTopics = new Set<string>();
   const pickGeneralTopic = (launchIndex: number): string => {
     const bucket = shuffledBuckets[launchIndex % shuffledBuckets.length];
@@ -250,7 +254,7 @@ export async function generateValidatedRound(
     }
     return bucket[launchIndex % bucket.length];
   };
-  const shuffledMusicTopics = shuffle(MUSIC_TOPICS);
+  const shuffledMusicTopics = shuffle(spec.audience === "families" ? FAMILY_MUSIC_TOPICS : MUSIC_TOPICS);
   const shuffledPictureTopics = shuffle(PICTURE_TOPICS);
   const good: Question[] = [];
   let attempts = 0;
@@ -371,7 +375,7 @@ export async function generateValidatedRound(
     // duplicate/memory rejections in a row. Now also fires proactively on a
     // portion of candidates from the start.
     const proactiveObscure = Math.random() < 0.3;
-    pending.push({ type, candidateDifficulty, multiTapCorrectCount, context, promise: generateOne(type, topic, context, { theme, difficulty: candidateDifficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure, multiTapCorrectCount, replacementFeedback }) });
+    pending.push({ type, candidateDifficulty, multiTapCorrectCount, context, promise: generateOne(type, topic, context, { theme, difficulty: candidateDifficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure, multiTapCorrectCount, replacementFeedback, audience: spec.audience }) });
   };
   const refillPipeline = () => {
     // Never pay for candidates beyond the remaining question slots.

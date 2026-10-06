@@ -11,6 +11,8 @@ function runner(rejectCount = 0, overrides = {}) {
   let checks = 0;
   const feedback = [];
   const core = {
+    MAX_AI_CONCURRENCY: 8,
+    loadUsedQuestions: async () => ({ used: [], usedAnswers: [], usedFingerprints: new Set(), rejectedFingerprints: new Set(), rejectedTexts: new Set() }),
     shuffle: x => [...x], genUid: () => String(calls),
     GENERAL_TOPIC_BUCKETS: [['geography']], MUSIC_TOPICS: ['music'], PICTURE_TOPICS: ['animals'],
     createGenerationContext: () => ({ error: '', report: { stages: {} } }),
@@ -26,7 +28,7 @@ function runner(rejectCount = 0, overrides = {}) {
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
     exports, require: () => core, console,
   });
-  return { run: (count, audience) => exports.generateValidatedRound({ count, audience, roundType: 'regular', difficulty: 'medium', theme: '', allowedQuestionTypes: ['number'] }, {}), calls: () => calls, feedback };
+  return { runAll: (specs, onComplete) => exports.generateAllRounds(specs, undefined, onComplete), run: (count, audience) => exports.generateValidatedRound({ count, audience, roundType: 'regular', difficulty: 'medium', theme: '', allowedQuestionTypes: ['number'] }, {}), calls: () => calls, feedback };
 }
 
 test('successful rounds and single-question top-ups never launch surplus candidates', async () => {
@@ -151,4 +153,29 @@ test('family audience reaches the writer and the final quality checker', async (
   assert.match(r.requests[1].prompt, /"difficulty":"easy"/);
   assert.match(r.requests[1].prompt, /reject questions unsuitable for this audience/);
   assert.match(r.exports.audienceBrief(), /Adults aged 25-55/);
+});
+
+
+test('bulk generation limits active round pipelines and completes every queued round', async () => {
+  let active = 0, peak = 0, id = 0;
+  const r = runner(0, { generateOne: async () => {
+    active++; peak = Math.max(peak, active);
+    await new Promise(resolve => setImmediate(resolve));
+    active--;
+    return { question_type: 'number', question_text: `Question ${++id}` };
+  } });
+  const specs = Array.from({ length: 6 }, () => ({ count: 1, roundType: 'regular', difficulty: 'easy', theme: '', allowedQuestionTypes: ['number'] }));
+  const results = await r.runAll(specs);
+  assert.equal(peak, 2);
+  assert.equal(results.length, 6);
+  assert.ok(results.every(result => result.questions.length === 1 && !result.stoppedEarly));
+});
+
+test('a failed save callback runs once and retains generated questions', async () => {
+  const r = runner();
+  let saves = 0;
+  const results = await r.runAll([{ count: 1, roundType: 'regular', difficulty: 'easy', theme: '', allowedQuestionTypes: ['number'] }], async () => { saves++; throw new Error('offline'); });
+  assert.equal(saves, 1);
+  assert.equal(results[0].questions.length, 1);
+  assert.match(results[0].finalStatus, /Saving generated questions failed/);
 });

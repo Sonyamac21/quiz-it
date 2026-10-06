@@ -783,7 +783,7 @@ export async function generateOne(
   const relevantHistory = exclusions.used.filter(text => topicWords.some(word => normalizeQuestionText(text).includes(word.replace(/s$/, ""))));
   let exclusionsText = [...rejectedList, ...relevantHistory.slice(-20), ...exclusions.used.slice(-10)].map((q, i) => (i + 1) + ". " + q).join("; ");
   if (exclusionsText.length > 1800) exclusionsText = exclusionsText.slice(0, 1800);
-  const usedAnswersList = exclusions.usedAnswers.slice(-20).filter(Boolean).join(", ");
+  const usedAnswersList = (["picture", "audio"].includes(type) ? exclusions.usedAnswers : []).slice(-20).filter(Boolean).join(", ");
   let sessionExclusionNote = (exclusionsText || usedAnswersList)
     ? " Do NOT generate any of these already-used questions: " + exclusionsText + "."
       + (usedAnswersList ? " Also do NOT use any of these already-used answers (even with different question wording): " + usedAnswersList + "." : "")
@@ -1085,7 +1085,7 @@ export function duplicateRejectionReason(q: Question, currentRound: Question[], 
   if (normAnswer && currentRound.some(g =>
     resolveAnswerText(g).toLowerCase().trim() === normAnswer
   )) return "same-answer:current-round";
-  if (normAnswer && exclusions.usedAnswers.includes(normAnswer)) return "same-answer:quiz-plan";
+  if (["picture", "audio"].includes(q.question_type) && normAnswer && exclusions.usedAnswers.includes(normAnswer)) return "same-answer:quiz-plan";
   // Resolve option letters to answer text so changing format or shuffling
   // choices cannot conceal the same fact. A shared answer alone is not enough.
   const candidateWords = new Set(sigWords(q.question_text));

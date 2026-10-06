@@ -43,3 +43,10 @@ export function resolveRoundGenerationSettings(
     difficulty: round.difficulty || draft?.difficulty || "mixed",
   };
 }
+
+
+export function generationStatusIsIncomplete(status: string): boolean {
+  if (/failed|stopped|crashed|incomplete|only generated|got 0 of/i.test(status)) return true;
+  const counts = status.match(/(?:Added\s+)?(\d+) of (\d+) (?:questions ready|requested)/i);
+  return Boolean(counts && Number(counts[1]) < Number(counts[2]));
+}

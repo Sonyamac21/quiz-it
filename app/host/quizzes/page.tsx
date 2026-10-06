@@ -13,7 +13,7 @@ import { getMediaUrl } from "@/lib/getMediaUrl";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
 import { isPairRecord, isPairsQuestion, readPairs, readPairsQuestions, tilesForTeam, PAIRS_PER_ROUND, type PairRecord } from "@/lib/quiz/pairs";
-import { eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "@/lib/quiz/prepRules";
+import { generationStatusIsIncomplete, eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "@/lib/quiz/prepRules";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const HOT_SEAT_TOTAL_QUESTIONS = 5;
@@ -1733,7 +1733,7 @@ export default function QuizBuilderPage() {
                           still surfaces the full message via toast like
                           before. */}
                       {roundProgress && (() => {
-                        const failed = /failed|stopped|only generated|got 0 of/i.test(roundProgress);
+                        const failed = generationStatusIsIncomplete(roundProgress);
                         return (
                           <button
                             type="button"
@@ -1776,12 +1776,12 @@ export default function QuizBuilderPage() {
                 );
               })()}
 
-              {selected.quiz_rounds.some(round => /failed|stopped|only generated|got 0 of/i.test(bulkProgress[round.id] || "")) && (
+              {selected.quiz_rounds.some(round => generationStatusIsIncomplete(bulkProgress[round.id] || "")) && (
                 <div role="alert" style={{ display: "grid", gap: 8, marginBottom: 12, padding: 14, borderRadius: 12, border: "1px solid #A92E4B", background: "rgba(169,46,75,0.14)" }}>
                   <strong style={{ color: "#FF8A9A", font: "700 14px 'Inter'" }}>Some rounds could not be generated</strong>
                   {selected.quiz_rounds.map((round, index) => {
                     const message = bulkProgress[round.id] || "";
-                    if (!/failed|stopped|only generated|got 0 of/i.test(message)) return null;
+                    if (!generationStatusIsIncomplete(message)) return null;
                     return (
                       <div key={round.id} style={{ color: "#F4DDE3", font: "400 13px/1.5 'Inter'", overflowWrap: "anywhere" }}>
                         <strong>{index + 1}. {round.name}:</strong> {message}
@@ -1929,7 +1929,7 @@ export default function QuizBuilderPage() {
                             })}
                           </div>
                         )}
-                        {progress && <div style={{ font: "400 12px 'Inter'", color: "#2EE06E" }}>{progress}</div>}
+                        {progress && <div style={{ font: "400 12px 'Inter'", color: generationStatusIsIncomplete(progress) ? "#FF8A9A" : "#2EE06E" }}>{progress}</div>}
                       </div>
                     )}
                   </>

@@ -514,7 +514,7 @@ export async function generateValidatedRound(
   const shortfallReason = lastRejection ? ` Latest rejection: ${lastRejection.category} — ${lastRejection.reason}` : "";
   const finalStatus = (good.length === count
     ? "Ready - " + good.length + " of " + count + " questions generated."
-    : good.length + " of " + count + " questions ready after " + attempts + " attempts." + shortfallReason) + degradedSuffix();
+    : "Generation incomplete: " + good.length + " of " + count + " questions ready after " + attempts + " attempts." + shortfallReason) + degradedSuffix();
   onProgress?.(finalStatus);
   return { spec, questions: good, report, finalStatus, stoppedEarly: good.length < count };
 }
@@ -563,32 +563,33 @@ export async function generateAllRounds(
       registerAccepted(state, q);
     });
   };
-  // Every round shares the same MAX_AI_CONCURRENCY slot pool, so the more
-  // rounds are generating at once, the less real throughput each one
-  // actually gets - roughly proportional to specs.length once there are
-  // more rounds than concurrency slots.
-  const ROUND_PIPELINE_DEPTH = 3;
-  const wallClockScale = Math.max(1, (specs.length * ROUND_PIPELINE_DEPTH) / MAX_AI_CONCURRENCY);
-  return Promise.all(
-    specs.map(async (spec, idx) => {
-      // A single round throwing (network hiccup, unexpected API shape, etc.)
-      // must never reject the whole Promise.all.
+  // Each round can have three draft calls plus one validation call. Start
+  // the round deadline only when a worker actually picks it up, keeping
+  // validation from sitting behind every other round's speculative drafts.
+  const concurrency = Math.max(1, Math.floor(MAX_AI_CONCURRENCY / 4));
+  const results: RoundGenerationResult[] = new Array(specs.length);
+  let nextIndex = 0;
+  await Promise.all(Array.from({ length: Math.min(concurrency, specs.length) }, async () => {
+    while (nextIndex < specs.length) {
+      const idx = nextIndex++;
+      const spec = specs[idx];
+      let result: RoundGenerationResult;
       try {
-        const result = await generateValidatedRound(spec, perRoundExclusions[idx], status => onProgress?.(idx, status), q => broadcastAccept(idx, q), wallClockScale);
-        await onRoundComplete?.(idx, result);
-        return result;
+        result = await generateValidatedRound(spec, perRoundExclusions[idx], status => onProgress?.(idx, status), q => broadcastAccept(idx, q));
       } catch (e) {
-        const failResult: RoundGenerationResult = {
-          spec,
-          questions: [],
-          report: [],
-          finalStatus: "Generation crashed: " + (e instanceof Error ? e.message : "Unknown error"),
-          stoppedEarly: true,
-        };
-        onProgress?.(idx, failResult.finalStatus);
-        onRoundComplete?.(idx, failResult);
-        return failResult;
+        result = { spec, questions: [], report: [], finalStatus: "Generation crashed: " + (e instanceof Error ? e.message : "Unknown error"), stoppedEarly: true };
+        onProgress?.(idx, result.finalStatus);
       }
-    })
-  );
+      try {
+        await onRoundComplete?.(idx, result);
+      } catch (e) {
+        // A save failure is not a generation failure. Preserve the generated
+        // questions and never call the saving callback a second time.
+        result = { ...result, stoppedEarly: true, finalStatus: "Saving generated questions failed: " + (e instanceof Error ? e.message : "Unknown error") };
+        onProgress?.(idx, result.finalStatus);
+      }
+      results[idx] = result;
+    }
+  }));
+  return results;
 }

@@ -172,3 +172,14 @@ test('flag drafts reserve fresh countries rather than repeatedly asking for the 
   assert.equal(exports.reserveFlagSubject('flags of Asia', state), null);
   assert.equal(exports.reserveFlagSubject('Disney', state), null);
 });
+
+
+test('different facts may share a numeric answer across rounds but not within a round', () => {
+  const state = emptyExclusionState();
+  const previous = question('How many sides does a triangle have?', '3', 'number');
+  registerAccepted(state, previous);
+  const next = question('How many medals make a podium at the Olympics?', '3', 'number');
+  assert.equal(duplicateRejectionReason(next, [], '', state), null);
+  assert.equal(duplicateRejectionReason(next, [previous], '', state), 'same-answer:current-round');
+  assert.ok(duplicateRejectionReason(question('How many sides has a triangle?', '3', 'number'), [], '', state));
+});

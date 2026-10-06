@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { eligibleLibraryQuestions, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "../lib/quiz/prepRules.ts";
+import { generationStatusIsIncomplete, eligibleLibraryQuestions, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "../lib/quiz/prepRules.ts";
 
 test("A7: regeneration retains the round's saved theme and difficulty", () => {
   assert.deepEqual(
@@ -51,4 +51,14 @@ test("used library questions move below all unused questions in the picker", () 
     sortLibraryQuestionsByUsage(questions).map(question => question.id),
     ["unused-new", "unused-old", "used-new", "used-old"],
   );
+});
+
+
+test("partial generation is not displayed as success, including saved legacy statuses", () => {
+  for (const status of ["8 of 15 questions ready after 90 attempts.", "Added 2 of 3 requested.", "Generation incomplete: 3 of 5 questions ready.", "Generation stopped after 120s"]) {
+    assert.equal(generationStatusIsIncomplete(status), true, status);
+  }
+  for (const status of ["Ready - 15 of 15 questions generated.", "Generating and checking question 1 of 15...", "Queued...", "3 of 3 questions ready."]) {
+    assert.equal(generationStatusIsIncomplete(status), false, status);
+  }
 });

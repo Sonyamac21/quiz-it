@@ -13,7 +13,7 @@ import { getMediaUrl } from "@/lib/getMediaUrl";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
 import { isPairRecord, isPairsQuestion, readPairs, readPairsQuestions, tilesForTeam, PAIRS_PER_ROUND, type PairRecord } from "@/lib/quiz/pairs";
-import { generationStatusIsIncomplete, eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "@/lib/quiz/prepRules";
+import { generationRejectionSummary, generationStatusIsIncomplete, eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "@/lib/quiz/prepRules";
 
 const BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
 const HOT_SEAT_TOTAL_QUESTIONS = 5;
@@ -1000,6 +1000,11 @@ export default function QuizBuilderPage() {
           // failure now just means "got fewer new ones than hoped", never
           // "lost the ones that were already there".
           const round = runTargets[idx];
+          const completionMessage = result.stoppedEarly
+            ? result.finalStatus + "\n" + generationRejectionSummary(result.report)
+            : result.finalStatus;
+          setBulkProgress(prev => ({ ...prev, [round.id]: completionMessage }));
+          persistRoundGenStatus(round.id, completionMessage);
           // Merging against `round.questions` - a snapshot captured when this
           // whole batch was LAUNCHED - was a real bug: if a host deleted or
           // edited a question in this round anytime while generation was
@@ -1142,8 +1147,10 @@ export default function QuizBuilderPage() {
       const resultMessage = round.round_type === "pairs" && !shortfall && result.finalStatus
         ? result.finalStatus
         : shortfall ? `Added ${actualAdded} of ${n} requested. ${actualAdded < generatedQuestions.length ? "Some generated questions could not be saved. " : ""}${result.finalStatus}` : `Added ${actualAdded} question${actualAdded === 1 ? "" : "s"}. Round now has ${persistedQuestions.length}.`;
-      setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: resultMessage }));
-      persistRoundGenStatus(round.id, resultMessage);
+      const detailedMessage = shortfall ? resultMessage + "\n" + generationRejectionSummary(result.report) : resultMessage;
+      setBulkProgress(prev => { const next = { ...prev }; delete next[round.id]; return next; });
+      setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: detailedMessage }));
+      persistRoundGenStatus(round.id, detailedMessage);
     } catch (e) {
       const failureMessage = "Generation failed - please try again." + (e instanceof Error ? " (" + e.message + ")" : "");
       setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: failureMessage }));
@@ -1564,7 +1571,7 @@ export default function QuizBuilderPage() {
           const activeIndex = selected.quiz_rounds.findIndex(r => r.id === activeRound.id);
           const isGeneratable = GENERATABLE_ROUND_TYPES.has(activeRound.round_type);
           const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: targetQuestionCount(activeRound.round_type, activeRound.target_count), theme: activeRound.theme ?? "", difficulty: activeRound.difficulty || "mixed" };
-          const progress = bulkProgress[activeRound.id];
+          const progress = bulkProgress[activeRound.id] || lastGenerateMoreResult[activeRound.id] || readPersistedRoundGenStatus(activeRound.id);
           const settingsOpen = settingsOpenRoundId === activeRound.id;
           const addQuestionOpen = addQuestionOpenId === activeRound.id;
           // Host request: "+ FROM LIBRARY" / "+ RANDOM FROM LIBRARY" / "+ ADD
@@ -1776,14 +1783,14 @@ export default function QuizBuilderPage() {
                 );
               })()}
 
-              {selected.quiz_rounds.some(round => generationStatusIsIncomplete(bulkProgress[round.id] || "")) && (
+              {selected.quiz_rounds.some(round => generationStatusIsIncomplete(bulkProgress[round.id] || lastGenerateMoreResult[round.id] || readPersistedRoundGenStatus(round.id))) && (
                 <div role="alert" style={{ display: "grid", gap: 8, marginBottom: 12, padding: 14, borderRadius: 12, border: "1px solid #A92E4B", background: "rgba(169,46,75,0.14)" }}>
                   <strong style={{ color: "#FF8A9A", font: "700 14px 'Inter'" }}>Some rounds could not be generated</strong>
                   {selected.quiz_rounds.map((round, index) => {
-                    const message = bulkProgress[round.id] || "";
+                    const message = bulkProgress[round.id] || lastGenerateMoreResult[round.id] || readPersistedRoundGenStatus(round.id);
                     if (!generationStatusIsIncomplete(message)) return null;
                     return (
-                      <div key={round.id} style={{ color: "#F4DDE3", font: "400 13px/1.5 'Inter'", overflowWrap: "anywhere" }}>
+                      <div key={round.id} style={{ color: "#F4DDE3", font: "400 13px/1.5 'Inter'", overflowWrap: "anywhere", whiteSpace: "pre-line" }}>
                         <strong>{index + 1}. {round.name}:</strong> {message}
                       </div>
                     );

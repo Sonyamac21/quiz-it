@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { generationStatusIsIncomplete, eligibleLibraryQuestions, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "../lib/quiz/prepRules.ts";
+import { generationRejectionSummary, generationStatusIsIncomplete, eligibleLibraryQuestions, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "../lib/quiz/prepRules.ts";
 
 test("A7: regeneration retains the round's saved theme and difficulty", () => {
   assert.deepEqual(
@@ -61,4 +61,19 @@ test("partial generation is not displayed as success, including saved legacy sta
   for (const status of ["Ready - 15 of 15 questions generated.", "Generating and checking question 1 of 15...", "Queued...", "3 of 3 questions ready."]) {
     assert.equal(generationStatusIsIncomplete(status), false, status);
   }
+});
+
+
+test("rejection summary preserves counts and examples for every failure category", () => {
+  const summary = generationRejectionSummary([
+    { outcome: "rejected", category: "Duplicate", reason: "Same fact", questionText: "Old question" },
+    { outcome: "rejected", category: "Media", reason: "No matching image", questionText: "Picture question" },
+    { outcome: "rejected", category: "Duplicate", reason: "Reworded fact", questionText: "Latest question" },
+    { outcome: "accepted", category: "Accepted", reason: "Passed" },
+  ]);
+  assert.match(summary, /Duplicate \(2\)/);
+  assert.match(summary, /Media \(1\)/);
+  assert.match(summary, /Latest question/);
+  assert.doesNotMatch(summary, /Passed/);
+  assert.match(generationRejectionSummary([]), /No candidate rejection details/);
 });

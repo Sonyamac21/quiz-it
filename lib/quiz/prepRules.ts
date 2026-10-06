@@ -50,3 +50,16 @@ export function generationStatusIsIncomplete(status: string): boolean {
   const counts = status.match(/(?:Added\s+)?(\d+) of (\d+) (?:questions ready|requested)/i);
   return Boolean(counts && Number(counts[1]) < Number(counts[2]));
 }
+
+export function generationRejectionSummary(report: ReadonlyArray<{ outcome: string; category: string; reason: string; questionText?: string }>): string {
+  const groups = new Map<string, { count: number; reason: string; question: string }>();
+  for (const entry of report) {
+    if (entry.outcome !== "rejected") continue;
+    const previous = groups.get(entry.category);
+    groups.set(entry.category, { count: (previous?.count || 0) + 1, reason: entry.reason, question: entry.questionText || "" });
+  }
+  if (!groups.size) return "No candidate rejection details were recorded for this run.";
+  return "Rejections: " + [...groups].sort((a, b) => b[1].count - a[1].count).map(([category, details]) =>
+    `${category} (${details.count}) — ${details.reason.slice(0, 350)}${details.question ? ` Question: ${details.question.slice(0, 180)}` : ""}`
+  ).join("\n");
+}

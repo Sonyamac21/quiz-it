@@ -147,3 +147,28 @@ test('shared picture-question stems do not make different flags duplicates', asy
   assert.equal(await exports.isDuplicateInMemory(question('Which country’s flag is this?', 'Sweden', 'picture'), emptyExclusionState()), false);
   assert.equal(await exports.isDuplicateInMemory(question('Identify the national flag shown.', 'Portugal', 'picture'), emptyExclusionState()), true);
 });
+
+test('a common flag description and answer do not identify the same historical fact', () => {
+  const state = emptyExclusionState();
+  const previous = question('What colour is the circle on the white background of Japan’s flag?', 'Red');
+  state.used = [previous.question_text];
+  state.historyQuestions = [previous];
+  assert.equal(duplicateRejectionReason(question('What colour is the circle on the green background of Bangladesh’s flag?', 'Red'), [], 'flag', state), null);
+  assert.ok(duplicateRejectionReason(question('What colour circle appears on Japan’s national flag?', 'Red'), [], 'flag', state));
+});
+
+test('flag drafts reserve fresh countries rather than repeatedly asking for the same theme', () => {
+  const state = emptyExclusionState();
+  state.used = ['What colour is the flag of Portugal?', 'Which cross appears on Denmark’s flag?'];
+  state.historyQuestions = [question('Identify this maple leaf flag.', 'Canada')];
+  // Possessive wording is handled conservatively by also testing explicit names.
+  state.usedAnswers.push('Denmark');
+  const subjects = Array.from({ length: 18 }, () => exports.reserveFlagSubject('flag', state));
+  assert.equal(new Set(subjects).size, 18);
+  assert.ok(subjects.every(Boolean));
+  assert.ok(!subjects.includes('Portugal'));
+  assert.ok(!subjects.includes('Canada'));
+  assert.ok(!subjects.includes('Denmark'));
+  assert.equal(exports.reserveFlagSubject('flags of Asia', state), null);
+  assert.equal(exports.reserveFlagSubject('Disney', state), null);
+});

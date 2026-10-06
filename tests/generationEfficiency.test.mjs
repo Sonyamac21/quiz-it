@@ -103,3 +103,18 @@ test('parallel rounds reserve accepted facts before awaiting the memory save', a
   assert.equal(questions.length, 2);
   assert.equal(new Set(questions.map(q => q.question_text)).size, 2);
 });
+
+test('early duplicate drafts are blacklisted and included in the next paid prompt', async () => {
+  const duplicate = { question_type: 'number', question_text: 'How many stars appear on the flag of China?', correct_answer: '5' };
+  const r = validationRunner({ content: [{ type: 'text', text: JSON.stringify([duplicate]) }] });
+  const exclusions = r.exports.emptyExclusionState();
+  exclusions.used.push(duplicate.question_text);
+  const opts = { theme: 'flag', difficulty: 'easy', roundType: 'bonus', exclusions };
+  const first = await r.exports.generateOne('number', 'flag', r.exports.createGenerationContext('number', true), opts);
+  assert.equal(first, null);
+  assert.ok(exclusions.rejectedTexts.has(r.exports.normalizeQuestionText(duplicate.question_text)));
+  await r.exports.generateOne('number', 'flag', r.exports.createGenerationContext('number', true), opts);
+  assert.equal(r.requests.length, 2);
+  assert.match(r.requests[0].prompt, /FRESH SUBJECT:/);
+  assert.ok(r.requests[1].prompt.includes(r.exports.normalizeQuestionText(duplicate.question_text)));
+});

@@ -361,6 +361,7 @@ export function stageLabel(stage: ValidationStage): string {
 export type ExclusionState = {
   used: string[];
   historyQuestions?: Question[];
+  attemptedFlagSubjects?: Set<string>;
   usedFingerprints: Set<string>;
   usedAnswers: string[];
   rejectedFingerprints: Set<string>;
@@ -721,6 +722,22 @@ export async function finalQualityCheck(q: Question, theme: string, recencyNote?
   }
 }
 
+// Allocate a fresh subject before paying for another themed draft. These are
+// topic suggestions, not prewritten facts; factual validation still runs.
+export function reserveFlagSubject(theme: string, exclusions: ExclusionState): string | null {
+  if (!/^(?:(?:world|national|country)\s+)?flags?$/i.test(theme.trim())) return null;
+  const countries = ["Japan", "Canada", "Brazil", "Sweden", "Norway", "Denmark", "Finland", "Iceland", "Switzerland", "Austria", "Germany", "France", "Italy", "Spain", "Portugal", "Greece", "Turkey", "India", "Pakistan", "Bangladesh", "Nepal", "Bhutan", "China", "Vietnam", "Thailand", "Malaysia", "Singapore", "Indonesia", "Philippines", "Australia", "New Zealand", "South Africa", "Kenya", "Nigeria", "Ghana", "Morocco", "Egypt", "Jamaica", "Mexico", "Argentina", "Chile", "Peru", "Uruguay", "Colombia", "Ecuador", "Panama", "Ireland", "Belgium", "Netherlands", "Poland", "Ukraine", "Estonia", "Latvia", "Lithuania"];
+  const history = " " + normalizeQuestionText([
+    ...exclusions.used, ...exclusions.usedAnswers, ...exclusions.rejectedTexts,
+    ...(exclusions.historyQuestions || []).map(resolveAnswerText),
+  ].join(" ")) + " ";
+  const attempted = exclusions.attemptedFlagSubjects ??= new Set();
+  const subject = shuffle(countries).find(country => !attempted.has(country) && !history.includes(" " + normalizeQuestionText(country) + " "));
+  if (!subject) return null;
+  attempted.add(subject);
+  return subject;
+}
+
 export async function generateOne(
   type: string,
   topic: string,
@@ -744,8 +761,11 @@ export async function generateOne(
       ? `audio: create a THEMED music-clip question for "${theme.trim()}". option_a is an internal YouTube search query identifying the exact track, in the form "Song Title - Artist Name" (title and artist both present, for internal lookup only). question_text is shown after the clip and MUST require specific knowledge of "${theme.trim()}"—for example "Which animated film features this song?"—rather than merely naming a song that happens to be associated with the theme. Do not reveal the song, artist or answer. option_b/c/d null; correct_answer must answer the themed question and must contain ONLY the single piece of information the question actually asks for (e.g. just the song title, OR just the artist name, OR just the year) - NEVER combine artist and title together like "Artist - Title" in correct_answer, even though option_a uses that combined form for lookup purposes.`
       : "audio: option_a is an internal YouTube search query identifying the exact track, in the form \"Song Title - Artist Name\" (title and artist both present, for internal lookup only). question_text is a short question answerable from the clip, such as 'Name this song', 'Which artist performs this song?' or 'What year was it released?'. Do not reveal the title or artist. option_b/c/d null; correct_answer must match what question_text asks and must contain ONLY that single piece of information - e.g. if asked to name the song, correct_answer is just the song title with no artist name attached; if asked for the artist, correct_answer is just the artist name with no song title attached. NEVER write correct_answer as \"Artist - Title\" or \"Title - Artist\" - that combined form belongs only in option_a, never in correct_answer.",
   };
-  const rejectedList = Array.from(exclusions.rejectedTexts);
-  let exclusionsText = [...rejectedList, ...exclusions.used.slice(-25)].map((q, i) => (i + 1) + ". " + q).join("; ");
+  const flagSubject = reserveFlagSubject(theme || topic, exclusions);
+  const rejectedList = Array.from(exclusions.rejectedTexts).slice(-8).reverse();
+  const topicWords = normalizeQuestionText(theme || topic).split(" ").filter(word => word.length > 2);
+  const relevantHistory = exclusions.used.filter(text => topicWords.some(word => normalizeQuestionText(text).includes(word.replace(/s$/, ""))));
+  let exclusionsText = [...rejectedList, ...relevantHistory.slice(-20), ...exclusions.used.slice(-10)].map((q, i) => (i + 1) + ". " + q).join("; ");
   if (exclusionsText.length > 1800) exclusionsText = exclusionsText.slice(0, 1800);
   const usedAnswersList = exclusions.usedAnswers.slice(-20).filter(Boolean).join(", ");
   let sessionExclusionNote = (exclusionsText || usedAnswersList)
@@ -765,6 +785,7 @@ export async function generateOne(
 BEFORE writing any question, ask yourself: "Would 8 friends sitting in a pub enjoy answering this?" If no, do not write it.
 FIRST-PASS CHECK (do silently): consider several different facts and entities; reject any that paraphrase an excluded question or reuse its entity, answer or knowledge test; then choose the strongest stable fact with one clear natural answer. Check only player-visible content for venue suitability—unseen plots, lyrics and themes do not make a mainstream work unsuitable.
 TOPIC: ${topic}
+${flagSubject ? `FRESH SUBJECT: Focus this candidate on the national flag of ${flagSubject}. Test a clear, verifiable feature, symbol or design fact. Do not substitute another country or the usual Nepal/Switzerland/Denmark examples. The subject name is internal direction, not a required part of the player-visible wording. If the requested type needs several countries, anchor it on this country and choose fresh comparisons.` : ""}
 ${opts.replacementFeedback ? "Avoid the problem in the previous rejected candidate: " + opts.replacementFeedback : ""}
 ${roundType === "bonus" ? `BONUS THEME CONTRACT: Every question must directly test the host's theme "${theme || topic}". Use a different fact and subject for each question. Do not drift into movie/music trivia merely associated with the theme. For a colour theme, ask about colours themselves in varied contexts (nature, flags, everyday objects, art or sport), not the name of a film with colourful characters. All text must stand alone: never say "this bird", "this picture" or "this song" without supplied media. Prefer natural, specific questions over tenuous associations.` : ""}
 TYPE: ${typeInstructions[type]}
@@ -831,7 +852,8 @@ Return ONLY a valid JSON array with 1 item, no markdown:
     // Reject known repeats before theme, search verification or media calls.
     const earlyDuplicate = duplicateRejectionReason(q, [], theme, exclusions);
     if (earlyDuplicate) {
-      context.error = earlyDuplicate + " - retrying";
+      blacklistRejected(exclusions, q);
+      context.error = earlyDuplicate + ": " + q.question_text + " - retrying";
       context.report.stages.duplicate = { status: "failed", note: earlyDuplicate };
       return null;
     }
@@ -1031,7 +1053,9 @@ export function duplicateRejectionReason(q: Question, currentRound: Question[], 
     "film","films","movie","movies","song","songs","music","character","characters","name","named","names","actor","actress","actors","voice","voiced","played","plays","play","called","feature","features","featured","animated","animation","show","shows","series","episode","famous","first","last","title","titled","released","release","year","years","won","wins","winner","story","stories","franchise","sequel","original","company","brand","team","player","country","city","capital","word","words","number",
   ]);
   const themeTokens = (theme || "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
-  const ignore = new Set<string>([...COMMON, ...themeTokens]);
+  const flagVocabulary = /\bflags?\b/i.test(theme + " " + q.question_text)
+    ? ["white", "black", "green", "yellow", "blue", "orange", "purple", "cross", "circle", "star", "stars", "stripe", "stripes", "horizontal", "vertical", "background", "field", "centre", "center", "central", "contains", "containing", "depicts", "featuring", "symbol", "design"] : [];
+  const ignore = new Set<string>([...COMMON, ...themeTokens, ...flagVocabulary]);
   const sigWords = (s: string) => (typeof s === "string" ? s : "").toLowerCase().replace(/['’]s\b/g, "").replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
   const normAnswer = resolveAnswerText(q).toLowerCase().trim();
   const fingerprint = questionFingerprint(q);
@@ -1049,7 +1073,10 @@ export function duplicateRejectionReason(q: Question, currentRound: Question[], 
   for (const previous of exclusions.historyQuestions || []) {
     if (normalizeQuestionText(resolveAnswerText(previous)) !== normalizeQuestionText(resolveAnswerText(q))) continue;
     if (["picture", "audio"].includes(q.question_type) && previous.question_type === q.question_type) return "same-media-answer:history";
-    if (sigWords(previous.question_text).some(word => candidateWords.has(word))) return "same-answer-and-subject:history";
+    const previousWords = new Set(sigWords(previous.question_text));
+    const sharedWords = [...previousWords].filter(word => candidateWords.has(word));
+    const unionSize = new Set([...previousWords, ...candidateWords]).size;
+    if (sharedWords.length && sharedWords.length / unionSize >= 0.5) return "same-answer-and-subject:history";
   }
   const newWords = [...new Set(sigWords(q.question_text))];
   if (!["picture", "audio"].includes(q.question_type) && newWords.length >= 2) {

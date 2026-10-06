@@ -15,15 +15,11 @@ test("first completion uses server time, not team order, and survives reload", (
   assert.equal(fastestPairsTeam({ Legacy: { solved_pair_ids: ["p1", "p2", "p3"], mistakes: 0 } }), null);
 });
 
-test("all live Match Made images use the media proxy for private storage", () => {
+test("all Match Made boards render word tiles without loading legacy images", () => {
   const source = fs.readFileSync(new URL("../components/PairsRound.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(source, /src=\{(?:tile|item)\.image_url\}/);
-  // 4 call sites: PairsPlayerBoard, PairsHostView, and PairsDisplayBoard's
-  // two branches (live venue-rotation tiles vs the revealed pair-card grid
-  // with its connecting line, added so the reveal has an explicit answer
-  // key on the audience display too).
-  assert.equal((source.match(/src=\{getMediaUrl\(/g) || []).length, 4);
-  assert.match(source, /Points|points this question/);
+  assert.doesNotMatch(source, /<img|<TileImage/);
+  assert.equal((source.match(/<WordTile /g) || []).length, 4);
+  assert.match(source, /Tap two words that go together/);
 });
 
 test("completion migration preserves atomic awards and durable completion metadata", () => {

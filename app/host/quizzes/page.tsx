@@ -272,73 +272,30 @@ export default function QuizBuilderPage() {
   // so the same editor UI (see pairsEditorFields below) serves both cases.
   const [pairsBuilderKey, setPairsBuilderKey] = useState<string | null>(null);
   const [pairsBuilderDraft, setPairsBuilderDraft] = useState<PairRecord[]>([]);
-  const [pairsPhotoTileKey, setPairsPhotoTileKey] = useState<string | null>(null);
-  const [pairsPhotoQuery, setPairsPhotoQuery] = useState("");
-  const [pairsPhotoSearching, setPairsPhotoSearching] = useState(false);
-  const [pairsPhotoCandidates, setPairsPhotoCandidates] = useState<{ id: number; thumb: string; full: string; tags: string }[]>([]);
-  const [pairsPhotoSearchError, setPairsPhotoSearchError] = useState("");
   function emptyPairsDraft(): PairRecord[] {
     return [1, 2, 3].map(n => ({ pair_id: `p${n}`, a: { label: "", image_url: "" }, b: { label: "", image_url: "" } }));
   }
   function startBuildPairs(round: QuizRound) {
     setPairsBuilderDraft(emptyPairsDraft());
     setPairsBuilderKey(round.id + "-new");
-    setPairsPhotoTileKey(null);
-    setPairsPhotoCandidates([]);
-    setPairsPhotoSearchError("");
   }
   function startEditPairs(round: QuizRound, qIndex: number, q: Record<string, unknown>) {
     const pairs = readPairs([q]);
     setPairsBuilderDraft(pairs.length === PAIRS_PER_ROUND ? pairs.map(p => ({ ...p, a: { ...p.a }, b: { ...p.b } })) : emptyPairsDraft());
     setPairsBuilderKey(round.id + "-" + qIndex);
-    setPairsPhotoTileKey(null);
-    setPairsPhotoCandidates([]);
-    setPairsPhotoSearchError("");
   }
   function closePairsBuilder() {
     setPairsBuilderKey(null);
     setPairsBuilderDraft([]);
-    setPairsPhotoTileKey(null);
   }
   function updatePairsTile(pairIndex: number, side: "a" | "b", patch: Partial<{ label: string; image_url: string }>) {
     setPairsBuilderDraft(draft => draft.map((p, i) => i === pairIndex ? { ...p, [side]: { ...p[side], ...patch } } : p));
   }
-  async function searchPairsTilePhotos(query: string) {
-    if (!query.trim()) return;
-    setPairsPhotoSearching(true);
-    setPairsPhotoSearchError("");
-    try {
-      const res = await fetch("/api/pixabay-search?q=" + encodeURIComponent(query.trim()));
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Search failed");
-      setPairsPhotoCandidates(data.candidates || []);
-      if (!data.candidates?.length) setPairsPhotoSearchError("No photos found for that search - try different words.");
-    } catch (e) {
-      setPairsPhotoCandidates([]);
-      setPairsPhotoSearchError(e instanceof Error ? e.message : "Search failed");
-    } finally {
-      setPairsPhotoSearching(false);
-    }
-  }
   async function savePairsBuilder(round: QuizRound) {
     if (!pairsBuilderKey) return;
-    const hostImage = async (img?: string) => {
-      const trimmed = img?.trim();
-      if (!trimmed) return undefined;
-      // Same re-hosting rule as the single-picture edit form (saveEditQuestion
-      // below) - a freshly-picked Pixabay thumbnail is still a live hotlink at
-      // this point and needs re-hosting so it doesn't quietly go dead later;
-      // an already re-hosted or manually pasted permanent URL passes through.
-      if (trimmed.includes("blob.vercel-storage.com")) return trimmed;
-      return (await persistPixabayImage(trimmed)).url;
-    };
-    const cleaned = await Promise.all(pairsBuilderDraft.map(async (p, i) => ({
-      pair_id: `p${i + 1}`,
-      question_type: "pairs" as const,
-      round_type: "pairs" as const,
-      a: { label: p.a.label.trim(), image_url: await hostImage(p.a.image_url) },
-      b: { label: p.b.label.trim(), image_url: await hostImage(p.b.image_url) },
-    })));
+    const cleaned = pairsBuilderDraft.map((p, i) => ({
+      pair_id: `p${i + 1}`, a: { label: p.a.label.trim() }, b: { label: p.b.label.trim() },
+    }));
     if (cleaned.some(p => !p.a.label || !p.b.label)) { showToast("Every tile needs a label before saving.", "error"); return; }
     const question = { question_type: "pairs" as const, round_type: "pairs" as const, pairs: cleaned };
     const isNew = pairsBuilderKey === round.id + "-new";
@@ -362,10 +319,7 @@ export default function QuizBuilderPage() {
   }
   // Shared editor UI for both "build a brand-new Match Made question" and
   // "edit an existing one" - 3 pairs x 2 tiles, each with an editable label
-  // and an optional photo (search Pixabay, pick a thumbnail, or paste a
-  // direct URL - same pattern as the picture-question edit form). A tile
-  // with no photo just plays as a text-only tile (see the generatePairs.ts
-  // fix this same night: a picture is an enhancement, never a requirement).
+  // Edit the two word labels for each matching pair.
   function pairsEditorFields(round: QuizRound) {
     return (
       <div style={{ display: "grid", gap: 10 }}>
@@ -373,9 +327,7 @@ export default function QuizBuilderPage() {
         {pairsBuilderDraft.map((pair, pairIndex) => (
           <div key={pairIndex} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: 8, borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52" }}>
             {(["a", "b"] as const).map(side => {
-              const tileKey = pairIndex + "-" + side;
               const tile = pair[side];
-              const isPhotoOpen = pairsPhotoTileKey === tileKey;
               return (
                 <div key={side} style={{ display: "grid", gap: 5 }}>
                   <input
@@ -385,34 +337,7 @@ export default function QuizBuilderPage() {
                     style={{ width: "100%", font: "400 12px 'Inter'" }}
                     placeholder={side === "a" ? "Item A label" : "Item B label (matches Item A)"}
                   />
-                  {tile.image_url && !brokenImageUrls.has(tile.image_url) ? (
-                    <img src={getMediaUrl(tile.image_url) ?? undefined} alt={tile.label || "tile"} style={{ display: "block", width: "100%", height: 70, objectFit: "cover", borderRadius: 6 }} onError={() => markImageBroken(tile.image_url)} />
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 70, borderRadius: 6, background: "#170b2c", color: "#6B5A8E", font: "400 10px 'Inter'", textAlign: "center", padding: 6 }}>No photo (text-only tile)</div>
-                  )}
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <HostButton className="qi-btn-sm" style={{ flex: 1 }} onClick={() => { setPairsPhotoTileKey(isPhotoOpen ? null : tileKey); setPairsPhotoQuery(tile.label); setPairsPhotoCandidates([]); setPairsPhotoSearchError(""); }}>{isPhotoOpen ? "CLOSE" : "FIND PHOTO"}</HostButton>
-                    {!!tile.image_url && <HostButton className="qi-btn-sm" style={{ flex: 1 }} onClick={() => updatePairsTile(pairIndex, side, { image_url: "" })}>REMOVE PHOTO</HostButton>}
-                  </div>
-                  {isPhotoOpen && (
-                    <div style={{ display: "grid", gap: 5 }}>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <input value={pairsPhotoQuery} onChange={e => setPairsPhotoQuery(e.target.value)} className="fbh-input" style={{ flex: 1, font: "400 12px 'Inter'" }} placeholder="e.g. red bicycle" />
-                        <HostButton className="qi-btn-sm" type="button" onClick={() => searchPairsTilePhotos(pairsPhotoQuery)} disabled={pairsPhotoSearching || !pairsPhotoQuery.trim()}>{pairsPhotoSearching ? "..." : "SEARCH"}</HostButton>
-                      </div>
-                      {pairsPhotoSearchError && <div style={{ color: "#FF8290", font: "400 11px 'Inter'" }}>{pairsPhotoSearchError}</div>}
-                      {pairsPhotoCandidates.length > 0 && (
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5 }}>
-                          {pairsPhotoCandidates.map(c => (
-                            <button key={c.id} type="button" onClick={() => { updatePairsTile(pairIndex, side, { image_url: c.full }); setPairsPhotoTileKey(null); setPairsPhotoCandidates([]); }} title={c.tags} style={{ padding: 0, border: "1px solid #2E1A52", borderRadius: 6, overflow: "hidden", cursor: "pointer", background: "none", height: 48 }}>
-                              {!brokenImageUrls.has(c.thumb) && <img src={c.thumb} alt={c.tags} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={() => markImageBroken(c.thumb)} />}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      <input value={tile.image_url ?? ""} onChange={e => updatePairsTile(pairIndex, side, { image_url: e.target.value })} className="fbh-input" style={{ width: "100%", font: "400 12px 'Inter'" }} placeholder="Or paste a direct image URL" />
-                    </div>
-                  )}
+                  <div style={{ display: "grid", placeItems: "center", minHeight: 70, borderRadius: 6, background: "#170b2c", color: "white", padding: 10, textAlign: "center", fontWeight: 700 }}>{tile.label || "Enter a word above"}</div>
                 </div>
               );
             })}
@@ -2460,8 +2385,8 @@ export default function QuizBuilderPage() {
                               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
                                 {tilesForTeam(readPairs([qr]), "builder-preview").map((rawItem, itemIndex) => {
                                   const item = rawItem as { label: string; image_url: string };
-                                  const tileImgUrl = getMediaUrl(item.image_url) ?? item.image_url;
-                                  return <div key={itemIndex} style={{ borderRadius: 8, overflow: "hidden", background: "#0A0118", position: "relative", aspectRatio: "1" }}>{tileImgUrl && !brokenImageUrls.has(tileImgUrl) && <img src={tileImgUrl} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => markImageBroken(tileImgUrl)} />}<strong style={{ position: "absolute", inset: "auto 0 0", padding: "12px 5px 5px", background: "linear-gradient(transparent,rgba(0,0,0,.9))", color: "white", textAlign: "center", fontSize: 11 }}>{item.label}</strong></div>;
+                                  return <div key={itemIndex} style={{ borderRadius: 8, background: "#0A0118", minHeight: 90, display: "grid", placeItems: "center", padding: 12, color: "white", textAlign: "center", fontSize: 18, fontWeight: 700, overflowWrap: "anywhere" }}>{item.label}</div>;
+
                                 })}
                               </div>
                             </>

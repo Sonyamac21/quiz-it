@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { applyScoreDelta } from "@/lib/quiz/scoreService";
-import { getMediaUrl } from "@/lib/getMediaUrl";
 import { MissionControlTopBar } from "@/components/ui/quiz-it-ui";
 import {
   PAIRS_PER_ROUND,
@@ -36,41 +35,13 @@ export const PAIRS_TIMER_SECONDS = 5;
 // really being awarded.
 export const PAIRS_POINTS_PER_MATCH = 2;
 
-// Every tile image previously had no onError handler at all - a dead or
-// CORS-blocked image URL (Pixabay hotlinks going stale, a re-host failure,
-// a flaky mobile connection dropping the request) just left a blank/broken
-// image with the label still floating over nothing, which is exactly what
-// "the round won't play on my iPhone" looks like: not a crash, just a
-// silently empty tile with no visible content to tap. This renders a
-// visible placeholder (still showing the label) instead of nothing, and
-// retries the load once automatically in case it was a transient blip.
-function TileImage({ src, alt, style }: { src: string | null | undefined; alt: string; style: React.CSSProperties }) {
-  const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  if (!src || failed) {
-    return (
-      <div style={{ ...style, display: "flex", alignItems: "center", justifyContent: "center", background: "#170b2c", color: "#6B5A8E", fontSize: 13, textAlign: "center", padding: 8 }}>
-        {failed ? "Image unavailable" : ""}
-      </div>
-    );
-  }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      key={attempt}
-      src={src}
-      alt={alt}
-      style={style}
-      onError={() => {
-        if (attempt < 1) { setAttempt(a => a + 1); return; }
-        setFailed(true);
-      }}
-    />
-  );
+// Word tiles also handle legacy questions containing saved image URLs.
+function WordTile({ label, style }: { label: string; style: React.CSSProperties }) {
+  return <div style={{ ...style, display: "flex", alignItems: "center", justifyContent: "center", padding: "12%", boxSizing: "border-box", background: "#170b2c", color: "white", font: "800 clamp(18px,2.6vmin,36px) 'Inter'", textAlign: "center", overflowWrap: "anywhere", lineHeight: 1.2 }}>{label}</div>;
 }
 
 // A vertical line plus a small "linked" badge through the middle of a pair
-// card, so the reveal actually SHOWS the two photos are matched instead of
+// card, so the reveal actually SHOWS the two words are matched instead of
 // just implying it via grid position. Shared between the display board and
 // the host console's own reveal grid below.
 function PairLinkConnector() {
@@ -115,8 +86,8 @@ export function PairsDisplayBoard({ pairs, progress, teamNames, complete = false
             <div key={pair.pair_id} style={{ position: "relative", minHeight: 0, display: "grid", gridTemplateRows: "repeat(2,minmax(0,1fr))", borderRadius: 18, border: "2px solid #493060", overflow: "hidden" }}>
               {[pair.a, pair.b].map(item => (
                 <div key={item.label} style={{ position: "relative", minHeight: 0 }}>
-                  <TileImage src={getMediaUrl(item.image_url)} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                  <strong style={{ position: "absolute", inset: "auto 0 0", padding: "14px 10px 8px", color: "white", textAlign: "center", fontSize: "clamp(17px,1.7vw,28px)", background: "linear-gradient(transparent,rgba(0,0,0,.95))" }}>{item.label}</strong>
+                  <WordTile label={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+
                 </div>
               ))}
               <PairLinkConnector />
@@ -126,8 +97,8 @@ export function PairsDisplayBoard({ pairs, progress, teamNames, complete = false
       ) : (
         <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gridTemplateRows: "repeat(2,minmax(0,1fr))", gap: "clamp(12px,2vh,24px)", width: "min(86vw,1400px)" }}>
           {tiles.map(tile => <div key={tile.id} style={{ position: "relative", minHeight: 0, overflow: "hidden", borderRadius: 18, border: "2px solid #493060" }}>
-            <TileImage src={getMediaUrl(tile.image_url)} alt={tile.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-            <strong style={{ position: "absolute", inset: "auto 0 0", padding: "20px 12px 10px", color: "white", textAlign: "center", fontSize: "clamp(20px,2vw,34px)", background: "linear-gradient(transparent,rgba(0,0,0,.95))" }}>{tile.label}</strong>
+            <WordTile label={tile.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+
           </div>)}
         </div>
       )}
@@ -206,7 +177,7 @@ export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, 
         <div style={{ marginLeft: "auto", flexShrink: 0, width: 44, height: 44, borderRadius: "50%", border: "2px solid currentColor", display: "grid", placeItems: "center", fontSize: 19, fontWeight: 800, color: timeLeft <= 5 ? "#ef4444" : "#d94fdc" }}>{timeLeft}</div>
       )}
     </div>
-    <div style={{ color: "#cfc2e7", font: "600 clamp(13px,1.8vh,17px) 'Inter'", margin: "3px 0 4px" }}>{done ? "All three matched!" : "Tap two pictures that go together"}</div>
+    <div style={{ color: "#cfc2e7", font: "600 clamp(13px,1.8vh,17px) 'Inter'", margin: "3px 0 4px" }}>{done ? "All three matched!" : "Tap two words that go together"}</div>
     {effectiveReason && <div role="alert" style={{ color: "#ffc533", fontSize: 16, textAlign: "center", marginBottom: 8 }}>{effectiveReason}</div>}
     {points !== undefined && <div style={{ color: "#d94fdc", font: "800 15px 'Inter'", marginBottom: 5 }}>Team total: {points} pts</div>}
     {/* Host: "there is still no reveal screen either." Every other round
@@ -242,8 +213,8 @@ export function PairsPlayerBoard({ pairs, progress, teamName, points, disabled, 
           {tiles.map(tile => {
             const isSolved = solved.has(tile.pair_id), isSelected = selected.some(item => item.id === tile.id), isWrong = wrong.includes(tile.id);
             return <button key={tile.id} type="button" onClick={() => void tap(tile)} disabled={locked || isSolved || busy} style={{ minHeight: 0, overflow: "hidden", position: "relative", borderRadius: "clamp(14px,2.2vh,22px)", border: isSolved ? "3px solid #2ee06e" : isSelected ? "3px solid #d94fdc" : "1px solid rgba(255,255,255,.18)", padding: 0, background: "#170b2c", opacity: isSolved ? .58 : 1, boxShadow: isSelected ? "0 0 20px rgba(217,79,220,.45)" : "none", animation: isWrong ? "qi-pairs-shake .5s" : undefined }}>
-              <TileImage src={getMediaUrl(tile.image_url)} alt={tile.label} style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
-              <span style={{ position: "absolute", inset: "auto 0 0", padding: "7px 5px", background: "linear-gradient(transparent,rgba(5,0,14,.96))", color: "white", font: "800 clamp(12px,1.7vh,16px) 'Inter'", textShadow: "0 1px 3px #000" }}>{tile.label}</span>
+              <WordTile label={tile.label} style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+
               {isSolved && <span style={{ position: "absolute", top: 7, right: 7, width: 27, height: 27, borderRadius: 20, display: "grid", placeItems: "center", background: "#2ee06e", color: "#06150c", fontWeight: 900 }}>✓</span>}
             </button>;
           })}
@@ -332,7 +303,7 @@ export function PairsPanel({ sessionId, sessionPin, teams, rounds, autoStartRoun
       if (saved?.phase === "pairs" && saved.pairs_round_id === id) { hydrate(saved); return true; }
     }
     const content = pairsForQuestion(round?.questions, index);
-    if (!round || content.length !== PAIRS_PER_ROUND) { setError("This Match Made question needs exactly three complete image pairs before it can go live."); setOpen(true); return false; }
+    if (!round || content.length !== PAIRS_PER_ROUND) { setError("This Match Made question needs exactly three complete word pairs before it can go live."); setOpen(true); return false; }
     const initial = Object.fromEntries(teamNames.map(name => [name, { solved_pair_ids: [], mistakes: 0, selected_tile_id: null }]));
     const startedAt = new Date().toISOString();
     const { error: writeError } = await supabase.from("sessions").update({ phase: "pairs", current_question_index: index, pairs_status: "live", pairs_content: content, pairs_progress: initial, pairs_round_id: id, timer_started_at: startedAt, timer_duration: PAIRS_TIMER_SECONDS, current_question: null, allow_power_cards: false, spin_choice: null, spin_offered: false, fastest_team: null, fastest_points: null, updated_at: startedAt }).eq("id", sessionId);
@@ -500,7 +471,7 @@ export function PairsHostView({ sessionPin, pairs, rows, scoreboard, fastestTeam
             FitScaleBlock and drove the grid's own row height off the same
             --qi-fit-scale variable the text uses - but FitScaleBlock only
             picks a scale up to whatever height the CONTENT needs at that
-            scale, so if the text+photos already fit comfortably below the
+            scale, so if the word tiles already fit comfortably below the
             cap, it never grows further even though real empty space was
             still sitting below it (confirmed live: raising the cap from
             1.6 to 2.1 changed nothing, because the actual ceiling was
@@ -544,7 +515,7 @@ export function PairsHostView({ sessionPin, pairs, rows, scoreboard, fastestTeam
               on the player handset or the audience display. */}
           <div className="qi-mc-pairs__grid">
             {pairs.map(pair => <div key={pair.pair_id} className="qi-mc-pairs__card" style={{ position: "relative" }}>
-              {[pair.a, pair.b].map(item => <div key={item.label} style={{ position: "relative", minHeight: 0 }}><TileImage src={getMediaUrl(item.image_url)} alt={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} /><strong className="qi-mc-pairs__label">{item.label}</strong></div>)}
+              {[pair.a, pair.b].map(item => <div key={item.label} style={{ position: "relative", minHeight: 0 }}><WordTile label={item.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} /></div>)}
               <PairLinkConnector />
             </div>)}
           </div>

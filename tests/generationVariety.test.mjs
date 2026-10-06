@@ -30,17 +30,12 @@ test("pairs image matching prefers, but does not require, the visible label in P
   assert.match(match, /requiredLabel\?: string/);
   assert.match(match, /requiredLabelTerms/);
   assert.doesNotMatch(match, /filter\(result => !requiredLabelTerms\.length \|\| result\.labelMatches > 0\)/);
-  assert.match(readFileSync(new URL("../lib/quiz/generatePairs.ts", import.meta.url), "utf8"), /selectMatchingPixabayHit\(candidates, query, label\)/);
 });
 
-test("Match Made reuses a verified image instead of re-gambling on the same label forever", () => {
+test("Match Made generates words without photo searches or paid vision checks", () => {
   const source = readFileSync(new URL("../lib/quiz/generatePairs.ts", import.meta.url), "utf8");
-  assert.match(source, /lookupCachedImage\(label\)/);
-  assert.match(source, /pairs_image_cache/);
-  // Only a durably re-hosted image is remembered - a raw Pixabay hotlink
-  // fallback is known to go dead over time and must never be cached, or a
-  // single transient failure would resurrect a broken image indefinitely.
-  assert.match(source, /if \(saved\.persisted\) void cacheVerifiedImage/);
+  assert.doesNotMatch(source, /sourceImage|checkPictureIdentity|pixabay|persistPixabayImage/);
+  assert.match(source, /distinct WORD pairs/);
 });
 
 test("both generator screens use the shared pool and stronger duplicate threshold", () => {

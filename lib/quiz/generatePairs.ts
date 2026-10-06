@@ -1,71 +1,7 @@
 import { PairRecord } from "@/lib/quiz/pairs";
-import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pixabayMatch";
-import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
-import { audienceBrief, type QuizAudience, callAPI, checkPictureIdentity, ExclusionState, fetchWithTimeout, GENERATION_MODEL } from "@/lib/quiz/questionGenerationCore";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { audienceBrief, type QuizAudience, callAPI, ExclusionState, GENERATION_MODEL } from "@/lib/quiz/questionGenerationCore";
+type DraftPair = { pair_id?: string; a?: { label?: string }; b?: { label?: string } };
 
-type DraftPair = { pair_id?: string; a?: { label?: string; image_query?: string }; b?: { label?: string; image_query?: string } };
-
-// Generation always runs client-side in the host's browser (see the
-// existing note on persistPixabayImage), so a plain browser client is safe
-// to hold here - same pattern every host-side component already uses.
-let cachedSupabase: ReturnType<typeof createSupabaseBrowserClient> | null = null;
-function getSupabase() {
-  if (!cachedSupabase) cachedSupabase = createSupabaseBrowserClient();
-  return cachedSupabase;
-}
-
-function normalizeLabelKey(label: string): string {
-  return label.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-// The verified-image cache (supabase/migrations/202609230001_pairs_image_cache.sql):
-// once a label's picture has cleared the identity check once, it's reused
-// for free and instantly every time the same label comes up again, instead
-// of re-running the full live search-and-verify gamble from scratch on
-// every single generation forever. Coverage - and therefore both cost and
-// reliability - improves automatically the more Match Made gets used.
-// Best-effort throughout: a cache read/write failure (network blip, the
-// migration not yet applied in some environment) must never block or fail
-// generation - it just falls through to the existing live path.
-async function lookupCachedImage(label: string): Promise<string | null> {
-  try {
-    const supabase = getSupabase();
-    const { data } = await supabase.from("pairs_image_cache").select("id,image_url").eq("label_key", normalizeLabelKey(label)).limit(10);
-    if (!data || !data.length) return null;
-    // Multiple verified images can accumulate for the same label over time
-    // (different past generations, different Pixabay results) - pick among
-    // them at random rather than always the same row, for the same photo
-    // variety reason selectMatchingPixabayHit already randomizes live picks.
-    const pick = data[Math.floor(Math.random() * data.length)] as { id: string; image_url: string };
-    void supabase.from("pairs_image_cache").update({ last_used_at: new Date().toISOString() }).eq("id", pick.id);
-    return pick.image_url;
-  } catch {
-    return null;
-  }
-}
-
-async function cacheVerifiedImage(label: string, imageUrl: string): Promise<void> {
-  try {
-    await getSupabase().from("pairs_image_cache").insert({ label_key: normalizeLabelKey(label), label: label.trim(), image_url: imageUrl });
-  } catch {
-    // A cache-write failure just means this success isn't remembered for
-    // next time - the question itself already succeeded and is unaffected.
-  }
-}
-
-// Bug: this used to grab from the FIRST "[" to the LAST "]" in the whole
-// response text. That works only when the array is the entire response -
-// but the model sometimes appends a trailing note after the array (or the
-// array itself contains a value with a stray "]" character), and
-// lastIndexOf then swallows that trailing text into the "JSON", producing
-// exactly the live failure reported: "Unexpected non-whitespace character
-// after JSON at position 645 (line 38 column 1)" - valid JSON followed by
-// leftover text that was never supposed to be part of it. This instead
-// walks forward from the first "[" tracking bracket depth (skipping over
-// quoted strings, so a "]" inside a label/query string doesn't miscount)
-// and stops at the bracket that actually closes the array, ignoring
-// anything after it.
 function parseArray(text: string): DraftPair[] {
   const start = text.indexOf("[");
   if (start < 0) throw new Error("Pairs generator returned invalid JSON: no array found");
@@ -90,95 +26,12 @@ function parseArray(text: string): DraftPair[] {
   throw new Error("Pairs generator returned invalid JSON: no matching closing bracket");
 }
 
-// Host, live: "still an issue with match made" / "find another way to do
-// this" - this used to throw when no image cleared the identity check,
-// which killed the WHOLE pair (see the try/catch around the call below)
-// even when both labels themselves were perfectly good pair content. Every
-// question needs 6 verified images (3 pairs x 2), so one hard-to-photograph
-// label (a real example that failed live: "bookmark") was enough to burn
-// all 8 batches and return nothing. sourceImage now returns null instead of
-// throwing on a genuine picture-search miss; the pair still gets built with
-// a text-only tile for that item (PairsRound's TileImage already renders a
-// labelled placeholder box when image_url is empty) rather than being
-// discarded outright. Configuration/network errors are logged and also
-// degrade to null rather than aborting generation - a partially-illustrated
-// round the host can actually use beats none at all.
-async function sourceImage(query: string, label: string): Promise<string | null> {
-  // Check the verified-image cache before spending anything - a label that
-  // has already succeeded once (this quiz, or any past one) returns
-  // instantly here with zero API calls and zero chance of failing.
-  const cached = await lookupCachedImage(label);
-  if (cached) return cached;
-  const key = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
-  if (!key) return null;
-  const search = buildPixabaySearchQuery(query);
-  // Widened from 8 to 20 - selectMatchingPixabayHit now picks randomly among
-  // the top few qualifying matches rather than always the single best one,
-  // and a pool of 8 usually only had one or two hits that actually cleared
-  // the relevance threshold, leaving nothing to vary between.
-  // Previously a plain fetch with no timeout - unlike every AI call in this
-  // pipeline (callAPI/checkPictureIdentity), a stalled connection to
-  // Pixabay's search endpoint here hung the whole Match Made generation
-  // indefinitely with the progress text frozen on "Creating Match Made
-  // question X of Y..." and no way to recover short of reloading the page.
-  let response: Response;
-  try {
-    response = await fetchWithTimeout(`https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(search)}&image_type=photo&per_page=20&safesearch=true`);
-  } catch {
-    return null;
-  }
-  if (!response.ok) return null;
-  const data = await response.json();
-  let candidates = Array.isArray(data?.hits) ? data.hits : [];
-  // Raised from 3 to 5 - a pool of 20 Pixabay candidates often has several
-  // that look plausible from the search query alone but fail the stricter
-  // identity check (a set of pots shown when the label needs one clear
-  // bowl, say); 3 attempts burned through the closest matches too fast on
-  // some labels and gave up before reaching a genuinely clean shot further
-  // down the ranked list.
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const hit = selectMatchingPixabayHit(candidates, query, label);
-    const source = hit?.webformatURL || hit?.largeImageURL;
-    if (!hit || !source) break;
-    candidates = candidates.filter((candidate: { webformatURL?: string; largeImageURL?: string }) => (candidate.webformatURL || candidate.largeImageURL) !== source);
-    // Reverted from VALIDATION_MODEL (Haiku) back to the default (Sonnet).
-    // Match Made needs 6 verified images per question (3 pairs x 2), so this
-    // vision call happens far more often per question than for a normal
-    // picture question, and switching it to Haiku did meaningfully cut cost -
-    // but the host kept hitting genuine-content misses even generating just
-    // 1-2 questions at a time, well beyond what the prompt-quality fixes
-    // alone should produce, and there's no way to verify from here whether
-    // Haiku is a weaker judge on this specific "does this photo clearly show
-    // X" task than Sonnet was. Reliability matters more than the saved cost
-    // for a round that fails outright often enough to be unusable, so this
-    // goes back to Sonnet until there's real evidence either way.
-    const verdict = await checkPictureIdentity({ question_text: `Identify the ${label} in this picture.`, question_type: "picture", option_a: label, option_b: null, option_c: null, option_d: null, option_e: null, option_f: null, correct_answer: label, explanation: "", difficulty: "mixed", round_type: "pairs" }, source);
-    if (!verdict.ok) continue;
-    // Bug: persistPixabayImage's own design (see its file comment) is to
-    // fall back to the original Pixabay URL when the re-host step fails,
-    // on the reasoning that a hotlinked image today beats no question at
-    // all. Throwing here on `!saved.persisted` overrode that and discarded
-    // an image that had ALREADY passed the vision identity check - a real
-    // network hiccup on the re-host step (not the picture itself) burned an
-    // entire verified-good candidate and one more expensive retry for no
-    // reason. Accept saved.url either way; it is always a usable image.
-    const saved = await persistPixabayImage(source);
-    // Only cache a genuinely durable, permanently-rehosted URL - never the
-    // raw-Pixabay-hotlink fallback, since that's known to go dead over time
-    // (see persistPixabayImage's own comment); caching a URL that can rot
-    // would resurrect a broken image indefinitely instead of just once.
-    if (saved.persisted) void cacheVerifiedImage(label, saved.url);
-    return saved.url;
-  }
-  return null;
-}
-
 export async function generatePairs(count: number, theme: string, exclusions: ExclusionState, audience: QuizAudience = "adults"): Promise<PairRecord[]> {
   const avoid = [...exclusions.used.slice(-120), ...exclusions.usedAnswers.slice(-120)].join(" | ").slice(0, 7000);
   const prompt = `${audienceBrief(audience)}
-Create ${count} distinct odd-couple picture pairs for a commercial pub quiz Pairs round.${theme.trim() ? ` Theme: ${theme.trim()}.` : " Use broad, internationally accessible general knowledge."}
-Each pair contains two DIFFERENT concrete things that naturally go together conceptually (examples of the relationship only: lock + key, needle + thread). Do not copy those examples. Do not create visually identical objects, two people, brands, logos, flags, copyrighted characters, wordplay, region-specific slang, abstract ideas, or a pair whose relationship is debatable. Each item must be a complete, whole physical object, clearly recognisable in one ordinary full-object stock photograph and instantly distinguishable on a phone - never something identifiable only via an extreme close-up, texture or pattern (fingerprint, retina, DNA strand, snowflake), and never something normally sold, displayed or photographed as part of a matching set or pair (a saucer, a sugar bowl, a single chess piece, a place-setting item) where a stock photo search returns the whole set rather than the one isolated piece. Avoid items with several visually different real-world versions where a generic stock photo search returns inconsistent results - e.g. medical/safety equipment (oxygen mask, inhaler, gas mask), generic tools, or anything more commonly shown as a diagram/illustration than a real photograph. Favour single, visually consistent everyday objects instead (teapot, umbrella, guitar, bicycle). Use a different relationship and subject area for every pair. Avoid overused facts or content already seen here: ${avoid || "none supplied"}.
-Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label":"short visible label","image_query":"precise English stock-photo search"},"b":{"label":"short visible label","image_query":"precise English stock-photo search"}}. No markdown or explanation.`;
+Create ${count} distinct WORD pairs for a Match Made quiz.${theme.trim() ? ` Theme: ${theme.trim()}.` : " Use familiar everyday associations."}
+Each pair has two different short labels that naturally go together. Each tile names ONE item, never both halves such as "hammer and nail". Across the entire set, every item must have exactly one obvious partner: avoid ambiguous overlaps or interchangeable partners. Use distinct relationships, short readable words or phrases, and match the audience. Do not include images or image search queries. Avoid all previously attempted or used content: ${avoid || "none supplied"}.
+Return ONLY a JSON array with items {"pair_id":"p1","a":{"label":"first item"},"b":{"label":"matching item"}}. No markdown or explanation.`;
   const records: PairRecord[] = [];
   const seen = new Set<string>();
   const failures: string[] = [];
@@ -186,26 +39,18 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
   let attempts = 0;
   let duplicateSkips = 0;
   let drafts: DraftPair[] = [];
-  // Raised from 4 to 8 batches - a themed or less common request can burn
-  // through several batches of otherwise-good pair ideas before finding
-  // ones whose images clear the identity check, and 4 was giving up on
-  // legitimately gettable questions rather than a genuinely exhausted
-  // theme. Each failed batch is cheap (one AI call + already-rejected image
-  // fetches, both now timeout-protected), so this just gives it more real
-  // chances rather than more time wasted hanging.
-  for (let attempt = 0; attempt < 8 && records.length < count; attempt++) {
+  // Retry only missing word pairs, with no media requests.
+  for (let attempt = 0; attempt < 4 && records.length < count; attempt++) {
     attempts++;
     const needed = count - records.length;
-    const batch = parseArray(await callAPI(prompt.replace(`Create ${count} distinct`, `Create ${Math.min(needed + 2, 6)} distinct`) + `\nDo not reuse these already attempted items (including failed images): ${[...attemptedLabels].join(", ")}.`, 1800, false, false, GENERATION_MODEL)).slice(0, needed + 2);
+    const batch = parseArray(await callAPI(prompt.replace(`Create ${count} distinct`, `Create ${Math.min(needed, 6)} distinct`) + `\nDo not reuse these already attempted items (including rejected pairs): ${[...attemptedLabels].join(", ")}.`, 1800, false, false, GENERATION_MODEL)).slice(0, needed);
     drafts = drafts.concat(batch);
     for (let index = 0; index < batch.length && records.length < count; index++) {
     const draft = batch[index];
     if (!draft || typeof draft !== "object") continue;
     const aLabel = typeof draft.a?.label === "string" ? draft.a.label.trim() : "";
     const bLabel = typeof draft.b?.label === "string" ? draft.b.label.trim() : "";
-    const aQuery = typeof draft.a?.image_query === "string" ? draft.a.image_query.trim() : "";
-    const bQuery = typeof draft.b?.image_query === "string" ? draft.b.image_query.trim() : "";
-    if (!aLabel || !bLabel || !aQuery || !bQuery || aLabel.toLowerCase() === bLabel.toLowerCase()) continue;
+    if (!aLabel || !bLabel || aLabel.toLowerCase() === bLabel.toLowerCase()) continue;
     // Bug: this used to be `prior.some(value => value.includes(aLabel...))` -
     // a SUBSTRING check against every pair fingerprint ever recorded, with no
     // limit on how far back it looked. Match Made's whole item space is
@@ -233,14 +78,7 @@ Return ONLY a JSON array. Every item must be exactly {"pair_id":"p1","a":{"label
     if (seen.has(fingerprint) || (exclusions.usedAnswers.includes(fingerprint) || exclusions.used.some(value => String(value || "").toLowerCase() === fingerprint))) { duplicateSkips++; continue; }
     seen.add(fingerprint);
     try {
-      // Deliberately reuse the exact Pixabay matching + permanent re-hosting
-      // helpers used by picture questions; Pairs has no second media path.
-      // sourceImage returns null (never throws) on a genuine picture-search
-      // miss, so a hard-to-photograph label degrades to a text-only tile
-      // instead of discarding an otherwise-good pair - see sourceImage's
-      // comment for the live failure this fixes.
-      const [aImage, bImage] = await Promise.all([sourceImage(aQuery, aLabel), sourceImage(bQuery, bLabel)]);
-      records.push({ pair_id: `p${records.length + 1}`, question_type: "pairs", round_type: "pairs", a: { label: aLabel, image_url: aImage ?? undefined }, b: { label: bLabel, image_url: bImage ?? undefined } });
+      records.push({ pair_id: `p${records.length + 1}`, question_type: "pairs", round_type: "pairs", a: { label: aLabel }, b: { label: bLabel } });
       exclusions.used.push(`${aLabel} + ${bLabel}`);
       exclusions.usedAnswers.push(fingerprint);
     } catch (error) {

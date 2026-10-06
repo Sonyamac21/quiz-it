@@ -137,14 +137,18 @@ test('family round generation uses family topics and passes audience into every 
 test('family audience reaches the writer and the final quality checker', async () => {
   const r = validationRunner({ content: [{ type: 'text', text: JSON.stringify([candidate]) }] });
   const q = await r.exports.generateOne('number', 'animals', r.exports.createGenerationContext('number', false), {
-    theme: '', difficulty: 'easy', roundType: 'regular', audience: 'families', exclusions: r.exports.emptyExclusionState(),
+    theme: '', difficulty: 'easy', forceObscure: true, roundType: 'regular', audience: 'families', exclusions: r.exports.emptyExclusionState(),
   });
   assert.ok(q);
   assert.equal(q._audience, 'families');
+  assert.equal(q.difficulty, 'easy');
+  assert.match(r.requests[0].prompt, /Vary the work or subject instead of making the facts more obscure/);
+  assert.doesNotMatch(r.requests[0].prompt, /lean toward something a deeper cut/);
   assert.match(r.requests[0].prompt, /Kids and families/);
-  assert.match(r.requests[0].prompt, /Easy means most children can answer/);
+  assert.match(r.requests[0].prompt, /Easy means familiar main characters/);
   await r.exports.runCombinedValidation(q, [], '');
   assert.match(r.requests[1].prompt, /Kids and families/);
+  assert.match(r.requests[1].prompt, /"difficulty":"easy"/);
   assert.match(r.requests[1].prompt, /reject questions unsuitable for this audience/);
   assert.match(r.exports.audienceBrief(), /Adults aged 25-55/);
 });

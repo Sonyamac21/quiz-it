@@ -148,12 +148,15 @@ export default function QuizBuilderPage() {
       return () => window.clearTimeout(timer);
     } catch { /* Default to the existing adult audience. */ }
   }, []);
-  function rememberAudience(key: string, value: QuizAudience) {
-    const next = { ...audiences, [key]: value };
+  function rememberAudience(key: string, value: QuizAudience | "inherit") {
+    const next = { ...audiences };
+    if (value === "inherit") delete next[key];
+    else next[key] = value;
     setAudiences(next);
     try { localStorage.setItem("quiz-generation-audiences", JSON.stringify(next)); } catch { /* Still usable this session. */ }
   }
 
+  const audienceForRound = (roundId: string): QuizAudience => audiences["round:" + roundId] || audience;
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
@@ -925,7 +928,7 @@ export default function QuizBuilderPage() {
       exclusions.used.push(...local.used);
       local.usedAnswers.forEach(answer => { if (!exclusions.usedAnswers.includes(answer)) exclusions.usedAnswers.push(answer); });
       const result = await generateValidatedRound(
-        { roundType: round.round_type, audience, difficulty, theme, count: 1, existingQuestions: validExisting.filter(q => q !== round.questions[qIndex]) },
+        { roundType: round.round_type, audience: audienceForRound(round.id), difficulty: cfg?.difficulty || difficulty, theme, count: 1, existingQuestions: validExisting.filter(q => q !== round.questions[qIndex]) },
         exclusions,
       );
       if (result.questions.length === 0) {
@@ -1042,7 +1045,7 @@ export default function QuizBuilderPage() {
     }
     const specs: RoundGenerationSpec[] = runTargets.map(r => ({
       roundType: r.round_type,
-      audience,
+      audience: audienceForRound(r.id),
       difficulty: bulkConfig[r.id]?.difficulty || r.difficulty || "mixed",
       theme: bulkConfig[r.id]?.theme ?? r.theme ?? "",
       count: shortfalls[r.id],
@@ -1183,7 +1186,7 @@ export default function QuizBuilderPage() {
         // takes priority over the round-level Include: Picture/Music
         // checkboxes below - so a host can ask for "just one picture
         // question" without having to change the round's default mix.
-        [{ roundType: round.round_type, audience, difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions), allowedQuestionTypes: typeOverride ?? cfg?.allowedQuestionTypes }],
+        [{ roundType: round.round_type, audience: audienceForRound(round.id), difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions), allowedQuestionTypes: typeOverride ?? cfg?.allowedQuestionTypes }],
         (_idx, status) => setGeneratingMoreStatus(status + capNote),
       );
       // Same stale-snapshot bug as runBulkGenerate above: `round` here is
@@ -1559,7 +1562,7 @@ export default function QuizBuilderPage() {
             <option value="adults">Adults / pub quiz</option>
             <option value="families">Kids &amp; families (ages 7–12 with adults)</option>
           </select>
-          <p style={{ color: "#B9A8D9", marginTop: 8 }}>Applies to new questions, top-ups and replacements across this quiz. Choose Easy in each round for a gentler quiz. Existing questions stay unchanged.</p>
+          <p style={{ color: "#B9A8D9", marginTop: 8 }}>Default for new questions, top-ups and replacements. Each round can override this audience. Choose Easy in each round for a gentler quiz. Existing questions stay unchanged.</p>
         </div>
         {!selected ? (
         <div style={{ maxWidth: 480 }}>
@@ -1954,6 +1957,18 @@ export default function QuizBuilderPage() {
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Theme
                             <input type="text" value={cfg.theme} onChange={e => updateBulkConfig(activeRound.id, { theme: e.target.value })} placeholder="e.g. showbiz, music, 90s" style={{ width: 140, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />
+                          </label>
+                          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            Round audience
+                            <select value={audiences["round:" + activeRound.id] || "inherit"} onChange={e => {
+                              const value = e.target.value as QuizAudience | "inherit";
+                              rememberAudience("round:" + activeRound.id, value);
+                              if (value === "families") updateBulkConfig(activeRound.id, { difficulty: "easy" });
+                            }} disabled={bulkRunning || generatingMoreId !== null || swappingKey !== null} style={{ padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}>
+                              <option value="inherit">Use quiz audience</option>
+                              <option value="families">Kids &amp; families</option>
+                              <option value="adults">Adults / pub quiz</option>
+                            </select>
                           </label>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Difficulty

@@ -39,7 +39,7 @@ import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pi
 export type QuizAudience = "adults" | "families";
 export function audienceBrief(audience: QuizAudience = "adults"): string {
   return audience === "families"
-    ? "AUDIENCE: Kids and families, roughly ages 7-12 playing with adults. Use short, plain wording and familiar animals, nature, space, everyday life, geography, sport, family films and children's books. Children must be able to contribute without adult nostalgia, celebrity gossip, nightlife, alcohol or specialist knowledge. Easy means most children can answer; medium means children and adults can work it out together; hard means a fair family challenge, not an adult pub-quiz deep cut. This audience requirement overrides any generic pub-quiz style guidance. Respect the requested theme and question type."
+    ? "AUDIENCE: Kids and families, roughly ages 7-12 playing with adults. Use short, plain wording and familiar animals, nature, space, everyday life, geography, sport, family films and children's books. Children must be able to contribute without adult nostalgia, celebrity gossip, nightlife, alcohol or specialist knowledge. Easy means familiar main characters, recognisable objects and simple everyday facts most children can answer; never minor character names, exact dates, elapsed years, genealogy or plot-detail recall. For animation, ask about recognisable main characters and their obvious traits, not obscure backstories; medium means children and adults can work it out together; hard means a fair family challenge, not an adult pub-quiz deep cut. This audience requirement overrides any generic pub-quiz style guidance. Respect the requested theme and question type."
     : "AUDIENCE: Adults aged 25-55 at a social pub quiz. Match the requested difficulty.";
 }
 export const FAMILY_TOPIC_BUCKETS = [
@@ -792,14 +792,16 @@ export async function generateOne(
   const permanentExclusionNote = " Never generate a question about any of these overused facts, worded any way: " + PERMANENT_EXCLUDED_FACTS.join("; ") + ".";
   const RECENCY_SIGNAL = /\bnews\b|current affairs|pop culture|\brecent\b|trending|this year|last year|chart hits|latest hits|new release/i;
   const isRecencyTopic = RECENCY_SIGNAL.test(topic);
-  const angle = forceObscure ? "a deeper cut, not the most obvious example - genuinely less commonly asked, while still fair and answerable by a general pub-quiz crowd" : VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
-  const varietyNote = type === "audio"
+  const angle = opts.audience === "families" ? "a familiar, recognisable fact children can answer; never a deeper cut" : forceObscure ? "a deeper cut, not the most obvious example - genuinely less commonly asked, while still fair and answerable by a general pub-quiz crowd" : VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
+  const varietyNote = opts.audience === "families"
+    ? "IMPORTANT: Use familiar main characters, obvious traits and everyday facts children recognise. Vary the work or subject instead of making the facts more obscure. For music choose familiar family-film songs or clean singalongs. Keep number questions to obvious small counts, never obscure timelines or release dates."
+    : type === "audio"
     ? " IMPORTANT - pick a well-known song: either a genuinely famous track a pub crowd would clap along to, OR any other song (even a deeper cut, B-side, or later single) by a genuinely famous, widely recognised artist/band - the artist being well-known is enough on its own, the specific song does not also have to be their single most famous hit. Not obscure/unknown artists either way. Vary the decade/genre/artist from recent picks."
     : " IMPORTANT - avoid defaulting to the single most famous, first-thought-of example for this topic (e.g. for 'Disney songs' don't always pick Let It Go or Circle of Life). Where possible, lean toward something " + angle + ". Vary your answer choices across different eras, genres, and sub-topics rather than the most obvious pick. " +
       "ALSO vary the QUESTION SENTENCE STRUCTURE itself, not just the topic and answer - do not default to the generic 'Which [brand/company]'s [logo/mascot/product] is/features/has [X]?' template. Mix in different natural phrasings appropriate to the fact: who/what/where/when/how questions, 'In [film/show], who/what...', 'What is the name of...', 'How many...', direct trivia phrasing, etc. Two consecutive questions in the same round should not read like the same template with the nouns swapped.";
   const prompt = `You are writing questions for a live social quiz.
 ${audienceBrief(opts.audience)}
-BEFORE writing any question, ask yourself: "Would 8 friends sitting in a pub enjoy answering this?" If no, do not write it.
+BEFORE writing any question, ask yourself: "Would ${opts.audience === "families" ? "children and parents playing together" : "8 friends sitting in a pub"} enjoy answering this?" If no, do not write it.
 FIRST-PASS CHECK (do silently): consider several different facts and entities; reject any that paraphrase an excluded question or reuse its entity, answer or knowledge test; then choose the strongest stable fact with one clear natural answer. Check only player-visible content for venue suitability—unseen plots, lyrics and themes do not make a mainstream work unsuitable.
 TOPIC: ${topic}
 ${flagSubject ? `FRESH SUBJECT: Focus this candidate on the national flag of ${flagSubject}. Test a clear, verifiable feature, symbol or design fact. Do not substitute another country or the usual Nepal/Switzerland/Denmark examples. The subject name is internal direction, not a required part of the player-visible wording. If the requested type needs several countries, anchor it on this country and choose fresh comparisons.` : ""}
@@ -861,7 +863,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       // candidate as a fatal quota failure and abandon its remaining retries.
       throw new Error("The AI returned commentary instead of valid question data. Retrying with another candidate.");
     }
-    if (q) { q.question_type = type; q._audience = opts.audience || "adults"; }
+    if (q) { q.question_type = type; q._audience = opts.audience || "adults"; q.difficulty = difficulty; }
     if (q) { context.report.questionText = q.question_text || "Untitled candidate"; }
     if (!q || typeof q.question_text !== "string" || typeof q.correct_answer !== "string") {
       throw new Error("The AI returned incomplete question data - retrying.");
@@ -1124,6 +1126,7 @@ export async function checkRoundBalance(q: Question, currentRound: Question[], t
   if (currentRound.length === 0) return { ok: true, note: "First accepted question in round", details: emptyDetails };
   const activeTheme = (theme || "").trim();
   const candidate = {
+    difficulty: q.difficulty,
     type: q.question_type,
     question: q.question_text || "",
     answer: resolveAnswerText(q) || "",
@@ -1179,6 +1182,7 @@ export async function runCombinedValidation(q: Question, currentRound: Question[
   const optionTexts = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f];
   const isMedia = q.question_type === "picture" || q.question_type === "audio";
   const candidate = {
+    difficulty: q.difficulty,
     type: q.question_type,
     question: q.question_text || "",
     options: isMedia ? [] : optionTexts.filter(Boolean),

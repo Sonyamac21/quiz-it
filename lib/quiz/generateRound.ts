@@ -506,9 +506,11 @@ export async function generateValidatedRound(
     refillPipeline();
   }
 
+  const lastRejection = [...report].reverse().find(entry => entry.outcome === "rejected");
+  const shortfallReason = lastRejection ? ` Latest rejection: ${lastRejection.category} — ${lastRejection.reason}` : "";
   const finalStatus = (good.length === count
     ? "Ready - " + good.length + " of " + count + " questions generated."
-    : good.length + " of " + count + " questions ready.") + degradedSuffix();
+    : good.length + " of " + count + " questions ready after " + attempts + " attempts." + shortfallReason) + degradedSuffix();
   onProgress?.(finalStatus);
   return { spec, questions: good, report, finalStatus, stoppedEarly: good.length < count };
 }

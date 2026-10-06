@@ -1027,12 +1027,12 @@ Return ONLY a valid JSON array with 1 item, no markdown:
 
 export function duplicateRejectionReason(q: Question, currentRound: Question[], theme: string, exclusions: ExclusionState): string | null {
   const COMMON = new Set([
-    "what","which","where","when","who","that","this","with","from","have","been","were","they","their","about","only","does","into","than","other","more","over","some","also","after","before","known","the","and","for","are","but","not","you","all","can","had","her","him","his","how","man","new","now","old","see","two","way","boy","did","its","let","put","say","she","too","use","was","your","them","then","here","there","was","are",
+    "flag","flags","colour","colours","color","colors","national","pictured","picture","identify","what","which","where","when","who","that","this","with","from","have","been","were","they","their","about","only","does","into","than","other","more","over","some","also","after","before","known","the","and","for","are","but","not","you","all","can","had","her","him","his","how","man","new","now","old","see","two","way","boy","did","its","let","put","say","she","too","use","was","your","them","then","here","there","was","are",
     "film","films","movie","movies","song","songs","music","character","characters","name","named","names","actor","actress","actors","voice","voiced","played","plays","play","called","feature","features","featured","animated","animation","show","shows","series","episode","famous","first","last","title","titled","released","release","year","years","won","wins","winner","story","stories","franchise","sequel","original","company","brand","team","player","country","city","capital","word","words","number",
   ]);
   const themeTokens = (theme || "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
   const ignore = new Set<string>([...COMMON, ...themeTokens]);
-  const sigWords = (s: string) => (typeof s === "string" ? s : "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
+  const sigWords = (s: string) => (typeof s === "string" ? s : "").toLowerCase().replace(/['’]s\b/g, "").replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
   const normAnswer = resolveAnswerText(q).toLowerCase().trim();
   const fingerprint = questionFingerprint(q);
   if (exclusions.rejectedFingerprints.has(fingerprint)) return "blacklist";
@@ -1051,20 +1051,20 @@ export function duplicateRejectionReason(q: Question, currentRound: Question[], 
     if (["picture", "audio"].includes(q.question_type) && previous.question_type === q.question_type) return "same-media-answer:history";
     if (sigWords(previous.question_text).some(word => candidateWords.has(word))) return "same-answer-and-subject:history";
   }
-  const newWords = sigWords(q.question_text);
+  const newWords = [...new Set(sigWords(q.question_text))];
   if (!["picture", "audio"].includes(q.question_type) && newWords.length >= 2) {
     for (const usedText of exclusions.used) {
-      const usedWords = sigWords(usedText);
+      const usedWords = [...new Set(sigWords(usedText))];
       if (usedWords.length < 2) continue;
       const shared = newWords.filter(w => usedWords.includes(w)).length;
-      if (shared >= 2 && shared / Math.min(newWords.length, usedWords.length) >= 0.75) return "same-fact-reworded:quiz-or-history";
+      if (shared >= 2 && shared / new Set([...newWords, ...usedWords]).size >= 0.6) return "same-fact-reworded:quiz-or-history";
     }
     for (const g of currentRound) {
-      const existWords = sigWords(g.question_text);
+      const existWords = [...new Set(sigWords(g.question_text))];
       if (existWords.length < 2) continue;
       const shared = newWords.filter(w => existWords.includes(w)).length;
       if (shared < 2) continue;
-      const overlap = shared / Math.min(newWords.length, existWords.length);
+      const overlap = shared / new Set([...newWords, ...existWords]).size;
       if (overlap >= 0.6) return "near-identical";
     }
   }
@@ -1157,7 +1157,7 @@ export async function runCombinedValidation(q: Question, currentRound: Question[
   const prompt =
     "Perform three INDEPENDENT checks on one commercial pub-quiz question and return all three verdicts in one tool call. " +
     "MODERATION: Judge only player-visible Question, Options, Answer and explicitly described player-visible media. Internal media lookup is private metadata: use its literal title/artist/subject only to identify and fact-check the answer. Never infer or analyse lyrics, plot, themes, subtext, artist history or character history. Allow mainstream commercial music, films, books and TV unless the actual presented title/content is inappropriate. A neutral factual alcohol reference is allowed; promotion is not. Reject only genuinely explicit sexual material, crude anatomical language, illegal-drug promotion, pork promotion, religious or LGBTQ+ advocacy or sensitive discussion, Iran or Israel political content, hate speech, slurs, harassment, discrimination, graphic violence, or clearly offensive/prohibited presented content. 'Name this song' with lookup 'Mr. Brightside - The Killers' must pass. Also verify the answer is factually correct. " +
-    "ROUND BALANCE: Compare only with accepted questions. Reject only with HIGH confidence for the same primary entity, same narrow subtopic, or effectively the same underlying knowledge. Broad-category overlap is allowed; incidental/weak relationships pass; never reject merely for the same country. If themed, the shared theme is intentional, but repeated franchises/entities inside it are not. conflict_index is the 1-based accepted-question index, otherwise null. " +
+    "ROUND BALANCE: Different countries' flags are different subjects. Shared flag vocabulary, colours, or identification format alone is not repetition. In any explicitly themed round, allow repeated theme vocabulary and task format when the tested facts or entities differ. Compare only with accepted questions. Reject only with HIGH confidence for the same primary entity, same narrow subtopic, or effectively the same underlying knowledge. Broad-category overlap is allowed; incidental/weak relationships pass; never reject merely for the same country. If themed, the shared theme is intentional, but repeated franchises/entities inside it are not. conflict_index is the 1-based accepted-question index, otherwise null. " +
     "THEME RELEVANCE: If a theme is supplied, quality_ok must be false unless the question directly tests that theme; a tangential association is insufficient. " +
     "FINAL QUALITY AND FACTUAL ACCURACY: Independently verify that the exact answer is a real, complete, factually correct answer to the exact wording. Pass only if an experienced professional host would willingly use it. Reject invented or truncated names, unnatural/ambiguous/trivial/misleading wording, answers players would not naturally give, answer giveaways, multiple reasonable answers, category/event/gender ambiguity, poor quiz design, or media that does not directly support the question. Example that MUST fail: 'What trophy is awarded to the winner of Wimbledon?' answer 'Venus'—there is no trophy called Venus, and the event is unspecified; the women's trophy is the Venus Rosewater Dish and the men's is the Gentlemen's Singles Trophy. Do not rely on the explanation. " +
     "Return moderation_ok/note, balance_ok/note/confidence, quality_ok/note, candidate_subtopic, candidate_entity, conflict_index and rejection_reason. Uncertainty in balance must pass. " +
@@ -1211,9 +1211,23 @@ export async function isDuplicateInMemory(q: Question, exclusions: ExclusionStat
       p_threshold: 0.68,
     });
     if (error) throw new Error(error.message);
-    return data != null;
+    if (data == null) return false;
+    // Trigram similarity retrieves a candidate, not a duplicate verdict.
+    // "What colour is the flag of Portugal?" resembles the same wording
+    // about Japan, but those are different facts. Inspect the matched payload.
+    const { data: matched, error: matchError } = await supabase.from("questions")
+      .select("question_text,question_type,correct_answer,option_a,option_b,option_c,option_d,option_e,option_f")
+      .eq("id", data).maybeSingle();
+    if (matchError || !matched) throw new Error(matchError?.message || "History match could not be loaded");
+    const previous = matched as Question;
+    if (normalizeQuestionText(memoryText(q)) === normalizeQuestionText(previous.question_text)) return true;
+    const history = emptyExclusionState();
+    history.used.push(previous.question_text);
+    history.historyQuestions = [previous];
+    history.usedFingerprints.add(questionFingerprint(previous));
+    return duplicateRejectionReason(q, [], "", history) !== null;
   } catch (e) {
-    console.error("Question Memory check error (allowing question):", e);
+    console.error("Question Memory check unavailable:", e);
     onDegraded?.();
     throw new Error("Question history is unavailable. Generation stopped to prevent repeats.");
   }

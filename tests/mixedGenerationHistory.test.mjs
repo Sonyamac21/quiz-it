@@ -107,7 +107,7 @@ test('punctuation and format changes cannot disguise an identical question', () 
 
 test('database memory checks span text formats and fail closed on errors', async () => {
   let requestedType = 'not-called';
-  database = { rpc: async (name, args) => { requestedType = args.p_type; return { data: 12 }; } };
+  database = { rpc: async (name, args) => { requestedType = args.p_type; return { data: 12 }; }, from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: question('Capital of France?') }) }) }) }) };
   assert.equal(await exports.isDuplicateInMemory(question('Capital of France?'), emptyExclusionState()), true);
   assert.equal(requestedType, null);
   database = { rpc: async () => ({ error: { message: 'offline' } }) };
@@ -117,4 +117,33 @@ test('database memory checks span text formats and fail closed on errors', async
 test('failed persistence cannot report an accepted question as remembered', async () => {
   database = { from() { return { upsert() { return { select() { return { maybeSingle: async () => ({ error: { message: 'write failed' } }) }; } }; } }; } };
   await assert.rejects(exports.commitToMemory(question('Capital of France?')), /Could not save question history/);
+});
+
+
+test('different flag facts survive shared vocabulary across the entire history', () => {
+  const old = question('What colour is the flag of Portugal?', 'Red and green');
+  const state = emptyExclusionState();
+  registerAccepted(state, old);
+  for (const [country, answer] of [['Japan', 'Red and white'], ['Sweden', 'Blue and yellow'], ['Ukraine', 'Yellow and blue'], ['Nigeria', 'Green and white']]) {
+    assert.equal(duplicateRejectionReason(question(`What colour is the flag of ${country}?`, answer), [old], 'Flags', state), null);
+  }
+  assert.ok(duplicateRejectionReason(question('Name the colours appearing on Portugal’s national flag.', 'Red and green'), [], 'Flags', state));
+});
+
+test('a fuzzy database match for another flag is not a duplicate verdict', async () => {
+  database = {
+    rpc: async () => ({ data: 12 }),
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: question('What colour is the flag of Portugal?', 'Red and green') }) }) }) }),
+  };
+  assert.equal(await exports.isDuplicateInMemory(question('What colour is the flag of Sweden?', 'Blue and yellow'), emptyExclusionState()), false);
+  assert.equal(await exports.isDuplicateInMemory(question('Name the colours of Portugal’s flag.', 'Red and green'), emptyExclusionState()), true);
+});
+
+test('shared picture-question stems do not make different flags duplicates', async () => {
+  database = {
+    rpc: async () => ({ data: 12 }),
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: question('Which country’s flag is this? (Portugal)', 'Portugal', 'picture') }) }) }) }),
+  };
+  assert.equal(await exports.isDuplicateInMemory(question('Which country’s flag is this?', 'Sweden', 'picture'), emptyExclusionState()), false);
+  assert.equal(await exports.isDuplicateInMemory(question('Identify the national flag shown.', 'Portugal', 'picture'), emptyExclusionState()), true);
 });

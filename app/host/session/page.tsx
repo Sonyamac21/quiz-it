@@ -476,7 +476,7 @@ export default function SessionPage() {
           <TopSpacer />
           <a className="fbh-btn" href="/host/events">Events</a>
           <a className="fbh-btn" href="/host/quizzes">Quiz Plans</a>
-          {pin && <a className="fbh-btn pri" href={"/host/quiz?pin=" + pin}>Mission Control</a>}
+          {pin && <a className="fbh-btn pri" href={"/host/quiz?pin=" + pin}>Open live quiz</a>}
           <HostButton onClick={launchDisplay} disabled={!pin}>Launch Display</HostButton>
         </div>
 

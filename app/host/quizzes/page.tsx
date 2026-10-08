@@ -1428,7 +1428,7 @@ export default function QuizBuilderPage() {
   }
 
   return <HostShell>{confirmDialogEl}{toastEl}<main className="qi-bo-page" style={{ minHeight: "100vh", background: BG, color: "#fff" }}>
-    <header className="qi-bo-pagehead" style={{ marginBottom: 10 }}><div><p style={{ margin: "0 0 2px" }}>Programme planning</p><h1 style={{ fontSize: "clamp(18px,1.6vw,22px)" }}>Quiz Library</h1></div><div className="qi-bo-page-actions">
+    <header className="qi-bo-pagehead" style={{ marginBottom: 10 }}><div><p style={{ margin: "0 0 2px" }}>Plan your quiz night</p><h1 style={{ fontSize: "clamp(22px,2vw,28px)" }}>Quiz Plans</h1><span>Choose a plan, add rounds, then fill them with questions.</span></div><div className="qi-bo-page-actions">
       <div style={{ position: "relative" }}>
         <HostButton onClick={() => setPlansPanelOpen(v => !v)} style={{ minHeight: 44, display: "flex", alignItems: "center", gap: 8 }}>
           {selected ? selected.name : "+ New Quiz Plan"}
@@ -1511,7 +1511,7 @@ export default function QuizBuilderPage() {
             of a name/description row THEN a separate button row. */}
         <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ flex: "0 1 320px", minWidth: 220 }}><HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /></div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{guidedIntent === "duplicate" && !guidedAttached ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning}>{assigning ? "ATTACHING…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>SAVE QUIZ PLAN</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "DUPLICATING…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton onClick={() => deleteQuiz(selected)}>DELETE</HostButton></>}</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{guidedIntent === "duplicate" && !guidedAttached ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "Copying…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning}>{assigning ? "Attaching…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>{saving ? "Saving…" : "SAVE QUIZ PLAN"}</HostButton><details className="qi-action-menu"><summary>More options</summary><div><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "Copying…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton className="qi-action-danger" onClick={() => deleteQuiz(selected)}>DELETE</HostButton></div></details></>}</div>
         </div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -1528,7 +1528,7 @@ export default function QuizBuilderPage() {
                 })}
                 disabled={bulkRunning}
               >SELECT ALL ROUNDS</HostButton>
-              <HostButton onClick={runBulkGenerate} disabled={bulkRunning || !selected.quiz_rounds.some(r => (bulkConfig[r.id] ?? { selected: false }).selected)}>
+              <HostButton variant="pri" onClick={runBulkGenerate} disabled={bulkRunning || !selected.quiz_rounds.some(r => (bulkConfig[r.id] ?? { selected: false }).selected)}>
                 {bulkRunning ? "GENERATING..." : "GENERATE ALL SELECTED"}
               </HostButton>
             </div>
@@ -1536,7 +1536,7 @@ export default function QuizBuilderPage() {
           {addRoundOpen && (
             <div style={{ marginTop: 10, padding: 12, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52", display: "grid", gap: 10 }}>
               <div>
-                <div style={{ color: "#B9A8D9", font: "600 12px 'Inter'", marginBottom: 6 }}>GENERATE A NEW ROUND WITH AI</div>
+                <div style={{ color: "#B9A8D9", font: "600 14px 'Inter'", marginBottom: 6 }}>Start a new round</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {Object.entries(ROUND_TYPE_LABELS).map(([rt, label]) => (
                     <HostButton key={rt} onClick={() => { addBlankRoundSlot(rt); setAddRoundOpen(false); }}>{label}</HostButton>
@@ -1544,7 +1544,7 @@ export default function QuizBuilderPage() {
                 </div>
               </div>
               <div>
-                <div style={{ color: "#B9A8D9", font: "600 12px 'Inter'", marginBottom: 6 }}>OR PICK AN EXISTING ROUND FROM THE LIBRARY</div>
+                <div style={{ color: "#B9A8D9", font: "600 14px 'Inter'", marginBottom: 6 }}>Or use a saved round</div>
                 <select value={roundTypeFilter} onChange={e => setRoundTypeFilter(e.target.value)} style={{ marginBottom: 8, minHeight: 40, padding: "0 10px", borderRadius: 8, background: "#0A0118", color: "#fff", border: "1px solid #2E1A52", font: "500 13px 'Inter'" }}>
                   <option value="">All round types</option>
                   {Array.from(new Set(rounds.map(r => r.round_type))).sort().map(rt => <option key={rt} value={rt}>{rt}</option>)}
@@ -1816,16 +1816,18 @@ export default function QuizBuilderPage() {
                   />
                   <div style={{ display: "flex", gap: 8, flex: "1 1 480px" }}>
                     <HostButton style={{ flex: 1 }} onClick={() => setSettingsOpenRoundId(id => id === activeRound.id ? null : activeRound.id)}>{settingsOpen ? "HIDE SETTINGS" : "SETTINGS"}</HostButton>
-                    <HostButton style={{ flex: 1 }} onClick={() => moveRound(activeIndex, -1)} disabled={activeIndex === 0}>UP</HostButton>
-                    <HostButton style={{ flex: 1 }} onClick={() => moveRound(activeIndex, 1)} disabled={activeIndex === selected.quiz_rounds.length - 1}>DOWN</HostButton>
-                    <HostButton style={{ flex: 1 }} onClick={() => duplicateRound(activeRound)}>COPY</HostButton>
-                    <HostButton style={{ flex: 1 }} onClick={() => removeRound(activeRound)}>REMOVE</HostButton>
+                    <details className="qi-action-menu"><summary>More round options</summary><div>
+                    <HostButton onClick={() => moveRound(activeIndex, -1)} disabled={activeIndex === 0}>UP</HostButton>
+                    <HostButton onClick={() => moveRound(activeIndex, 1)} disabled={activeIndex === selected.quiz_rounds.length - 1}>DOWN</HostButton>
+                    <HostButton onClick={() => duplicateRound(activeRound)}>COPY</HostButton>
+                    <HostButton className="qi-action-danger" onClick={() => removeRound(activeRound)}>REMOVE</HostButton>
+                    </div></details>
                     {activeRound.questions.some(q => (q as Record<string, unknown>).question_type === "audio") && (
                       <a className="fbh-btn" style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center" }} href={`/host/music-prep?round=${activeRound.id}`} title="Search, trim and save the actual audio clips for this round's music questions">PREP MUSIC</a>
                     )}
                   </div>
                 </div>
-                <div style={{ color: "#6B5A8E", font: "400 12px 'Inter'", marginBottom: 10 }}>{activeRound.round_type === "pairs" ? `${readPairsQuestions(activeRound.questions).length} questions · 3 pairs / 6 tiles each` : `${activeRound.questions.length} questions - ${activeRound.round_type}`}</div>
+                <div style={{ color: "#B9A8D9", font: "400 13px 'Inter'", marginBottom: 10 }}>{activeRound.round_type === "pairs" ? `${readPairsQuestions(activeRound.questions).length} questions · 3 pairs per question` : `${activeRound.questions.length} questions · ${ROUND_TYPE_LABELS[activeRound.round_type] || activeRound.round_type.replaceAll("_", " ")}`}</div>
 
                 {settingsOpen && (
                   <>

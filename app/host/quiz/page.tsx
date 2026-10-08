@@ -2329,7 +2329,7 @@ function QuizControllerInner() {
         <div className="qi-panel qi-panel--elevated qi-mc-connect">
           <BrandLockup />
           <div className="qi-mc-connect__copy">
-            <p className="qi-eyebrow">Mission Control</p>
+            <p className="qi-eyebrow">Live quiz</p>
             <h1>Connect to tonight&apos;s quiz</h1>
             <p>Enter the four-digit session PIN.</p>
           </div>
@@ -2498,7 +2498,7 @@ function QuizControllerInner() {
             the same no matter how the sizes were tuned. */}
         <div className="qi-mc-brand">
           <BrandLockup compact />
-          <span className="qi-mc-brand__section">Mission Control</span>
+          <span className="qi-mc-brand__section">Live quiz</span>
         </div>
         {/* Host request: "top - logo (taking 2 lines), session pin, tv, open
             display, end quiz. Next line - logo, leaderboard, round

@@ -61,16 +61,16 @@ export default function SettingsPage() {
     <main className="qi-bo-page">
       <header className="qi-bo-pagehead">
         <div>
-          <p>Administration</p>
+          <p>Make it yours</p>
           <h1>Settings</h1>
-          <span>Platform information and operational tools.</span>
+          <span>Your preferences and useful information about Quiz-It.</span>
         </div>
       </header>
       <div className="qi-bo-settings">
         <section className="qi-bo-card">
           <h2>WhatsApp group</h2>
           <p style={{ margin: "0 0 12px", fontSize: 13, color: "#6B5A8E" }}>
-            Paste your community group&rsquo;s invite link from WhatsApp (Group &rarr; Invite via Link). Shown as a scannable QR on the Display screen during intermission, and as a tap-to-request-to-join button on players&rsquo; own phones, at every venue you run.
+            Add your group&rsquo;s invite link so players can join from their phones or scan a QR code on the big screen during the break.
           </p>
           {loading ? (
             <p style={{ fontSize: 13, color: "#6B5A8E" }}>Loading…</p>
@@ -87,7 +87,7 @@ export default function SettingsPage() {
           )}
         </section>
         <section className="qi-bo-card">
-          <h2>Platform</h2>
+          <details className="qi-advanced"><summary>Technical information</summary>
           <dl>
             <div><dt>Version</dt><dd>{BUILD_INFO.version}</dd></div>
             <div><dt>Environment</dt><dd>{BUILD_INFO.environment}</dd></div>
@@ -95,11 +95,12 @@ export default function SettingsPage() {
             <div><dt>Built</dt><dd>{BUILD_INFO.builtAt}</dd></div>
             <div><dt>Database</dt><dd>{BUILD_INFO.schemaVersion}</dd></div>
           </dl>
+          </details>
         </section>
         <section className="qi-bo-card">
-          <h2>Live operations</h2>
-          <p>Diagnostics remain part of the live-session workflow, separate from planning.</p>
-          <Link className="qi-bo-primary" href="/host/session">Open Live Session Centre</Link>
+          <h2>Ready to host?</h2>
+          <p>Choose your event and open the live quiz controls.</p>
+          <Link className="qi-bo-primary" href="/host/session">Open your live quizzes</Link>
         </section>
       </div>
     </main>

@@ -331,7 +331,7 @@ export default function QuestionBankPage() {
     <HostShell>
       <main className="qi-bo-page" style={{ minHeight: "100vh", background: STAGE_BG, color: "#fff" }}>
         <header className="qi-bo-pagehead">
-          <div><p>Question inventory</p><h1>Question Library</h1><span>Find, review and place saved questions into reusable rounds.</span></div>
+          <div><p>Your saved questions</p><h1>Question Library</h1><span>Find a question, then add it to a round or a Quiz Plan.</span></div>
           <div className="qi-bo-page-actions"><Link className="fbh-btn" href="/host/rounds">Round Library</Link><Link className="fbh-btn pri" href="/host/questions">Generate Questions</Link></div>
         </header>
 

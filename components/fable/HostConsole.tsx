@@ -15,7 +15,8 @@
  * All data (scores, answers, table cells, inputs, buttons) → Inter.
  */
 
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import { Children, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
+import { friendlyControlLabel } from "@/lib/ui/controlLabels";
 
 export function HostShell({ children }: { children: ReactNode }) {
   return <div className="fbh">{children}</div>;
@@ -62,12 +63,12 @@ type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   big?: boolean;
 };
 
-export function HostButton({ variant = "default", big, className = "", ...rest }: BtnProps) {
+export function HostButton({ variant = "default", big, className = "", children, ...rest }: BtnProps) {
   return (
     <button
       className={`fbh-btn${variant === "pri" ? " pri" : ""}${big ? " big" : ""} ${className}`.trim()}
       {...rest}
-    />
+    >{Children.map(children, child => typeof child === "string" ? friendlyControlLabel(child) : child)}</button>
   );
 }
 

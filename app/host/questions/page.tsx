@@ -748,7 +748,8 @@ export default function QuestionsPage() {
 
   return (
     <HostShell>
-      <div style={{ height:"100dvh", overflowY:"auto", WebkitOverflowScrolling:"touch" as const, background:STAGE_BG, color:"#fff", padding:"24px", maxWidth:980, margin:"0 auto", boxSizing:"border-box" as const }}>
+      <div className="qi-question-workspace" style={{ background:STAGE_BG, color:"#fff", padding:"24px", maxWidth:980, margin:"0 auto", boxSizing:"border-box" as const }}>
+        <header className="qi-bo-pagehead"><div><p>Build a round</p><h1>Create questions</h1><span>Choose a topic and difficulty, then review the questions before saving.</span></div></header>
         {/* TOP BAR */}
         {/* Same leftover-duplicate-header cleanup as Round Library and Music
             Prep - the site-wide header/nav already renders above this page
@@ -758,7 +759,7 @@ export default function QuestionsPage() {
 
         {/* GENERATOR PANEL */}
         <div className="fbh-panel">
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16, marginBottom:16 }}>
+          <div className="qi-simple-form-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16, marginBottom:16 }}>
             <div>
               <div className="fbh-lbl">Round Type</div>
               <select value={roundType} onChange={e => setRoundType(e.target.value)} style={fableSelect}>

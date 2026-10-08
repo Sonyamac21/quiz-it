@@ -28,7 +28,7 @@ function runner(rejectCount = 0, overrides = {}) {
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
     exports, require: () => core, console,
   });
-  return { runAll: (specs, onComplete) => exports.generateAllRounds(specs, undefined, onComplete), run: (count, audience) => exports.generateValidatedRound({ count, audience, roundType: 'regular', difficulty: 'medium', theme: '', allowedQuestionTypes: ['number'] }, {}), calls: () => calls, feedback };
+  return { runAll: (specs, onComplete) => exports.generateAllRounds(specs, undefined, onComplete), run: (count, audience, theme = '') => exports.generateValidatedRound({ count, audience, roundType: 'regular', difficulty: 'medium', theme, allowedQuestionTypes: ['number'] }, {}), calls: () => calls, feedback };
 }
 
 test('successful rounds and single-question top-ups never launch surplus candidates', async () => {
@@ -238,4 +238,36 @@ test('an empty batch slot is not replaced by an unbudgeted writing request', asy
   });
   assert.equal(result, null);
   assert.equal(r.requests.length, 0);
+});
+
+test('younger audience requests cannot become TV-show themes', async () => {
+  const core = validationRunner({}).exports;
+  for (const theme of ['younger', 'younger style questions', 'for younger players', 'kids', 'family-friendly', 'children']) {
+    assert.deepEqual(JSON.parse(JSON.stringify(core.resolveGenerationIntent(theme))), { theme: '', audience: 'families' });
+  }
+  assert.equal(core.resolveGenerationIntent('TV show Younger').theme, 'TV show Younger');
+  assert.equal(core.resolveGenerationIntent('Spy Kids').theme, 'Spy Kids');
+  const seen = [];
+  const r = runner(0, {
+    resolveGenerationIntent: core.resolveGenerationIntent,
+    FAMILY_TOPIC_BUCKETS: [['animals', 'space']], FAMILY_MUSIC_TOPICS: ['family songs'],
+    generateOne: async (type, topic, context, opts) => {
+      seen.push({ topic, audience: opts.audience, theme: opts.theme });
+      return { question_type: type, question_text: topic };
+    },
+  });
+  const result = await r.run(2, 'adults', 'younger');
+  assert.equal(result.questions.length, 2);
+  assert.deepEqual(seen, [{ topic: 'animals', audience: 'families', theme: '' }, { topic: 'space', audience: 'families', theme: '' }]);
+});
+
+test('single-question replacements also interpret younger as audience guidance', async () => {
+  const r = validationRunner({ content: [{ type: 'text', text: JSON.stringify([candidate]) }] });
+  const q = await r.exports.generateOne('number', 'younger', r.exports.createGenerationContext('number', true), {
+    theme: 'younger', difficulty: 'easy', roundType: 'regular', exclusions: r.exports.emptyExclusionState(),
+  });
+  assert.ok(q);
+  assert.equal(q._audience, 'families');
+  assert.match(r.requests[0].prompt, /TOPIC: familiar family general knowledge/);
+  assert.doesNotMatch(r.requests[0].prompt, /TOPIC: younger/);
 });

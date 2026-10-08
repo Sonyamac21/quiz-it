@@ -1,5 +1,6 @@
 "use client";
 import type { QuizAudience } from "@/lib/quiz/questionGenerationCore";
+import { resolveGenerationIntent } from "@/lib/quiz/questionGenerationCore";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -1900,7 +1901,14 @@ export default function QuizBuilderPage() {
                           </label>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Theme
-                            <input type="text" value={cfg.theme} onChange={e => updateBulkConfig(activeRound.id, { theme: e.target.value })} placeholder="e.g. showbiz, music, 90s" style={{ width: 140, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />
+                            <input type="text" value={cfg.theme} onChange={e => updateBulkConfig(activeRound.id, { theme: e.target.value })} onBlur={() => {
+                              const intent = resolveGenerationIntent(cfg.theme, audienceForRound(activeRound.id));
+                              if (intent.theme !== cfg.theme) {
+                                rememberAudience("round:" + activeRound.id, intent.audience);
+                                updateBulkConfig(activeRound.id, { theme: intent.theme, difficulty: "easy" });
+                                showToast("This round is now set to Kids & families. You can add a topic such as animals or family films.", "info", 7000);
+                              }
+                            }} placeholder="Topic, e.g. animals or family films" style={{ width: 210, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />
                           </label>
                           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             Round audience

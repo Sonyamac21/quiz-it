@@ -37,6 +37,15 @@ import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pi
 // ── Types ────────────────────────────────────────────────────────────────
 
 export type QuizAudience = "adults" | "families";
+export function resolveGenerationIntent(theme: string, audience: QuizAudience = "adults"): { theme: string; audience: QuizAudience } {
+  const value = theme.trim();
+  // Audience-only requests must never become entertainment titles. A host
+  // can still request the actual programme with "TV show Younger".
+  if (/^(?:(?:for|suitable for|aimed at)\s+)?(?:younger(?:\s+(?:style|audience|players|children|kids|people))?|kids(?:\s+(?:and|&)\s+families)?|children|families|family[ -]friendly)(?:\s+(?:questions|quiz|round))?$/i.test(value)) {
+    return { theme: "", audience: "families" };
+  }
+  return { theme, audience };
+}
 export function audienceBrief(audience: QuizAudience = "adults"): string {
   return audience === "families"
     ? "AUDIENCE: Kids and families, roughly ages 7-12 playing with adults. Use short, plain wording and familiar animals, nature, space, everyday life, geography, sport, family films and children's books. Children must be able to contribute without adult nostalgia, celebrity gossip, nightlife, alcohol or specialist knowledge. Easy means familiar main characters, recognisable objects and simple everyday facts most children can answer; never minor character names, exact dates, elapsed years, genealogy or plot-detail recall. For animation, ask about recognisable main characters and their obvious traits, not obscure backstories; medium means children and adults can work it out together; hard means a fair family challenge, not an adult pub-quiz deep cut. This audience requirement overrides any generic pub-quiz style guidance. Respect the requested theme and question type."
@@ -794,6 +803,11 @@ export async function generateOne(
   context: GenerationContext,
   opts: { theme: string; difficulty: string; roundType: string; exclusions: ExclusionState; forceObscure?: boolean; multiTapCorrectCount?: number; replacementFeedback?: string; audience?: QuizAudience; draft?: Question | null },
 ): Promise<Question | null> {
+  const intent = resolveGenerationIntent(opts.theme, opts.audience);
+  if (intent.theme !== opts.theme) {
+    opts = { ...opts, ...intent };
+    topic = intent.theme || "familiar family general knowledge: animals, nature, space, everyday life and family films";
+  }
   const { theme, difficulty, roundType, exclusions, forceObscure, multiTapCorrectCount } = opts;
   context.error = "";
   context.report = { questionText: "", questionType: type, stages: emptyValidationResults(Boolean(theme.trim()), type === "picture" || type === "audio") };

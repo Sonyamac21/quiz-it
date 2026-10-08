@@ -50,6 +50,7 @@ import {
   generateOne,
   generateDraftBatch,
   canBatchDraft,
+  resolveGenerationIntent,
   validateCandidate,
   commitToMemory,
   multiTapSuitabilityError,
@@ -156,6 +157,7 @@ export async function generateValidatedRound(
   // giving a single round generated on its own any extra time it doesn't need.
   wallClockScale = 1,
 ): Promise<RoundGenerationResult> {
+  if (typeof resolveGenerationIntent === "function") spec = { ...spec, ...resolveGenerationIntent(spec.theme, spec.audience) };
   const { roundType, difficulty, theme } = spec;
   if (roundType === "pairs") {
     const count = Math.max(0, Math.floor(spec.count));

@@ -3369,3 +3369,50 @@ padding-bottom: calc(var(--qi-player-brand-bar-height, 64px) + 10px + env(safe-a
 /* Reserve a short, predictable card row below the scrolling answer controls. */
 .qi-player-power-cards .qi-player-card-rail { padding:2px 2px 4px; }
 #live-round-rundown button:hover { background:rgba(190,38,193,.18) !important; border-color:rgba(231,133,230,.5) !important; }
+
+/* Home: keep the next event and its action ahead of supporting details. */
+.qi-home { padding-top:32px; }
+.qi-home .qi-bo-pagehead { margin-bottom:24px; align-items:center; }
+.qi-home .qi-bo-pagehead h1 { font-size:clamp(26px,2.5vw,38px); line-height:1.2; }
+.qi-home .qi-bo-pagehead p { text-transform:none; letter-spacing:.02em; margin-bottom:8px; }
+.qi-home-secondary { color:var(--qi-text-secondary); text-decoration:none; padding:12px 0; font-weight:650; }
+.qi-home-next { display:flex; justify-content:space-between; align-items:center; gap:24px; padding:28px; margin-bottom:22px; border:1px solid rgba(217,79,220,.4); border-radius:20px; background:linear-gradient(115deg,rgba(190,38,193,.16),var(--qi-bg-surface)); }
+.qi-home-eyebrow { color:#ef9df0; font-size:13px; font-weight:750; }
+.qi-home-next h2 { margin:8px 0; font-size:clamp(24px,2vw,32px); line-height:1.2; }
+.qi-home-next p { margin:0; color:var(--qi-text-secondary); font-size:15px; }
+.qi-home-plan-note { display:block; margin-top:14px; font-size:14px; color:#e6d8f4; }
+.qi-home-primary { display:inline-flex; align-items:center; justify-content:center; min-height:48px; padding:12px 22px; border-radius:12px; background:var(--qi-accent); color:white; text-decoration:none; font-weight:750; white-space:nowrap; }
+.qi-home .qi-bo-stats { gap:14px; margin-bottom:24px; }
+.qi-home .qi-bo-stats article { padding:18px 20px; min-height:90px; background:rgba(30,17,53,.6); box-shadow:none; }
+.qi-home .qi-bo-stats strong { font-size:28px; }
+.qi-home .qi-bo-stats span { margin-top:8px; }
+.qi-home .qi-bo-dashboard-grid { gap:24px; grid-template-columns:minmax(0,1.8fr) minmax(280px,1fr); }
+.qi-home .qi-bo-sectionhead { margin:6px 0 16px; }
+.qi-home .qi-bo-sectionhead p { font-size:12px; text-transform:none; letter-spacing:0; color:var(--qi-text-secondary); margin-bottom:6px; }
+.qi-home .qi-bo-sectionhead h2 { font-size:22px; }
+.qi-home .qi-bo-event { padding:18px; gap:16px; margin-bottom:12px; grid-template-columns:52px minmax(0,1fr) auto; }
+.qi-home .qi-bo-event>a { grid-column:2/-1; justify-self:start; padding:0; min-height:30px; text-decoration:none; }
+.qi-home .qi-bo-event.is-today { border-color:rgba(217,79,220,.5); }
+.qi-home .qi-bo-event>div:nth-child(2)>strong { font-size:16px; line-height:1.4; }
+.qi-home .qi-bo-event small { margin-top:6px; }
+.qi-home .qi-bo-status { font-weight:650; font-size:11px; color:#e8c989; background:rgba(232,201,137,.06); border-color:rgba(232,201,137,.2); }
+.qi-home .qi-bo-status.is-ready,.qi-home .qi-bo-status.live { color:#72dfa0; background:rgba(46,224,110,.08); border-color:rgba(46,224,110,.2); }
+.qi-home-today { display:inline-block; margin-left:10px; font-size:11px; padding:2px 8px; border-radius:999px; background:rgba(190,38,193,.2); color:#ef9df0; vertical-align:middle; }
+.qi-home-check { display:flex; gap:12px; align-items:flex-start; padding:18px 0; border-bottom:1px solid var(--qi-border); color:var(--qi-text-primary,#fff); text-decoration:none; }
+.qi-home-check>div { flex:1; min-width:0; }
+.qi-home-check strong { font-size:14px; line-height:1.4; }
+.qi-home-check div>span { display:block; font-size:13px; color:var(--qi-text-secondary); margin-top:5px; line-height:1.6; }
+.qi-home-check-icon { display:grid; place-items:center; flex:0 0 26px; height:26px; border-radius:50%; color:#e8c989; background:rgba(232,201,137,.12); font-weight:800; }
+.qi-home-check-icon.is-ready { color:#72dfa0; background:rgba(46,224,110,.1); }
+.qi-home a:focus-visible { outline:2px solid #ef9df0; outline-offset:5px; }
+.qi-home-primary:hover { filter:brightness(1.12); }
+.qi-home-check[href]:hover strong,.qi-home-secondary:hover { color:#ef9df0; }
+@media(max-width:900px) { .qi-home .qi-bo-dashboard-grid { grid-template-columns:1fr; } }
+@media(max-width:600px) {
+  .qi-home-next { padding:20px; align-items:stretch; flex-direction:column; gap:20px; }
+  .qi-home .qi-bo-stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .qi-home .qi-bo-stats article { padding:16px; min-height:90px; }
+  .qi-home .qi-bo-event { grid-template-columns:44px minmax(0,1fr); gap:12px; }
+  .qi-home .qi-bo-event>.qi-bo-status { grid-column:2; justify-self:start; }
+  .qi-home .qi-bo-event>a { grid-column:2; }
+}

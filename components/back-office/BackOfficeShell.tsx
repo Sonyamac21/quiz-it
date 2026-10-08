@@ -49,10 +49,10 @@ export function BackOfficeShell({ children }: { children: ReactNode }) {
       <nav aria-label="Main host navigation">{groups.map(group => <Link key={group.href} href={group.href} aria-current={currentGroup === group ? "page" : undefined}>{group.label}</Link>)}</nav>
       <Link href="/host/session" className="qi-bo-live">Run a quiz →</Link>
     </header>
-    <div className="qi-bo-sectionnav">
+    {pathname !== "/host" && <div className="qi-bo-sectionnav">
       {currentGroup.links.length > 1 && <nav aria-label={`${currentGroup.label} pages`}>{currentGroup.links.map(([label, href]) => <Link key={href} href={href} aria-current={matches(href) ? "page" : undefined}>{label}</Link>)}</nav>}
       <p><strong>How this works:</strong> {currentGroup.help}</p>
-    </div>
+    </div>}
     <div className="qi-bo-content">{children}</div>
   </div>;
 }

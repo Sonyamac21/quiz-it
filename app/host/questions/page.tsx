@@ -372,7 +372,7 @@ export default function QuestionsPage() {
     // request with no time-based safety net, while also giving up sooner
     // than necessary on a recoverable retry streak. Matching both to
     // generateRound.ts's tuned values.
-    const maxAttempts = Math.max(12, count * 6);
+    const maxAttempts = Math.max(6, count * 3);
     const generationStartedAt = Date.now();
     const wallClockBudgetMs = Math.max(120_000, count * 25_000);
     let i = 0;

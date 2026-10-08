@@ -48,6 +48,8 @@ import {
   blacklistRejected,
   duplicateRejectionReason,
   generateOne,
+  generateDraftBatch,
+  canBatchDraft,
   validateCandidate,
   commitToMemory,
   multiTapSuitabilityError,
@@ -258,7 +260,7 @@ export async function generateValidatedRound(
   const shuffledPictureTopics = shuffle(PICTURE_TOPICS);
   const good: Question[] = [];
   let attempts = 0;
-  const maxAttempts = Math.max(12, count * 6);
+  const maxAttempts = Math.max(6, count * 3);
   let replacementFeedback = "";
   const generationStartedAt = Date.now();
   const baseWallClockBudgetMs = roundType === "multi_tap"
@@ -375,11 +377,31 @@ export async function generateValidatedRound(
     // duplicate/memory rejections in a row. Now also fires proactively on a
     // portion of candidates from the start.
     const proactiveObscure = Math.random() < 0.3;
-    pending.push({ type, candidateDifficulty, multiTapCorrectCount, context, promise: generateOne(type, topic, context, { theme, difficulty: candidateDifficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure, multiTapCorrectCount, replacementFeedback, audience: spec.audience }) });
+    return { type, candidateDifficulty, multiTapCorrectCount, context, topic, opts: { theme, difficulty: candidateDifficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure, multiTapCorrectCount, replacementFeedback, audience: spec.audience } };
   };
   const refillPipeline = () => {
     // Never pay for candidates beyond the remaining question slots.
-    while (pending.length < 3 && good.length + pending.length < count && attempts < maxAttempts && Date.now() - generationStartedAt < wallClockBudgetMs) launchCandidate();
+    // Finish this small batch before requesting another, so the next prompt
+    // sees all accepted and rejected facts from the preceding batch.
+    if (pending.length > 0) return;
+    if (Date.now() - generationStartedAt >= wallClockBudgetMs) return;
+    const slots = Math.max(0, Math.min(3 - pending.length, count - good.length - pending.length, maxAttempts - attempts));
+    const requests = Array.from({ length: slots }, launchCandidate);
+    const batchRequests = typeof canBatchDraft === "function" ? requests.filter(request => canBatchDraft({ ...request, difficulty: request.candidateDifficulty })) : [];
+    const batch = batchRequests.length > 1
+      ? generateDraftBatch(batchRequests.map(request => ({ type: request.type, topic: request.topic, difficulty: request.candidateDifficulty, multiTapCorrectCount: request.multiTapCorrectCount })), { theme, roundType, audience: spec.audience, exclusions, replacementFeedback })
+      : null;
+    requests.forEach(request => {
+      const batchIndex = batchRequests.indexOf(request);
+      const promise = batch && batchIndex >= 0
+        ? batch.then(drafts => generateOne(request.type, request.topic, request.context, { ...request.opts, draft: drafts[batchIndex] })).catch(error => {
+          const message = (error as { message?: unknown } | null)?.message;
+          request.context.error = typeof message === "string" ? message : "Batch generation failed";
+          return null;
+        })
+        : generateOne(request.type, request.topic, request.context, request.opts);
+      pending.push({ ...request, promise });
+    });
   };
   refillPipeline();
 

@@ -179,3 +179,63 @@ test('a failed save callback runs once and retains generated questions', async (
   assert.equal(results[0].questions.length, 1);
   assert.match(results[0].finalStatus, /Saving generated questions failed/);
 });
+
+test('a complete fifteen-question text round uses five draft batches without surplus work', async () => {
+  let batches = 0, processed = 0, id = 0;
+  const r = runner(0, {
+    canBatchDraft: () => true,
+    generateDraftBatch: async requests => {
+      batches++;
+      return requests.map(request => ({ question_type: request.type, question_text: `Fresh fact ${++id}`, correct_answer: String(id) }));
+    },
+    generateOne: async (type, topic, context, opts) => {
+      assert.ok('draft' in opts, 'batch results must not trigger another writing call');
+      processed++;
+      return opts.draft;
+    },
+  });
+  const result = await r.run(15);
+  assert.equal(result.questions.length, 15);
+  assert.equal(batches, 5);
+  assert.equal(processed, 15);
+});
+
+test('a failed draft batch does not fan out into individual paid writing retries', async () => {
+  let batches = 0;
+  const r = runner(0, {
+    canBatchDraft: () => true,
+    generateDraftBatch: async () => { batches++; throw new Error('API key unavailable'); },
+    generateOne: async () => { throw new Error('must not fall back to individual requests'); },
+  });
+  const result = await r.run(5);
+  assert.equal(batches, 1);
+  assert.equal(result.stoppedEarly, true);
+  assert.equal(result.questions.length, 0);
+});
+
+test('draft batching includes relevant older history and preserves slot count', async () => {
+  const r = validationRunner({ content: [{ type: 'text', text: JSON.stringify([candidate, null, candidate]) }] });
+  const exclusions = r.exports.emptyExclusionState();
+  exclusions.used = ['Which scientist discovered penicillin?', ...Array.from({length: 100}, (_, i) => `Unrelated question ${i}`)];
+  const slots = Array.from({length: 3}, () => ({ type: 'number', topic: 'scientists and discoveries', difficulty: 'easy', unintendedSessionState: 'must-not-be-transmitted'.repeat(1000) }));
+  const result = await r.exports.generateDraftBatch(slots, { theme: '', roundType: 'regular', exclusions });
+  assert.equal(result.length, 3);
+  assert.equal(result[1], null);
+  assert.equal(r.requests.length, 1);
+  assert.match(r.requests[0].prompt, /Which scientist discovered penicillin/);
+  assert.ok(r.requests[0].prompt.length < 12000);
+  assert.doesNotMatch(r.requests[0].prompt, /unintendedSessionState|must-not-be-transmitted/);
+  assert.equal(r.exports.canBatchDraft({type: 'picture', topic: 'animals'}), false);
+  assert.equal(r.exports.canBatchDraft({type: 'number', topic: 'recent news'}), false);
+  assert.equal(r.exports.canBatchDraft({type: 'number', topic: 'animals'}), true);
+});
+
+test('an empty batch slot is not replaced by an unbudgeted writing request', async () => {
+  const r = validationRunner({});
+  const context = r.exports.createGenerationContext('number', false);
+  const result = await r.exports.generateOne('number', 'animals', context, {
+    theme: '', difficulty: 'easy', roundType: 'regular', exclusions: r.exports.emptyExclusionState(), draft: null,
+  });
+  assert.equal(result, null);
+  assert.equal(r.requests.length, 0);
+});

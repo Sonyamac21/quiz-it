@@ -183,3 +183,14 @@ test('different facts may share a numeric answer across rounds but not within a 
   assert.equal(duplicateRejectionReason(next, [previous], '', state), 'same-answer:current-round');
   assert.ok(duplicateRejectionReason(question('How many sides has a triangle?', '3', 'number'), [], '', state));
 });
+
+test('music history identifies the track rather than excluding every song by one artist', () => {
+  const state = emptyExclusionState();
+  const previous = { ...question('Which artist performs this song?', 'Adele', 'audio'), option_a: 'Hello - Adele' };
+  registerAccepted(state, previous);
+  const fresh = { ...previous, option_a: 'Rolling in the Deep - Adele' };
+  assert.equal(duplicateRejectionReason(fresh, [], '', state), null);
+  assert.ok(duplicateRejectionReason(previous, [], '', state));
+  assert.equal(duplicateRejectionReason(fresh, [previous], '', state), 'same-answer:current-round');
+  assert.notEqual(exports.memoryText(fresh), exports.memoryText(previous));
+});

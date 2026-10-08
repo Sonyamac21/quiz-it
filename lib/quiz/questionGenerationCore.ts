@@ -326,7 +326,10 @@ export function questionFingerprint(q: Question): string {
     : [normalizeQuestionText(q.correct_answer)];
   if (type === "multiple_choice" || type === "multi_tap") resolvedAnswers.sort();
   const answer = resolvedAnswers.join(",");
-  if (type === "audio" || type === "picture") {
+  if (type === "audio") {
+    return [type, text, answer, normalizeQuestionText(q.option_a || "")].join("|");
+  }
+  if (type === "picture") {
     return [type, text, answer].join("|");
   }
   const options = rawOptions
@@ -754,11 +757,42 @@ export function reserveFlagSubject(theme: string, exclusions: ExclusionState): s
   return subject;
 }
 
+export type DraftRequest = { type: string; topic: string; difficulty: string; multiTapCorrectCount?: number };
+
+export function canBatchDraft(request: DraftRequest): boolean {
+  return !["picture", "audio"].includes(request.type)
+    && !/\bnews\b|current affairs|pop culture|\brecent\b|trending|this year|last year|chart hits|latest hits|new release/i.test(request.topic);
+}
+
+export async function generateDraftBatch(requests: DraftRequest[], opts: { theme: string; roundType: string; audience?: QuizAudience; exclusions: ExclusionState; replacementFeedback?: string }): Promise<Array<Question | null>> {
+  const topicTokens = [...new Set(requests.flatMap(request => normalizeQuestionText(request.topic).split(" ").filter(word => word.length > 3)))];
+  const history = [...new Set(opts.exclusions.used)].map(text => ({ text, score: topicTokens.filter(token => normalizeQuestionText(text).includes(token)).length }))
+    .sort((a, b) => b.score - a.score).slice(0, 24).map(entry => entry.text);
+  const avoid = [...Array.from(opts.exclusions.rejectedTexts).slice(-10), ...history].join(" | ").slice(0, 3200);
+  const slots = requests.map((request, index) => ({ slot: index, type: request.type, topic: request.topic, difficulty: request.difficulty, multiTapCorrectCount: request.multiTapCorrectCount, freshSubject: reserveFlagSubject(opts.theme || request.topic, opts.exclusions) }));
+  const prompt = `${audienceBrief(opts.audience)}
+Write ${requests.length} different quiz questions, one per slot below, in slot order. Think of the complete set before writing. Use a different primary subject and fact for every question. Preserve the requested theme, difficulty and type. Choose straightforward, stable, unambiguous facts you know confidently. Avoid awkward phrasing, trivia about minor plot details, unsupported exact numbers and answer giveaways. Check your own wording and answer before returning it. Different factual questions may share an ordinary numeric answer across separate rounds.
+Used or rejected facts to avoid, including paraphrases: ${avoid || "none"}.
+Previous problem to avoid: ${opts.replacementFeedback || "none"}.
+Type rules:
+multiple_choice: four plausible options a-d; exactly one correct; answer is its letter.
+text_answer: exactly one word as answer; choose a natural question that fits this restriction. Ask explicitly for a first name or surname when that is the expected answer.
+number/nearest_wins: a precise verified numeric string; all options null. Name the subject and units explicitly. No uncertain estimates or rounding hints.
+multi_tap: a genuine set-membership question, six plausible options a-f, exactly the slot's multiTapCorrectCount correct answers; answer is comma-separated correct letters. Each option must independently satisfy or fail the stated criterion. No single-answer trivia padded with decoys.
+sequence: four items in their true order in a-d; answer a,b,c,d; name the ordering rule but do not repeat the items in the question.
+For a family audience use familiar main characters, animals, everyday facts and simple comparisons. Easy must be answerable by children. Never force an obscure numeric question to satisfy a slot.
+Slots: ${JSON.stringify(slots)}
+Return ONLY a JSON array with exactly ${requests.length} items in slot order. Each item must have question_text, question_type, option_a, option_b, option_c, option_d, option_e, option_f, correct_answer, explanation (one short sentence), difficulty, round_type (${opts.roundType}). Unused options must be null. If no confident fresh question fits a slot, return null for that slot. No markdown or commentary.`;
+  const parsed = parseModelJson<unknown>(await callAPI(prompt, Math.min(3000, requests.length * 650), false, false, GENERATION_MODEL), "array");
+  if (!Array.isArray(parsed) || parsed.length !== requests.length) throw new Error("The AI returned an incomplete batch - retrying.");
+  return parsed.map(item => item && typeof item === "object" ? item as Question : null);
+}
+
 export async function generateOne(
   type: string,
   topic: string,
   context: GenerationContext,
-  opts: { theme: string; difficulty: string; roundType: string; exclusions: ExclusionState; forceObscure?: boolean; multiTapCorrectCount?: number; replacementFeedback?: string; audience?: QuizAudience },
+  opts: { theme: string; difficulty: string; roundType: string; exclusions: ExclusionState; forceObscure?: boolean; multiTapCorrectCount?: number; replacementFeedback?: string; audience?: QuizAudience; draft?: Question | null },
 ): Promise<Question | null> {
   const { theme, difficulty, roundType, exclusions, forceObscure, multiTapCorrectCount } = opts;
   context.error = "";
@@ -777,13 +811,13 @@ export async function generateOne(
       ? `audio: create a THEMED music-clip question for "${theme.trim()}". option_a is an internal YouTube search query identifying the exact track, in the form "Song Title - Artist Name" (title and artist both present, for internal lookup only). question_text is shown after the clip and MUST require specific knowledge of "${theme.trim()}"—for example "Which animated film features this song?"—rather than merely naming a song that happens to be associated with the theme. Do not reveal the song, artist or answer. option_b/c/d null; correct_answer must answer the themed question and must contain ONLY the single piece of information the question actually asks for (e.g. just the song title, OR just the artist name, OR just the year) - NEVER combine artist and title together like "Artist - Title" in correct_answer, even though option_a uses that combined form for lookup purposes.`
       : "audio: option_a is an internal YouTube search query identifying the exact track, in the form \"Song Title - Artist Name\" (title and artist both present, for internal lookup only). question_text is a short question answerable from the clip, such as 'Name this song', 'Which artist performs this song?' or 'What year was it released?'. Do not reveal the title or artist. option_b/c/d null; correct_answer must match what question_text asks and must contain ONLY that single piece of information - e.g. if asked to name the song, correct_answer is just the song title with no artist name attached; if asked for the artist, correct_answer is just the artist name with no song title attached. NEVER write correct_answer as \"Artist - Title\" or \"Title - Artist\" - that combined form belongs only in option_a, never in correct_answer.",
   };
-  const flagSubject = reserveFlagSubject(theme || topic, exclusions);
+  const flagSubject = "draft" in opts ? null : reserveFlagSubject(theme || topic, exclusions);
   const rejectedList = Array.from(exclusions.rejectedTexts).slice(-8).reverse();
   const topicWords = normalizeQuestionText(theme || topic).split(" ").filter(word => word.length > 2);
   const relevantHistory = exclusions.used.filter(text => topicWords.some(word => normalizeQuestionText(text).includes(word.replace(/s$/, ""))));
   let exclusionsText = [...rejectedList, ...relevantHistory.slice(-20), ...exclusions.used.slice(-10)].map((q, i) => (i + 1) + ". " + q).join("; ");
   if (exclusionsText.length > 1800) exclusionsText = exclusionsText.slice(0, 1800);
-  const usedAnswersList = (["picture", "audio"].includes(type) ? exclusions.usedAnswers : []).slice(-20).filter(Boolean).join(", ");
+  const usedAnswersList = (type === "picture" ? exclusions.usedAnswers : []).slice(-20).filter(Boolean).join(", ");
   let sessionExclusionNote = (exclusionsText || usedAnswersList)
     ? " Do NOT generate any of these already-used questions: " + exclusionsText + "."
       + (usedAnswersList ? " Also do NOT use any of these already-used answers (even with different question wording): " + usedAnswersList + "." : "")
@@ -853,7 +887,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
   const allowedSessionExclusionLength = Math.max(0, 11500 - promptWithoutSessionExclusions.length);
   const safePrompt = prompt.replace(sessionExclusionNote, sessionExclusionNote.slice(0, allowedSessionExclusionLength));
   try {
-    const text = await callAPI(safePrompt, 1200, false, isRecencyTopic, GENERATION_MODEL);
+    const text = "draft" in opts ? JSON.stringify(opts.draft ? [opts.draft] : []) : await callAPI(safePrompt, 1200, false, isRecencyTopic, GENERATION_MODEL);
     let q;
     try {
       q = parseModelJson<Array<Question & Record<string, unknown>>>(text, "array")[0];
@@ -1085,13 +1119,20 @@ export function duplicateRejectionReason(q: Question, currentRound: Question[], 
   if (normAnswer && currentRound.some(g =>
     resolveAnswerText(g).toLowerCase().trim() === normAnswer
   )) return "same-answer:current-round";
-  if (["picture", "audio"].includes(q.question_type) && normAnswer && exclusions.usedAnswers.includes(normAnswer)) return "same-answer:quiz-plan";
+  if (q.question_type === "picture" && normAnswer && exclusions.usedAnswers.includes(normAnswer)) return "same-answer:quiz-plan";
   // Resolve option letters to answer text so changing format or shuffling
   // choices cannot conceal the same fact. A shared answer alone is not enough.
   const candidateWords = new Set(sigWords(q.question_text));
   for (const previous of exclusions.historyQuestions || []) {
     if (normalizeQuestionText(resolveAnswerText(previous)) !== normalizeQuestionText(resolveAnswerText(q))) continue;
-    if (["picture", "audio"].includes(q.question_type) && previous.question_type === q.question_type) return "same-media-answer:history";
+    if (q.question_type === "picture" && previous.question_type === q.question_type) return "same-media-answer:history";
+    if (q.question_type === "audio" && previous.question_type === "audio") {
+      const track = normalizeQuestionText(q.option_a || "");
+      const previousTrack = normalizeQuestionText(previous.option_a || "");
+      if (track && previousTrack === track) return "same-track:history";
+      // The artist alone cannot identify an audio question about another song.
+      continue;
+    }
     const previousWords = new Set(sigWords(previous.question_text));
     const sharedWords = [...previousWords].filter(word => candidateWords.has(word));
     const unionSize = new Set([...previousWords, ...candidateWords]).size;
@@ -1328,6 +1369,7 @@ export async function validateCandidate(
 // each distinct subject its own slot while leaving what's actually shown to
 // players (q.question_text) untouched.
 export function memoryText(q: Question): string {
+  if (q.question_type === "audio" && q.option_a) return `${q.question_text} (${q.correct_answer}; track: ${q.option_a})`;
   return ["picture", "audio"].includes(q.question_type) ? `${q.question_text} (${q.correct_answer})` : q.question_text;
 }
 
@@ -1337,7 +1379,7 @@ export async function commitToMemory(q: Question, onDegraded?: () => void) {
     const libRow = {
       question_text: memoryText(q),
       correct_answer: q.correct_answer,
-      option_a: ["picture", "audio"].includes(q.question_type) ? null : q.option_a,
+      option_a: q.question_type === "picture" ? null : q.option_a,
       option_b: ["picture", "audio"].includes(q.question_type) ? null : q.option_b,
       option_c: q.option_c,
       option_d: q.option_d,

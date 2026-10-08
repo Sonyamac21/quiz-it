@@ -54,12 +54,22 @@ function roundGenStatusKey(roundId: string): string {
 }
 function persistRoundGenStatus(roundId: string, message: string) {
   try {
-    if (typeof window !== "undefined") window.localStorage.setItem(roundGenStatusKey(roundId), message);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(roundGenStatusKey(roundId), message);
+      window.localStorage.setItem(roundGenStatusKey(roundId) + "_time", new Date().toISOString());
+    }
   } catch {}
 }
 function readPersistedRoundGenStatus(roundId: string): string {
   try {
-    return (typeof window !== "undefined" && window.localStorage.getItem(roundGenStatusKey(roundId))) || "";
+    if (typeof window === "undefined") return "";
+    const message = window.localStorage.getItem(roundGenStatusKey(roundId));
+    if (!message) return "";
+    const recordedAt = window.localStorage.getItem(roundGenStatusKey(roundId) + "_time");
+    const date = recordedAt ? new Date(recordedAt) : null;
+    return date && Number.isFinite(date.getTime())
+      ? `Last run (${date.toLocaleString("en-GB")}): ${message}`
+      : `Earlier run (date unavailable): ${message}`;
   } catch {
     return "";
   }

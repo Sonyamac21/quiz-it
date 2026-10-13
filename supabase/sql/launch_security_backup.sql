@@ -16,6 +16,11 @@ do $$ declare tab text; begin
     if to_regclass('public.'||tab) is not null then execute format('create table quiz_launch_backup_20261013.%I as table public.%I',tab,tab); end if;
   end loop;
 end $$;
+do $$ declare tab record; begin
+  for tab in select c.relname from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='quiz_launch_backup_20261013' and c.relkind='r' loop
+    execute format('alter table quiz_launch_backup_20261013.%I enable row level security',tab.relname);
+  end loop;
+end $$;
 revoke all on all tables in schema quiz_launch_backup_20261013 from public,anon,authenticated;
 commit;
 select 'Private recovery snapshot created; source data unchanged' as result;

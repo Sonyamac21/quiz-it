@@ -199,5 +199,23 @@ test('recovery snapshot preserves source rows and is inaccessible to public role
     assert.equal((await db.query('select count(*)::integer as count from public.questions')).rows[0].count,1);
     assert.equal((await db.query("select has_schema_privilege('anon','quiz_launch_backup_20261013','USAGE') as allowed")).rows[0].allowed,false);
     assert.equal((await db.query("select has_table_privilege('authenticated','quiz_launch_backup_20261013.questions','SELECT') as allowed")).rows[0].allowed,false);
+    assert.equal((await db.query("select bool_and(c.relrowsecurity) as enabled from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='quiz_launch_backup_20261013' and c.relkind='r'")).rows[0].enabled,true);
+  } finally { await db.close(); }
+});
+
+test('immediate library restriction removes anonymous grants without changing owners or host access', async () => {
+  const db = await fixture();
+  try {
+    await db.exec(readFileSync(new URL('../supabase/sql/restrict_anonymous_library.sql',import.meta.url),'utf8'));
+    for (const table of ['questions','question_bank','rounds','media_assets']) {
+      await db.exec('set role anon');
+      await assert.rejects(db.query(`select * from public.${table}`), /permission denied/);
+      await db.exec('reset role');
+    }
+    await db.exec('set role anon');
+    await assert.rejects(db.query(`select check_question_memory('Private question')`), /permission denied/);
+    await db.exec('reset role; set role authenticated');
+    assert.equal((await db.query('select count(*)::integer as count from questions')).rows[0].count,1);
+    await db.exec('reset role');
   } finally { await db.close(); }
 });

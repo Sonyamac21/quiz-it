@@ -3,9 +3,17 @@
 ## Deployment status
 
 Application changes and the database migration are prepared and tested locally.
-The database changes have **not** been applied to production. Do not deploy the
-new player client before applying its migration. Existing host pages and the
-old player client cannot safely run a quiz during this permissions change.
+The independent dependency/API/readiness changes are deployed on production as
+`c7eb082`. A private recovery snapshot has been created and verified on the live
+project, and `restrict_anonymous_library.sql` has been applied. Anonymous probes
+now receive HTTP 401 for questions, question_bank, rounds and media_assets;
+existing player reads of sessions and victory_songs still receive HTTP 200.
+
+The full ownership/gameplay migration has **not** been applied to production.
+Do not deploy the new player client before applying its migration. Existing
+host pages and the old player client cannot safely run a quiz during the full
+permissions change. Live session answer hiding and protected game mutations
+remain pending that coordinated migration/deployment.
 
 ## Changes
 
@@ -43,7 +51,7 @@ old player client cannot safely run a quiz during this permissions change.
 
 ## Verification
 
-- Full automated suite: 207 passing tests, including private recovery snapshot
+- Full automated suite: 208 passing tests, including private recovery snapshot
   coverage.
 - PostgreSQL integration tests execute the real migration through PGlite,
   including pgcrypto, legacy policies and malicious legacy column grants.
@@ -69,6 +77,8 @@ old player client cannot safely run a quiz during this permissions change.
    unowned library mapping before setting `quizit.legacy_owner` in the migration
    transaction. `supabase/sql/launch_security_backup.sql` creates a private
    recovery snapshot inside the same project without changing source rows.
+   This snapshot is now verified: library/round row counts match, every backup
+   table has RLS enabled, and anon/authenticated have no schema access.
 2. Apply `supabase/migrations/202610130001_launch_security.sql` as one transaction.
    If ownership is ambiguous, stop and explicitly map unowned rows to the correct
    host. Do not substitute the oldest account or silently delete content.
@@ -86,7 +96,7 @@ old player client cannot safely run a quiz during this permissions change.
    the earlier local key probe failed authentication; no credential was changed.
    Verify the production Blob token and generation with a bounded spend cap.
 
-Authenticated console access and the live schema inspection are confirmed.
-Legacy ownership confirmation, the recovery snapshot/migration, production
-rehearsal and provider credential validation remain pending. This work is not a
-public-launch approval.
+Authenticated console access, the live schema inspection, private recovery
+snapshot and anonymous library restriction are confirmed. Legacy ownership
+confirmation, the full migration/deployment, production rehearsal and provider
+credential validation remain pending. This work is not a public-launch approval.

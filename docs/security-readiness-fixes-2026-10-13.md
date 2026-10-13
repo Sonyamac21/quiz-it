@@ -38,6 +38,8 @@ old player client cannot safely run a quiz during this permissions change.
 - Host scoring RPCs check session ownership before any mutation or idempotency
   write. The obsolete Reverse overload without a token is revoked. Hot Seat
   claims require the handset token. Photo submissions cannot self-approve.
+  Score idempotency keys are scoped to a session and team to prevent another
+  session or handset from reserving the same key and blocking legitimate scores.
 
 ## Verification
 

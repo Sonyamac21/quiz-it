@@ -255,6 +255,15 @@ grant select on public.scores, public.uno_cards to anon;
 create policy public_scoreboard on public.scores for select to anon using (true);
 create policy public_card_inventory on public.uno_cards for select to anon using (true);
 
+-- One host/handset must not poison another session/team's idempotency key.
+do $$ declare constraint_name text; begin
+  for constraint_name in
+    select c.conname from pg_constraint c join pg_attribute a on a.attrelid=c.conrelid and a.attnum=c.conkey[1]
+    where c.conrelid='public.score_events'::regclass and c.contype in ('p','u') and array_length(c.conkey,1)=1 and a.attname='event_key'
+  loop execute format('alter table public.score_events drop constraint %I',constraint_name); end loop;
+  alter table public.score_events add primary key(session_pin,team_name,event_key);
+end $$;
+
 -- Harden existing score RPCs without changing their atomic/idempotent bodies.
 do $$ declare signature text; definition text; begin
   for signature in select p.oid::regprocedure::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace

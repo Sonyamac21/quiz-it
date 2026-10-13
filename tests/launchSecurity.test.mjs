@@ -74,6 +74,9 @@ test('security migration executes in PostgreSQL and enforces host/handset bounda
   try {
     await db.exec(sql('202610130001_launch_security.sql'));
     await db.exec(`insert into auth.users values('${other}')`);
+    await db.exec(`insert into quizzes(id,owner_id) values('00000000-0000-4000-8000-000000000006','${other}');
+      insert into sessions(id,pin,quiz_id,owner_id,status,phase,round_number,current_question_index)
+      values('00000000-0000-4000-8000-000000000007','2345','00000000-0000-4000-8000-000000000006','${other}','active','question',1,0)`);
     async function as(role, uid, token, query) {
       await db.exec(`set role ${role};`);
       await db.query(`select set_config('request.jwt.claim.sub',$1,false),set_config('request.headers',$2,false)`, [uid || '',JSON.stringify({ 'x-quiz-player-token': token || '' })]);
@@ -89,7 +92,7 @@ test('security migration executes in PostgreSQL and enforces host/handset bounda
     });
     await t.test('another host cannot read or change the owner library or session', async () => {
       assert.equal((await as('authenticated',other,null,'select * from question_bank')).rows.length,0);
-      assert.equal((await as('authenticated',other,null,'select * from sessions')).rows.length,0);
+      assert.equal((await as('authenticated',other,null,"select * from sessions where pin='1234'")).rows.length,0);
       assert.equal((await as('authenticated',owner,null,'select * from question_bank')).rows.length,1);
       await assert.rejects(as('authenticated',other,null,`select * from apply_score_delta('1234','Blue',100,null,'attack',false,false)`), /Only the session owner/);
     });
@@ -99,6 +102,9 @@ test('security migration executes in PostgreSQL and enforces host/handset bounda
       const retry = await as('authenticated',owner,null,`select * from apply_score_delta('1234','Blue',10,null,'event-1',true,true)`);
       assert.equal(retry.rows[0].applied,false);
       assert.equal(retry.rows[0].total_points,10);
+      const independent = await as('authenticated',other,null,`select * from apply_score_delta('2345','Blue',10,null,'event-1',true,true)`);
+      assert.equal(independent.rows[0].applied,true);
+      assert.equal(independent.rows[0].total_points,10);
       await assert.rejects(as('anon',null,null,`select * from set_score_absolute('1234','Blue',999,null)`), /permission denied/);
     });
     await t.test('player feed excludes present/future answers until host reveal', async () => {

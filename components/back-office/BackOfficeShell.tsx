@@ -11,7 +11,7 @@ const groups = [
   { label: "Library", href: "/host/question-bank", links: [["Questions", "/host/question-bank"], ["Rounds", "/host/rounds"], ["Create questions", "/host/questions"]], help: "Keep your questions and reusable rounds here. Choose a question to add it to a quiz." },
   { label: "Music & Media", href: "/host/music-prep", links: [["Music clips", "/host/music-prep"], ["Victory songs", "/host/victory-songs"], ["Images & videos", "/host/media"], ["Promotions", "/host/promo-images"]], help: "Prepare music clips for your questions, or add images and promotions for quiz night." },
   { label: "Calendar", href: "/host/events", links: [["Scheduled events", "/host/events"], ["Venues", "/host/venues"]], help: "Schedule a quiz night, choose its venue and attach a Quiz Plan." },
-  { label: "Settings", href: "/host/settings", links: [["Preferences", "/host/settings"], ["Reports", "/host/reports"], ["Hosts", "/host/hosts"], ["Sponsors", "/host/sponsors"]], help: "Update your preferences and review previous quiz nights." },
+  { label: "Settings", href: "/host/settings", links: [["Preferences", "/host/settings"], ["Your account", "/host/account"], ["Reports", "/host/reports"], ["Sponsors", "/host/sponsors"]], help: "Manage your account, update your preferences and review previous quiz nights." },
 ];
 
 // "/host/venues/preview" is a fixed, full-screen (inset:0) mirror of the

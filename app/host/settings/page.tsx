@@ -68,6 +68,11 @@ export default function SettingsPage() {
       </header>
       <div className="qi-bo-settings">
         <section className="qi-bo-card">
+          <h2>Your host account</h2>
+          <p>Update your host name, reset your password or sign out of this browser.</p>
+          <Link className="qi-bo-primary" href="/host/account">Manage your account</Link>
+        </section>
+        <section className="qi-bo-card">
           <h2>WhatsApp group</h2>
           <p style={{ margin: "0 0 12px", fontSize: 13, color: "#6B5A8E" }}>
             Add your group&rsquo;s invite link so players can join from their phones or scan a QR code on the big screen during the break.

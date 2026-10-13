@@ -36,6 +36,7 @@ type Question = {
   option_e: string | null;
   option_f: string | null;
   correct_answer: string;
+  answer_input_type?: "number" | "text";
 };
 
 type Phase = "waiting" | "question" | "hot_seat" | "answer" | "celebration" | "hard_deck" | "intermission" | "spin_to_win" | "quiz_end" | "pursuit" | "pairs";
@@ -441,17 +442,16 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   useEffect(() => {
     if (!activeSessionRoundId) return;
     let cancelled = false;
-    const supabase = createSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient(playerToken);
     const refresh = async () => {
-      const { data, error } = await supabase.from("session_rounds")
-        .select("danger_zone_enabled").eq("id", activeSessionRoundId).single();
+      const { data, error } = await supabase.rpc("get_player_round_rule", { p_round_id: activeSessionRoundId }).single();
       if (error) { console.error("scoreVisibilityRound fetch failed (running score stays visible):", error.message); return; }
-      if (!cancelled && data) setScoreVisibilityRound({ id: activeSessionRoundId, dangerZone: !!data.danger_zone_enabled });
+      if (!cancelled && data) setScoreVisibilityRound({ id: activeSessionRoundId, dangerZone: !!(data as { danger_zone_enabled?: boolean }).danger_zone_enabled });
     };
     void refresh();
     const interval = setInterval(refresh, 5000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [activeSessionRoundId]);
+  }, [activeSessionRoundId, playerToken]);
   const [spinTargetIdx, setSpinTargetIdx] = useState<number | null>(null);
   const [spinNonce, setSpinNonce] = useState<number | null>(null);
   const [hardDeckTeam, setHardDeckTeam] = useState<string | null>(null);
@@ -480,19 +480,17 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   useEffect(() => {
     let cancelled = false;
     async function fetchPhoto() {
-      const { data } = await createSupabaseBrowserClient()
-        .from("teams")
-        .select("photo_url, photo_approved")
-        .eq("session_pin", sessionPin)
-        .eq("team_name", teamName)
+      const { data } = await createSupabaseBrowserClient(playerToken)
+        .rpc("get_player_team_photo", { p_session_pin: sessionPin, p_team_name: teamName })
         .maybeSingle();
       if (cancelled) return;
-      setTeamPhotoUrl(data?.photo_approved ? (data?.photo_url as string) || null : null);
+      const photo = data as { photo_url?: string | null; photo_approved?: boolean } | null;
+      setTeamPhotoUrl(photo?.photo_approved ? photo.photo_url || null : null);
     }
     fetchPhoto();
     const interval = setInterval(fetchPhoto, PLATFORM_CONFIG.polling.playerHeartbeatMilliseconds);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [sessionPin, teamName]);
+  }, [sessionPin, teamName, playerToken]);
   const [roundStartedAt, setRoundStartedAt] = useState("");
   const lastRoundStartedAtRef = useRef("");
   // mySubmittedDisplay/selectedAnswer/tappedItems are pure in-memory state,
@@ -516,7 +514,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     if (!sessionPin || !teamName || !question) return;
     let cancelled = false;
     (async () => {
-      const supabase = createSupabaseBrowserClient();
+      const supabase = createSupabaseBrowserClient(playerToken);
       // Reveal can arrive on the realtime session channel a fraction before
       // the answer row is visible to this handset. Retry briefly instead of
       // rendering a false "No answer submitted" result in that window.
@@ -544,7 +542,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       if (!cancelled) setAnswerRecoveryComplete(true);
     })();
     return () => { cancelled = true; };
-  }, [phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex, roundNumber, roundStartedAt]);
+  }, [phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex, roundNumber, roundStartedAt, playerToken]);
   const [hardDeckGuess, setHardDeckGuess] = useState<string | null>(null);
   const [hardDeckStealGuesses, setHardDeckStealGuesses] = useState<Record<string, string>>({});
   const [hardDeckStealWinners, setHardDeckStealWinners] = useState<string[]>([]);
@@ -559,7 +557,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   const [reverseUsed, setReverseUsed] = useState(false);
   useEffect(() => {
     if (!sessionPin || !teamName) return;
-    const supabase = createSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient(playerToken);
     let cancelled = false;
     supabase.from("uno_cards").select("card_type").eq("team_name", teamName).eq("session_pin", sessionPin).eq("card_type", "reverse").then(({ data }) => {
       if (!cancelled && data) setReverseUsed(data.length > 0);
@@ -637,14 +635,14 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   useEffect(() => {
     if (phase !== "intermission" || !sessionPin) { setNextRoundInfo(null); return; }
     let cancelled = false;
-    const supabase = createSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient(playerToken);
     supabase.rpc("next_round_info", { p_session_pin: sessionPin }).then(({ data, error }) => {
       if (cancelled || error || !data || !data.length) { if (!cancelled) setNextRoundInfo(null); return; }
       const row = data[0] as { round_name?: string; round_type?: string };
       if (row.round_name && row.round_type) setNextRoundInfo({ name: row.round_name, roundType: row.round_type });
     });
     return () => { cancelled = true; };
-  }, [phase, sessionPin]);
+  }, [phase, sessionPin, playerToken]);
   const [upcomingQuizzes, setUpcomingQuizzes] = useState<UpcomingQuiz[]>([]);
   const [quizEndRevealedCount, setQuizEndRevealedCount] = useState(0);
   const [quizEndTrophyVisible, setQuizEndTrophyVisible] = useState(false);
@@ -831,12 +829,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   });
 
   useEffect(() => {
-    const supabase = createSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient(playerToken);
 
     async function fetchSession() {
       const { data, error: fetchError } = await supabase
-        .from("sessions")
-        .select("round_started_at, blocked_teams, scrambled_teams, current_session_round_id, phase, status, round_number, round_name, current_question, current_question_index, timer_started_at, timer_duration, fastest_team, fastest_song, fastest_points, hard_deck_team, hard_deck_status, hard_deck_potential, hard_deck_cards, hard_deck_wheel_target, hard_deck_wheel_spinning, hard_deck_guess, hard_deck_steal_guesses, hard_deck_steal_winners, hard_deck_steal_points, spin_offered, spin_choice, spin_target_idx, spin_nonce, intermission_offers, intermission_whatsapp, intermission_other_quizzes, venue_record_id, block_until, block_team, show_scoreboard, scoreboard_data, hide_leaderboard, allow_power_cards, quiz_end_revealed_count, quiz_end_trophy_visible, pursuit_status, pursuit_data, pairs_status, pairs_content, pairs_progress, pairs_round_id, is_final_round, hot_seat_status, hot_seat_team, hot_seat_locked_teams, hot_seat_answer_started_at, hot_seat_answer_duration")
+        .from("player_sessions")
+        .select("payload")
         .eq("pin", sessionPin)
         .single();
       if (fetchError) {
@@ -881,12 +879,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
         connectionFailuresRef.current = 0;
         firstFailureAtRef.current = null;
         setConnectionLost(false);
-        applySessionDataRef.current(data as Record<string, unknown>);
+        applySessionDataRef.current(data.payload as Record<string, unknown>);
       }
     }
 
     async function fetchTeamOrder() {
-      const { data: teamRows } = await supabase.from("teams").select("team_name").eq("session_pin", sessionPin).order("created_at", { ascending: true });
+      const { data: teamRows } = await supabase.from("player_teams").select("team_name").eq("session_pin", sessionPin).order("created_at", { ascending: true });
       if (teamRows) setAllTeamNames(teamRows.map((t: { team_name: string }) => t.team_name));
     }
 
@@ -936,10 +934,10 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     const channel = supabase
       .channel("player-session-" + sessionPin)
       .on("postgres_changes", {
-        event: "UPDATE", schema: "public", table: "sessions",
+        event: "UPDATE", schema: "public", table: "player_sessions", filter: "pin=eq." + sessionPin,
       }, (payload) => {
         if (payload.new && (payload.new as Record<string, unknown>).pin === sessionPin) {
-          applySessionDataRef.current(payload.new as Record<string, unknown>);
+          applySessionDataRef.current((payload.new as { payload: Record<string, unknown> }).payload);
         }
       })
       .subscribe((status) => {
@@ -959,7 +957,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       window.removeEventListener("online", onOnlineLog);
       window.removeEventListener("offline", onOfflineLog);
     };
-  }, [sessionPin]);
+  }, [sessionPin, playerToken]);
 
   // Presence heartbeat. Separate from the session poll above so it never
   // interacts with connectionLost/retry logic - this only tells the host
@@ -968,15 +966,12 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // immediately whenever the tab becomes visible/focused again, since that's
   // exactly when a real reconnect after backgrounding needs to be reflected.
   useEffect(() => {
-    const supabase = createSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient(playerToken);
     let cancelled = false;
 
     async function sendHeartbeat() {
       const { error } = await supabase
-        .from("teams")
-        .update({ last_seen_at: new Date().toISOString() })
-        .eq("session_pin", sessionPin)
-        .eq("team_name", teamName);
+        .rpc("player_heartbeat", { p_session_pin: sessionPin, p_team_name: teamName });
       if (error && !cancelled) {
         platformLogger.warn("player-heartbeat", "heartbeat write failed", {
           errorCode: error.code,
@@ -998,7 +993,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       document.removeEventListener("visibilitychange", onHeartbeatVisible);
       window.removeEventListener("focus", sendHeartbeat);
     };
-  }, [sessionPin, teamName]);
+  }, [sessionPin, teamName, playerToken]);
 
   function applySessionData(data: Record<string, unknown>) {
     setSessionStatus((data.status as string) || "waiting");
@@ -1157,6 +1152,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   }
 
   async function submitAnswer(answer: string, retryCount = 0) {
+    if (!playerToken) { setError("This connection can only watch. Return to the original handset to answer, or join as a new team."); return; }
     if (submitted || submittingAnswerRef.current || !answer.trim()) return;
     const epoch = submissionEpochRef.current;
     submittingAnswerRef.current = true;
@@ -1183,7 +1179,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     // guard. Reopen the answer only if the server rejects or the write fails.
     setSubmitted(true);
     setSubmissionPending(true);
-    const supabase = createSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient(playerToken);
     // AUTHORITATIVE late-answer rejection. The local `timeLeft` is derived from an
     // interval that can lag when the tab is backgrounded or wifi drops, so on the
     // first attempt we re-read the session's timer/phase straight from the DB and
@@ -1194,10 +1190,11 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     const requestTimeout = window.setTimeout(() => controller.abort(), 8000);
     try {
     {
-      const { data: live, error: liveError } = await supabase.from("sessions")
-        .select("phase, current_question_index, timer_started_at, timer_duration, hot_seat_team, hot_seat_answer_started_at, hot_seat_answer_duration")
+      const { data: liveRow, error: liveError } = await supabase.from("player_sessions")
+        .select("payload")
         .eq("pin", sessionPin).abortSignal(controller.signal).maybeSingle();
       if (epoch !== submissionEpochRef.current) return;
+      const live = liveRow?.payload as Record<string, unknown> | undefined;
       if (liveError || !live) throw new Error(liveError?.message || "Session unavailable");
       if (live) {
         const phase = live.phase as string;
@@ -1279,9 +1276,10 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   }
 
   async function claimHotSeat() {
+    if (!playerToken) { setError("Use the handset that joined this team to buzz in."); return; }
     if (buzzing || hotSeatStatus !== "open" || hotSeatLockedTeams.includes(teamName)) return;
     setBuzzing(true);
-    const supabase = createSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient(playerToken);
     const { data, error } = await supabase.rpc("claim_hot_seat", {
       p_session_pin: sessionPin,
       p_team_name: teamName,
@@ -1317,7 +1315,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   }
 
   async function submitHardDeckGuess(guess: "higher" | "lower") {
-    const supabase = createSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient(playerToken);
     if (!playerToken) return;
     await supabase.rpc("submit_hard_deck_guess", {
       p_session_pin: sessionPin,
@@ -1328,18 +1326,23 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   }
 
   async function submitHardDeckStick() {
-    const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ hard_deck_status: "won" }).eq("pin", sessionPin);
+    await chooseSessionOption("stick");
   }
 
   async function submitHardDeckGamble() {
-    const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ hard_deck_status: "awaiting_guess", hard_deck_steal_guesses: {}, hard_deck_steal_winners: [] }).eq("pin", sessionPin);
+    await chooseSessionOption("gamble");
+  }
+
+  async function chooseSessionOption(choice: "spin" | "pass" | "stick" | "gamble") {
+    const result = await createSupabaseBrowserClient(playerToken).rpc("player_session_choice", {
+      p_session_pin: sessionPin, p_team_name: teamName, p_player_token: playerToken, p_choice: choice,
+    });
+    if (result.error) setError("That choice wasn't accepted. Use the handset that joined this team and try again.");
+    return result;
   }
 
   async function chooseSpin() {
-    const supabase = createSupabaseBrowserClient();
-    const { error: err } = await supabase.from("sessions").update({ spin_choice: "spin" }).eq("pin", sessionPin);
+    const { error: err } = await chooseSessionOption("spin");
     if (err) {
       platformLogger.error("player", "Spin choice failed", { error: err });
       setError("Could not register your spin choice - please try again.");
@@ -1348,8 +1351,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   }
 
   async function choosePass() {
-    const supabase = createSupabaseBrowserClient();
-    const { error: err } = await supabase.from("sessions").update({ spin_choice: "pass" }).eq("pin", sessionPin);
+    const { error: err } = await chooseSessionOption("pass");
     if (err) {
       platformLogger.error("player", "Pass choice failed", { error: err });
       setError("Could not register your choice - please try again.");
@@ -1416,7 +1418,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       revealed={pairsStatus === "complete" || pairsStatus === "celebration"}
       timeLeft={timeLeft}
       onAttempt={async (first, second) => {
-        const supabase = createSupabaseBrowserClient();
+        const supabase = createSupabaseBrowserClient(playerToken);
         const controller = new AbortController();
         const timeout = window.setTimeout(() => controller.abort(), 8000);
         const request = supabase.rpc("submit_pairs_attempt", {
@@ -1848,7 +1850,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           </div>
         )}
         <UpcomingQuizzesCard quizzes={upcomingQuizzes} />
-        <TeamPhotoUpload sessionPin={sessionPin} teamName={teamName} />
+        <TeamPhotoUpload sessionPin={sessionPin} teamName={teamName} playerToken={playerToken} />
         </div>
       </div>
     );
@@ -2375,7 +2377,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
                 QWERTY keyboard for what's obviously a numeric answer. A
                 digits-only correct_answer forces the numeric keypad
                 regardless of the stored question_type. */}
-            <AnswerKeypad key={`${roundStartedAt}:${questionIndex}:${question.question_type}`} mode={question.question_type === "number" || question.question_type === "nearest_wins" || /^\d+$/.test((question.correct_answer || "").trim()) ? "number" : "text"} scrambled={hostScrambledTeams.includes(teamName)} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
+            <AnswerKeypad key={`${roundStartedAt}:${questionIndex}:${question.question_type}`} mode={question.answer_input_type === "number" || question.question_type === "number" || question.question_type === "nearest_wins" ? "number" : "text"} scrambled={hostScrambledTeams.includes(teamName)} onSubmit={(text) => { setMySubmittedDisplay(text); submitAnswer(text); }} />
           </ShrinkToFit>
         )}
 
@@ -2475,7 +2477,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "center", padding: "0 14px 10px" }}>
-          <TeamPhotoUpload sessionPin={sessionPin} teamName={teamName} />
+          <TeamPhotoUpload sessionPin={sessionPin} teamName={teamName} playerToken={playerToken} />
         </div>
         {/* Bottom padding reserves room for the fixed "Quiz-It · Powered by..."
             brand pill (join-form.tsx, position:fixed bottom:10) that sits on

@@ -36,7 +36,7 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
 
   useEffect(() => {
     if (!sessionPin) return;
-    const supabase = createSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient(playerToken);
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const cached = usedCardsCache.get(inventoryKey);
@@ -81,7 +81,7 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
       if (retryTimer) clearTimeout(retryTimer);
       supabase.removeChannel(channel);
     };
-  }, [teamName, sessionPin, inventoryKey]);
+  }, [teamName, sessionPin, inventoryKey, playerToken]);
   const [playing, setPlaying] = useState<string | null>(null);
 
   const playCard = async (cardType: string) => {
@@ -95,11 +95,11 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
     }
     setFeedback(null);
     setPlaying(cardType);
-    const supabase = createSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient(playerToken);
     // Re-check the live round rule at activation time so a handset with a
     // briefly stale realtime view cannot spend a card during a disabled round.
-    const { data: sessionRule } = await supabase.from("sessions").select("allow_power_cards").eq("pin", sessionPin).maybeSingle();
-    if (sessionRule?.allow_power_cards === false) {
+    const { data: sessionRule } = await supabase.from("player_sessions").select("payload").eq("pin", sessionPin).maybeSingle();
+    if (sessionRule?.payload?.allow_power_cards === false) {
       setFeedback({ ok: false, text: "Power Cards are paused for this round." });
       setPlaying(null);
       return;
@@ -167,34 +167,14 @@ export function UnoPlayerCards({ teamName, sessionPin, playerToken, roundNumber,
       setPlaying(null);
       return;
     }
-    // Reserve the one shared Time-Out slot before consuming the card. The
-    // conditional update is atomic: if two teams tap together, only the first
-    // can change an unreserved session row and the other keeps its card.
-    if (cardType === "block") {
-      const nowIso = new Date().toISOString();
-      const { data: reserved, error: reserveError } = await supabase.from("sessions").update({
-        block_pending: true,
-        block_team: teamName,
-        block_until: null,
-      }).eq("pin", sessionPin).eq("block_pending", false).or(`block_until.is.null,block_until.lt.${nowIso}`).select("id").maybeSingle();
-      if (reserveError || !reserved) {
-        setFeedback({ ok: false, text: "Another team already has a Time-Out waiting or active." });
-        setPlaying(null);
-        return;
-      }
-    }
-    const { error: consumeError } = await supabase.from("uno_cards").insert({
-      team_name: teamName,
-      card_type: cardType,
-      used: true,
-      played_at: playedAt,
-      session_pin: sessionPin,
-      round_number: roundNumber ?? null,
+    const { error: consumeError } = await supabase.rpc("consume_player_card", {
+      p_session_pin: sessionPin,
+      p_team_name: teamName,
+      p_player_token: playerToken || "",
+      p_card_type: cardType,
+      p_round_number: roundNumber ?? null,
     });
     if (consumeError) {
-      if (cardType === "block") {
-        await supabase.from("sessions").update({ block_pending: false, block_team: null, block_until: null }).eq("pin", sessionPin).eq("block_team", teamName).eq("block_pending", true);
-      }
       // The database unique constraint is the final authority across tabs,
       // refreshes and reconnects. Refetch so this handset immediately reflects
       // a card that another client has already spent.

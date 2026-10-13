@@ -8,7 +8,7 @@ import { prepareParticipantPhoto } from "@/lib/images/prepareParticipantPhoto";
 // approved=false - it never appears anywhere (display gallery, etc.) until a
 // host approves it on the live console's Photos panel. This component only
 // handles the submit step; it has no idea whether the photo is later shown.
-type Props = { sessionPin: string; teamName: string };
+type Props = { sessionPin: string; teamName: string; playerToken?: string };
 type Status = "idle" | "uploading" | "sent" | "error";
 
 // Always rendered open at a fixed height, no collapse/expand toggle - a
@@ -17,18 +17,19 @@ type Status = "idle" | "uploading" | "sent" | "error";
 // leftover space this strip left behind) jump around or get pushed off
 // the top of the screen. Keeping this strip's size constant keeps that
 // photo's size constant too.
-export function TeamPhotoUpload({ sessionPin, teamName }: Props) {
+export function TeamPhotoUpload({ sessionPin, teamName, playerToken }: Props) {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
+    if (!playerToken) { setError("Use the original handset to share a photo."); setStatus("error"); return; }
     setStatus("uploading");
     setError("");
-    const supabase = createSupabaseBrowserClient();
+    const supabase = createSupabaseBrowserClient(playerToken);
     try {
       const preparedPhoto = await prepareParticipantPhoto(file);
-      const { data: session } = await supabase.from("sessions").select("id").eq("pin", sessionPin).maybeSingle();
+      const { data: session } = await supabase.from("player_sessions").select("id").eq("pin", sessionPin).maybeSingle();
       if (!session?.id) throw new Error("Could not find this session");
       const path = sessionPin + "-" + teamName.trim().replace(/\s+/g, "-").toLowerCase() + "-" + Date.now() + ".jpg";
       const { error: uploadError } = await supabase.storage.from("session-photos").upload(path, preparedPhoto, {

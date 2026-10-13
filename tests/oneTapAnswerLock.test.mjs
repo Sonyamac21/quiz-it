@@ -6,7 +6,7 @@ const player = readFileSync(new URL("../components/PlayerQuizScreen.tsx", import
 
 test("the first valid lock tap receives immediate visible acknowledgement", () => {
   const submit = player.slice(player.indexOf("async function submitAnswer"), player.indexOf("async function claimHotSeat"));
-  assert.ok(submit.indexOf("setSubmitted(true)") < submit.indexOf('.from("sessions")'), "pending state must appear before the network preflight");
+  assert.ok(submit.indexOf("setSubmitted(true)") < submit.indexOf('.from("player_sessions")'), "pending state must appear before the network preflight");
   assert.match(submit, /setSubmissionPending\(true\)/);
   assert.match(player, /submissionPending \? "LOCKING…" : "LOCKED IN ✓"/);
 });

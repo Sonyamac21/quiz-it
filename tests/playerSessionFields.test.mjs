@@ -10,7 +10,7 @@ test('reconnected handset restores answers only from the current round', () => {
   assert.match(lookup, /\.eq\("question_index", questionIndex\)/);
   assert.match(source, /find\(row => sameTeamName\(row\.team_name as string, teamName\)\)/);
   assert.match(source, /const attempts = phase === "question" \? 1 : 4/);
-  assert.match(source, /\[phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex, roundNumber, roundStartedAt\]/);
+  assert.match(source, /\[phase, mySubmittedDisplay, submitted, sessionPin, teamName, question, questionIndex, roundNumber, roundStartedAt, playerToken\]/);
 });
 
 test('handset never claims no answer before authoritative recovery completes', () => {
@@ -24,8 +24,11 @@ test('handset session polling includes round identity used by answer writes', ()
   const fetchSession = source.slice(source.indexOf('async function fetchSession()'), source.indexOf('async function fetchTeamOrder()'));
   const projection = fetchSession.match(/\.select\("([^"]+)"\)/)?.[1].split(',').map(field => field.trim());
   assert.ok(projection, 'session poll projection must be found');
+  assert.deepEqual(projection, ['payload']);
+  assert.match(fetchSession, /from\("player_sessions"\)/);
+  const migration = readFileSync(new URL('../supabase/migrations/202610130001_launch_security.sql', import.meta.url), 'utf8');
   for (const field of ['round_number', 'current_session_round_id', 'current_question_index']) {
-    assert.ok(projection.includes(field), `session polling must include ${field}`);
+    assert.ok(migration.includes(`'${field}'`), `safe player payload must include ${field}`);
   }
 });
 

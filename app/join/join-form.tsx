@@ -152,8 +152,8 @@ export function JoinForm() {
           ]);
         const [{ data: session }, { data: team }] = await withTimeout(
           Promise.all([
-            supabase.from("sessions").select("status").eq("pin", parsed.sessionPin).single(),
-            supabase.from("teams").select("team_name").eq("session_pin", parsed.sessionPin).eq("team_name", parsed.teamName).maybeSingle(),
+            supabase.from("player_sessions").select("status").eq("pin", parsed.sessionPin).single(),
+            supabase.from("player_teams").select("team_name").eq("session_pin", parsed.sessionPin).eq("team_name", parsed.teamName).maybeSingle(),
           ]),
           8000
         );
@@ -181,7 +181,7 @@ export function JoinForm() {
     try {
       const supabase = createSupabaseBrowserClient();
       const { data, error } = await supabase
-        .from("sessions")
+        .from("player_sessions")
         .select("id, status")
         .eq("pin", value.trim())
         .single();
@@ -209,7 +209,7 @@ export function JoinForm() {
     try {
       const supabase = createSupabaseBrowserClient();
       const normalised = reconnectName.trim().toLowerCase();
-      const { data } = await supabase.from("teams").select("team_name").eq("session_pin", pin);
+      const { data } = await supabase.from("player_teams").select("team_name").eq("session_pin", pin);
       const match = data?.find(t => (t.team_name || "").trim().toLowerCase() === normalised);
       if (!match) {
         setReconnectError("Team not found for this PIN - check the spelling, or register as a new team below.");
@@ -219,7 +219,7 @@ export function JoinForm() {
       setTeamName(match.team_name);
       setSessionPin(pin);
       // A name-only reconnect deliberately does not inherit the private handset
-      // token. It can answer as before, but cannot perform score-changing RPCs.
+      // token. It can watch, but cannot answer or spend cards for another team.
       setPlayerToken("");
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ teamName: match.team_name, sessionPin: pin, savedAt: Date.now() })); } catch { /* Keep the joined handset working when storage is blocked. */ }
       setDone(true);
@@ -236,7 +236,7 @@ export function JoinForm() {
     setError("");
     try {
       const supabase = createSupabaseBrowserClient();
-      const { data } = await supabase.from("teams").select("victory_song").eq("session_pin", pin);
+      const { data } = await supabase.from("player_teams").select("victory_song").eq("session_pin", pin);
       if (data) setTakenSongs(data.map(t => t.victory_song).filter(Boolean));
     } catch {}
     setStep("song");
@@ -274,14 +274,14 @@ export function JoinForm() {
     try {
       const supabase = createSupabaseBrowserClient();
       const normalisedName = teamName.trim().toLowerCase();
-      const { data: existingTeams } = await supabase.from("teams").select("team_name").eq("session_pin", pin);
+      const { data: existingTeams } = await supabase.from("player_teams").select("team_name").eq("session_pin", pin);
       if (existingTeams && existingTeams.some(t => (t.team_name || "").trim().toLowerCase() === normalisedName)) {
         setError("That team name is already taken in this quiz! Please pick a different one.");
         setStep("name");
         setLoading(false);
         return;
       }
-      const { data: existingSongs } = await supabase.from("teams").select("victory_song").eq("session_pin", pin);
+      const { data: existingSongs } = await supabase.from("player_teams").select("victory_song").eq("session_pin", pin);
       if (existingSongs && existingSongs.some(t => t.victory_song === selectedSong)) {
         setError("That song was just taken by another team! Please pick a different one.");
         setSelectedSong("");
@@ -313,14 +313,13 @@ export function JoinForm() {
       // Generate and hash on the server. Web Crypto is unavailable on phones
       // opening the LAN test address over plain HTTP, which previously made
       // the otherwise optional photo step an unexpected join blocker.
-      const { token: handsetToken, tokenHash: handsetTokenHash } = await createPlayerToken();
-      const { error: dbError } = await supabase.from("teams").insert({
-        team_name: teamName.trim(),
-        name: teamName.trim(),
-        victory_song: selectedSong,
-        session_pin: pin,
-        photo_url: photoUrl,
-        player_token_hash: handsetTokenHash,
+      const { token: handsetToken } = await createPlayerToken();
+      const { error: dbError } = await createSupabaseBrowserClient(handsetToken).rpc("join_player_team", {
+        p_team_name: teamName.trim(),
+        p_victory_song: selectedSong,
+        p_session_pin: pin,
+        p_photo_url: photoUrl,
+        p_player_token: handsetToken,
       });
       if (dbError) {
         // Postgres unique_violation (23505) means another team's insert won

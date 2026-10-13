@@ -180,3 +180,24 @@ test('ambiguous legacy ownership aborts the entire migration instead of guessing
     assert.equal((await db.query('select count(*)::integer as count from question_bank')).rows[0].count,1);
   } finally { await db.close(); }
 });
+
+test('an explicitly approved legacy host mapping works with multiple accounts', async () => {
+  const db = await fixture();
+  try {
+    await db.exec(`insert into auth.users values('${other}')`);
+    await db.query(`select set_config('quizit.legacy_owner',$1,false)`,[owner]);
+    await db.exec(sql('202610130001_launch_security.sql'));
+    assert.equal((await db.query('select owner_id from question_bank')).rows[0].owner_id,owner);
+  } finally { await db.close(); }
+});
+
+test('recovery snapshot preserves source rows and is inaccessible to public roles', async () => {
+  const db = await fixture();
+  try {
+    await db.exec(readFileSync(new URL('../supabase/sql/launch_security_backup.sql',import.meta.url),'utf8'));
+    assert.equal((await db.query('select count(*)::integer as count from quiz_launch_backup_20261013.questions')).rows[0].count,1);
+    assert.equal((await db.query('select count(*)::integer as count from public.questions')).rows[0].count,1);
+    assert.equal((await db.query("select has_schema_privilege('anon','quiz_launch_backup_20261013','USAGE') as allowed")).rows[0].allowed,false);
+    assert.equal((await db.query("select has_table_privilege('authenticated','quiz_launch_backup_20261013.questions','SELECT') as allowed")).rows[0].allowed,false);
+  } finally { await db.close(); }
+});

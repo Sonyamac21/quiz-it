@@ -1,5 +1,7 @@
 -- Apply before deploying the matching player client. Transactional and fails
 -- closed if existing unowned content cannot be assigned to one known host.
+-- For a reviewed multi-account project, an administrator may set
+-- quizit.legacy_owner inside this transaction to the explicitly agreed host UUID.
 begin;
 
 create schema if not exists quiz_private;
@@ -10,7 +12,9 @@ revoke all on schema quiz_private from public, anon, authenticated;
 do $$
 declare tab text; pol record; col record; sole_owner uuid;
 begin
-  if (select count(*) from auth.users) = 1 then select id into sole_owner from auth.users limit 1; end if;
+  sole_owner:=nullif(current_setting('quizit.legacy_owner',true),'')::uuid;
+  if sole_owner is not null and not exists(select 1 from auth.users where id=sole_owner) then raise exception 'The selected legacy host account does not exist'; end if;
+  if sole_owner is null and (select count(*) from auth.users) = 1 then select id into sole_owner from auth.users limit 1; end if;
   foreach tab in array array['question_bank','rounds','questions','media_assets','sponsors','victory_songs','venues','quizzes','host_settings','venue_offers'] loop
     if to_regclass('public.' || tab) is null then continue; end if;
     execute format('alter table public.%I add column if not exists owner_id uuid references auth.users(id)', tab);
@@ -40,10 +44,9 @@ end $$;
 
 alter table public.sessions add column if not exists owner_id uuid references auth.users(id);
 update public.sessions s set owner_id=q.owner_id from public.quizzes q where s.quiz_id=q.id and s.owner_id is null;
-do $$ begin
-  if (select count(*) from auth.users)=1 then
-    update public.sessions set owner_id=(select id from auth.users limit 1) where owner_id is null;
-  end if;
+do $$ declare legacy_owner uuid:=nullif(current_setting('quizit.legacy_owner',true),'')::uuid; begin
+  if legacy_owner is null and (select count(*) from auth.users)=1 then select id into legacy_owner from auth.users limit 1; end if;
+  if legacy_owner is not null then update public.sessions set owner_id=legacy_owner where owner_id is null; end if;
 end $$;
 alter table public.sessions alter column owner_id set not null, alter column owner_id set default auth.uid();
 alter table public.sessions add column if not exists player_shuffle_seed uuid not null default gen_random_uuid();

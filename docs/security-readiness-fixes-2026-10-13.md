@@ -43,7 +43,8 @@ old player client cannot safely run a quiz during this permissions change.
 
 ## Verification
 
-- Full automated suite: 205 passing tests at the last completed run.
+- Full automated suite: 207 passing tests, including private recovery snapshot
+  coverage.
 - PostgreSQL integration tests execute the real migration through PGlite,
   including pgcrypto, legacy policies and malicious legacy column grants.
   They cover anonymous answer/hash exposure, two-host isolation, owner scoring
@@ -62,6 +63,12 @@ old player client cannot safely run a quiz during this permissions change.
    Supabase against the migration; dashboard-created tables are not fully
    represented by this repository. Confirm `pgcrypto` is installed in
    `extensions`, and prior tracked migrations have been applied.
+   The live inspection found no recent active quizzes, three authentication
+   accounts, the expected schema/RPC signatures and `pgcrypto` in `extensions`.
+   All existing plans, venues and events belong to one account; confirm the
+   unowned library mapping before setting `quizit.legacy_owner` in the migration
+   transaction. `supabase/sql/launch_security_backup.sql` creates a private
+   recovery snapshot inside the same project without changing source rows.
 2. Apply `supabase/migrations/202610130001_launch_security.sql` as one transaction.
    If ownership is ambiguous, stop and explicitly map unowned rows to the correct
    host. Do not substitute the oldest account or silently delete content.
@@ -79,6 +86,7 @@ old player client cannot safely run a quiz during this permissions change.
    the earlier local key probe failed authentication; no credential was changed.
    Verify the production Blob token and generation with a bounded spend cap.
 
-Admin sign-in, the live schema inspection/migration, production rehearsal and
-provider credential validation remain pending. This work is not a public-launch
-approval.
+Authenticated console access and the live schema inspection are confirmed.
+Legacy ownership confirmation, the recovery snapshot/migration, production
+rehearsal and provider credential validation remain pending. This work is not a
+public-launch approval.

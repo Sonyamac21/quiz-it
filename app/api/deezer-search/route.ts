@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -92,6 +93,9 @@ async function searchItunes(q: string): Promise<Candidate[] | null> {
 }
 
 export async function GET(req: NextRequest) {
+  const supabase = createSupabaseServerClient(req, new NextResponse());
+  const { data: auth, error } = await supabase.auth.getUser();
+  if (error || !auth.user) return NextResponse.json({ error: "Sign in to search music." }, { status: 401 });
   const q = req.nextUrl.searchParams.get("q");
   if (!q) return NextResponse.json({ error: "Missing q parameter" }, { status: 400 });
 

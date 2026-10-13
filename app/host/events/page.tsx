@@ -66,7 +66,7 @@ export default function EventCalendarPage() {
       // the selection, even though nothing about the actual assignment had
       // changed. Archived plans are still excluded from the list of NEW
       // options a host can pick going forward - see the dropdown below.
-      supabase.from("quizzes").select("id,name,archived,quiz_rounds(id,position,name,round_type,questions,hide_leaderboard,allow_power_cards)").order("name"),
+      supabase.from("quizzes").select("id,name,archived,quiz_rounds(id,position,name,round_type,questions,target_count,hide_leaderboard,allow_power_cards)").order("name"),
     ]);
     const user=userData.user; const name=String(user?.user_metadata?.full_name||user?.user_metadata?.name||user?.email||"Host");
     const venueRows=(venueData||[]) as EventVenue[];const quizRows=(quizData||[]) as EventQuiz[];const mapped=(eventData||[]).map(row=>({...row,status:row.status||"scheduled",host_name:row.host_name||null,venue:venueRows.find(venue=>venue.id===row.venue_record_id||venue.day_of_week===row.venue_id)||null,quiz:quizRows.find(quiz=>quiz.id===row.quiz_definition_id)||null})) as EventRecord[];

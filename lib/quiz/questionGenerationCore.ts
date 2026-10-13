@@ -972,15 +972,12 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         return null;
       }
       try {
-        const pixabayKey = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
         const pixabayQuery = buildPixabaySearchQuery(q.option_a);
         const pixRes = await fetchWithTimeout(
-          "https://pixabay.com/api/?key=" + pixabayKey +
-          "&q=" + encodeURIComponent(pixabayQuery) +
-          "&image_type=photo&per_page=5&safesearch=true"
+          "/api/pixabay-search?q=" + encodeURIComponent(pixabayQuery)
         );
         const pixData = await pixRes.json();
-        const hit = selectMatchingPixabayHit(pixData?.hits || [], q.option_a);
+        const hit = selectMatchingPixabayHit((pixData?.candidates || []).map((candidate: { full: string; tags: string }) => ({ webformatURL: candidate.full, tags: candidate.tags })), q.option_a);
         if (hit) {
           const pixabayUrl = hit.webformatURL || hit.largeImageURL;
           if (!pixabayUrl) {

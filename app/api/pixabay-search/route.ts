@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -7,10 +8,13 @@ export const runtime = "nodejs";
 // a random AI-chosen search query and photo) or paste a raw image URL by
 // hand. Mirrors the pattern of /api/deezer-search for Music Prep.
 export async function GET(req: NextRequest) {
+  const supabase = createSupabaseServerClient(req, new NextResponse());
+  const { data: auth, error } = await supabase.auth.getUser();
+  if (error || !auth.user) return NextResponse.json({ error: "Sign in to search pictures." }, { status: 401 });
   const q = req.nextUrl.searchParams.get("q");
   if (!q) return NextResponse.json({ error: "Missing q parameter" }, { status: 400 });
 
-  const pixabayKey = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
+  const pixabayKey = process.env.PIXABAY_API_KEY || process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
   if (!pixabayKey) return NextResponse.json({ error: "Pixabay API key not configured" }, { status: 500 });
 
   try {

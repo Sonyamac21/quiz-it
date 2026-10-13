@@ -14,8 +14,8 @@
 // accepts whichever shape each caller's Supabase select produced (the
 // dashboard, Calendar, and planner each declare their own local row types)
 // without needing a cast at every call site.
-import { readPairsQuestions } from "./pairs";
-type PlanRound = { id: string; round_type: string; questions: unknown[]; name?: string };
+import { readPairsQuestions } from "./pairs.ts";
+type PlanRound = { id: string; round_type: string; questions: unknown[]; name?: string; target_count?: number | null };
 type Plan = { quiz_rounds?: PlanRound[] } | null | undefined;
 
 function asQuestion(q: unknown): { question_type?: unknown; option_b?: unknown } {
@@ -52,6 +52,10 @@ export function getQuizPreflight(quiz: Plan): QuizPreflight {
   for (const round of rounds) {
     const questions = Array.isArray(round.questions) ? round.questions : [];
     const roundName = round.name || "An unnamed round";
+    const count = round.round_type === "pairs" ? readPairsQuestions(questions).length : questions.length;
+    if (QUESTION_ROUND_TYPES.has(round.round_type) && round.target_count != null && (!Number.isInteger(round.target_count) || round.target_count < 1 || count !== round.target_count)) {
+      blockers.push({ code: "target-count", roundId: round.id, message: `${roundName} needs ${round.target_count} questions; currently ${count} are ready.` });
+    }
     if (QUESTION_ROUND_TYPES.has(round.round_type) && questions.length === 0) {
       blockers.push({ code: "empty-round", roundId: round.id, message: `${roundName} has no questions.` });
       continue;
@@ -63,12 +67,28 @@ export function getQuizPreflight(quiz: Plan): QuizPreflight {
       blockers.push({ code: "pursuit-count", roundId: round.id, message: `${roundName} must contain exactly 7 questions (currently ${questions.length}).` });
     }
     if (round.round_type === "pairs" && (readPairsQuestions(questions).length === 0 || (questions.some(q => Array.isArray((q as { pairs?: unknown })?.pairs)) && readPairsQuestions(questions).length !== questions.length))) {
-      blockers.push({ code: "pairs-incomplete", roundId: round.id, message: `${roundName} must contain exactly 3 complete image pairs.` });
+      blockers.push({ code: "pairs-incomplete", roundId: round.id, message: `${roundName} needs three complete, distinct pairs per question.` });
     }
 
     questions.forEach((raw, index) => {
       const question = (raw || {}) as Record<string, unknown>;
       const label = `${roundName}, question ${index + 1}`;
+      if (round.round_type === "pairs" || !QUESTION_ROUND_TYPES.has(round.round_type)) return;
+      const type = String(question.question_type || "");
+      const answer = String(question.correct_answer ?? "").trim();
+      if (!String(question.question_text || "").trim() || !answer || !["multiple_choice", "multi_tap", "sequence", "text", "text_answer", "number", "nearest_wins", "picture", "audio"].includes(type)) {
+        blockers.push({ code: "invalid-question", roundId: round.id, message: `${label} needs a question, a supported question type and an answer.` });
+      }
+      if (["multiple_choice", "sequence", "multi_tap"].includes(type)) {
+        const allowed = type === "multi_tap" ? ["a", "b", "c", "d", "e", "f"] : ["a", "b", "c", "d"];
+        const keys = normalisedKeys(answer);
+        const options = allowed.map(key => String(question[`option_${key}`] || "").trim());
+        const invalid = options.some(option => !option) || new Set(options.map(option => option.toLowerCase())).size !== options.length || new Set(keys).size !== keys.length || keys.some(key => !allowed.includes(key)) || (type === "multiple_choice" ? keys.length !== 1 : type === "sequence" ? keys.length !== 4 : keys.length < 2);
+        if (invalid) blockers.push({ code: "invalid-options", roundId: round.id, message: `${label} needs distinct, complete options and a valid answer key.` });
+      }
+      if (["number", "nearest_wins"].includes(type) && (!/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(answer) || !Number.isFinite(Number(answer)))) {
+        blockers.push({ code: "invalid-number", roundId: round.id, message: `${label} needs a numeric answer.` });
+      }
       if (question.question_type === "audio") {
         const clip = String(question.option_b || "");
         if (!/^https?:\/\//i.test(clip) && !clip.startsWith("/")) blockers.push({ code: "music-unprepped", roundId: round.id, message: `${label} has no saved music clip.` });

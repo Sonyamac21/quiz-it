@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { get } from "@vercel/blob";
+import { isVercelBlobUrl } from "@/lib/media/blobUrl";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
   }
   // Basic safety check - only proxy actual Vercel Blob URLs, never act as an
   // open proxy for arbitrary URLs.
-  if (!url.includes("blob.vercel-storage.com")) {
+  if (!isVercelBlobUrl(url)) {
     return NextResponse.json({ error: { message: "Not a recognized media URL" } }, { status: 400 });
   }
 
@@ -32,10 +33,12 @@ export async function GET(req: NextRequest) {
         // These are immutable, randomly-named uploaded assets - safe to cache
         // aggressively for instant repeat loads during a live show.
         "Cache-Control": "public, max-age=2592000, immutable",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "sandbox; default-src 'none'",
       },
     });
   } catch (e) {
     console.error("Media proxy failed:", e);
-    return NextResponse.json({ error: { message: e instanceof Error ? e.message : "Media proxy failed" } }, { status: 500 });
+    return NextResponse.json({ error: { message: "Media could not be loaded. Please try again." } }, { status: 502 });
   }
 }

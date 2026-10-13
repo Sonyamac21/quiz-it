@@ -68,7 +68,7 @@ export default function SessionPage() {
   }, [selectedQuizId, quizzes, venues, preparedEvent]);
 
   useEffect(() => {
-    createSupabaseBrowserClient().from("quizzes").select("id,name,quiz_rounds(id,name,round_type,questions)").eq("archived", false).order("updated_at", { ascending: false }).then(({ data }) => {
+    createSupabaseBrowserClient().from("quizzes").select("id,name,quiz_rounds(id,name,round_type,questions,target_count)").eq("archived", false).order("updated_at", { ascending: false }).then(({ data }) => {
       const list = (data ?? []) as QuizOption[];
       setQuizzes(list);
       // The normal host path is tonight's latest prepared plan. Keep the
@@ -238,6 +238,12 @@ export default function SessionPage() {
     ]);
     if (roundsError || !quizRounds?.length) {
       setCreateError(roundsError?.message || "This quiz has no rounds. Add rounds in Quiz Builder first.");
+      setCreating(false);
+      return;
+    }
+    const freshPreflight = getQuizPreflight({ quiz_rounds: quizRounds });
+    if (!freshPreflight.ready) {
+      setCreateError("This Quiz Plan is not ready: " + freshPreflight.blockers.map(issue => issue.message).join(" "));
       setCreating(false);
       return;
     }

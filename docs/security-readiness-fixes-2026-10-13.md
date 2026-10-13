@@ -2,18 +2,21 @@
 
 ## Deployment status
 
-Application changes and the database migration are prepared and tested locally.
-The independent dependency/API/readiness changes are deployed on production as
-`c7eb082`. A private recovery snapshot has been created and verified on the live
-project, and `restrict_anonymous_library.sql` has been applied. Anonymous probes
-now receive HTTP 401 for questions, question_bank, rounds and media_assets;
-existing player reads of sessions and victory_songs still receive HTTP 200.
+The full ownership/gameplay migration is applied to production. Sonya explicitly
+confirmed `sonya@sonyamac.co.uk` as the owner of legacy content. The migration
+passed a live transactional dry run before application, and an active-quiz guard
+passed before changes were saved. A private recovery snapshot remains available.
+Question/library row counts match the snapshot, and their ownership is verified.
 
-The full ownership/gameplay migration has **not** been applied to production.
-Do not deploy the new player client before applying its migration. Existing
-host pages and the old player client cannot safely run a quiz during the full
-permissions change. Live session answer hiding and protected game mutations
-remain pending that coordinated migration/deployment.
+The matching player client was merged in PR #1 and successfully deployed to
+production as `c64b328`. Anonymous REST probes receive HTTP 401 for questions,
+question_bank, rounds, media_assets, raw sessions, teams and session_rounds.
+Safe player_sessions/player_teams reads return HTTP 200; player session realtime
+publication and revoked anonymous scoring privileges are verified in the live DB.
+Live authenticated-role probes confirm the primary host can access the library
+and another host cannot read that library or the primary host's quiz plans.
+Production login returns 200; unsigned Pixabay/Deezer search and Deezer preview
+requests return 401; an unsafe media-proxy URL returns 400.
 
 ## Changes
 
@@ -62,7 +65,8 @@ remain pending that coordinated migration/deployment.
 - Live REST CORS preflight accepts the custom handset-token header.
 - New API/helper files pass focused lint. The repository-wide lint baseline
   remains 52 errors; it is not represented as passing.
-- No paid AI-generation call or live database mutation was used for these tests.
+- Automated tests made no paid AI-generation calls. The approved production
+  migration was separately applied and verified through the Supabase console.
 
 ## Apply and verify
 
@@ -96,7 +100,7 @@ remain pending that coordinated migration/deployment.
    the earlier local key probe failed authentication; no credential was changed.
    Verify the production Blob token and generation with a bounded spend cap.
 
-Authenticated console access, the live schema inspection, private recovery
-snapshot and anonymous library restriction are confirmed. Legacy ownership
-confirmation, the full migration/deployment, production rehearsal and provider
+Authenticated console access, live schema inspection, private recovery snapshot,
+confirmed legacy ownership, full security migration and matching production
+deployment are complete. Production rehearsal with real phones and provider
 credential validation remain pending. This work is not a public-launch approval.

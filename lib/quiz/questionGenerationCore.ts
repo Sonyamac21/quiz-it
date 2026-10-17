@@ -134,7 +134,9 @@ export function sequenceSuitabilityError(q: Pick<Question, "question_text" | "qu
   if (q.question_type !== "sequence") return "Question type is not sequence";
   const options = [q.option_a, q.option_b, q.option_c, q.option_d];
   if (options.some(option => typeof option !== "string" || !option.trim())) return "Sequence requires four options";
-  if ((q.correct_answer || "").replace(/\s/g, "").toLowerCase() !== "a,b,c,d") return "Sequence source answer must be a,b,c,d";
+  const keys = (q.correct_answer || "").replace(/\s/g, "").toLowerCase().split(",");
+  if (keys.length !== 4 || new Set(keys).size !== 4 || keys.some(key => !["a", "b", "c", "d"].includes(key))) return "Sequence answer must contain each of a,b,c,d exactly once";
+  if (new Set(options.map(option => option!.trim().toLowerCase())).size !== 4) return "Sequence requires four distinct items";
   const stem = (q.question_text || "").toLowerCase();
   const repeated = options.find(option => option && option.trim().length >= 3 && stem.includes(option.trim().toLowerCase()));
   if (repeated) return "Sequence question must not repeat its option items in the question text";
@@ -791,7 +793,7 @@ multiple_choice: four plausible options a-d; exactly one correct; answer is its 
 text_answer: exactly one word as answer; choose a natural question that fits this restriction. Ask explicitly for a first name or surname when that is the expected answer.
 number/nearest_wins: a precise verified numeric string; all options null. Name the subject and units explicitly. No uncertain estimates or rounding hints.
 multi_tap: a genuine set-membership question, six plausible options a-f, exactly the slot's multiTapCorrectCount correct answers; answer is comma-separated correct letters. Each option must independently satisfy or fail the stated criterion. No single-answer trivia padded with decoys.
-sequence: four items in their true order in a-d; answer a,b,c,d; name the ordering rule but do not repeat the items in the question.
+sequence: four items in their true order in a-d; answer a,b,c,d; name the ordering rule but do not repeat the items in the question. For easy/family questions use simple numeric ordering, familiar sizes or an explicitly stated everyday process, with no ties. Never ask children for invention dates or speculative historical origins.
 For a family audience use familiar main characters, animals, everyday facts and simple comparisons. Easy must be answerable by children. Never force an obscure numeric question to satisfy a slot.
 Slots: ${JSON.stringify(slots)}
 Return ONLY a JSON array with exactly ${requests.length} items in slot order. Each item must have question_text, question_type, option_a, option_b, option_c, option_d, option_e, option_f, correct_answer, explanation (one short sentence), difficulty, round_type (${opts.roundType}). Unused options must be null. If no confident fresh question fits a slot, return null for that slot. No markdown or commentary.`;
@@ -852,6 +854,7 @@ export async function generateOne(
       "ALSO vary the QUESTION SENTENCE STRUCTURE itself, not just the topic and answer - do not default to the generic 'Which [brand/company]'s [logo/mascot/product] is/features/has [X]?' template. Mix in different natural phrasings appropriate to the fact: who/what/where/when/how questions, 'In [film/show], who/what...', 'What is the name of...', 'How many...', direct trivia phrasing, etc. Two consecutive questions in the same round should not read like the same template with the nouns swapped.";
   const prompt = `You are writing questions for a live social quiz.
 ${opts.brainTeaser ? "FINAL BRAIN TEASER: Write a self-contained maths or logic puzzle with one uniquely determined numeric answer. Players should reason for 60–90 seconds, rather than recall trivia. Use clear everyday language, all necessary quantities and constraints, no pictures, music, specialist knowledge, trick wording, or ambiguous number-sequence patterns. Match the requested difficulty and audience; family/easy puzzles use small whole numbers and simple reasoning. Vary the puzzle structure; avoid the overused bat-and-ball puzzle. Independently solve it twice before returning it. correct_answer must contain only the number, and explanation must show the calculation and why it is unique. Keep the question short enough to read aloud. This puzzle instruction overrides ordinary topic/variety directions below." : ""}
+${type === "sequence" && (opts.audience === "families" || difficulty === "easy") ? "EASY SEQUENCE: Use four clearly distinct quantities, familiar sizes, or steps in an explicitly specified everyday process. Every item must have a different position with no ties. Never use invention dates, first historical appearances, disputed origins or obscure chronology. These easy-sequence rules override the topic/variety suggestions." : ""}
 ${audienceBrief(opts.audience)}
 BEFORE writing any question, ask yourself: "Would ${opts.audience === "families" ? "children and parents playing together" : "8 friends sitting in a pub"} enjoy answering this?" If no, do not write it.
 FIRST-PASS CHECK (do silently): consider several different facts and entities; reject any that paraphrase an excluded question or reuse its entity, answer or knowledge test; then choose the strongest stable fact with one clear natural answer. Check only player-visible content for venue suitability—unseen plots, lyrics and themes do not make a mainstream work unsuitable.
@@ -1042,7 +1045,8 @@ Return ONLY a valid JSON array with 1 item, no markdown:
         return null;
       }
       const letters = ["a", "b", "c", "d"];
-      const items = letters.map(l => q["option_" + l]);
+      const sourceOrder = q.correct_answer.replace(/\s/g, "").toLowerCase().split(",");
+      const items = sourceOrder.map(l => q["option_" + l]);
       const shuffledLetters = shuffle(letters);
       const newOptions: Record<string, unknown> = {};
       shuffledLetters.forEach((slot, i) => { newOptions[slot] = items[i]; });

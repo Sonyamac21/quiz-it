@@ -12,6 +12,7 @@ function runner(rejectCount = 0, overrides = {}) {
   const feedback = [];
   const core = {
     MAX_AI_CONCURRENCY: 8,
+    PURSUIT_TOTAL_QUESTIONS: 7,
     loadUsedQuestions: async () => ({ used: [], usedAnswers: [], usedFingerprints: new Set(), rejectedFingerprints: new Set(), rejectedTexts: new Set() }),
     shuffle: x => [...x], genUid: () => String(calls),
     GENERAL_TOPIC_BUCKETS: [['geography']], FAMILY_TOPIC_BUCKETS: [['animals']], FAMILY_MUSIC_TOPICS: ['family songs'], MUSIC_TOPICS: ['music'], PICTURE_TOPICS: ['animals'],
@@ -124,6 +125,33 @@ test('final brain teaser overrides media mix and carries puzzle instructions to 
   assert.equal(requests[0].opts.brainTeaser, true);
   assert.equal(requests[0].opts.audience, 'families');
   assert.equal(requests[0].opts.difficulty, 'easy');
+});
+
+test('Pursuit completes seven questions when sequence candidates repeatedly fail', async () => {
+  const requested = [];
+  const r = runner(0, { generateOne: async (type, topic, context) => {
+    requested.push(type);
+    if (type === 'sequence') { context.error = 'Unsuitable sequence'; return null; }
+    return { question_text: `Fresh question ${requested.length}`, question_type: type };
+  } });
+  const result = await r.runSpec({ count: 7, roundType: 'pursuit', difficulty: 'easy', audience: 'families', theme: '' });
+  assert.equal(result.questions.length, 7);
+  assert.equal(result.stoppedEarly, false);
+  assert.equal(requested.filter(type => type === 'sequence').length, 2);
+  assert.ok(requested.length <= 21);
+});
+
+test('sequence shuffling preserves a valid noncanonical source answer order', async () => {
+  const source = { question_type: 'sequence', question_text: 'Order from smallest to largest', option_a: 'Three', option_b: 'One', option_c: 'Four', option_d: 'Two', correct_answer: ' B, D, A, C ', explanation: 'One, two, three, four.' };
+  const r = validationRunner({ content: [{ type: 'text', text: JSON.stringify([source]) }] });
+  const q = await r.exports.generateOne('sequence', 'numbers', r.exports.createGenerationContext('sequence', false), {
+    theme: '', roundType: 'pursuit', difficulty: 'easy', audience: 'families',
+    exclusions: { used: [], usedAnswers: [], rejectedTexts: new Set(), rejectedFingerprints: new Set(), usedFingerprints: new Set() },
+  });
+  assert.ok(q);
+  assert.deepEqual(JSON.parse(JSON.stringify(q.correct_answer.split(',').map(key => q[`option_${key}`]))), ['One', 'Two', 'Three', 'Four']);
+  assert.match(r.requests[0].prompt, /EASY SEQUENCE/);
+  assert.ok(r.requests[0].prompt.length <= 12000);
 });
 
 test('brain teaser prompt requests a unique numeric puzzle with worked solution within the API limit', async () => {

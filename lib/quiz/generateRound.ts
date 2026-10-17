@@ -318,8 +318,8 @@ export async function generateValidatedRound(
   const acceptedCounts: Record<string, number> = {};
   const inFlightCounts: Record<string, number> = {};
   const failedTypeCounts: Record<string, number> = {};
-  const canReplaceFormat = (roundType === "regular" || roundType === "bonus")
-    && (!spec.allowedQuestionTypes?.length || spec.allowedQuestionTypes.includes("multiple_choice"));
+  const canReplaceFormat = ["pursuit", "hot_seat"].includes(roundType) || ((roundType === "regular" || roundType === "bonus")
+    && (!spec.allowedQuestionTypes?.length || spec.allowedQuestionTypes.includes("multiple_choice")));
   const difficultyPlan = difficulty === "mixed" ? allocateMixedDifficulties(count) : Array(count).fill(difficulty);
   const difficultyTargets: Record<string, number> = {};
   difficultyPlan.forEach(level => { difficultyTargets[level] = (difficultyTargets[level] || 0) + 1; });
@@ -344,7 +344,7 @@ export async function generateValidatedRound(
     }
     // Optional media and one-word formats must not strand an otherwise usable
     // round. Keep the total target and spend ceiling; replace only failed slots.
-    if (canReplaceFormat && ["picture", "audio", "text_answer"].includes(best) && (failedTypeCounts[best] || 0) >= 2) {
+    if (canReplaceFormat && ["picture", "audio", "text_answer", "sequence"].includes(best) && (failedTypeCounts[best] || 0) >= 2) {
       targetCounts[best]--;
       targetCounts.multiple_choice = (targetCounts.multiple_choice || 0) + 1;
       return "multiple_choice";

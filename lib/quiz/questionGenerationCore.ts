@@ -164,7 +164,10 @@ export function partialNameAnswerError(q: Pick<Question, "question_text" | "corr
       : null;
   }
   if (mononyms.has(answer)) return null;
-  const personCue = /\b(?:who|whose|which)\b|\b(?:actor|actress|artist|author|band|biologist|composer|director|drummer|guitarist|musician|naturalist|painter|player|poet|scientist|singer|writer|played|wrote|directed|performed|starred|frontman|vocalist)\b/i;
+  // "Which" alone does not mean a person: countries, companies and objects
+  // often have one-word names. A person's name elsewhere in the stem is not
+  // evidence that the requested answer is that person either.
+  const personCue = /\b(?:who|whose)\b|\b(?:which|what|name the)\s+(?:\w+\s+){0,2}(?:actor|actress|artist|author|biologist|composer|director|drummer|guitarist|musician|naturalist|painter|player|poet|scientist|singer|writer|frontman|vocalist)\b/i;
   return personCue.test(stem) ? "Person answers must request the full name, surname, or first name explicitly" : null;
 }
 

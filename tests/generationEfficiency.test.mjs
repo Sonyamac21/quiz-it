@@ -94,6 +94,23 @@ function validationRunner(response) {
 }
 const candidate = { question_type: 'number', question_text: 'How many sides does a triangle have?', correct_answer: '3' };
 
+test('single-word countries and companies are not mistaken for partial person names', () => {
+  const { partialNameAnswerError } = validationRunner({}).exports;
+  assert.equal(partialNameAnswerError({ question_text: 'Which island nation has Kingston as its capital?', correct_answer: 'Jamaica' }), null);
+  assert.equal(partialNameAnswerError({ question_text: "Reese Witherspoon founded Hello Sunshine. Which media group acquired a stake?", correct_answer: 'Candle' }), null);
+  assert.match(partialNameAnswerError({ question_text: 'Which actor played the lead?', correct_answer: 'Smith' }), /Person answers/);
+});
+
+test('general knowledge skips automatic current-news topics', async () => {
+  const topics = [];
+  const r = runner(0, { GENERAL_TOPIC_BUCKETS: [['recent positive news'], ['world capitals']], generateOne: async (type, topic) => {
+    topics.push(topic); return { question_text: `Fact ${topics.length}`, question_type: type };
+  } });
+  const result = await r.run(2, 'adults', 'general knowledge');
+  assert.equal(result.questions.length, 2);
+  assert.ok(topics.every(topic => topic === 'world capitals'));
+});
+
 test('failed combined validation fails closed without three extra paid requests', async () => {
   const r = validationRunner({ error: { message: 'Provider unavailable' } });
   const result = await r.exports.runCombinedValidation(candidate, [], 'Shapes');

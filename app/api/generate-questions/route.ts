@@ -170,6 +170,7 @@ export async function POST(req: NextRequest) {
     const requestBody: Record<string, unknown> = {
       model: resolvedModel,
       max_tokens: tokenLimit,
+      system: `Today's date is ${new Date().toISOString().slice(0, 10)}. For ordinary general knowledge use established, timeless facts. Do not invent current events, future acquisitions or results. Dates before today are in the past; never frame a past event as forthcoming. Use web search for explicitly requested current events.`,
       messages: [{
         role: "user",
         content: imageData ? [

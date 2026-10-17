@@ -243,7 +243,8 @@ export async function generateValidatedRound(
   // random not-yet-used topic within whichever bucket is due next)
   // guarantees every category gets a fair, spread-out share of every
   // unthemed round.
-  const shuffledBuckets = spec.audience === "families" ? FAMILY_TOPIC_BUCKETS.map(shuffle) : GENERAL_TOPIC_BUCKETS.map(shuffle);
+  const shuffledBuckets = spec.audience === "families" ? FAMILY_TOPIC_BUCKETS.map(shuffle) : GENERAL_TOPIC_BUCKETS.map(shuffle)
+    .map(bucket => bucket.filter(topic => !/\brecent\b|\bbreaking\b|\bheadlines\b|\bcurrent\b|\blast \d|news/i.test(topic))).filter(bucket => bucket.length > 0);
   const triedGeneralTopics = new Set<string>();
   const pickGeneralTopic = (launchIndex: number): string => {
     const bucket = shuffledBuckets[launchIndex % shuffledBuckets.length];

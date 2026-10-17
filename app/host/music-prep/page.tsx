@@ -245,6 +245,11 @@ export default function MusicPrepPage() {
     if (card) { card.scrollIntoView({ block: "center" }); focusedQuestionRef.current = true; }
   }, [openRound]);
   const [questionStates, setQuestionStates] = useState<Record<number, QuestionState>>({});
+  const searchControllers = useRef(new Map<string, AbortController>());
+  useEffect(() => () => {
+    searchControllers.current.forEach(controller => controller.abort());
+    searchControllers.current.clear();
+  }, []);
   const [status, setStatus] = useState("");
   const [loadError, setLoadError] = useState("");
   const [regeneratingIdx, setRegeneratingIdx] = useState<number | null>(null);
@@ -339,6 +344,8 @@ export default function MusicPrepPage() {
   }
 
   async function openForPrep(round: Round) {
+    searchControllers.current.forEach(controller => controller.abort());
+    searchControllers.current.clear();
     // Recover an already uploaded exact track rather than searching/paying to
     // prepare it again. Never guess when multiple different trims exist.
     const { data: assets } = await createSupabaseBrowserClient().from("media_assets").select("title,artist,file_url").eq("media_type", "audio");
@@ -372,7 +379,7 @@ export default function MusicPrepPage() {
       const focused = params.get("round") === round.id ? params.get("question") : null;
       if (focused !== null && /^\d+$/.test(focused) && round.questions[Number(focused)]?.question_type === "audio" && i !== Number(focused)) return;
       if (q.question_type === "audio" && !(q.option_b && q.option_b.includes("blob.vercel-storage.com"))) {
-        setTimeout(() => searchForQuestion(round, i, cleanSearchSeed(q.option_a) || q.correct_answer), i * 300);
+        void searchForQuestion(round, i, cleanSearchSeed(q.option_a) || q.correct_answer);
       }
     });
   }
@@ -386,6 +393,8 @@ export default function MusicPrepPage() {
   // shift and stale per-index state (candidates, trimmed audio, etc.) from
   // the old slot would otherwise bleed into the new one.
   function refreshQuestionStates(round: Round, autoSearch: boolean) {
+    searchControllers.current.forEach(controller => controller.abort());
+    searchControllers.current.clear();
     const initial: Record<number, QuestionState> = {};
     round.questions.forEach((q, i) => {
       if (q.question_type !== "audio") return;
@@ -403,7 +412,7 @@ export default function MusicPrepPage() {
     if (autoSearch) {
       round.questions.forEach((q, i) => {
         if (q.question_type === "audio" && !(q.option_b && q.option_b.includes("blob.vercel-storage.com"))) {
-          setTimeout(() => searchForQuestion(round, i, cleanSearchSeed(q.option_a) || q.correct_answer), i * 300);
+          void searchForQuestion(round, i, cleanSearchSeed(q.option_a) || q.correct_answer);
         }
       });
     }
@@ -505,14 +514,24 @@ export default function MusicPrepPage() {
     const query = rawQuery
       .replace(/\s*(official\s*(audio|video|music\s*video|lyric\s*video)?|lyrics?|hd|hq|\d{4})\s*/gi, " ")
       .trim();
-    setState(qIdx, { phase: "searching", error: "" });
+    const key = `${round.id}:${qIdx}`;
+    searchControllers.current.get(key)?.abort();
+    const controller = new AbortController();
+    searchControllers.current.set(key, controller);
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
+    setState(qIdx, { phase: "searching", error: "", manualQuery: rawQuery });
     try {
-      const res = await fetch(`/api/deezer-search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/deezer-search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
       const data = await res.json();
+      if (searchControllers.current.get(key) !== controller) return;
       if (!res.ok || data.error) throw new Error(data.error || "Search failed");
       setState(qIdx, { phase: "candidates", candidates: data.candidates || [] });
     } catch (e) {
-      setState(qIdx, { phase: "candidates", candidates: [], error: e instanceof Error ? e.message : "Search failed" });
+      if (searchControllers.current.get(key) !== controller) return;
+      setState(qIdx, { phase: "candidates", candidates: [], error: controller.signal.aborted ? "Search stopped. Retry or edit the title and artist below." : e instanceof Error ? e.message : "Search failed" });
+    } finally {
+      window.clearTimeout(timeout);
+      if (searchControllers.current.get(key) === controller) searchControllers.current.delete(key);
     }
   }
 
@@ -722,10 +741,17 @@ export default function MusicPrepPage() {
               )}
 
               {/* Phase: searching */}
-              {(qs.phase === "idle" || qs.phase === "searching") && (
+              {qs.phase === "idle" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ color: "#B9A8D9", fontSize: 13 }}>Ready to search for {qs.manualQuery || cleanSearchSeed(q.option_a) || q.correct_answer}</span>
+                  <HostButton onClick={() => searchForQuestion(openRound, i, qs.manualQuery || cleanSearchSeed(q.option_a) || q.correct_answer)}>Find track</HostButton>
+                </div>
+              )}
+              {qs.phase === "searching" && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#B9A8D9", font: "400 13px 'Inter'" }}>
                   <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid rgba(190,38,193,0.4)", borderTopColor: purple, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
                   Searching music catalogues for &ldquo;{qs.manualQuery || cleanSearchSeed(q.option_a) || q.correct_answer}&rdquo;…
+                  <HostButton onClick={() => searchControllers.current.get(`${openRound.id}:${i}`)?.abort()}>Cancel search</HostButton>
                 </div>
               )}
 

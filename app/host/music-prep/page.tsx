@@ -6,6 +6,7 @@ import { getMediaUrl } from "@/lib/getMediaUrl";
 import { HostShell, HostButton, HostLoading, HostEmpty } from "@/components/fable/HostConsole";
 import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
 import { generateValidatedRound, loadUsedQuestions, type Question as GeneratedQuestion } from "@/lib/quiz/generateRound";
+import { findSavedTrack, saveMusicClip } from "@/lib/quiz/musicPrep";
 
 const purple = "#BE26C1";
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -323,13 +324,36 @@ export default function MusicPrepPage() {
     return audioCtxRef.current;
   }
 
-  function openForPrep(round: Round) {
+  async function persistClip(round: Round, qIdx: number, url: string) {
+    const supabase = createSupabaseBrowserClient();
+    const table = round.source === "quiz_plan" ? "quiz_rounds" : "rounds";
+    return saveMusicClip(round.questions[qIdx], qIdx, url, async () => {
+      const { data, error } = await supabase.from(table).select("questions").eq("id", round.id).single();
+      if (error) throw error;
+      return data.questions as Question[];
+    }, async (before, after) => {
+      const { data, error } = await supabase.from(table).update({ questions: after }).eq("id", round.id).eq("questions", JSON.stringify(before)).select("id");
+      if (error) throw error;
+      return Boolean(data?.length);
+    });
+  }
+
+  async function openForPrep(round: Round) {
+    // Recover an already uploaded exact track rather than searching/paying to
+    // prepare it again. Never guess when multiple different trims exist.
+    const { data: assets } = await createSupabaseBrowserClient().from("media_assets").select("title,artist,file_url").eq("media_type", "audio");
+    for (let i = 0; i < round.questions.length; i++) {
+      const question = round.questions[i];
+      if (question.question_type !== "audio" || question.option_b?.includes("blob.vercel-storage.com")) continue;
+      const saved = findSavedTrack(cleanSearchSeed(question.option_a), assets || []);
+      if (saved) {
+        try { round = { ...round, questions: await persistClip(round, i, saved) }; }
+        catch { /* Leave unsaved rather than pretending recovery succeeded. */ }
+      }
+    }
     setOpenRound(round);
     const initial: Record<number, QuestionState> = {};
     round.questions.forEach((q, i) => {
-      const params = new URLSearchParams(window.location.search);
-      const focused = params.get("round") === round.id ? params.get("question") : null;
-      if (focused !== null && /^\d+$/.test(focused) && round.questions[Number(focused)]?.question_type === "audio" && i !== Number(focused)) return;
       if (q.question_type !== "audio") return;
       const hasSavedClip = q.option_b && q.option_b.includes("blob.vercel-storage.com");
       initial[i] = {
@@ -344,6 +368,9 @@ export default function MusicPrepPage() {
     setQuestionStates(initial);
     // Auto-start search for all unprepared questions
     round.questions.forEach((q, i) => {
+      const params = new URLSearchParams(window.location.search);
+      const focused = params.get("round") === round.id ? params.get("question") : null;
+      if (focused !== null && /^\d+$/.test(focused) && round.questions[Number(focused)]?.question_type === "audio" && i !== Number(focused)) return;
       if (q.question_type === "audio" && !(q.option_b && q.option_b.includes("blob.vercel-storage.com"))) {
         setTimeout(() => searchForQuestion(round, i, cleanSearchSeed(q.option_a) || q.correct_answer), i * 300);
       }
@@ -527,21 +554,8 @@ export default function MusicPrepPage() {
       // Update the question in the round - write back to whichever table
       // it actually lives in (standalone Round Library vs. a Quiz Plan's
       // quiz_rounds), since the two are separate tables.
-      const updatedQuestions = round.questions.map((q, i) =>
-        i === qIdx ? { ...q, option_b: uploadData.url } : q
-      );
+      const persistedQuestions = await persistClip(round, qIdx, uploadData.url);
       const supabase = createSupabaseBrowserClient();
-      const table = round.source === "quiz_plan" ? "quiz_rounds" : "rounds";
-      const { data: savedRound, error: saveError } = await supabase.from(table)
-        .update({ questions: updatedQuestions })
-        .eq("id", round.id)
-        .select("questions")
-        .single();
-      if (saveError) throw new Error("The clip uploaded, but the round could not be updated: " + saveError.message);
-      const persistedQuestions = (savedRound?.questions || []) as Question[];
-      if (persistedQuestions[qIdx]?.option_b !== uploadData.url) {
-        throw new Error("The clip uploaded, but the saved round did not contain it. Please try again.");
-      }
 
       // Log to media_assets
       const { error: mediaLogError } = await supabase.from("media_assets").insert({

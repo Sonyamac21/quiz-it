@@ -1092,7 +1092,7 @@ export default function QuizBuilderPage() {
   // certainly why "it only ever generates 5". An inline input in the panel
   // itself avoids both problems - nothing can block the page, and the
   // number being requested is always visibly sitting right there.
-  async function generateMoreForRound(round: QuizRound, requested: number, typeOverride?: string[]) {
+  async function generateMoreForRound(round: QuizRound, requested: number, typeOverride?: string[], brainTeaser = false) {
     // The Pursuit is always exactly 7 gates total (never host-configurable) -
     // clamp here too, not just inside generateValidatedRound, so a host
     // asking for more than the round has room for gets told plainly instead
@@ -1112,7 +1112,7 @@ export default function QuizBuilderPage() {
     setLastGenerateMoreResult(prev => { const next = { ...prev }; delete next[round.id]; return next; });
     const supabase = createSupabaseBrowserClient();
     const cfg = bulkConfig[round.id];
-    const effectiveTheme = cfg?.theme ?? round.theme ?? "";
+    const effectiveTheme = brainTeaser ? "maths and logic puzzles" : cfg?.theme ?? round.theme ?? "";
     const effectiveDifficulty = cfg?.difficulty || round.difficulty || "mixed";
     // Persist the theme/difficulty this round is actually being generated
     // with, the same way runBulkGenerate already does. Without this, a
@@ -1124,8 +1124,10 @@ export default function QuizBuilderPage() {
     // question's REGENERATE button) silently fell back to generating
     // untethered, off-theme content for what the host still saw as a themed
     // round on screen.
-    await supabase.from("quiz_rounds").update({ theme: effectiveTheme || null, difficulty: effectiveDifficulty }).eq("id", round.id);
-    setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, theme: effectiveTheme || null, difficulty: effectiveDifficulty } : r) }));
+    if (!brainTeaser) {
+      await supabase.from("quiz_rounds").update({ theme: effectiveTheme || null, difficulty: effectiveDifficulty }).eq("id", round.id);
+      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, theme: effectiveTheme || null, difficulty: effectiveDifficulty } : r) }));
+    }
     try {
       const [result] = await generateAllRounds(
         // Host: "the generate with AI when topping up doesn't allow me to
@@ -1146,7 +1148,7 @@ export default function QuizBuilderPage() {
         // takes priority over the round-level Include: Picture/Music
         // checkboxes below - so a host can ask for "just one picture
         // question" without having to change the round's default mix.
-        [{ roundType: round.round_type, audience: audienceForRound(round.id), difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions), allowedQuestionTypes: typeOverride ?? cfg?.allowedQuestionTypes }],
+        [{ roundType: round.round_type, brainTeaser, audience: audienceForRound(round.id), difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions), allowedQuestionTypes: typeOverride ?? cfg?.allowedQuestionTypes }],
         (_idx, status) => setGeneratingMoreStatus(status + capNote),
       );
       // Same stale-snapshot bug as runBulkGenerate above: `round` here is
@@ -1158,11 +1160,13 @@ export default function QuizBuilderPage() {
       const liveQuestions = validQuestionsForRound(round.round_type, (liveRow?.questions || round.questions) as Record<string, unknown>[]);
       const generatedQuestions = validQuestionsForRound(round.round_type, result.questions);
       const mergedQuestions = [...liveQuestions, ...generatedQuestions];
-      const { data: savedRow, error: saveError } = await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id).select("questions").single();
+      const finalTarget = brainTeaser && generatedQuestions.length ? Math.max(targetQuestionCount(round.round_type, cfg?.count || round.target_count), mergedQuestions.length) : null;
+      const { data: savedRow, error: saveError } = await supabase.from("quiz_rounds").update({ questions: mergedQuestions, ...(finalTarget ? { target_count: finalTarget } : {}) }).eq("id", round.id).select("questions").single();
       if (saveError) throw new Error("Could not save the generated questions: " + saveError.message);
       const persistedQuestions = (savedRow?.questions || mergedQuestions) as Record<string, unknown>[];
       const actualAdded = Math.max(0, persistedQuestions.length - liveQuestions.length);
-      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: persistedQuestions } : r) }));
+      setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: persistedQuestions, ...(finalTarget ? { target_count: finalTarget } : {}) } : r) }));
+      if (finalTarget && cfg) updateBulkConfig(round.id, { count: finalTarget });
       if (selected) void syncRoundToLibrary(round, persistedQuestions, selected.name);
       void addGeneratedQuestionsToLibrary(generatedQuestions, round.round_type, effectiveDifficulty);
       const shortfall = actualAdded < n;
@@ -1991,6 +1995,11 @@ export default function QuizBuilderPage() {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 0, marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
                   <div className="fbh-lbl" style={{ margin: 0 }}>{activeRound.round_type === "pairs" ? "Match Made · 6 tiles per question" : "Questions"}</div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {["regular", "bonus"].includes(activeRound.round_type) && (
+                      <HostButton onClick={() => generateMoreForRound(activeRound, 1, ["number"], true)} disabled={bulkRunning || generatingMoreId !== null || swappingKey !== null} title="Append one maths or logic puzzle as the last question. Uses this round's audience and difficulty, with an answer and worked explanation.">
+                        + Final Brain Teaser
+                      </HostButton>
+                    )}
                     {generatingMoreId === activeRound.id && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{generatingMoreStatus}</span>}
                     {generatingMoreId !== activeRound.id && lastGenerateMoreResult[activeRound.id] && <span style={{ font: "600 11px 'Inter'", color: "#B9A8D9" }}>{lastGenerateMoreResult[activeRound.id]}</span>}
                     {isGeneratable && (

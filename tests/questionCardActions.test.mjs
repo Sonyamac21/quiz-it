@@ -45,7 +45,7 @@ test("round-prep question card grows in normal flow on hover, but actions never 
 // explicit one-off type override that takes priority over the round's own
 // Include: Picture/Music default.
 test("round-prep add-questions panel offers a GENERATE tab with a type picker", () => {
-  assert.match(page, /async function generateMoreForRound\(round: QuizRound, requested: number, typeOverride\?: string\[\]\)/);
+  assert.match(page, /async function generateMoreForRound\(round: QuizRound, requested: number, typeOverride\?: string\[\], brainTeaser = false\)/);
   assert.match(page, /allowedQuestionTypes: typeOverride \?\? cfg\?\.allowedQuestionTypes/);
   assert.match(page, /"GENERATE", aiGenerateOpenId === activeRound\.id/);
   assert.match(page, /<select value=\{aiGenerateType\}/);

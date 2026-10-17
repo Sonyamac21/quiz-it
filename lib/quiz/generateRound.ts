@@ -124,6 +124,7 @@ export type RoundGenerationSpec = {
   // Picture and/or Music in a Bonus round, which the default bonus mix
   // deliberately excludes (see the roundType==="bonus" branch below).
   allowedQuestionTypes?: string[];
+  brainTeaser?: boolean;
 };
 
 export type RoundGenerationResult = {
@@ -207,7 +208,9 @@ export async function generateValidatedRound(
   };
 
   let types: string[];
-  if ((roundType === "bonus" || roundType === "regular") && spec.allowedQuestionTypes && spec.allowedQuestionTypes.length > 0) {
+  if (spec.brainTeaser) {
+    types = Array(count).fill("number");
+  } else if ((roundType === "bonus" || roundType === "regular") && spec.allowedQuestionTypes && spec.allowedQuestionTypes.length > 0) {
     // Host-picked type mix (e.g. "include Picture and Music in this Bonus
     // round") overrides the default fixed pool below. Cycled + shuffled the
     // same way every other fixed-pool branch here builds its array.
@@ -391,7 +394,7 @@ export async function generateValidatedRound(
     // duplicate/memory rejections in a row. Now also fires proactively on a
     // portion of candidates from the start.
     const proactiveObscure = Math.random() < 0.3;
-    return { type, candidateDifficulty, multiTapCorrectCount, context, topic, opts: { theme, difficulty: candidateDifficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure, multiTapCorrectCount, replacementFeedback, audience: spec.audience } };
+    return { type, candidateDifficulty, multiTapCorrectCount, context, topic, opts: { theme, brainTeaser: spec.brainTeaser, difficulty: candidateDifficulty, roundType, exclusions, forceObscure: consecutiveMemoryFailures >= 4 || proactiveObscure, multiTapCorrectCount, replacementFeedback, audience: spec.audience } };
   };
   const refillPipeline = () => {
     // Never pay for candidates beyond the remaining question slots.
@@ -401,7 +404,7 @@ export async function generateValidatedRound(
     if (Date.now() - generationStartedAt >= wallClockBudgetMs) return;
     const slots = Math.max(0, Math.min(3 - pending.length, count - good.length - pending.length, maxAttempts - attempts));
     const requests = Array.from({ length: slots }, launchCandidate);
-    const batchRequests = typeof canBatchDraft === "function" ? requests.filter(request => canBatchDraft({ ...request, difficulty: request.candidateDifficulty })) : [];
+    const batchRequests = !spec.brainTeaser && typeof canBatchDraft === "function" ? requests.filter(request => canBatchDraft({ ...request, difficulty: request.candidateDifficulty })) : [];
     const batch = batchRequests.length > 1
       ? generateDraftBatch(batchRequests.map(request => ({ type: request.type, topic: request.topic, difficulty: request.candidateDifficulty, multiTapCorrectCount: request.multiTapCorrectCount })), { theme, roundType, audience: spec.audience, exclusions, replacementFeedback })
       : null;

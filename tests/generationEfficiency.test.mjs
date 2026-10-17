@@ -14,7 +14,7 @@ function runner(rejectCount = 0, overrides = {}) {
     MAX_AI_CONCURRENCY: 8,
     loadUsedQuestions: async () => ({ used: [], usedAnswers: [], usedFingerprints: new Set(), rejectedFingerprints: new Set(), rejectedTexts: new Set() }),
     shuffle: x => [...x], genUid: () => String(calls),
-    GENERAL_TOPIC_BUCKETS: [['geography']], MUSIC_TOPICS: ['music'], PICTURE_TOPICS: ['animals'],
+    GENERAL_TOPIC_BUCKETS: [['geography']], FAMILY_TOPIC_BUCKETS: [['animals']], FAMILY_MUSIC_TOPICS: ['family songs'], MUSIC_TOPICS: ['music'], PICTURE_TOPICS: ['animals'],
     createGenerationContext: () => ({ error: '', report: { stages: {} } }),
     generateOne: async (type, topic, context, opts) => {
       feedback.push(opts.replacementFeedback);
@@ -109,6 +109,33 @@ test('general knowledge skips automatic current-news topics', async () => {
   const result = await r.run(2, 'adults', 'general knowledge');
   assert.equal(result.questions.length, 2);
   assert.ok(topics.every(topic => topic === 'world capitals'));
+});
+
+test('final brain teaser overrides media mix and carries puzzle instructions to generation', async () => {
+  const requests = [];
+  const r = runner(0, { generateOne: async (type, topic, context, opts) => {
+    requests.push({ type, opts });
+    return { question_text: 'A solved puzzle', question_type: type };
+  } });
+  const result = await r.runSpec({ count: 1, roundType: 'regular', difficulty: 'easy', audience: 'families', theme: 'maths and logic puzzles', brainTeaser: true, allowedQuestionTypes: ['picture', 'audio'] });
+  assert.equal(result.questions.length, 1);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].type, 'number');
+  assert.equal(requests[0].opts.brainTeaser, true);
+  assert.equal(requests[0].opts.audience, 'families');
+  assert.equal(requests[0].opts.difficulty, 'easy');
+});
+
+test('brain teaser prompt requests a unique numeric puzzle with worked solution within the API limit', async () => {
+  const r = validationRunner({ error: { message: 'test stops after capturing prompt' } });
+  await r.exports.generateOne('number', 'maths and logic puzzles', r.exports.createGenerationContext('number', true), {
+    theme: 'maths and logic puzzles', roundType: 'regular', difficulty: 'easy', audience: 'families', brainTeaser: true,
+    exclusions: { used: [], usedAnswers: [], rejectedTexts: new Set(), rejectedFingerprints: new Set(), usedFingerprints: new Set() },
+  });
+  assert.equal(r.requests.length, 1);
+  assert.match(r.requests[0].prompt, /FINAL BRAIN TEASER/);
+  assert.match(r.requests[0].prompt, /explanation must show the calculation/);
+  assert.ok(r.requests[0].prompt.length <= 12000);
 });
 
 test('failed combined validation fails closed without three extra paid requests', async () => {

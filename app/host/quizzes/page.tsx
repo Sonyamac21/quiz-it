@@ -2200,6 +2200,7 @@ export default function QuizBuilderPage() {
                     // the show, so surface it explicitly here.
                     const isAudio = qType === "audio";
                     const musicLookup = isAudio ? String(qr.option_a ?? "") : "";
+                    const musicReady = isAudio && roundMusicIsPrepped({ questions: [q] });
                     // Picture questions store the internal search query in
                     // option_a and the actual fetched image URL in option_b -
                     // neither is a real multiple-choice option, so both need
@@ -2449,11 +2450,14 @@ export default function QuizBuilderPage() {
                             <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2", lineHeight: 1.4 }}>
                               <strong style={{ color: "#6B5A8E" }}>{"⠿ "}{qi + 1}.</strong> {String(qr.question_text ?? "")}
                             </div>
-                            {isAudio && musicLookup && (
-                              <a href={`/host/music-prep?round=${encodeURIComponent(activeRound.id)}&quiz=${encodeURIComponent(selected.id)}&question=${qi}`} draggable={false} style={{ display: "block", textDecoration: "none", marginTop: 5, padding: "5px 7px", borderRadius: 7, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
-                                <div style={{ color: "#D94FDC", font: "700 9px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Prep this track →</div>
-                                <div style={{ color: "#fff", font: "600 11px 'Inter'", marginTop: 2 }}>{musicLookup}</div>
-                              </a>
+                            {isAudio && (
+                              <div style={{ marginTop: 5 }}>
+                                <a href={`/host/music-prep?round=${encodeURIComponent(activeRound.id)}&quiz=${encodeURIComponent(selected.id)}&question=${qi}`} draggable={false} style={{ display: "block", textDecoration: "none", padding: "5px 7px", borderRadius: 7, background: musicReady ? "rgba(46,224,110,0.1)" : "rgba(190,38,193,0.12)", border: `1px solid ${musicReady ? "rgba(46,224,110,0.4)" : "rgba(190,38,193,0.4)"}` }}>
+                                  <div style={{ color: musicReady ? "#2EE06E" : "#D94FDC", font: "700 9px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>{musicReady ? "✓ Music ready · Edit clip →" : "Prep this track →"}</div>
+                                  <div style={{ color: "#fff", font: "600 11px 'Inter'", marginTop: 2 }}>{musicLookup || "Music question"}</div>
+                                </a>
+                                {musicReady && <audio controls preload="none" src={getMediaUrl(String(qr.option_b)) ?? undefined} aria-label={`Saved clip for question ${qi + 1}`} style={{ width: "100%", height: 32, marginTop: 6 }} />}
+                              </div>
                             )}
                             {isPicture && (
                               <div style={{ marginTop: 5, padding: "5px 7px", borderRadius: 7, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>

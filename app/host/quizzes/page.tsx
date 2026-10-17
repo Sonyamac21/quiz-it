@@ -12,7 +12,7 @@ import { HostButton, HostEmpty, HostInput, HostLabel, HostLoading, HostShell, To
 import { useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
-import { roundMusicIsPrepped } from "@/lib/quiz/planStatus";
+import { getQuizPreflight, roundMusicIsPrepped } from "@/lib/quiz/planStatus";
 import { isPairRecord, isPairsQuestion, readPairs, readPairsQuestions, tilesForTeam, PAIRS_PER_ROUND, type PairRecord } from "@/lib/quiz/pairs";
 import { generationRejectionSummary, generationStatusIsIncomplete, eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "@/lib/quiz/prepRules";
 
@@ -426,6 +426,25 @@ export default function QuizBuilderPage() {
   // round - so a "stopped after 90s, got 0 of 8" explanation actually stays
   // readable instead of vanishing after a flat 4s (see generateMoreForRound).
   const [lastGenerateMoreResult, setLastGenerateMoreResult] = useState<Record<string, string>>({});
+  function roundReadiness(round: QuizRound) {
+    const configuredCount = bulkConfig[round.id]?.count;
+    const target = round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS
+      : round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS
+      : configuredCount && configuredCount > 0 ? configuredCount
+      : targetQuestionCount(round.round_type, round.target_count);
+    return getQuizPreflight({ quiz_rounds: [{ ...round, target_count: target }] });
+  }
+  function dismissGenerationWarnings() {
+    const ids = new Set(selected?.quiz_rounds.map(round => round.id) || []);
+    for (const id of ids) {
+      try {
+        localStorage.removeItem(roundGenStatusKey(id));
+        localStorage.removeItem(roundGenStatusKey(id) + "_time");
+      } catch { /* Dismiss for this visit even if storage is unavailable. */ }
+    }
+    setBulkProgress(prev => Object.fromEntries(Object.entries(prev).filter(([id]) => !ids.has(id))));
+    setLastGenerateMoreResult(prev => Object.fromEntries(Object.entries(prev).filter(([id]) => !ids.has(id))));
+  }
   // How many more questions to request per round, shown as a visible,
   // editable inline field next to "+ GENERATE WITH AI" (see
   // generateMoreForRound above for why this replaced a window.prompt()).
@@ -1582,7 +1601,7 @@ export default function QuizBuilderPage() {
           const activeIndex = selected.quiz_rounds.findIndex(r => r.id === activeRound.id);
           const isGeneratable = GENERATABLE_ROUND_TYPES.has(activeRound.round_type);
           const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: targetQuestionCount(activeRound.round_type, activeRound.target_count), theme: activeRound.theme ?? "", difficulty: activeRound.difficulty || "mixed" };
-          const progress = bulkProgress[activeRound.id] || lastGenerateMoreResult[activeRound.id] || readPersistedRoundGenStatus(activeRound.id);
+          const progress = roundReadiness(activeRound).ready ? "" : bulkProgress[activeRound.id] || lastGenerateMoreResult[activeRound.id] || readPersistedRoundGenStatus(activeRound.id);
           const settingsOpen = settingsOpenRoundId === activeRound.id;
           const addQuestionOpen = addQuestionOpenId === activeRound.id;
           // Host request: "+ FROM LIBRARY" / "+ RANDOM FROM LIBRARY" / "+ ADD
@@ -1646,14 +1665,8 @@ export default function QuizBuilderPage() {
                 {selected.quiz_rounds.map((round, index) => {
                   const isRoundGeneratable = GENERATABLE_ROUND_TYPES.has(round.round_type);
                   const roundCfg = bulkConfig[round.id];
-                  // Falls back to whatever was last persisted to
-                  // localStorage (see persistRoundGenStatus above) once this
-                  // tab's own in-memory bulkProgress/lastGenerateMoreResult
-                  // has nothing for this round - e.g. after a reload, or
-                  // when it was the per-round "+GENERATE WITH AI" button
-                  // (which never touches bulkProgress at all) that produced
-                  // the last outcome.
-                  const roundProgress = bulkProgress[round.id] || lastGenerateMoreResult[round.id] || readPersistedRoundGenStatus(round.id);
+                  // Readiness follows current saved/edited content, never an old AI outcome.
+                  const readiness = roundReadiness(round);
                   // A tab is a drop target either for a dragged QUESTION (moving it into
                   // a different round) or for a dragged ROUND tab itself (reordering the
                   // rounds) - the two never happen at the same time, so they share the
@@ -1743,23 +1756,17 @@ export default function QuizBuilderPage() {
                           <span className="qi-text-xs" style={{ color: short ? "#FFC533" : "#6B5A8E", fontFamily: "'Inter'", fontWeight: 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "0 1 auto" }} title={short ? "Below its target question count - use Generate More or +GENERATE WITH AI to top it up" : undefined}>{countText}</span>
                         );
                       })()}
-                      {/* Both of these used to be their own full text line(s)
-                          (a 2-line generation-progress message, a "MUSIC NOT
-                          PREPPED" warning line) - collapsed to a small
-                          clickable dot / icon next to the question count so
-                          they never add height, while a click on the dot
-                          still surfaces the full message via toast like
-                          before. */}
-                      {roundProgress && (() => {
-                        const failed = generationStatusIsIncomplete(roundProgress);
+                      {/* Show current readiness; clicking explains any remaining repairs. */}
+                      {isRoundGeneratable && (() => {
+                        const status = readiness.ready ? "Ready" : readiness.blockers.map(issue => issue.message).join("\n");
                         return (
                           <button
                             type="button"
-                            aria-label={`${round.name}: ${roundProgress}`}
-                            onClick={e => { e.stopPropagation(); showToast(roundProgress, failed ? "error" : "info", 15000); }}
-                            title={failed ? "Generation failed - tap for details" : roundProgress}
-                            style={{ flex: "none", padding: 0, border: 0, background: "none", cursor: "pointer", width: 8, height: 8, borderRadius: "50%", backgroundColor: failed ? "#FF667A" : "#2EE06E" }}
-                          />
+                            aria-label={`${round.name}: ${status}`}
+                            onClick={e => { e.stopPropagation(); showToast(status, readiness.ready ? "info" : "error", 15000); }}
+                            title={status}
+                            style={{ flex: "none", padding: "2px 6px", border: 0, cursor: "pointer", borderRadius: 6, background: readiness.ready ? "rgba(46,224,110,0.12)" : "rgba(255,197,51,0.12)", color: readiness.ready ? "#2EE06E" : "#FFC533", font: "600 11px 'Inter'" }}
+                          >{readiness.ready ? "Ready" : "Needs attention"}</button>
                         );
                       })()}
                       {round.questions.some(q => (q as Record<string, unknown>).question_type === "audio") && !roundMusicIsPrepped(round) && (
@@ -1794,12 +1801,15 @@ export default function QuizBuilderPage() {
                 );
               })()}
 
-              {selected.quiz_rounds.some(round => generationStatusIsIncomplete(bulkProgress[round.id] || lastGenerateMoreResult[round.id] || readPersistedRoundGenStatus(round.id))) && (
+              {selected.quiz_rounds.some(round => !roundReadiness(round).ready && generationStatusIsIncomplete(bulkProgress[round.id] || lastGenerateMoreResult[round.id] || readPersistedRoundGenStatus(round.id))) && (
                 <div role="alert" style={{ display: "grid", gap: 8, marginBottom: 12, padding: 14, borderRadius: 12, border: "1px solid #A92E4B", background: "rgba(169,46,75,0.14)" }}>
-                  <strong style={{ color: "#FF8A9A", font: "700 14px 'Inter'" }}>Some rounds could not be generated</strong>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                    <strong style={{ color: "#FF8A9A", font: "700 14px 'Inter'" }}>Previous generation warnings</strong>
+                    <button type="button" onClick={dismissGenerationWarnings} disabled={bulkRunning || generatingMoreId !== null} style={{ flexShrink: 0, padding: "6px 10px", borderRadius: 8, border: "1px solid #A92E4B", background: "transparent", color: "#F4DDE3", cursor: "pointer" }}>Dismiss warnings</button>
+                  </div>
                   {selected.quiz_rounds.map((round, index) => {
                     const message = bulkProgress[round.id] || lastGenerateMoreResult[round.id] || readPersistedRoundGenStatus(round.id);
-                    if (!generationStatusIsIncomplete(message)) return null;
+                    if (roundReadiness(round).ready || !generationStatusIsIncomplete(message)) return null;
                     return (
                       <div key={round.id} style={{ color: "#F4DDE3", font: "400 13px/1.5 'Inter'", overflowWrap: "anywhere", whiteSpace: "pre-line" }}>
                         <strong>{index + 1}. {round.name}:</strong> {message}

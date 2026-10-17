@@ -1246,9 +1246,25 @@ export default function QuizBuilderPage() {
   const didAutoSelectRef = useRef(false);
   useEffect(() => {
     if (loading || selectedId || guidedIntent || didAutoSelectRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const linkedQuiz = quizzes.find(q => q.id === params.get("quiz"));
+    if (linkedQuiz) {
+      didAutoSelectRef.current = true;
+      setSelectedId(linkedQuiz.id);
+      setActiveRoundId(linkedQuiz.quiz_rounds.find(r => r.id === params.get("round"))?.id || null);
+      return;
+    }
     const mostRecent = quizzes.find(q => !q.archived);
     if (mostRecent) { didAutoSelectRef.current = true; setSelectedId(mostRecent.id); }
   }, [loading, quizzes, selectedId, guidedIntent]);
+  const restoredQuestionRef = useRef(false);
+  useEffect(() => {
+    if (restoredQuestionRef.current || !selectedId || !activeRoundId) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("quiz") !== selectedId || params.get("round") !== activeRoundId) return;
+    const card = document.getElementById(`quiz-question-${activeRoundId}-${params.get("question")}`);
+    if (card) { card.scrollIntoView({ block: "center" }); restoredQuestionRef.current = true; }
+  }, [selectedId, activeRoundId, quizzes]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -2204,6 +2220,7 @@ export default function QuizBuilderPage() {
                     return (
                       <div
                         key={qi}
+                        id={`quiz-question-${activeRound.id}-${qi}`}
                         draggable={!isEditing}
                         onDragStart={() => { setDraggedQuestionIndex(qi); setDraggedQuestionSource({ roundId: activeRound.id, index: qi }); }}
                         onDragOver={e => { e.preventDefault(); if (dragOverQuestionIndex !== qi) setDragOverQuestionIndex(qi); }}
@@ -2433,10 +2450,10 @@ export default function QuizBuilderPage() {
                               <strong style={{ color: "#6B5A8E" }}>{"⠿ "}{qi + 1}.</strong> {String(qr.question_text ?? "")}
                             </div>
                             {isAudio && musicLookup && (
-                              <div style={{ marginTop: 5, padding: "5px 7px", borderRadius: 7, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
-                                <div style={{ color: "#D94FDC", font: "700 9px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Search to find this track</div>
+                              <a href={`/host/music-prep?round=${encodeURIComponent(activeRound.id)}&quiz=${encodeURIComponent(selected.id)}&question=${qi}`} draggable={false} style={{ display: "block", textDecoration: "none", marginTop: 5, padding: "5px 7px", borderRadius: 7, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>
+                                <div style={{ color: "#D94FDC", font: "700 9px 'Inter'", textTransform: "uppercase", letterSpacing: ".06em" }}>Prep this track →</div>
                                 <div style={{ color: "#fff", font: "600 11px 'Inter'", marginTop: 2 }}>{musicLookup}</div>
-                              </div>
+                              </a>
                             )}
                             {isPicture && (
                               <div style={{ marginTop: 5, padding: "5px 7px", borderRadius: 7, background: "rgba(190,38,193,0.12)", border: "1px solid rgba(190,38,193,0.4)" }}>

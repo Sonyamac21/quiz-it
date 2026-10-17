@@ -234,6 +234,15 @@ export default function MusicPrepPage() {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
   const [openRound, setOpenRound] = useState<Round | null>(null);
+  const [returnToQuestion, setReturnToQuestion] = useState<string | null>(null);
+  const focusedQuestionRef = useRef(false);
+  useEffect(() => {
+    if (!openRound || focusedQuestionRef.current) return;
+    const index = new URLSearchParams(window.location.search).get("question");
+    if (index === null) return;
+    const card = document.getElementById(`music-question-${index}`);
+    if (card) { card.scrollIntoView({ block: "center" }); focusedQuestionRef.current = true; }
+  }, [openRound]);
   const [questionStates, setQuestionStates] = useState<Record<number, QuestionState>>({});
   const [status, setStatus] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -292,7 +301,15 @@ export default function MusicPrepPage() {
       const roundId = new URLSearchParams(window.location.search).get("round");
       if (roundId) {
         const match = merged.find(r => r.id === roundId);
-        if (match) openForPrep(match);
+        if (match) {
+          const params = new URLSearchParams(window.location.search);
+          const question = params.get("question");
+          const quiz = params.get("quiz");
+          if (quiz && question !== null && /^\d+$/.test(question) && match.questions[Number(question)]?.question_type === "audio") {
+            setReturnToQuestion(`/host/quizzes?quiz=${encodeURIComponent(quiz)}&round=${encodeURIComponent(roundId)}&question=${question}#quiz-question-${roundId}-${question}`);
+          }
+          openForPrep(match);
+        }
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -310,6 +327,9 @@ export default function MusicPrepPage() {
     setOpenRound(round);
     const initial: Record<number, QuestionState> = {};
     round.questions.forEach((q, i) => {
+      const params = new URLSearchParams(window.location.search);
+      const focused = params.get("round") === round.id ? params.get("question") : null;
+      if (focused !== null && /^\d+$/.test(focused) && round.questions[Number(focused)]?.question_type === "audio" && i !== Number(focused)) return;
       if (q.question_type !== "audio") return;
       const hasSavedClip = q.option_b && q.option_b.includes("blob.vercel-storage.com");
       initial[i] = {
@@ -581,6 +601,7 @@ export default function MusicPrepPage() {
             survives, since that's real in-page navigation, not global nav. */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
           <span style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>Deezer · Auto-search · Waveform trim</span>
+          {returnToQuestion && <a className="fbh-btn" href={returnToQuestion}>← Return to question in Quiz Prep</a>}
           {openRound && <HostButton onClick={() => setOpenRound(null)}>← All Rounds</HostButton>}
         </div>
 
@@ -636,7 +657,7 @@ export default function MusicPrepPage() {
         {openRound && audioQuestions.map(({ q, i }, n) => {
           const qs = questionStates[i] || { phase: "idle", candidates: [], error: "", manualQuery: cleanSearchSeed(q.option_a) || q.correct_answer || "" };
           return (
-            <div key={i} className="fbh-panel" style={{ border: `1px solid ${qs.phase === "done" ? "rgba(46,224,110,0.4)" : "#2E1A52"}` }}>
+            <div key={i} id={`music-question-${i}`} className="fbh-panel" style={{ scrollMarginTop: 160, border: `1px solid ${qs.phase === "done" ? "rgba(46,224,110,0.4)" : "#2E1A52"}` }}>
               {/* Question header */}
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 220 }}>
@@ -648,6 +669,7 @@ export default function MusicPrepPage() {
                   <p style={{ font: "600 13px 'Inter'", color: "#2EE06E", margin: 0 }}>Answer: {q.correct_answer}</p>
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {returnToQuestion && <a className="fbh-btn" href={returnToQuestion} style={{ fontSize: 11 }}>← Return to Quiz Prep</a>}
                   <HostButton
                     onClick={() => regenerateQuestion(openRound, i)}
                     disabled={regeneratingIdx === i}

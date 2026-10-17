@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { rankMusicResults } from "@/lib/media/musicSearch";
 
 export const runtime = "nodejs";
 
-// Deezer's public search API blocks plenty of datacenter/serverless IP
-// ranges (Vercel included) with a flat 403 - it's built for their own
-// client apps, not server-to-server calls, and this happens consistently
-// in production even though it can work fine from a residential IP when
-// testing locally. A convincing browser User-Agent fixes it for some IPs
-// but not reliably all of them, so this route now tries Deezer first (it's
-// still the best match quality when it works) and, if that fails for any
-// reason, automatically falls back to Apple's iTunes Search API - no key
-// required, very reliable from server IPs, and also returns a 30-second
-// preview MP3 URL in the same shape the rest of Music Prep already expects.
+// Search both catalogues: a nonempty list of covers from one provider must
+// not prevent finding the original recording on the other. Either may fail
+// independently; both return the preview shape used by Music Prep.
 type Candidate = {
   id: string | number;
   title: string;
@@ -26,8 +20,9 @@ type Candidate = {
 
 async function searchDeezer(q: string): Promise<Candidate[] | null> {
   try {
-    const url = `https://api.deezer.com/search?q=${encodeURIComponent(q)}&limit=5&order=RANKING`;
+    const url = `https://api.deezer.com/search?q=${encodeURIComponent(q)}&limit=25&order=RANKING`;
     const res = await fetch(url, {
+      signal: AbortSignal.timeout(8000),
       headers: {
         "Accept": "application/json",
         // A bare server-side request with no User-Agent/Referer is what
@@ -42,7 +37,6 @@ async function searchDeezer(q: string): Promise<Candidate[] | null> {
     if (!data.data || data.data.length === 0) return [];
     return data.data
       .filter((t: Record<string, unknown>) => t.preview)
-      .slice(0, 3)
       .map((t: Record<string, unknown>) => {
         const artist = t.artist as Record<string, unknown>;
         const album = t.album as Record<string, unknown>;
@@ -65,14 +59,13 @@ async function searchDeezer(q: string): Promise<Candidate[] | null> {
 
 async function searchItunes(q: string): Promise<Candidate[] | null> {
   try {
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=5`;
-    const res = await fetch(url, { next: { revalidate: 0 } });
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q.replace(/\s+[-–—]\s+/g, " "))}&media=music&entity=song&limit=25`;
+    const res = await fetch(url, { next: { revalidate: 0 }, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const data = await res.json();
     const results = (data.results || []) as Record<string, unknown>[];
     return results
       .filter(t => t.previewUrl)
-      .slice(0, 3)
       .map(t => {
         const durationMs = (t.trackTimeMillis as number) || 0;
         const durationSeconds = Math.round(durationMs / 1000);
@@ -99,15 +92,9 @@ export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q");
   if (!q) return NextResponse.json({ error: "Missing q parameter" }, { status: 400 });
 
-  const deezerResult = await searchDeezer(q);
-  if (deezerResult && deezerResult.length > 0) {
-    return NextResponse.json({ candidates: deezerResult, source: "deezer" });
-  }
-
-  const itunesResult = await searchItunes(q);
-  if (itunesResult && itunesResult.length > 0) {
-    return NextResponse.json({ candidates: itunesResult, source: "itunes" });
-  }
+  const [deezerResult, itunesResult] = await Promise.all([searchDeezer(q), searchItunes(q)]);
+  const candidates = rankMusicResults(q, [...(deezerResult || []), ...(itunesResult || [])]).slice(0, 20);
+  if (candidates.length) return NextResponse.json({ candidates, source: "deezer-and-itunes" });
 
   // Both providers came back empty/failing - deezerResult === null means
   // Deezer itself errored (e.g. the 403), so say so explicitly rather than

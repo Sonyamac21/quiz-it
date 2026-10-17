@@ -614,7 +614,7 @@ export default function MusicPrepPage() {
             Only the genuinely page-specific "back to the round list" control
             survives, since that's real in-page navigation, not global nav. */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
-          <span style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>Deezer · Auto-search · Waveform trim</span>
+          <span style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>Deezer &amp; iTunes · Search and trim clips</span>
           {returnToQuestion && <a className="fbh-btn" href={returnToQuestion}>← Return to question in Quiz Prep</a>}
           {openRound && <HostButton onClick={() => setOpenRound(null)}>← All Rounds</HostButton>}
         </div>
@@ -725,7 +725,7 @@ export default function MusicPrepPage() {
               {(qs.phase === "idle" || qs.phase === "searching") && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#B9A8D9", font: "400 13px 'Inter'" }}>
                   <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid rgba(190,38,193,0.4)", borderTopColor: purple, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                  Searching Deezer for &ldquo;{cleanSearchSeed(q.option_a) || q.correct_answer}&rdquo;…
+                  Searching music catalogues for &ldquo;{qs.manualQuery || cleanSearchSeed(q.option_a) || q.correct_answer}&rdquo;…
                 </div>
               )}
 
@@ -763,14 +763,16 @@ export default function MusicPrepPage() {
                       link re-ran that identical query and was guaranteed to
                       fail the same way every time - this box lets the host
                       type an actual track title/artist combo instead. */}
+                  <p style={{ color: "#B9A8D9", fontSize: 12 }}>Wrong version? Edit the title and artist below, then search both catalogues.</p>
                   <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                     <input
+                      aria-label="Track title and artist"
                       value={qs.manualQuery}
                       onChange={e => setState(i, { manualQuery: e.target.value })}
                       onKeyDown={e => { if (e.key === "Enter" && qs.manualQuery.trim()) searchForQuestion(openRound, i, qs.manualQuery); }}
-                      placeholder="Search Deezer manually, e.g. Bitter Sweet Symphony The Verve"
+                      placeholder="Track title - Artist, e.g. Too Sweet - Hozier"
                       className="fbh-input"
-                      style={{ flex: 1, minHeight: 32, height: 32, padding: "0 10px", fontSize: 12 }}
+                      style={{ flex: 1, minWidth: 0, minHeight: 40, padding: "0 10px", fontSize: 13, border: "1px solid #6B5A8E", borderRadius: 8, background: "#0A0118", color: "#fff" }}
                     />
                     <HostButton
                       onClick={() => qs.manualQuery.trim() && searchForQuestion(openRound, i, qs.manualQuery)}

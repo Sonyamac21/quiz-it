@@ -28,8 +28,32 @@ function runner(rejectCount = 0, overrides = {}) {
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
     exports, require: () => core, console,
   });
-  return { runAll: (specs, onComplete) => exports.generateAllRounds(specs, undefined, onComplete), run: (count, audience, theme = '') => exports.generateValidatedRound({ count, audience, roundType: 'regular', difficulty: 'medium', theme, allowedQuestionTypes: ['number'] }, {}), calls: () => calls, feedback };
+  return { runSpec: spec => exports.generateValidatedRound(spec, {}), runAll: (specs, onComplete) => exports.generateAllRounds(specs, undefined, onComplete), run: (count, audience, theme = '') => exports.generateValidatedRound({ count, audience, roundType: 'regular', difficulty: 'medium', theme, allowedQuestionTypes: ['number'] }, {}), calls: () => calls, feedback };
 }
+
+test('optional failed media slots become playable questions without extra retry budget', async () => {
+  const topics = [];
+  const r = runner(0, {
+    generateOne: async (type, topic, context) => {
+      topics.push(topic);
+      if (type === 'picture' || type === 'audio') { context.error = 'No matching media'; return null; }
+      return { question_text: `Fresh fact ${topics.length}`, question_type: type };
+    },
+  });
+  const result = await r.runSpec({ count: 15, roundType: 'regular', difficulty: 'easy', theme: 'general knowledge', allowedQuestionTypes: ['picture', 'audio', 'multiple_choice'] });
+  assert.equal(result.questions.length, 15);
+  assert.equal(result.stoppedEarly, false);
+  assert.ok(topics.length <= 45);
+  assert.ok(topics.includes('geography'));
+  assert.ok(!topics.includes('general knowledge'));
+});
+
+test('a picture-only request never silently changes format', async () => {
+  const r = runner(0, { generateOne: async (type, topic, context) => { context.error = 'No matching media'; return null; } });
+  const result = await r.runSpec({ count: 2, roundType: 'regular', difficulty: 'easy', theme: '', allowedQuestionTypes: ['picture'] });
+  assert.equal(result.questions.length, 0);
+  assert.equal(result.stoppedEarly, true);
+});
 
 test('successful rounds and single-question top-ups never launch surplus candidates', async () => {
   for (const count of [0, 1, 2, 10, 15]) {

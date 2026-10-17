@@ -313,6 +313,9 @@ export async function generateValidatedRound(
   types.forEach(t => { targetCounts[t] = (targetCounts[t] || 0) + 1; });
   const acceptedCounts: Record<string, number> = {};
   const inFlightCounts: Record<string, number> = {};
+  const failedTypeCounts: Record<string, number> = {};
+  const canReplaceFormat = (roundType === "regular" || roundType === "bonus")
+    && (!spec.allowedQuestionTypes?.length || spec.allowedQuestionTypes.includes("multiple_choice"));
   const difficultyPlan = difficulty === "mixed" ? allocateMixedDifficulties(count) : Array(count).fill(difficulty);
   const difficultyTargets: Record<string, number> = {};
   difficultyPlan.forEach(level => { difficultyTargets[level] = (difficultyTargets[level] || 0) + 1; });
@@ -334,6 +337,13 @@ export async function generateValidatedRound(
     }
     if (!best) {
       best = Object.keys(targetCounts).reduce((a, b) => (acceptedCounts[a] || 0) <= (acceptedCounts[b] || 0) ? a : b);
+    }
+    // Optional media and one-word formats must not strand an otherwise usable
+    // round. Keep the total target and spend ceiling; replace only failed slots.
+    if (canReplaceFormat && ["picture", "audio", "text_answer"].includes(best) && (failedTypeCounts[best] || 0) >= 2) {
+      targetCounts[best]--;
+      targetCounts.multiple_choice = (targetCounts.multiple_choice || 0) + 1;
+      return "multiple_choice";
     }
     return best;
   };
@@ -365,7 +375,8 @@ export async function generateValidatedRound(
     const type = pickNextType();
     const candidateDifficulty = pickNextDifficulty();
     const multiTapCorrectCount = pickNextMultiTapCount();
-    const topic = theme || (
+    const broadTheme = /^(?:general(?: knowledge)?|mixed(?: general knowledge)?|trivia)$/i.test(theme.trim());
+    const topic = (!broadTheme && theme) || (
       type === "audio" ? shuffledMusicTopics[launchIndex % shuffledMusicTopics.length]
       : type === "picture" ? pickPictureTopic(launchIndex)
       : pickGeneralTopic(launchIndex)
@@ -421,6 +432,7 @@ export async function generateValidatedRound(
     inFlightDifficultyCounts[candidateDifficulty] = Math.max(0, (inFlightDifficultyCounts[candidateDifficulty] || 0) - 1);
     if (multiTapCorrectCount) inFlightMultiTapCounts[multiTapCorrectCount] = Math.max(0, (inFlightMultiTapCounts[multiTapCorrectCount] || 0) - 1);
     if (!q) {
+      failedTypeCounts[type] = (failedTypeCounts[type] || 0) + 1;
       reportGeneratedFailure(context, type);
       replacementFeedback = context.error.slice(0, 400);
       consecutiveFailures++;
@@ -512,7 +524,8 @@ export async function generateValidatedRound(
         return { spec, questions: good, report, finalStatus, stoppedEarly: true };
       }
       blacklistRejected(exclusions, q);
-      replacementFeedback = `${validation.category}: ${validation.reason}`.slice(0, 400);
+      failedTypeCounts[type] = (failedTypeCounts[type] || 0) + 1;
+      replacementFeedback = `Replace this subject and fact: ${q.question_text} Answer: ${q.correct_answer}. ${validation.category}: ${validation.reason}`.slice(0, 600);
       addReportEntry({ outcome: "rejected", questionText: q.question_text, questionType: q.question_type, category: validation.category, reason: validation.reason, stages: validation.stages });
       consecutiveCheckFailures++;
       totalCheckFailures++;

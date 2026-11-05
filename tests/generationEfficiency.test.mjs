@@ -95,6 +95,31 @@ function validationRunner(response) {
 }
 const candidate = { question_type: 'number', question_text: 'How many sides does a triangle have?', correct_answer: '3' };
 
+test('Multi Tap accepts numbered select-all stems without allowing single-answer or duplicate options', () => {
+  const { multiTapSuitabilityError } = validationRunner({}).exports;
+  const q = { question_type: 'multi_tap', option_a: 'Alpha', option_b: 'Bravo', option_c: 'Charlie', option_d: 'Delta', option_e: 'Echo', option_f: 'Foxtrot', correct_answer: 'a,b' };
+  for (const prefix of ['Which of these', 'Which two of these', 'Which three of the following', 'Which five of these', 'Which 6 of these', 'Select all']) {
+    assert.equal(multiTapSuitabilityError({ ...q, question_text: `${prefix} belong to this category?` }), null);
+  }
+  assert.match(multiTapSuitabilityError({ ...q, question_text: 'Who invented this?' }), /select-all/);
+  assert.match(multiTapSuitabilityError({ ...q, question_text: 'Which of these are correct?', correct_answer: 'a' }), /at least two/);
+  assert.match(multiTapSuitabilityError({ ...q, question_text: 'Which of these are correct?', option_f: 'Alpha' }), /distinct/);
+});
+
+test('a rejected optional numeric slot is replaced, but a brain teaser stays numeric', async () => {
+  for (const brainTeaser of [false, true]) {
+    const types = [];
+    const r = runner(0, { generateOne: async (type, topic, context) => {
+      types.push(type);
+      if (type === 'number') { context.error = 'Disputed date'; return null; }
+      return { question_type: type, question_text: `Fresh fact ${types.length}` };
+    } });
+    const result = await r.runSpec({ count: 2, roundType: 'regular', difficulty: 'medium', theme: '', brainTeaser, allowedQuestionTypes: ['number', 'multiple_choice'] });
+    assert.equal(result.questions.length, brainTeaser ? 0 : 2);
+    if (brainTeaser) assert.ok(types.every(type => type === 'number'));
+  }
+});
+
 test('single-word countries and companies are not mistaken for partial person names', () => {
   const { partialNameAnswerError } = validationRunner({}).exports;
   assert.equal(partialNameAnswerError({ question_text: 'Which island nation has Kingston as its capital?', correct_answer: 'Jamaica' }), null);

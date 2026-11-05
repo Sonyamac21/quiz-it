@@ -93,11 +93,12 @@ export type Question = {
 export function multiTapSuitabilityError(q: Pick<Question, "question_text" | "question_type" | "option_a" | "option_b" | "option_c" | "option_d" | "option_e" | "option_f" | "correct_answer">): string | null {
   if (q.question_type !== "multi_tap") return "Question type is not multi_tap";
   const stem = (q.question_text || "").trim().toLowerCase();
-  if (!/^(which of (these|the following)|select all|select each|tap all)/.test(stem)) {
+  if (!/^(?:which(?:\s+(?:two|three|four|five|six|[2-6]))?\s+of\s+(?:these|the following)|select\s+(?:all|each)|tap\s+all)\b/.test(stem)) {
     return "Multi Tap must be a genuine select-all category question";
   }
   const options = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e, q.option_f];
   if (options.some(option => typeof option !== "string" || !option.trim())) return "Multi Tap requires all six options";
+  if (new Set(options.map(option => option!.trim().toLowerCase())).size !== 6) return "Multi Tap requires six distinct options";
   const letters = (q.correct_answer || "").split(",").map(letter => letter.trim().toLowerCase()).filter(Boolean);
   const uniqueLetters = new Set(letters);
   if (uniqueLetters.size < 2) return "Multi Tap requires at least two correct answers";
@@ -263,8 +264,8 @@ export const REQUIRED_REGULAR_TYPES = ["multiple_choice", "text_answer", "number
 
 export const VARIETY_ANGLES = [
   "from the 1960s or 1970s", "from the 1980s", "from the 1990s", "from the 2000s", "from the 2010s or later",
-  "that's a deeper cut, not the most obvious example", "with a British/UK angle", "with a US angle",
-  "that's slightly more obscure but still well-known", "involving a lesser-discussed fact about the topic",
+  "about a different familiar subject", "with a British/UK angle", "with a US angle",
+  "using a clear, widely established fact", "involving everyday knowledge about the topic",
   "from a different decade than you'd first think of", "that most people would NOT guess first",
   "with an Asia, Africa or Middle East angle", "with a continental European angle", "from the Southern Hemisphere",
 ];
@@ -791,7 +792,7 @@ Previous problem to avoid: ${opts.replacementFeedback || "none"}.
 Type rules:
 multiple_choice: four plausible options a-d; exactly one correct; answer is its letter.
 text_answer: exactly one word as answer; choose a natural question that fits this restriction. Ask explicitly for a first name or surname when that is the expected answer.
-number/nearest_wins: a precise verified numeric string; all options null. Name the subject and units explicitly. No uncertain estimates or rounding hints.
+number/nearest_wins: a precise verified numeric string; all options null. Name the subject and units explicitly. Prefer stable counts, measures or simple calculations. Never use disputed destruction/invention dates, ancient origins, uncertain estimates or rounding hints.
 multi_tap: a genuine set-membership question, six plausible options a-f, exactly the slot's multiTapCorrectCount correct answers; answer is comma-separated correct letters. Each option must independently satisfy or fail the stated criterion. No single-answer trivia padded with decoys.
 sequence: four items in their true order in a-d; answer a,b,c,d; name the ordering rule but do not repeat the items in the question. For easy/family questions use simple numeric ordering, familiar sizes or an explicitly stated everyday process, with no ties. Never ask children for invention dates or speculative historical origins.
 For a family audience use familiar main characters, animals, everyday facts and simple comparisons. Easy must be answerable by children. Never force an obscure numeric question to satisfy a slot.
@@ -845,7 +846,7 @@ export async function generateOne(
   const permanentExclusionNote = " Never generate a question about any of these overused facts, worded any way: " + PERMANENT_EXCLUDED_FACTS.join("; ") + ".";
   const RECENCY_SIGNAL = /\bnews\b|current affairs|pop culture|\brecent\b|trending|this year|last year|chart hits|latest hits|new release/i;
   const isRecencyTopic = RECENCY_SIGNAL.test(topic);
-  const angle = opts.audience === "families" ? "a familiar, recognisable fact children can answer; never a deeper cut" : forceObscure ? "a deeper cut, not the most obvious example - genuinely less commonly asked, while still fair and answerable by a general pub-quiz crowd" : VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
+  const angle = opts.audience === "families" ? "a familiar, recognisable fact children can answer; never a deeper cut" : forceObscure ? "a different familiar subject with an established, unambiguous fact; do not increase obscurity or difficulty to avoid repeats" : VARIETY_ANGLES[Math.floor(Math.random() * VARIETY_ANGLES.length)];
   const varietyNote = opts.audience === "families"
     ? "IMPORTANT: Use familiar main characters, obvious traits and everyday facts children recognise. Vary the work or subject instead of making the facts more obscure. For music choose familiar family-film songs or clean singalongs. Keep number questions to obvious small counts, never obscure timelines or release dates."
     : type === "audio"
@@ -853,6 +854,7 @@ export async function generateOne(
     : " IMPORTANT - avoid defaulting to the single most famous, first-thought-of example for this topic (e.g. for 'Disney songs' don't always pick Let It Go or Circle of Life). Where possible, lean toward something " + angle + ". Vary your answer choices across different eras, genres, and sub-topics rather than the most obvious pick. " +
       "ALSO vary the QUESTION SENTENCE STRUCTURE itself, not just the topic and answer - do not default to the generic 'Which [brand/company]'s [logo/mascot/product] is/features/has [X]?' template. Mix in different natural phrasings appropriate to the fact: who/what/where/when/how questions, 'In [film/show], who/what...', 'What is the name of...', 'How many...', direct trivia phrasing, etc. Two consecutive questions in the same round should not read like the same template with the nouns swapped.";
   const prompt = `You are writing questions for a live social quiz.
+For numeric trivia prefer established counts, measures and simple calculations. Never ask for disputed ancient origins, invention dates or a single date for events that unfolded over centuries.
 ${opts.brainTeaser ? "FINAL BRAIN TEASER: Write a self-contained maths or logic puzzle with one uniquely determined numeric answer. Players should reason for 60–90 seconds, rather than recall trivia. Use clear everyday language, all necessary quantities and constraints, no pictures, music, specialist knowledge, trick wording, or ambiguous number-sequence patterns. Match the requested difficulty and audience; family/easy puzzles use small whole numbers and simple reasoning. Vary the puzzle structure; avoid the overused bat-and-ball puzzle. Independently solve it twice before returning it. correct_answer must contain only the number, and explanation must show the calculation and why it is unique. Keep the question short enough to read aloud. This puzzle instruction overrides ordinary topic/variety directions below." : ""}
 ${type === "sequence" && (opts.audience === "families" || difficulty === "easy") ? "EASY SEQUENCE: Use four clearly distinct quantities, familiar sizes, or steps in an explicitly specified everyday process. Every item must have a different position with no ties. Never use invention dates, first historical appearances, disputed origins or obscure chronology. These easy-sequence rules override the topic/variety suggestions." : ""}
 ${audienceBrief(opts.audience)}

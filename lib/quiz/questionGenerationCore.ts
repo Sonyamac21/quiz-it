@@ -63,6 +63,7 @@ export const FAMILY_MUSIC_TOPICS = ["well-known songs from family animated films
 export type Question = {
   id?: number;
   _uid?: string;
+  brain_teaser?: boolean;
   // Transient, never persisted as a real column (this whole object round-trips
   // through a jsonb column, so extra keys are harmless): set when this
   // question was generated from a recency/news topic, and - if a search
@@ -1114,6 +1115,7 @@ Return ONLY a valid JSON array with 1 item, no markdown:
       return null;
     }
     q._uid = genUid();
+    if (opts.brainTeaser) q.brain_teaser = true;
     return q;
   } catch (e) {
     context.error = e instanceof Error ? e.message : "Unknown error";

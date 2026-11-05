@@ -13,6 +13,7 @@ import { useConfirmDialog, useToastQueue } from "@/components/ui/quiz-it-ui";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { getQuizPreflight, roundMusicIsPrepped } from "@/lib/quiz/planStatus";
+import { makeFinalBrainTeaser } from "@/lib/quiz/brainTeaser";
 import { isPairRecord, isPairsQuestion, readPairs, readPairsQuestions, tilesForTeam, PAIRS_PER_ROUND, type PairRecord } from "@/lib/quiz/pairs";
 import { generationRejectionSummary, generationStatusIsIncomplete, eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "@/lib/quiz/prepRules";
 
@@ -861,6 +862,22 @@ export default function QuizBuilderPage() {
       max_time_bonus: round.max_time_bonus,
     }, { onConflict: "synced_from_quiz_round_id" });
   }
+  async function finishWithBrainTeaser(round: QuizRound, index: number) {
+    const supabase = createSupabaseBrowserClient();
+    const { data, error } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
+    if (error) { showToast("Could not load the latest round.", "error"); return; }
+    const live = data.questions as Record<string, unknown>[];
+    const chosen = round.questions[index];
+    const liveIndex = live.findIndex(question => questionIdentityKey(question) === questionIdentityKey(chosen));
+    if (liveIndex < 0) { showToast("This question changed. Reload the round and try again.", "error"); return; }
+    const questions = makeFinalBrainTeaser(live, liveIndex);
+    const { data: saved, error: saveError } = await supabase.from("quiz_rounds").update({ questions }).eq("id", round.id).eq("questions", JSON.stringify(live)).select("id").maybeSingle();
+    if (saveError || !saved) { showToast("The round changed while saving. Please try again.", "error"); return; }
+    setQuizzes(prev => prev.map(quiz => ({ ...quiz, quiz_rounds: quiz.quiz_rounds.map(item => item.id === round.id ? { ...item, questions } : item) })));
+    showToast(`Brain teaser moved to question ${questions.length}.`, "info");
+    window.setTimeout(() => document.getElementById(`quiz-question-${round.id}-${questions.length - 1}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 0);
+  }
+
   async function reorderRoundQuestions(round: QuizRound, fromIndex: number, toIndex: number) {
     if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= round.questions.length || toIndex >= round.questions.length) return;
     const newQuestions = [...round.questions];
@@ -2208,6 +2225,7 @@ export default function QuizBuilderPage() {
                     const qr = q as Record<string, unknown>;
                     const qType = String(qr.question_type ?? "");
                     const correctAnswer = String(qr.correct_answer ?? "");
+                    const isBrainTeaser = qr.brain_teaser === true;
                     // Full option list (a-f, whichever exist) - previously only
                     // the correct answer was shown, so there was no way to
                     // review a multiple-choice/sequence question's wrong
@@ -2466,6 +2484,7 @@ export default function QuizBuilderPage() {
                           ) : (
                             <>
                             <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2", lineHeight: 1.4 }}>
+                              {isBrainTeaser && <div style={{ color: "#FFC533", fontWeight: 700, marginBottom: 6 }}>Brain Teaser{qi === activeRound.questions.length - 1 ? " · Final question" : ""}</div>}
                               <strong style={{ color: "#6B5A8E" }}>{"⠿ "}{qi + 1}.</strong> {String(qr.question_text ?? "")}
                             </div>
                             {isAudio && (
@@ -2532,6 +2551,11 @@ export default function QuizBuilderPage() {
                           );
                           const questionActions = (
                             <div className="qi-prep-question-actions" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              {qType === "number" && ["regular", "bonus"].includes(activeRound.round_type) && (
+                                <HostButton className="qi-btn-sm" onClick={() => finishWithBrainTeaser(activeRound, qi)} disabled={bulkRunning || generatingMoreId !== null}>
+                                  {isBrainTeaser ? "Move brain teaser to end" : "Use as final brain teaser"}
+                                </HostButton>
+                              )}
                               {/* Root cause of these originally looking huge next to the
                                   question text: the shared host-console accessibility CSS
                                   forces EVERY button to a ~40px min-height + big padding +

@@ -159,6 +159,29 @@ test('Multi Tap validation checks the displayed set, not omitted qualifying item
   assert.match(r.requests[0].prompt, /reject if any true option is unkeyed or any false option is keyed/);
 });
 
+test('changing answer choices cannot send a rejected factual question through paid checks again', () => {
+  const r = validationRunner({});
+  const exclusions = { used: [], usedAnswers: [], rejectedTexts: new Set(), rejectedFingerprints: new Set(), usedFingerprints: new Set() };
+  const bad = { question_type: 'multiple_choice', question_text: "Who won the award for Vampire?", correct_answer: 'a', option_a: 'Wrong artist', option_b: 'B', option_c: 'C', option_d: 'D' };
+  r.exports.blacklistRejected(exclusions, bad);
+  assert.equal(r.exports.duplicateRejectionReason({ ...bad, option_a: 'Another guess', correct_answer: 'b' }, [], '', exclusions), 'repeated-rejected-question');
+  const image = { question_type: 'picture', question_text: 'Which country is this flag from?', correct_answer: 'Japan' };
+  r.exports.blacklistRejected(exclusions, image);
+  assert.equal(r.exports.duplicateRejectionReason({ ...image, correct_answer: 'Brazil' }, [], '', exclusions), null);
+});
+
+test('failed multiple choice top-ups use a focused fresh-subject prompt', async () => {
+  const r = validationRunner({ error: { message: 'stop after capturing prompt' } });
+  await r.exports.generateOne('multiple_choice', 'world geography', r.exports.createGenerationContext('multiple_choice', false), {
+    theme: '', roundType: 'regular', difficulty: 'medium', replacementFeedback: 'Incorrect Grammy winner for Vampire; choose another subject.',
+    exclusions: { used: [], usedAnswers: [], rejectedTexts: new Set(), rejectedFingerprints: new Set(), usedFingerprints: new Set() },
+  });
+  assert.match(r.requests[0].prompt, /Required topic: world geography/);
+  assert.match(r.requests[0].prompt, /do not copy, rephrase or try to repair this story/);
+  assert.doesNotMatch(r.requests[0].prompt, /TONE AND STYLE/);
+  assert.ok(r.requests[0].prompt.length < 8000);
+});
+
 test('general knowledge skips automatic current-news topics', async () => {
   const topics = [];
   const r = runner(0, { GENERAL_TOPIC_BUCKETS: [['recent positive news'], ['world capitals']], generateOne: async (type, topic) => {

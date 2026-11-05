@@ -912,8 +912,21 @@ Return ONLY a valid JSON array with 1 item, no markdown:
   // 8k limit, so targeting 7.9k could not possibly make a valid request.
   const allowedSessionExclusionLength = Math.max(0, 11500 - promptWithoutSessionExclusions.length);
   const safePrompt = prompt.replace(sessionExclusionNote, sessionExclusionNote.slice(0, allowedSessionExclusionLength));
+  // A failed simple top-up should get a focused replacement request, not the
+  // entire mixed-format rulebook again. Rejected stories are exclusion data,
+  // never examples to copy or "repair" into another guess.
+  const replacementPrompt = type === "multiple_choice" && opts.replacementFeedback && !isRecencyTopic
+    ? `${audienceBrief(opts.audience)}
+Write ONE fresh multiple-choice general-knowledge question. Required topic: ${topic}. Difficulty: ${difficulty}. Choose a different primary subject from every rejected candidate. Start from a stable fact you know confidently, then write the question and four plausible distinct options. Do not guess award winners, dates, records or artist/song combinations. Prefer established geography, nature, science, everyday culture or a confidently known fact within the requested theme. Do not increase obscurity to avoid repeats.
+Rejected candidate/problem (do not copy, rephrase or try to repair this story): ${opts.replacementFeedback}
+Used facts to exclude, including paraphrases: ${exclusionsText || "none"}.
+${permanentExclusionNote}
+${typeInstructions.multiple_choice}
+Use internationally recognisable content suitable for a mixed-nationality UAE venue. No explicit sexual material, hate, graphic violence, pork promotion or sensitive religious/political advocacy. Every question must stand alone with exactly one correct option. Verify the premise, all four options and the key before returning.
+Return ONLY a JSON array of one object with question_text, question_type (multiple_choice), option_a, option_b, option_c, option_d, option_e (null), option_f (null), correct_answer (one letter a-d), explanation (one short factual sentence), difficulty (${difficulty}), round_type (${roundType}).`
+    : safePrompt;
   try {
-    const text = "draft" in opts ? JSON.stringify(opts.draft ? [opts.draft] : []) : await callAPI(safePrompt, 1200, false, isRecencyTopic, GENERATION_MODEL);
+    const text = "draft" in opts ? JSON.stringify(opts.draft ? [opts.draft] : []) : await callAPI(replacementPrompt, 1200, false, isRecencyTopic, GENERATION_MODEL);
     let q;
     try {
       q = parseModelJson<Array<Question & Record<string, unknown>>>(text, "array")[0];
@@ -1137,6 +1150,7 @@ export function duplicateRejectionReason(q: Question, currentRound: Question[], 
   const sigWords = (s: string) => (typeof s === "string" ? s : "").toLowerCase().replace(/['’]s\b/g, "").replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !ignore.has(w));
   const normAnswer = resolveAnswerText(q).toLowerCase().trim();
   const fingerprint = questionFingerprint(q);
+  if (!["picture", "audio"].includes(q.question_type) && exclusions.rejectedTexts.has(normalizeQuestionText(q.question_text))) return "repeated-rejected-question";
   if (exclusions.rejectedFingerprints.has(fingerprint)) return "blacklist";
   if (exclusions.usedFingerprints.has(fingerprint)) return "exact-question:used-or-history";
   if (!["picture", "audio"].includes(q.question_type) && exclusions.used.some(text => normalizeQuestionText(text) === normalizeQuestionText(q.question_text))) return "same-question-text:quiz-or-history";

@@ -109,10 +109,10 @@ test('all audiences and shared topic pools use international rather than UK-loca
 test('Multi Tap accepts numbered select-all stems without allowing single-answer or duplicate options', () => {
   const { multiTapSuitabilityError } = validationRunner({}).exports;
   const q = { question_type: 'multi_tap', option_a: 'Alpha', option_b: 'Bravo', option_c: 'Charlie', option_d: 'Delta', option_e: 'Echo', option_f: 'Foxtrot', correct_answer: 'a,b' };
-  for (const prefix of ['Which of these', 'Which two of these', 'Which three of the following', 'Which five of these', 'Which 6 of these', 'Select all']) {
+  for (const prefix of ['Which of these', 'Which two of these', 'Which three of the following', 'Which five of these', 'Which 6 of these', 'Select all', 'Tap only the items that', 'Choose the items that', 'From these six, choose those that']) {
     assert.equal(multiTapSuitabilityError({ ...q, question_text: `${prefix} belong to this category?` }), null);
   }
-  assert.match(multiTapSuitabilityError({ ...q, question_text: 'Who invented this?' }), /select-all/);
+  assert.match(multiTapSuitabilityError({ ...q, question_text: '' }), /requires a question/);
   assert.match(multiTapSuitabilityError({ ...q, question_text: 'Which of these are correct?', correct_answer: 'a' }), /at least two/);
   assert.match(multiTapSuitabilityError({ ...q, question_text: 'Which of these are correct?', option_f: 'Alpha' }), /distinct/);
 });
@@ -136,6 +136,27 @@ test('single-word countries and companies are not mistaken for partial person na
   assert.equal(partialNameAnswerError({ question_text: 'Which island nation has Kingston as its capital?', correct_answer: 'Jamaica' }), null);
   assert.equal(partialNameAnswerError({ question_text: "Reese Witherspoon founded Hello Sunshine. Which media group acquired a stake?", correct_answer: 'Candle' }), null);
   assert.match(partialNameAnswerError({ question_text: 'Which actor played the lead?', correct_answer: 'Smith' }), /Person answers/);
+});
+
+test('Tap only Multi Tap survives generation formatting and preserves the answer set', async () => {
+  const source = { question_type: 'multi_tap', question_text: 'Tap only the mammals from this list.', option_a: 'Dolphin', option_b: 'Tiger', option_c: 'Whale', option_d: 'Crocodile', option_e: 'Salmon', option_f: 'Eagle', correct_answer: 'a,b,c' };
+  const r = validationRunner({ content: [{ type: 'text', text: JSON.stringify([source]) }] });
+  const q = await r.exports.generateOne('multi_tap', 'animals', r.exports.createGenerationContext('multi_tap', false), {
+    theme: '', roundType: 'multi_tap', difficulty: 'easy', multiTapCorrectCount: 3,
+    exclusions: { used: [], usedAnswers: [], rejectedTexts: new Set(), rejectedFingerprints: new Set(), usedFingerprints: new Set() },
+  });
+  assert.ok(q);
+  assert.deepEqual(JSON.parse(JSON.stringify(q.correct_answer.split(',').map(key => q[`option_${key}`]).sort())), ['Dolphin', 'Tiger', 'Whale']);
+  assert.equal(r.requests.length, 1);
+  assert.ok(r.requests[0].prompt.length <= 12000);
+});
+
+test('Multi Tap validation checks the displayed set, not omitted qualifying items', async () => {
+  const r = validationRunner({ content: [{ type: 'tool_use', name: 'return_validation_result', input: { moderation_ok: true, quality_ok: true, balance_ok: true } }] });
+  await r.exports.runCombinedValidation({ ...candidate, question_type: 'multi_tap', option_a: 'A', option_b: 'B', option_c: 'C', option_d: 'D', option_e: 'E', option_f: 'F', correct_answer: 'a,b' }, [], '');
+  assert.match(r.requests[0].prompt, /only the six displayed options/);
+  assert.match(r.requests[0].prompt, /NOT a failure.*outside those six options/);
+  assert.match(r.requests[0].prompt, /reject if any true option is unkeyed or any false option is keyed/);
 });
 
 test('general knowledge skips automatic current-news topics', async () => {

@@ -574,7 +574,8 @@ export async function generateAllRounds(
   onProgress?: (roundIndex: number, status: string) => void,
   onRoundComplete?: (roundIndex: number, result: RoundGenerationResult) => void | Promise<void>,
 ): Promise<RoundGenerationResult[]> {
-  const baseExclusions = await loadUsedQuestions();
+  specs.forEach((_spec, index) => onProgress?.(index, "Checking all saved question history before generating…"));
+  const baseExclusions = await loadUsedQuestions(message => specs.forEach((_spec, index) => onProgress?.(index, message)));
   // Give each round its own copy of the shared history so concurrent mutation
   // of arrays/sets from one round's accepted questions never corrupts another
   // round's in-flight state.

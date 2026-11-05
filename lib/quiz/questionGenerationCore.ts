@@ -33,6 +33,7 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { buildPixabaySearchQuery, selectMatchingPixabayHit } from "@/lib/quiz/pixabayMatch";
+import { loadHistoryPages } from "@/lib/quiz/historyPages";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -412,18 +413,16 @@ export function emptyExclusionState(): ExclusionState {
 // (rounds table, question_bank, questions library). Must stay all-time/no
 // cutoff - a time-windowed version was tried and rejected earlier because it
 // let genuinely-repeated questions resurface once they aged past the window.
-export async function loadUsedQuestions(): Promise<ExclusionState> {
+export async function loadUsedQuestions(onProgress?: (message: string) => void): Promise<ExclusionState> {
   const supabase = createSupabaseBrowserClient();
   // Supabase caps unpaginated selects. Read every source in stable ID order,
   // and never interpret a failed history query as an empty history.
   const loadAll = async (table: string, columns: string): Promise<Record<string, unknown>[]> => {
-    const rows: Record<string, unknown>[] = [];
-    for (let offset = 0; ; offset += 500) {
-      const { data, error } = await supabase.from(table).select(columns).order("id").range(offset, offset + 499);
+    return loadHistoryPages(async (from, to) => {
+      const { data, error } = await supabase.from(table).select(columns).order("id").range(from, to).abortSignal(AbortSignal.timeout(15000));
       if (error) throw new Error("Could not check saved Quiz Plans/question history (" + table + "). Please retry. " + error.message);
-      rows.push(...((data || []) as unknown as Record<string, unknown>[]));
-      if (!data || data.length < 500) return rows;
-    }
+      return (data || []) as unknown as Record<string, unknown>[];
+    }, loaded => onProgress?.(`Checking question history: ${table.replaceAll("_", " ")} · ${loaded.toLocaleString()} records read…`));
   };
   const fields = "question_text,question_type,option_a,option_b,option_c,option_d,option_e,option_f,correct_answer";
   const [rounds, bank, library, plans] = await Promise.all([
@@ -436,6 +435,7 @@ export async function loadUsedQuestions(): Promise<ExclusionState> {
   const state = emptyExclusionState();
   const remember = (q: Question) => {
     if (!q || typeof q !== "object") return;
+    if (q.question_text && state.usedFingerprints.has(questionFingerprint(q))) return;
     const pairs = (q as Question & { pairs?: Array<{ a?: { label?: string }; b?: { label?: string } }> }).pairs;
     if (Array.isArray(pairs)) {
       for (const pair of pairs) {
@@ -940,6 +940,22 @@ Return ONLY a JSON array of one object with question_text, question_type (multip
     if (q) { context.report.questionText = q.question_text || "Untitled candidate"; }
     if (!q || typeof q.question_text !== "string" || typeof q.correct_answer !== "string") {
       throw new Error("The AI returned incomplete question data - retrying.");
+    }
+    if (!q.question_text.trim() || !q.correct_answer.trim()) throw new Error("The AI returned a blank question or answer - retrying.");
+    if (["number", "nearest_wins"].includes(type)) {
+      const raw = q.correct_answer.trim();
+      const answer = /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(raw) ? raw.replaceAll(",", "") : raw;
+      if (!/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(answer) || !Number.isFinite(Number(answer))) {
+        throw new Error("Numeric questions require only a number as the answer, without units or a place name - retrying.");
+      }
+      q.correct_answer = answer;
+      for (const letter of ["a", "b", "c", "d", "e", "f"]) q[`option_${letter}`] = null;
+    }
+    if (type === "multiple_choice") {
+      const options = [q.option_a, q.option_b, q.option_c, q.option_d];
+      if (options.some(option => typeof option !== "string" || !option.trim()) || new Set(options.map(option => option!.trim().toLowerCase())).size !== 4 || !/^[a-d]$/i.test(q.correct_answer.trim())) {
+        throw new Error("Multiple choice requires four distinct options and one valid answer letter - retrying.");
+      }
     }
     // Reject known repeats before theme, search verification or media calls.
     const earlyDuplicate = duplicateRejectionReason(q, [], theme, exclusions);

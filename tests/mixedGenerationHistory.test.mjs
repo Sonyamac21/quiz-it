@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
+import { loadHistoryPages } from '../lib/quiz/historyPages.ts';
 
 // Execute the production history/duplicate functions; any accidental network
 // dependency fails the test instead of contacting the live service.
@@ -10,7 +11,7 @@ const source = readFileSync(new URL("../lib/quiz/questionGenerationCore.ts", imp
 const exports = {};
 let database;
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
-  exports, require: () => ({ createSupabaseBrowserClient: () => database }), console,
+  exports, require: () => ({ createSupabaseBrowserClient: () => database, loadHistoryPages }), console, AbortSignal,
 });
 const { emptyExclusionState, registerAccepted, duplicateRejectionReason } = exports;
 const pairs = { question_type: "pairs", pairs: [
@@ -44,7 +45,7 @@ test("stale undefined history entries are tolerated without disabling duplicate 
 
 test("saved Quiz Plan pairs are excluded before library sync finishes", async () => {
   database = { from(table) { return { select() {
-    return { order() { return { range() { return Promise.resolve({ data: table === "quiz_rounds" ? [{ questions: [pairs] }] : [] }); } }; } };
+    return { order() { return { range() { return { abortSignal: () => Promise.resolve({ data: table === "quiz_rounds" ? [{ questions: [pairs] }] : [] }) }; } }; } };
   } }; } };
   const history = await exports.loadUsedQuestions();
   assert.ok(history.usedAnswers.includes("hammer + nail"));
@@ -54,7 +55,7 @@ test("saved Quiz Plan pairs are excluded before library sync finishes", async ()
 
 test("failed Quiz Plan history read does not silently generate repeated content", async () => {
   database = { from(table) { return { select() {
-    return { order() { return { range() { return Promise.resolve({ data: null, error: { message: "offline" } }); } }; } };
+    return { order() { return { range() { return { abortSignal: () => Promise.resolve({ data: null, error: { message: "offline" } }) }; } }; } };
   } }; } };
   await assert.rejects(exports.loadUsedQuestions(), /Could not check saved Quiz Plans/);
 });
@@ -68,7 +69,7 @@ test('every history source is paginated beyond the API row limit', async () => {
     const rows = Array.from({ length: 1001 }, (_, i) => table === 'rounds' || table === 'quiz_rounds'
       ? { questions: [question(`${table} history ${i}`)] }
       : question(`${table} history ${i}`));
-    return Promise.resolve({ data: rows.slice(start, end + 1) });
+    return { abortSignal: () => Promise.resolve({ data: rows.slice(start, end + 1) }) };
   } }; } }; } }; } };
   const history = await exports.loadUsedQuestions();
   for (const table of ['rounds', 'quiz_rounds', 'question_bank', 'questions']) {
@@ -80,7 +81,7 @@ test('every history source is paginated beyond the API row limit', async () => {
 test('a failed source cannot silently remove part of the saved history', async () => {
   for (const failed of ['rounds', 'question_bank', 'questions', 'quiz_rounds']) {
     database = { from(table) { return { select() { return { order() { return { range() {
-      return Promise.resolve(table === failed ? { error: { message: 'offline' } } : { data: [] });
+      return { abortSignal: () => Promise.resolve(table === failed ? { error: { message: 'offline' } } : { data: [] }) };
     } }; } }; } }; } };
     await assert.rejects(exports.loadUsedQuestions(), /Could not check saved/);
   }

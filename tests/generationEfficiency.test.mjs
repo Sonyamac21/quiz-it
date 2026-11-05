@@ -182,6 +182,20 @@ test('failed multiple choice top-ups use a focused fresh-subject prompt', async 
   assert.ok(r.requests[0].prompt.length < 8000);
 });
 
+test('number formatting is checked before paid quality checks and normalises thousands separators', async () => {
+  for (const [answer, expected] of [['1960 Rome', null], ['twenty', null], ['1,960', '1960'], ['1960', '1960']]) {
+    const r = validationRunner({ content: [{ type: 'text', text: JSON.stringify([{ ...candidate, correct_answer: answer }]) }] });
+    const context = r.exports.createGenerationContext('number', false);
+    const q = await r.exports.generateOne('number', 'history', context, {
+      theme: '', roundType: 'pursuit', difficulty: 'easy',
+      exclusions: { used: [], usedAnswers: [], rejectedTexts: new Set(), rejectedFingerprints: new Set(), usedFingerprints: new Set() },
+    });
+    assert.equal(q?.correct_answer || null, expected);
+    assert.equal(r.requests.length, 1);
+    if (!expected) assert.match(context.error, /only a number/);
+  }
+});
+
 test('general knowledge skips automatic current-news topics', async () => {
   const topics = [];
   const r = runner(0, { GENERAL_TOPIC_BUCKETS: [['recent positive news'], ['world capitals']], generateOne: async (type, topic) => {

@@ -14,6 +14,8 @@ import { getMediaUrl } from "@/lib/getMediaUrl";
 import { persistPixabayImage } from "@/lib/quiz/persistPixabayImage";
 import { getQuizPreflight, roundMusicIsPrepped } from "@/lib/quiz/planStatus";
 import { makeFinalBrainTeaser } from "@/lib/quiz/brainTeaser";
+import { saveGeneratedRound } from "@/lib/quiz/saveGeneratedRound";
+import { editAnswerKey, saveRoundQuestionEdit } from "@/lib/quiz/questionEditing";
 import { isPairRecord, isPairsQuestion, readPairs, readPairsQuestions, tilesForTeam, PAIRS_PER_ROUND, type PairRecord } from "@/lib/quiz/pairs";
 import { generationRejectionSummary, generationStatusIsIncomplete, eligibleLibraryQuestions, questionIdentityKey, resolveRoundGenerationSettings, sortLibraryQuestionsByUsage } from "@/lib/quiz/prepRules";
 
@@ -427,6 +429,19 @@ export default function QuizBuilderPage() {
   // round - so a "stopped after 90s, got 0 of 8" explanation actually stays
   // readable instead of vanishing after a flat 4s (see generateMoreForRound).
   const [lastGenerateMoreResult, setLastGenerateMoreResult] = useState<Record<string, string>>({});
+  const [pendingGenerated, setPendingGenerated] = useState<Record<string, Record<string, unknown>[]>>({});
+  useEffect(() => {
+    if (!selected) return;
+    const recovered: Record<string, Record<string, unknown>[]> = {};
+    for (const round of selected.quiz_rounds) {
+      try {
+        const value = JSON.parse(localStorage.getItem(`qi_pending_questions_${round.id}`) || "null");
+        if (Array.isArray(value?.questions) && value.questions.length) recovered[round.id] = value.questions;
+      } catch { /* A broken local draft cannot block opening a plan. */ }
+    }
+    const timer = window.setTimeout(() => setPendingGenerated(prev => ({ ...prev, ...recovered })), 0);
+    return () => window.clearTimeout(timer);
+  }, [selectedId]);
   function roundReadiness(round: QuizRound) {
     const configuredCount = bulkConfig[round.id]?.count;
     const target = round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS
@@ -826,6 +841,48 @@ export default function QuizBuilderPage() {
   // `pairs` array with no question_text/correct_answer of their own, so
   // mapping them through this same shape would insert a meaningless blank
   // row rather than anything a host could actually reuse from the library.
+  async function saveGeneratedQuestions(round: QuizRound, questions: Record<string, unknown>[], growTarget = false) {
+    const supabase = createSupabaseBrowserClient();
+    if (questions.length) {
+      setPendingGenerated(prev => ({ ...prev, [round.id]: questions }));
+      try { localStorage.setItem(`qi_pending_questions_${round.id}`, JSON.stringify({ questions, growTarget })); } catch { /* Retain in memory when browser storage is full. */ }
+    }
+    const saved = await saveGeneratedRound(questions, async () => {
+      const { data, error } = await supabase.from("quiz_rounds").select("questions,target_count").eq("id", round.id).single();
+      if (error || !data) throw new Error("Could not load the latest round before saving. " + (error?.message || ""));
+      return { questions: (data.questions || []) as Record<string, unknown>[], target_count: data.target_count as number | null };
+    }, async (before, after) => {
+      let query = supabase.from("quiz_rounds").update({ questions: after.questions, ...(growTarget ? { target_count: after.target_count } : {}) }).eq("id", round.id).eq("questions", JSON.stringify(before.questions));
+      if (growTarget) query = before.target_count === null ? query.is("target_count", null) : query.eq("target_count", before.target_count);
+      const { data, error } = await query.select("id").maybeSingle();
+      if (error) throw new Error("Could not save generated questions: " + error.message);
+      return Boolean(data);
+    }, growTarget, targetQuestionCount(round.round_type, bulkConfig[round.id]?.count || round.target_count)).catch(error => {
+      throw new Error("Generated questions are retained. Use Save generated questions to retry without an AI charge. " + (error instanceof Error ? error.message : "Saving failed."));
+    });
+    setPendingGenerated(prev => { const next = { ...prev }; delete next[round.id]; return next; });
+    try { localStorage.removeItem(`qi_pending_questions_${round.id}`); } catch { /* An idempotent retry will not duplicate saved questions. */ }
+    return saved;
+  }
+
+  async function retrySavingGeneratedQuestions(round: QuizRound) {
+    const questions = pendingGenerated[round.id];
+    if (!questions?.length) return;
+    setGeneratingMoreId(round.id);
+    setGeneratingMoreStatus("Saving retained questions — no AI call…");
+    try {
+      const saved = await saveGeneratedQuestions(round, questions, questions.some(question => question.brain_teaser === true));
+      setQuizzes(prev => prev.map(quiz => ({ ...quiz, quiz_rounds: quiz.quiz_rounds.map(item => item.id === round.id ? { ...item, questions: saved.questions, target_count: saved.target_count } : item) })));
+      const message = `Saved ${saved.added} retained question${saved.added === 1 ? "" : "s"} without generating again.`;
+      setBulkProgress(prev => { const next = { ...prev }; delete next[round.id]; return next; });
+      setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: message }));
+      persistRoundGenStatus(round.id, message);
+      showToast(message, "info");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Saving failed. Your generated questions are still retained.", "error");
+    } finally { setGeneratingMoreId(null); setGeneratingMoreStatus(""); }
+  }
+
   async function addGeneratedQuestionsToLibrary(questions: Record<string, unknown>[], roundType: string, difficulty: string) {
     const usable = questions.filter(q => typeof q.question_text === "string" && q.question_text.trim());
     if (!usable.length) return;
@@ -941,6 +998,9 @@ export default function QuizBuilderPage() {
   async function saveEditQuestion(round: QuizRound, qIndex: number) {
     const original = round.questions[qIndex] as Record<string, unknown>;
     const updated: Record<string, unknown> = { ...original, ...editDraft };
+    if (["number", "nearest_wins"].includes(String(updated.question_type))) {
+      for (const letter of ["b", "c", "d", "e", "f"]) updated[`option_${letter}`] = null;
+    }
     // Multi Tap's correct_answer is a comma-separated list of option
     // letters (e.g. "A,C,D"), not option text - if a host clears/removes an
     // option in this editor without also touching correct_answer, it can be
@@ -968,9 +1028,22 @@ export default function QuizBuilderPage() {
       // picture-question edit until now.
       updated.option_b = (await persistPixabayImage(updated.option_b)).url;
     }
-    const newQuestions = round.questions.map((q, i) => i === qIndex ? updated : q);
+    const issues = getQuizPreflight({ quiz_rounds: [{ id: round.id, round_type: "regular", questions: [updated] }] }).blockers
+      .filter(issue => !["music-unprepped", "picture-unprepped"].includes(issue.code));
+    if (issues.length) { showToast(issues.map(issue => issue.message).join("\n"), "error", 12000); return; }
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("quiz_rounds").update({ questions: newQuestions }).eq("id", round.id);
+    let newQuestions: Record<string, unknown>[];
+    try {
+      newQuestions = await saveRoundQuestionEdit(original, updated, async () => {
+        const { data, error } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
+        if (error || !data) throw new Error("Could not load the latest round. Your edit is still open.");
+        return data.questions as Record<string, unknown>[];
+      }, async (before, after) => {
+        const { data, error } = await supabase.from("quiz_rounds").update({ questions: after }).eq("id", round.id).eq("questions", JSON.stringify(before)).select("id").maybeSingle();
+        if (error) throw new Error("Could not save the edit: " + error.message);
+        return Boolean(data);
+      });
+    } catch (error) { showToast(error instanceof Error ? error.message : "Saving failed. Your edit is still open.", "error"); return; }
     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
     if (selected) void syncRoundToLibrary(round, newQuestions, selected.name);
     setEditingKey(null);
@@ -980,6 +1053,10 @@ export default function QuizBuilderPage() {
     if (!selected) return;
     const targets = selected.quiz_rounds.filter(r => bulkConfig[r.id]?.selected);
     if (!targets.length) return;
+    if (targets.some(round => pendingGenerated[round.id]?.length)) {
+      showToast("Some selected rounds have retained generated questions. Save those first without another AI charge.", "info");
+      return;
+    }
     setBulkRunning(true);
     const supabase = createSupabaseBrowserClient();
     // GENERATE only ever needs to make up the SHORTFALL between what's
@@ -1068,13 +1145,9 @@ export default function QuizBuilderPage() {
           // React state updater, but immediately saved the old value before
           // React ran that updater. That race is why invalid single-answer
           // Multi Tap questions survived despite the UI filter.
-          const { data: liveRow } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
-          const liveQuestions = validQuestionsForRound(round.round_type, (liveRow?.questions || round.questions) as Record<string, unknown>[]);
           const generatedQuestions = validQuestionsForRound(round.round_type, result.questions);
-          const mergedQuestions = [...liveQuestions, ...generatedQuestions];
-          const { data: savedRow, error: saveError } = await supabase.from("quiz_rounds").update({ questions: mergedQuestions }).eq("id", round.id).select("questions").single();
-          if (saveError) throw new Error(`Could not save generated questions for ${round.name}: ${saveError.message}`);
-          const persistedQuestions = (savedRow?.questions || mergedQuestions) as Record<string, unknown>[];
+          const saved = await saveGeneratedQuestions(round, generatedQuestions);
+          const persistedQuestions = saved.questions;
           setQuizzes(prev => prev.map(q => {
             if (q.id !== selected.id) return q;
             return { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: persistedQuestions } : r) };
@@ -1110,6 +1183,7 @@ export default function QuizBuilderPage() {
   // itself avoids both problems - nothing can block the page, and the
   // number being requested is always visibly sitting right there.
   async function generateMoreForRound(round: QuizRound, requested: number, typeOverride?: string[], brainTeaser = false) {
+    if (pendingGenerated[round.id]?.length) { showToast("Save the retained generated questions first; no need to pay to generate them again.", "info"); return; }
     // The Pursuit is always exactly 7 gates total (never host-configurable) -
     // clamp here too, not just inside generateValidatedRound, so a host
     // asking for more than the round has room for gets told plainly instead
@@ -1127,6 +1201,7 @@ export default function QuizBuilderPage() {
     // previous attempt on this round so it can't be mistaken for this run's
     // outcome.
     setLastGenerateMoreResult(prev => { const next = { ...prev }; delete next[round.id]; return next; });
+    persistRoundGenStatus(round.id, "");
     const supabase = createSupabaseBrowserClient();
     const cfg = bulkConfig[round.id];
     const effectiveTheme = brainTeaser ? "maths and logic puzzles" : cfg?.theme ?? round.theme ?? "";
@@ -1173,15 +1248,11 @@ export default function QuizBuilderPage() {
       // minutes stale by the time generation actually finishes. Read the
       // CURRENT live question list at completion time so a deletion/edit the
       // host made while this was running doesn't get silently undone.
-      const { data: liveRow } = await supabase.from("quiz_rounds").select("questions").eq("id", round.id).single();
-      const liveQuestions = validQuestionsForRound(round.round_type, (liveRow?.questions || round.questions) as Record<string, unknown>[]);
       const generatedQuestions = validQuestionsForRound(round.round_type, result.questions);
-      const mergedQuestions = [...liveQuestions, ...generatedQuestions];
-      const finalTarget = brainTeaser && generatedQuestions.length ? Math.max(targetQuestionCount(round.round_type, cfg?.count || round.target_count), mergedQuestions.length) : null;
-      const { data: savedRow, error: saveError } = await supabase.from("quiz_rounds").update({ questions: mergedQuestions, ...(finalTarget ? { target_count: finalTarget } : {}) }).eq("id", round.id).select("questions").single();
-      if (saveError) throw new Error("Could not save the generated questions: " + saveError.message);
-      const persistedQuestions = (savedRow?.questions || mergedQuestions) as Record<string, unknown>[];
-      const actualAdded = Math.max(0, persistedQuestions.length - liveQuestions.length);
+      const saved = await saveGeneratedQuestions(round, generatedQuestions, brainTeaser);
+      const finalTarget = brainTeaser ? saved.target_count : null;
+      const persistedQuestions = saved.questions;
+      const actualAdded = saved.added;
       setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: persistedQuestions, ...(finalTarget ? { target_count: finalTarget } : {}) } : r) }));
       if (finalTarget && cfg) updateBulkConfig(round.id, { count: finalTarget });
       if (selected) void syncRoundToLibrary(round, persistedQuestions, selected.name);
@@ -1203,7 +1274,8 @@ export default function QuizBuilderPage() {
       setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: detailedMessage }));
       persistRoundGenStatus(round.id, detailedMessage);
     } catch (e) {
-      const failureMessage = "Generation failed - please try again." + (e instanceof Error ? " (" + e.message + ")" : "");
+      const failureMessage = e instanceof Error && e.message.startsWith("Generated questions are retained.")
+        ? e.message : "Generation failed - please try again." + (e instanceof Error ? " (" + e.message + ")" : "");
       setLastGenerateMoreResult(prev => ({ ...prev, [round.id]: failureMessage }));
       persistRoundGenStatus(round.id, failureMessage);
     } finally {
@@ -2021,6 +2093,11 @@ export default function QuizBuilderPage() {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 0, marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
                   <div className="fbh-lbl" style={{ margin: 0 }}>{activeRound.round_type === "pairs" ? "Match Made · 6 tiles per question" : "Questions"}</div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {pendingGenerated[activeRound.id]?.length > 0 && (
+                      <HostButton onClick={() => retrySavingGeneratedQuestions(activeRound)} disabled={bulkRunning || generatingMoreId !== null}>
+                        Save {pendingGenerated[activeRound.id].length} generated questions · no AI
+                      </HostButton>
+                    )}
                     {["regular", "bonus"].includes(activeRound.round_type) && (
                       <HostButton onClick={() => generateMoreForRound(activeRound, 1, ["number"], true)} disabled={bulkRunning || generatingMoreId !== null || swappingKey !== null} title="Append one maths or logic puzzle as the last question. Uses this round's audience and difficulty, with an answer and worked explanation.">
                         + Final Brain Teaser
@@ -2407,13 +2484,15 @@ export default function QuizBuilderPage() {
                                   <div key={o.letter} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                     <button
                                       type="button"
-                                      onClick={() => setEditDraft(d => ({ ...d, correct_answer: o.letter }))}
-                                      title="Mark as correct answer"
+                                      onClick={() => setEditDraft(d => ({ ...d, correct_answer: editAnswerKey(qType, d.correct_answer || "", o.letter) }))}
+                                      disabled={qType === "sequence"}
+                                      aria-pressed={qType === "sequence" ? undefined : (editDraft.correct_answer || "").toLowerCase().split(",").map(value => value.trim()).includes(o.letter)}
+                                      title={qType === "multi_tap" ? "Toggle this correct answer" : qType === "sequence" ? "Set the order in the field below" : "Mark as correct answer"}
                                       style={{
                                         width: 22, height: 22, flexShrink: 0, borderRadius: "50%", cursor: "pointer",
-                                        border: (editDraft.correct_answer ?? "").toLowerCase() === o.letter ? "2px solid #2EE06E" : "1px solid #6B5A8E",
-                                        background: (editDraft.correct_answer ?? "").toLowerCase() === o.letter ? "rgba(46,224,110,0.2)" : "transparent",
-                                        color: (editDraft.correct_answer ?? "").toLowerCase() === o.letter ? "#2EE06E" : "#6B5A8E",
+                                        border: qType !== "sequence" && (editDraft.correct_answer || "").toLowerCase().split(",").includes(o.letter) ? "2px solid #2EE06E" : "1px solid #6B5A8E",
+                                        background: qType !== "sequence" && (editDraft.correct_answer || "").toLowerCase().split(",").includes(o.letter) ? "rgba(46,224,110,0.2)" : "transparent",
+                                        color: qType !== "sequence" && (editDraft.correct_answer || "").toLowerCase().split(",").includes(o.letter) ? "#2EE06E" : "#6B5A8E",
                                         font: "700 11px 'Inter'",
                                       }}
                                     >{o.letter.toUpperCase()}</button>
@@ -2425,7 +2504,8 @@ export default function QuizBuilderPage() {
                                     />
                                   </div>
                                 ))}
-                                <div style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>Tap a letter to set the correct answer</div>
+                                {qType === "sequence" && <input className="fbh-input" aria-label="Correct sequence order" placeholder="Correct order, e.g. b,a,c,d" value={editDraft.correct_answer || ""} onChange={e => setEditDraft(d => ({ ...d, correct_answer: e.target.value }))} />}
+                                <div style={{ color: "#6B5A8E", font: "400 10px 'Inter'" }}>{qType === "sequence" ? "Enter all four letters in the correct order, each exactly once." : qType === "multi_tap" ? "Tap every correct letter. Select at least two answers." : "Tap a letter to set the correct answer"}</div>
                               </div>
                             ) : (
                               <>
@@ -2526,8 +2606,8 @@ export default function QuizBuilderPage() {
                                 </div>
                               ) : (
                                 <>
-                                  {qType === "number" && options[0]?.value && (
-                                    <div style={{ color: "#6B5A8E", font: "400 10px 'Inter'", marginTop: 5 }}>{"Hint: " + options[0].value}</div>
+                                  {qType === "number" && Boolean(qr.option_a) && (
+                                    <div style={{ color: "#6B5A8E", font: "400 10px 'Inter'", marginTop: 5 }}>{"Hint: " + String(qr.option_a)}</div>
                                   )}
                                   <div style={{ color: "#2EE06E", font: "600 11px 'Inter'", marginTop: 3 }}>{"-> "}{correctAnswer}</div>
                                 </>

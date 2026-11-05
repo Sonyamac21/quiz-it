@@ -47,9 +47,10 @@ export function resolveGenerationIntent(theme: string, audience: QuizAudience = 
   return { theme, audience };
 }
 export function audienceBrief(audience: QuizAudience = "adults"): string {
-  return audience === "families"
+  const international = "INTERNATIONAL AUDIENCE: A mixed-nationality audience in the UAE. Use globally recognisable subjects across Asia, Africa, Europe, the Americas and Oceania. Do not assume British upbringing or knowledge of local UK television, comedians, adverts, domestic charts or institutions. Alan Partridge-style local television trivia is unsuitable. Globally famous British subjects are fine. Only use country-specific niche trivia when the host explicitly requests that country/theme. ";
+  return international + (audience === "families"
     ? "AUDIENCE: Kids and families, roughly ages 7-12 playing with adults. Use short, plain wording and familiar animals, nature, space, everyday life, geography, sport, family films and children's books. Children must be able to contribute without adult nostalgia, celebrity gossip, nightlife, alcohol or specialist knowledge. Easy means familiar main characters, recognisable objects and simple everyday facts most children can answer; never minor character names, exact dates, elapsed years, genealogy or plot-detail recall. For animation, ask about recognisable main characters and their obvious traits, not obscure backstories; medium means children and adults can work it out together; hard means a fair family challenge, not an adult pub-quiz deep cut. This audience requirement overrides any generic pub-quiz style guidance. Respect the requested theme and question type."
-    : "AUDIENCE: Adults aged 25-55 at a social pub quiz. Match the requested difficulty.";
+    : "AUDIENCE: Adults aged 25-55 at a social pub quiz. Match the requested difficulty.");
 }
 export const FAMILY_TOPIC_BUCKETS = [
   ["familiar animals and their habitats", "pets and farm animals", "dinosaurs"],
@@ -199,7 +200,7 @@ export type GenerationContext = { error: string; report: CandidateReport };
 
 // ── Constants ────────────────────────────────────────────────────────────
 
-export const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","UK number one hits","US number one hits","movie theme songs","musical theatre songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
+export const MUSIC_TOPICS = ["80s pop","90s pop","2000s pop","2010s and 2020s pop","classic rock","indie and alternative rock","hip hop and rap","R&B and soul","dance and EDM","disco and funk","worldwide chart hits","international crossover hits","movie theme songs","musical theatre songs","one-hit wonders","boy bands and girl groups","singer-songwriters","classic 60s and 70s hits","karaoke classics","current chart hits (last 1-2 years)"];
 
 // Shared by both generator screens. Geography, sport and verified recent
 // culture/showbiz intentionally receive several distinct buckets so mixed
@@ -265,7 +266,7 @@ export const REQUIRED_REGULAR_TYPES = ["multiple_choice", "text_answer", "number
 
 export const VARIETY_ANGLES = [
   "from the 1960s or 1970s", "from the 1980s", "from the 1990s", "from the 2000s", "from the 2010s or later",
-  "about a different familiar subject", "with a British/UK angle", "with a US angle",
+  "about a different familiar subject", "with an international angle", "recognisable across several countries",
   "using a clear, widely established fact", "involving everyday knowledge about the topic",
   "from a different decade than you'd first think of", "that most people would NOT guess first",
   "with an Asia, Africa or Middle East angle", "with a continental European angle", "from the Southern Hemisphere",
@@ -1272,6 +1273,7 @@ export async function runCombinedValidation(q: Question, currentRound: Question[
     "MODERATION: Judge only player-visible Question, Options, Answer and explicitly described player-visible media. Internal media lookup is private metadata: use its literal title/artist/subject only to identify and fact-check the answer. Never infer or analyse lyrics, plot, themes, subtext, artist history or character history. Allow mainstream commercial music, films, books and TV unless the actual presented title/content is inappropriate. A neutral factual alcohol reference is allowed; promotion is not. Reject only genuinely explicit sexual material, crude anatomical language, illegal-drug promotion, pork promotion, religious or LGBTQ+ advocacy or sensitive discussion, Iran or Israel political content, hate speech, slurs, harassment, discrimination, graphic violence, or clearly offensive/prohibited presented content. 'Name this song' with lookup 'Mr. Brightside - The Killers' must pass. Also verify the answer is factually correct. " +
     "ROUND BALANCE: Different countries' flags are different subjects. Shared flag vocabulary, colours, or identification format alone is not repetition. In any explicitly themed round, allow repeated theme vocabulary and task format when the tested facts or entities differ. Compare only with accepted questions. Reject only with HIGH confidence for the same primary entity, same narrow subtopic, or effectively the same underlying knowledge. Broad-category overlap is allowed; incidental/weak relationships pass; never reject merely for the same country. If themed, the shared theme is intentional, but repeated franchises/entities inside it are not. conflict_index is the 1-based accepted-question index, otherwise null. " +
     "THEME RELEVANCE: If a theme is supplied, quality_ok must be false unless the question directly tests that theme; a tangential association is insufficient. " +
+    "INTERNATIONAL SUITABILITY: Unless explicitly requested by the host's theme, reject niche local UK television/comedy, domestic adverts and other trivia requiring a British upbringing. Globally famous British subjects remain valid; nationality alone is not grounds for rejection. " +
     "FINAL QUALITY AND FACTUAL ACCURACY: Independently verify that the exact answer is a real, complete, factually correct answer to the exact wording. For maths or logic puzzles, solve the stated constraints independently and verify there is exactly one answer; reject underdetermined puzzles or incorrect arithmetic. Pass only if an experienced professional host would willingly use it. Reject invented or truncated names, unnatural/ambiguous/trivial/misleading wording, answers players would not naturally give, answer giveaways, multiple reasonable answers, category/event/gender ambiguity, poor quiz design, or media that does not directly support the question. Example that MUST fail: 'What trophy is awarded to the winner of Wimbledon?' answer 'Venus'—there is no trophy called Venus, and the event is unspecified; the women's trophy is the Venus Rosewater Dish and the men's is the Gentlemen's Singles Trophy. Do not rely on the explanation. " +
     "Return moderation_ok/note, balance_ok/note/confidence, quality_ok/note, candidate_subtopic, candidate_entity, conflict_index and rejection_reason. Uncertainty in balance must pass. " +
     (recencyNote

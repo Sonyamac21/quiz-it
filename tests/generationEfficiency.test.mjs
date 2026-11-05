@@ -95,6 +95,17 @@ function validationRunner(response) {
 }
 const candidate = { question_type: 'number', question_text: 'How many sides does a triangle have?', correct_answer: '3' };
 
+test('all audiences and shared topic pools use international rather than UK-local defaults', () => {
+  const r = validationRunner({});
+  for (const audience of ['adults', 'families']) {
+    assert.match(r.exports.audienceBrief(audience), /INTERNATIONAL AUDIENCE/);
+    assert.match(r.exports.audienceBrief(audience), /Globally famous British subjects are fine/);
+  }
+  assert.ok(r.exports.MUSIC_TOPICS.includes('worldwide chart hits'));
+  assert.ok(!r.exports.MUSIC_TOPICS.includes('UK number one hits'));
+  assert.ok(!r.exports.VARIETY_ANGLES.includes('with a British/UK angle'));
+});
+
 test('Multi Tap accepts numbered select-all stems without allowing single-answer or duplicate options', () => {
   const { multiTapSuitabilityError } = validationRunner({}).exports;
   const q = { question_type: 'multi_tap', option_a: 'Alpha', option_b: 'Bravo', option_c: 'Charlie', option_d: 'Delta', option_e: 'Echo', option_f: 'Foxtrot', correct_answer: 'a,b' };

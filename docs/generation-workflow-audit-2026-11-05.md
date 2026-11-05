@@ -9,6 +9,10 @@
   is the keyed answer. This was a real AI generation and database save,
   not a mocked response. No additional test quiz or full regeneration ran.
 - Multi Tap already contained ten saved questions and showed Ready.
+- After deployment, opened its first question and verified that toggling an
+  extra correct letter preserved every previously selected letter. Toggled
+  back and cancelled, so the saved question was unchanged. Also verified the
+  live Sequence order input displayed the full `b,a,c,d` key.
 - Inspected Pursuit's remaining blocker: a Number question stored “1960 Rome”.
   Corrected the question to ask explicitly for the year of the first
   Paralympic Games in Rome, stored `1960`, and removed the answer-revealing
@@ -58,7 +62,9 @@
 
 ## Limits
 
-The completed automated suite contains 241 passing tests. TypeScript passes.
+The completed automated suite contains 241 passing tests. TypeScript and the
+production build pass with Next.js 16.4.5. The deployment completed successfully;
+the saved top-up and corrected Pursuit state were checked again after reload.
 
 Automated tests cover history pagination/failures, concurrent saves, retained
 question idempotency, final-question position and output formatting alongside

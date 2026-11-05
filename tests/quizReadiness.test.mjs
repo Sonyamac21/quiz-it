@@ -1,12 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getQuizPreflight } from '../lib/quiz/planStatus.ts';
+import { getQuizPreflight, roundMusicIsPrepped, hasSavedMusicClip } from '../lib/quiz/planStatus.ts';
 const question = { question_type: 'text_answer', question_text: 'Which planet do we live on?', correct_answer: 'Earth' };
 const check = (questions, extras = {}) => getQuizPreflight({ quiz_rounds: [{ id: 'round', name: 'Family round', round_type: 'regular', questions, ...extras }] });
 
 test('saved target counts block a partially generated quiz', () => {
   assert.equal(check(Array(8).fill(question), { target_count: 15 }).ready, false);
   assert.equal(check(Array(15).fill(question), { target_count: 15 }).ready, true);
+  assert.equal(check(Array(16).fill(question), { target_count: 15 }).ready, true);
+});
+
+test('Pursuit and Hot Seat keep their exact fixed totals', () => {
+  assert.equal(check(Array(7).fill(question), { round_type: 'pursuit', target_count: 7 }).ready, true);
+  assert.equal(check(Array(8).fill(question), { round_type: 'pursuit', target_count: 7 }).ready, false);
+  assert.equal(check(Array(6).fill(question), { round_type: 'hot_seat', target_count: 5 }).ready, false);
+});
+
+test('music warnings and launch preflight agree on actual clips versus search pages', () => {
+  for (const [clip, ready] of [
+    ['https://store.private.blob.vercel-storage.com/clip.wav', true],
+    ['https://example.com/audio.mp3', true],
+    ['/audio/clip.wav', true],
+    ['https://www.youtube.com/results?search_query=track', false],
+    ['https://example.com/search', false],
+    ['', false],
+  ]) {
+    const audio = { ...question, question_type: 'audio', option_b: clip };
+    assert.equal(hasSavedMusicClip(clip), ready);
+    assert.equal(roundMusicIsPrepped({ questions: [audio] }), ready);
+    assert.equal(check([audio]).ready, ready);
+  }
 });
 test('malformed multiple-choice content cannot start a live quiz', () => {
   assert.equal(check([{ ...question, question_type: 'multiple_choice', correct_answer: 'z' }]).ready, false);

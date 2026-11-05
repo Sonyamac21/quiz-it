@@ -1623,6 +1623,7 @@ export default function QuizBuilderPage() {
           const cfg = bulkConfig[activeRound.id] ?? { selected: false, count: targetQuestionCount(activeRound.round_type, activeRound.target_count), theme: activeRound.theme ?? "", difficulty: activeRound.difficulty || "mixed" };
           const progress = roundReadiness(activeRound).ready ? "" : bulkProgress[activeRound.id] || lastGenerateMoreResult[activeRound.id] || readPersistedRoundGenStatus(activeRound.id);
           const settingsOpen = settingsOpenRoundId === activeRound.id;
+          const activeReadiness = roundReadiness(activeRound);
           const addQuestionOpen = addQuestionOpenId === activeRound.id;
           // Host request: "+ FROM LIBRARY" / "+ RANDOM FROM LIBRARY" / "+ ADD
           // QUESTION" used to be three separate buttons that could each open
@@ -1783,7 +1784,7 @@ export default function QuizBuilderPage() {
                           <button
                             type="button"
                             aria-label={`${round.name}: ${status}`}
-                            onClick={e => { e.stopPropagation(); showToast(status, readiness.ready ? "info" : "error", 15000); }}
+                            onClick={e => { e.stopPropagation(); setActiveRoundId(round.id); if (readiness.ready) showToast(status, "info"); }}
                             title={status}
                             style={{ flex: "none", padding: "2px 6px", border: 0, cursor: "pointer", borderRadius: 6, background: readiness.ready ? "rgba(46,224,110,0.12)" : "rgba(255,197,51,0.12)", color: readiness.ready ? "#2EE06E" : "#FFC533", font: "600 11px 'Inter'" }}
                           >{readiness.ready ? "Ready" : "Needs attention"}</button>
@@ -1869,6 +1870,14 @@ export default function QuizBuilderPage() {
                   </div>
                 </div>
                 <div style={{ color: "#B9A8D9", font: "400 13px 'Inter'", marginBottom: 10 }}>{activeRound.round_type === "pairs" ? `${readPairsQuestions(activeRound.questions).length} questions · 3 pairs per question` : `${activeRound.questions.length} questions · ${ROUND_TYPE_LABELS[activeRound.round_type] || activeRound.round_type.replaceAll("_", " ")}`}</div>
+                {!activeReadiness.ready && (
+                  <details open key={activeRound.id} style={{ marginBottom: 12, padding: "10px 12px", border: "1px solid #806325", borderRadius: 8, color: "#FFC533", fontSize: 13 }}>
+                    <summary style={{ cursor: "pointer", fontWeight: 600 }}>What this round needs</summary>
+                    <ul style={{ margin: "8px 0 0", paddingLeft: 20, color: "#E5DCEC" }}>
+                      {[...new Set(activeReadiness.blockers.map(issue => issue.message))].map(message => <li key={message} style={{ marginTop: 4 }}>{message}</li>)}
+                    </ul>
+                  </details>
+                )}
 
                 {settingsOpen && (
                   <>

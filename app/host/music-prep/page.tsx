@@ -7,6 +7,7 @@ import { HostShell, HostButton, HostLoading, HostEmpty } from "@/components/fabl
 import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
 import { generateValidatedRound, loadUsedQuestions, type Question as GeneratedQuestion } from "@/lib/quiz/generateRound";
 import { findSavedTrack, saveMusicClip } from "@/lib/quiz/musicPrep";
+import { hasSavedMusicClip } from "@/lib/quiz/planStatus";
 
 const purple = "#BE26C1";
 const STAGE_BG = "radial-gradient(ellipse 55% 45% at 50% 45%, rgba(190,38,193,0.12), transparent 70%), #0A0118";
@@ -351,7 +352,7 @@ export default function MusicPrepPage() {
     const { data: assets } = await createSupabaseBrowserClient().from("media_assets").select("title,artist,file_url").eq("media_type", "audio");
     for (let i = 0; i < round.questions.length; i++) {
       const question = round.questions[i];
-      if (question.question_type !== "audio" || question.option_b?.includes("blob.vercel-storage.com")) continue;
+      if (question.question_type !== "audio" || hasSavedMusicClip(question.option_b)) continue;
       const saved = findSavedTrack(cleanSearchSeed(question.option_a), assets || []);
       if (saved) {
         try { round = { ...round, questions: await persistClip(round, i, saved) }; }
@@ -362,7 +363,7 @@ export default function MusicPrepPage() {
     const initial: Record<number, QuestionState> = {};
     round.questions.forEach((q, i) => {
       if (q.question_type !== "audio") return;
-      const hasSavedClip = q.option_b && q.option_b.includes("blob.vercel-storage.com");
+      const hasSavedClip = hasSavedMusicClip(q.option_b);
       initial[i] = {
         phase: hasSavedClip ? "done" : "idle",
         candidates: [], selectedCandidate: null,
@@ -378,7 +379,7 @@ export default function MusicPrepPage() {
       const params = new URLSearchParams(window.location.search);
       const focused = params.get("round") === round.id ? params.get("question") : null;
       if (focused !== null && /^\d+$/.test(focused) && round.questions[Number(focused)]?.question_type === "audio" && i !== Number(focused)) return;
-      if (q.question_type === "audio" && !(q.option_b && q.option_b.includes("blob.vercel-storage.com"))) {
+      if (q.question_type === "audio" && !hasSavedMusicClip(q.option_b)) {
         void searchForQuestion(round, i, cleanSearchSeed(q.option_a) || q.correct_answer);
       }
     });
@@ -398,7 +399,7 @@ export default function MusicPrepPage() {
     const initial: Record<number, QuestionState> = {};
     round.questions.forEach((q, i) => {
       if (q.question_type !== "audio") return;
-      const hasSavedClip = q.option_b && q.option_b.includes("blob.vercel-storage.com");
+      const hasSavedClip = hasSavedMusicClip(q.option_b);
       initial[i] = {
         phase: hasSavedClip ? "done" : "idle",
         candidates: [], selectedCandidate: null,
@@ -411,7 +412,7 @@ export default function MusicPrepPage() {
     setQuestionStates(initial);
     if (autoSearch) {
       round.questions.forEach((q, i) => {
-        if (q.question_type === "audio" && !(q.option_b && q.option_b.includes("blob.vercel-storage.com"))) {
+        if (q.question_type === "audio" && !hasSavedMusicClip(q.option_b)) {
           void searchForQuestion(round, i, cleanSearchSeed(q.option_a) || q.correct_answer);
         }
       });
@@ -651,7 +652,7 @@ export default function MusicPrepPage() {
             {!loading && rounds.length > 0 && (() => {
               const withStatus = rounds.map(r => {
                 const total = r.questions.filter(q => q.question_type === "audio").length;
-                const prepped = r.questions.filter(q => q.question_type === "audio" && q.option_b && q.option_b.includes("blob.vercel-storage.com")).length;
+                const prepped = r.questions.filter(q => q.question_type === "audio" && hasSavedMusicClip(q.option_b)).length;
                 return { r, total, prepped, ready: total > 0 && prepped === total };
               });
               const needsPrep = withStatus.filter(x => !x.ready);

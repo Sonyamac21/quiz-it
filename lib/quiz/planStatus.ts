@@ -15,6 +15,7 @@
 // dashboard, Calendar, and planner each declare their own local row types)
 // without needing a cast at every call site.
 import { readPairsQuestions } from "./pairs.ts";
+import { isVercelBlobUrl } from "../media/blobUrl.ts";
 type PlanRound = { id: string; round_type: string; questions: unknown[]; name?: string; target_count?: number | null };
 type Plan = { quiz_rounds?: PlanRound[] } | null | undefined;
 
@@ -36,6 +37,19 @@ export type QuizPreflight = {
 
 const QUESTION_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "nearest_wins", "pursuit", "hot_seat", "bonus", "pairs"]);
 
+// A search/watch-page URL is not an audio clip. Use this same rule in the
+// planner, dashboard, session preflight and Music Prep summaries.
+export function hasSavedMusicClip(value: unknown): boolean {
+  if (typeof value !== "string" || !value.trim()) return false;
+  if (isVercelBlobUrl(value)) return true;
+  try {
+    const url = new URL(value, "https://quiz.invalid");
+    if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) return false;
+    if (url.pathname === "/api/media-proxy") return isVercelBlobUrl(url.searchParams.get("url") || "");
+    return /\.(mp3|wav|m4a|aac|ogg|flac|webm)$/i.test(url.pathname);
+  } catch { return false; }
+}
+
 function normalisedKeys(value: unknown): string[] {
   return String(value ?? "").toLowerCase().split(",").map(item => item.trim()).filter(Boolean);
 }
@@ -53,8 +67,8 @@ export function getQuizPreflight(quiz: Plan): QuizPreflight {
     const questions = Array.isArray(round.questions) ? round.questions : [];
     const roundName = round.name || "An unnamed round";
     const count = round.round_type === "pairs" ? readPairsQuestions(questions).length : questions.length;
-    if (QUESTION_ROUND_TYPES.has(round.round_type) && round.target_count != null && (!Number.isInteger(round.target_count) || round.target_count < 1 || count !== round.target_count)) {
-      blockers.push({ code: "target-count", roundId: round.id, message: `${roundName} needs ${round.target_count} questions; currently ${count} are ready.` });
+    if (QUESTION_ROUND_TYPES.has(round.round_type) && round.target_count != null && (!Number.isInteger(round.target_count) || round.target_count < 1 || count < round.target_count)) {
+      blockers.push({ code: "target-count", roundId: round.id, message: `${roundName} needs at least ${round.target_count} questions; currently ${count} are saved.` });
     }
     if (QUESTION_ROUND_TYPES.has(round.round_type) && questions.length === 0) {
       blockers.push({ code: "empty-round", roundId: round.id, message: `${roundName} has no questions.` });
@@ -91,7 +105,7 @@ export function getQuizPreflight(quiz: Plan): QuizPreflight {
       }
       if (question.question_type === "audio") {
         const clip = String(question.option_b || "");
-        if (!/^https?:\/\//i.test(clip) && !clip.startsWith("/")) blockers.push({ code: "music-unprepped", roundId: round.id, message: `${label} has no saved music clip.` });
+        if (!hasSavedMusicClip(clip)) blockers.push({ code: "music-unprepped", roundId: round.id, message: `${label} needs a saved music clip. Open Music Prep to prepare it.` });
       }
       if (question.question_type === "picture") {
         const image = String(question.option_b || "");
@@ -121,7 +135,7 @@ export function roundMusicIsPrepped(round: { questions: unknown[] }): boolean {
     const q = asQuestion(raw);
     if (q.question_type !== "audio") return true;
     const clip = q.option_b as string | undefined | null;
-    return Boolean(clip && clip.includes("blob.vercel-storage.com"));
+    return hasSavedMusicClip(clip);
   });
 }
 

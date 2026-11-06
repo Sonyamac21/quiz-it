@@ -1522,6 +1522,30 @@ export default function QuizBuilderPage() {
     } finally { savingRoundsRef.current = false; setSavingRounds(false); }
   }
 
+  async function restoreSavedQuestions() {
+    if (!selected || savingRoundsRef.current || bulkRunning || generatingMoreId || swappingKey) return;
+    savingRoundsRef.current = true;
+    setSavingRounds(true);
+    const supabase = createSupabaseBrowserClient();
+    let restored = 0;
+    try {
+      for (const round of selected.quiz_rounds) {
+        if (round.questions.length) continue;
+        const saved = rounds.find(item => item.folder === "Saved for later" && item.name === `${round.name} — ${selected.name}` && item.round_type === round.round_type && item.questions.length);
+        if (!saved) continue;
+        const { data, error } = await supabase.from("quiz_rounds").update({ questions: saved.questions })
+          .eq("id", round.id).eq("quiz_id", selected.id).eq("questions", "[]").select("id").maybeSingle();
+        if (error || !data) throw new Error("A round changed. Existing questions have been kept; reload before continuing.");
+        restored++;
+      }
+      await load();
+      showToast(`${restored} round${restored === 1 ? "" : "s"} restored from Saved for later. No AI generation was used.`, "info");
+    } catch (error) {
+      await load();
+      showToast(error instanceof Error ? error.message : "Could not restore saved questions.", "error");
+    } finally { savingRoundsRef.current = false; setSavingRounds(false); }
+  }
+
   async function addRound(round: LibraryRound) {
     if (!selected) return;
     const { error: saveError } = await createSupabaseBrowserClient().from("quiz_rounds").insert({ quiz_id: selected.id, source_round_id: round.id, position: selected.quiz_rounds.length, name: round.name, round_type: round.round_type, difficulty: round.difficulty, theme: round.theme, target_count: round.target_count ?? ((round.round_type === "pairs" ? readPairsQuestions(round.questions).length : round.questions.length) || null), questions: round.questions, hide_leaderboard: round.hide_leaderboard ?? false, allow_power_cards: round.allow_power_cards ?? true, points_per_question: round.points_per_question ?? null, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5, max_time_bonus: round.max_time_bonus ?? 5 });
@@ -1745,7 +1769,7 @@ export default function QuizBuilderPage() {
             of a name/description row THEN a separate button row. */}
         <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ flex: "0 1 320px", minWidth: 220 }}><HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /></div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{guidedIntent === "duplicate" && !guidedAttached ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "Copying…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning}>{assigning ? "Attaching…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>{saving ? "Saving…" : "SAVE QUIZ PLAN"}</HostButton><details className="qi-action-menu"><summary>More options</summary><div><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "Copying…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton className="qi-action-danger" onClick={() => deleteQuiz(selected)}>DELETE</HostButton></div></details></>}</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{guidedIntent === "duplicate" && !guidedAttached ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "Copying…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning}>{assigning ? "Attaching…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>{saving ? "Saving…" : "SAVE QUIZ PLAN"}</HostButton><details className="qi-action-menu"><summary>More options</summary><div>{selected.quiz_rounds.some(round => !round.questions.length && rounds.some(saved => saved.folder === "Saved for later" && saved.name === `${round.name} — ${selected.name}` && saved.questions.length)) && <HostButton onClick={restoreSavedQuestions} disabled={savingRounds}>Restore saved questions to empty rounds</HostButton>}<HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "Copying…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton className="qi-action-danger" onClick={() => deleteQuiz(selected)}>DELETE</HostButton></div></details></>}</div>
         </div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>

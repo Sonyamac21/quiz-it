@@ -1329,7 +1329,7 @@ export default function QuizBuilderPage() {
     const supabase = createSupabaseBrowserClient();
     const [{ data: quizData, error: quizError }, { data: roundData }] = await Promise.all([
       supabase.from("quizzes").select("*, quiz_rounds(*)").order("updated_at", { ascending: false }),
-      supabase.from("rounds").select("id,name,round_type,difficulty,theme,questions,hide_leaderboard,allow_power_cards,points_per_question,danger_zone_enabled,danger_zone_penalty,max_time_bonus").order("created_at", { ascending: false }),
+      supabase.from("rounds").select("id,name,folder,round_type,difficulty,theme,questions,hide_leaderboard,allow_power_cards,points_per_question,danger_zone_enabled,danger_zone_penalty,max_time_bonus").order("created_at", { ascending: false }),
     ]);
     if (quizError) setError("Quiz Plan Builder migration is required. " + quizError.message);
     const normalized = ((quizData ?? []) as QuizDefinition[]).map(q => ({ ...q, quiz_rounds: [...(q.quiz_rounds ?? [])].sort((a, b) => a.position - b.position) }));
@@ -1785,7 +1785,7 @@ export default function QuizBuilderPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 8, maxHeight: 260, overflowY: "auto" }}>{rounds
                   .filter(r => !roundTypeFilter || r.round_type === roundTypeFilter)
                   .map(round => ({ round, added: selected.quiz_rounds.some(qr => qr.source_round_id === round.id) }))
-                  .sort((a, b) => Number(a.added) - Number(b.added))
+                  .sort((a, b) => Number(a.added) - Number(b.added) || Number(b.round.folder === "Saved for later") - Number(a.round.folder === "Saved for later"))
                   .map(({ round, added }) => (
                     <button key={round.id} onClick={() => { addRound(round); setAddRoundOpen(false); }} className="qi-mc-round-card" style={added ? { borderColor: "#2EE06E", background: "rgba(46,224,110,0.08)", opacity: 0.6 } : undefined}>
                       <strong>{added ? "Added: " : ""}{round.name}</strong>

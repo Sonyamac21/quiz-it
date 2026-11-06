@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
+import { playPositiveSpinAudio } from "@/lib/audio/teamCelebration";
+import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 
 const SEGS = [
   { label: "1st Place",  color: "#F5C842", bg: "#2a1e00", positive: true  },
@@ -199,8 +200,7 @@ export default function SlotMachine({ initialTeamName, initialVictorySong, sessi
   };
 
   const playPositiveSounds = (songFile: string) => {
-    playShowAudio("airhorn.mp3", { channel: "cue", volume: 0.65 });
-    if (songFile) playShowAudio(victorySongAudioFile(songFile), { channel: "music" });
+    playPositiveSpinAudio(songFile);
   };
 
   const playNegativeSounds = () => {

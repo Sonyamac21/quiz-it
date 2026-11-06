@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { playShowAudio, stopShowAudio, victorySongAudioFile } from "@/lib/audio/showAudio";
+import { playPositiveSpinAudio } from "@/lib/audio/teamCelebration";
+import { playShowAudio, stopShowAudio } from "@/lib/audio/showAudio";
 
 // Recoloured to the same jewel-tone, purple-led palette as the Hard Deck
 // wheel (components/SpinWheel.tsx) - deep purples/magenta for the wins,
@@ -43,6 +44,8 @@ type SlotReelsProps = {
 };
 
 export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spinNonce, audioEnabled = true }: SlotReelsProps) {
+  const songRef = useRef(victorySong);
+  useEffect(() => { songRef.current = victorySong; }, [victorySong]);
   const r0 = useRef<HTMLDivElement>(null);
   const r1 = useRef<HTMLDivElement>(null);
   const r2 = useRef<HTMLDivElement>(null);
@@ -197,9 +200,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
   };
 
   const playPositiveSounds = (songFile?: string) => {
-    if (!audioEnabled) return;
-    playShowAudio("airhorn.mp3", { channel: "cue", volume: 0.65 });
-    if (songFile) playShowAudio(victorySongAudioFile(songFile), { channel: "music" });
+    playPositiveSpinAudio(songFile, audioEnabled);
   };
   const playNegativeSounds = () => {
     // Negative Spin-to-Win outcome: one sad-trombone. This fires ONLY from the
@@ -286,7 +287,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
                 setOverlay(actualResult);
                 if (actualResult.positive) {
                   scheduleTimeout(() => { launchFW(); }, 150);
-                  playPositiveSounds(victorySong);
+                  playPositiveSounds(songRef.current);
                 } else {
                   playNegativeSounds();
                 }

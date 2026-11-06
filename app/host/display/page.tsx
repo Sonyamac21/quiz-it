@@ -1325,7 +1325,7 @@ function DisplayScreenInner() {
       const scores = (data.scoreboard_data as Score[]) || [];
       setQuizEndScores(scores);
       const syncedCount = (data.quiz_end_revealed_count as number) || 0;
-      const syncedTrophy = !!data.quiz_end_trophy_visible;
+      const syncedTrophy = !!data.quiz_end_trophy_visible || (scores.length > 0 && syncedCount >= scores.length);
       if (prevPhaseForQuizEndRef.current !== "quiz_end") {
         // A display refresh can reconnect halfway through the finale. Resume
         // the persisted reveal instead of visibly rewinding every result to
@@ -2126,7 +2126,7 @@ function DisplayScreenInner() {
           )}
         </div>
         <div className="qi-display-spin-machine">
-          <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeam || "Team"} victorySong={fastestSong || undefined} size="full" audioEnabled={true} />
+          <SlotReels targetIdx={spinTargetIdx} spinNonce={spinNonce} teamName={fastestTeam || "Team"} victorySong={fastestSong || teams.find(team => team.team_name === fastestTeam)?.victory_song || undefined} size="full" audioEnabled={true} />
         </div>
         <QuizItBadge />
       </div>
@@ -2175,7 +2175,7 @@ function DisplayScreenInner() {
     const revealed = sorted.slice(0, revealedCount);
     const top3 = [...quizEndScores].sort((a,b) => b.total_points - a.total_points).slice(0,3);
 
-    if (trophyVisible) {
+    if (trophyVisible || (sorted.length > 0 && revealedCount >= sorted.length)) {
       const winner = top3[0];
       const winnerTeamRow = winner ? teams.find(t => t.team_name === winner.team_name) : null;
       const winnerPhoto = winnerTeamRow?.photo_approved ? getMediaUrl(winnerTeamRow.photo_url) : null;

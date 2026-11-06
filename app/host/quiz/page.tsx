@@ -1306,20 +1306,13 @@ function QuizControllerInner() {
       return;
     }
     const nextCount = Math.min(quizEndRevealedRef.current + 1, total);
-    const { data, error } = await supabase.from("sessions").update({ quiz_end_revealed_count: nextCount }).eq("id", sessionId).select("id");
+    const { data, error } = await supabase.from("sessions").update({ quiz_end_revealed_count: nextCount, scoreboard_data: finalScores, quiz_end_trophy_visible: nextCount >= total }).eq("id", sessionId).select("id");
     if (error || !data?.length) {
       showToast("That result was not sent to the display. Check the connection and retry.", "error", 8000);
       return;
     }
     quizEndRevealedRef.current = nextCount;
-    if (nextCount >= total) {
-      setTimeout(async () => {
-        const { data: trophyData, error: trophyError } = await supabase.from("sessions").update({ quiz_end_trophy_visible: true }).eq("id", sessionId).select("id");
-        if (trophyError || !trophyData?.length) {
-          showToast("The winner screen was not confirmed. Press Reveal Next Team to retry it.", "error", 9000);
-        }
-      }, 3000);
-    }
+
   }
 
   async function revealAllFinalResults() {

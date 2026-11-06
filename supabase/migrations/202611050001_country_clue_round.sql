@@ -1,4 +1,5 @@
 begin;
+set local lock_timeout = '3s';
 
 -- Only the server may stamp the clue band. Existing handset INSERT grants
 -- deliberately exclude this new column; the unique answer key keeps one guess.

@@ -195,7 +195,7 @@ export default function RoundsPage() {
         {/* ALL ROUNDS - unfiled (created directly here, or never moved into a folder) */}
         {!openRound && rounds.length > 0 && (() => {
           const unfiled = rounds.filter(r => !r.folder);
-          const folderNames = Array.from(new Set(rounds.filter(r => r.folder).map(r => r.folder as string))).sort();
+          const folderNames = Array.from(new Set(rounds.filter(r => r.folder).map(r => r.folder as string))).sort((a, b) => Number(b === "Saved for later") - Number(a === "Saved for later") || a.localeCompare(b));
           // Was one full-width horizontal strip per round (name + 4 buttons),
           // stacked vertically - on a wide screen that left huge blank space
           // either side of every row. A grid of cards uses the width instead;
@@ -224,7 +224,7 @@ export default function RoundsPage() {
               {folderNames.map(folder => {
                 const inFolder = rounds.filter(r => r.folder === folder);
                 return (
-                  <details key={folder} style={{ marginTop: 14 }}>
+                  <details key={folder} open={folder === "Saved for later" || undefined} style={{ marginTop: 14 }}>
                     <summary style={{ cursor: "pointer", font: "700 13px 'Inter'", color: "#D94FDC", padding: "8px 2px" }}>{folder} ({inFolder.length})</summary>
                     <div style={{ marginTop: 6 }}>{roundGrid(inFolder)}</div>
                   </details>

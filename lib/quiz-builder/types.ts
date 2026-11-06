@@ -1,5 +1,6 @@
 export type LibraryRound = {
   id: string;
+  folder?: string | null;
   name: string;
   round_type: string;
   difficulty: string | null;

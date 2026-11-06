@@ -1,4 +1,5 @@
 "use client";
+import { savedRoundPayload, savedRoundId } from "@/lib/quiz-builder/savedRounds";
 import { COUNTRY_ROUND, countryQuestionError } from "@/lib/quiz/countryRound";
 import { CountryClues } from "@/components/CountryClues";
 import { CountryClueEditor } from "@/components/CountryClueEditor";
@@ -181,6 +182,8 @@ export default function QuizBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [roundTypeFilter, setRoundTypeFilter] = useState("");
+  const [savingRounds, setSavingRounds] = useState(false);
+  const savingRoundsRef = useRef(false);
 
   // Guided "Create / Assign Quiz" workflow, arrived at from a Calendar Event
   // that has no Quiz Plan yet (app/host/events/page.tsx). ?forEvent=<id> +
@@ -964,6 +967,7 @@ export default function QuizBuilderPage() {
     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, questions: newQuestions } : r) }));
   }
   async function swapRoundQuestion(round: QuizRound, qIndex: number) {
+    if (savingRoundsRef.current) return;
     const key = round.id + "-" + qIndex;
     setSwappingKey(key);
     try {
@@ -1085,6 +1089,7 @@ export default function QuizBuilderPage() {
     setEditDraft({});
   }
   async function runBulkGenerate() {
+    if (savingRoundsRef.current) return;
     if (!selected) return;
     const targets = selected.quiz_rounds.filter(r => bulkConfig[r.id]?.selected);
     if (!targets.length) return;
@@ -1218,6 +1223,7 @@ export default function QuizBuilderPage() {
   // itself avoids both problems - nothing can block the page, and the
   // number being requested is always visibly sitting right there.
   async function generateMoreForRound(round: QuizRound, requested: number, typeOverride?: string[], brainTeaser = false) {
+    if (savingRoundsRef.current) return;
     if (pendingGenerated[round.id]?.length) { showToast("Save the retained generated questions first; no need to pay to generate them again.", "info"); return; }
     // The Pursuit is always exactly 7 gates total (never host-configurable) -
     // clamp here too, not just inside generateValidatedRound, so a host
@@ -1462,9 +1468,56 @@ export default function QuizBuilderPage() {
     setSaving(false);
   }
 
+  // Independent library copies must never share the auto-sync key: editing or
+  // clearing the quiz later must not overwrite the saved questions and clips.
+  async function saveRoundsForLater(items: QuizRound[], prepareAgain = false) {
+    if (!selected || savingRoundsRef.current || bulkRunning || generatingMoreId || swappingKey) return;
+    if (items.some(round => pendingGenerated[round.id]?.length)) { showToast("Save retained generated questions first, so they are included in your saved round.", "info"); return; }
+    if (prepareAgain && !await confirmDialog(
+      "First save independent copies of every populated round in Saved for later. Then empty this plan's questions so you can choose the correct audience and categories and generate fresh questions. No AI generation starts until you choose Generate.",
+      { title: "Save rounds and prepare again?", confirmLabel: "Save rounds and reset questions" }
+    )) return;
+    savingRoundsRef.current = true;
+    setSavingRounds(true);
+    const supabase = createSupabaseBrowserClient();
+    try {
+      const snapshots: QuizRound[] = [];
+      // Save ALL copies successfully before clearing ANY source round.
+      for (const item of items) {
+        const { data, error } = await supabase.from("quiz_rounds").select("*").eq("id", item.id).eq("quiz_id", selected.id).single();
+        if (error || !data) throw new Error("Could not read the latest round. Nothing has been cleared.");
+        const round = data as QuizRound;
+        if (!round.questions.length) continue;
+        const payload = savedRoundPayload(round, selected.name);
+        const id = await savedRoundId(round.id, payload);
+        const { error: saveError } = await supabase.from("rounds").upsert({ id, ...payload }, { onConflict: "id", ignoreDuplicates: true });
+        if (saveError) throw new Error(`Could not save ${round.name}: ${saveError.message}. No further rounds have been cleared.`);
+        snapshots.push(round);
+      }
+      if (prepareAgain) {
+        for (const round of snapshots) {
+          const { data, error } = await supabase.from("quiz_rounds").update({ questions: [] })
+            .eq("id", round.id).eq("quiz_id", selected.id)
+            .eq("questions", JSON.stringify(round.questions)).select("id").maybeSingle();
+          if (error || !data) throw new Error("A round changed while saving. All saved copies are safe; reload before resetting remaining questions.");
+        }
+        dismissGenerationWarnings();
+        setSettingsOpenRoundId(items[0]?.id ?? null);
+        setBulkConfig(previous => Object.fromEntries(Object.entries(previous).map(([id, config]) => [id, { ...config, selected: false }])));
+      }
+      await load();
+      showToast(prepareAgain
+        ? "Rounds saved. Choose the quiz audience and each round’s theme/category, then generate selected rounds."
+        : `${snapshots.length} round${snapshots.length === 1 ? "" : "s"} saved in Library → Rounds → Saved for later.`, "info");
+    } catch (error) {
+      await load();
+      showToast(error instanceof Error ? error.message : "Could not save rounds. Please try again.", "error");
+    } finally { savingRoundsRef.current = false; setSavingRounds(false); }
+  }
+
   async function addRound(round: LibraryRound) {
     if (!selected) return;
-    const { error: saveError } = await createSupabaseBrowserClient().from("quiz_rounds").insert({ quiz_id: selected.id, source_round_id: round.id, position: selected.quiz_rounds.length, name: round.name, round_type: round.round_type, difficulty: round.difficulty, questions: round.questions, hide_leaderboard: round.hide_leaderboard ?? false, allow_power_cards: round.allow_power_cards ?? true, points_per_question: round.points_per_question ?? null, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5, max_time_bonus: round.max_time_bonus ?? 5 });
+    const { error: saveError } = await createSupabaseBrowserClient().from("quiz_rounds").insert({ quiz_id: selected.id, source_round_id: round.id, position: selected.quiz_rounds.length, name: round.name, round_type: round.round_type, difficulty: round.difficulty, theme: round.theme, target_count: round.target_count ?? ((round.round_type === "pairs" ? readPairsQuestions(round.questions).length : round.questions.length) || null), questions: round.questions, hide_leaderboard: round.hide_leaderboard ?? false, allow_power_cards: round.allow_power_cards ?? true, points_per_question: round.points_per_question ?? null, danger_zone_enabled: round.danger_zone_enabled ?? false, danger_zone_penalty: round.danger_zone_penalty ?? 5, max_time_bonus: round.max_time_bonus ?? 5 });
     if (saveError) setError(saveError.message); else await load();
   }
 
@@ -1685,7 +1738,7 @@ export default function QuizBuilderPage() {
             of a name/description row THEN a separate button row. */}
         <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ flex: "0 1 320px", minWidth: 220 }}><HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /></div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{guidedIntent === "duplicate" && !guidedAttached ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "Copying…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning}>{assigning ? "Attaching…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>{saving ? "Saving…" : "SAVE QUIZ PLAN"}</HostButton><details className="qi-action-menu"><summary>More options</summary><div><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "Copying…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton className="qi-action-danger" onClick={() => deleteQuiz(selected)}>DELETE</HostButton></div></details></>}</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{guidedIntent === "duplicate" && !guidedAttached ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "Copying…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning}>{assigning ? "Attaching…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>{saving ? "Saving…" : "SAVE QUIZ PLAN"}</HostButton><details className="qi-action-menu"><summary>More options</summary><div><HostButton onClick={() => saveRoundsForLater(selected.quiz_rounds, true)} disabled={savingRounds || bulkRunning || generatingMoreId !== null || swappingKey !== null}>{savingRounds ? "Saving rounds…" : "Save rounds & prepare again"}</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "Copying…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton className="qi-action-danger" onClick={() => deleteQuiz(selected)}>DELETE</HostButton></div></details></>}</div>
         </div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -1730,6 +1783,7 @@ export default function QuizBuilderPage() {
                   .map(({ round, added }) => (
                     <button key={round.id} onClick={() => { addRound(round); setAddRoundOpen(false); }} className="qi-mc-round-card" style={added ? { borderColor: "#2EE06E", background: "rgba(46,224,110,0.08)", opacity: 0.6 } : undefined}>
                       <strong>{added ? "Added: " : ""}{round.name}</strong>
+                      {round.folder === "Saved for later" && <span style={{ display: "block", color: "#2EE06E" }}>Saved for later</span>}
                       <span style={{ display: "block", color: "#6B5A8E", font: "400 11px 'Inter'" }}>{round.round_type === "pairs" ? `${readPairsQuestions(round.questions).length} questions · 6 tiles each` : `${round.questions.length} questions - ${round.round_type}`}</span>
                     </button>
                   ))}
@@ -1985,6 +2039,7 @@ export default function QuizBuilderPage() {
                     <details className="qi-action-menu"><summary>More round options</summary><div>
                     <HostButton onClick={() => moveRound(activeIndex, -1)} disabled={activeIndex === 0}>UP</HostButton>
                     <HostButton onClick={() => moveRound(activeIndex, 1)} disabled={activeIndex === selected.quiz_rounds.length - 1}>DOWN</HostButton>
+                    <HostButton onClick={() => saveRoundsForLater([activeRound])} disabled={savingRounds || bulkRunning || generatingMoreId !== null || swappingKey !== null}>{savingRounds ? "Saving…" : "Save round for later"}</HostButton>
                     <HostButton onClick={() => duplicateRound(activeRound)}>COPY</HostButton>
                     <HostButton className="qi-action-danger" onClick={() => removeRound(activeRound)}>REMOVE</HostButton>
                     </div></details>

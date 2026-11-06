@@ -1501,6 +1501,12 @@ export default function QuizBuilderPage() {
             .eq("questions", JSON.stringify(round.questions)).select("id").maybeSingle();
           if (error || !data) throw new Error("A round changed while saving. All saved copies are safe; reload before resetting remaining questions.");
         }
+        // A previous per-round audience must not override the host's new
+        // quiz audience when rebuilding for a different group.
+        const nextAudiences = { ...audiences };
+        for (const item of items) delete nextAudiences["round:" + item.id];
+        setAudiences(nextAudiences);
+        try { localStorage.setItem("quiz-generation-audiences", JSON.stringify(nextAudiences)); } catch { /* In-memory settings still apply. */ }
         dismissGenerationWarnings();
         setSettingsOpenRoundId(items[0]?.id ?? null);
         setBulkConfig(previous => Object.fromEntries(Object.entries(previous).map(([id, config]) => [id, { ...config, selected: false }])));

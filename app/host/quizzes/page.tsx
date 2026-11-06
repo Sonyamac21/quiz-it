@@ -1472,10 +1472,11 @@ export default function QuizBuilderPage() {
   // clearing the quiz later must not overwrite the saved questions and clips.
   async function saveRoundsForLater(items: QuizRound[], prepareAgain = false) {
     if (!selected || savingRoundsRef.current || bulkRunning || generatingMoreId || swappingKey) return;
+    if (items.length !== 1) { showToast("Choose one round to save for later.", "info"); return; }
     if (items.some(round => pendingGenerated[round.id]?.length)) { showToast("Save retained generated questions first, so they are included in your saved round.", "info"); return; }
     if (prepareAgain && !await confirmDialog(
-      "Save independent copies in Saved for later, then clear the selected round(s) in this plan so you can choose the audience and categories and generate fresh questions. No AI generation starts until you choose Generate.",
-      { title: "Save rounds and prepare again?", confirmLabel: "Save rounds and reset questions" }
+      "Save this round in Saved for later, then clear only this round’s questions so you can generate replacements. Every other round stays as it is. No AI generation starts until you choose Generate.",
+      { title: "Save this round for later?", confirmLabel: "Save and clear this round" }
     )) return;
     savingRoundsRef.current = true;
     setSavingRounds(true);
@@ -1744,7 +1745,7 @@ export default function QuizBuilderPage() {
             of a name/description row THEN a separate button row. */}
         <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ flex: "0 1 320px", minWidth: 220 }}><HostLabel>Quiz Name</HostLabel><HostInput value={selected.name} onChange={e => setQuizzes(prev => prev.map(q => q.id === selected.id ? { ...q, name: e.target.value } : q))} /></div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{guidedIntent === "duplicate" && !guidedAttached ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "Copying…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning}>{assigning ? "Attaching…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>{saving ? "Saving…" : "SAVE QUIZ PLAN"}</HostButton><details className="qi-action-menu"><summary>More options</summary><div><HostButton onClick={() => saveRoundsForLater(selected.quiz_rounds, true)} disabled={savingRounds || bulkRunning || generatingMoreId !== null || swappingKey !== null}>{savingRounds ? "Saving rounds…" : "Save rounds & prepare again"}</HostButton><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "Copying…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton className="qi-action-danger" onClick={() => deleteQuiz(selected)}>DELETE</HostButton></div></details></>}</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{guidedIntent === "duplicate" && !guidedAttached ? <HostButton variant="pri" onClick={() => duplicateQuiz(selected)} disabled={assigning || duplicating}>{duplicating ? "Copying…" : "DUPLICATE & USE FOR THIS EVENT"}</HostButton> : guidedIntent === "assign" && guidedEvent ? <HostButton variant="pri" onClick={() => assignQuizToEvent(selected.id)} disabled={assigning}>{assigning ? "Attaching…" : "USE THIS QUIZ PLAN FOR THIS EVENT"}</HostButton> : <><HostButton variant="pri" onClick={saveDetails} disabled={saving}>{saving ? "Saving…" : "SAVE QUIZ PLAN"}</HostButton><details className="qi-action-menu"><summary>More options</summary><div><HostButton onClick={() => duplicateQuiz(selected)} disabled={duplicating}>{duplicating ? "Copying…" : "DUPLICATE QUIZ PLAN"}</HostButton><HostButton onClick={() => archiveQuiz(selected)}>{selected.archived ? "RESTORE" : "ARCHIVE"}</HostButton><HostButton className="qi-action-danger" onClick={() => deleteQuiz(selected)}>DELETE</HostButton></div></details></>}</div>
         </div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>

@@ -980,7 +980,7 @@ export default function QuizBuilderPage() {
       exclusions.used.push(...local.used);
       local.usedAnswers.forEach(answer => { if (!exclusions.usedAnswers.includes(answer)) exclusions.usedAnswers.push(answer); });
       const result = await generateValidatedRound(
-        { roundType: round.round_type, audience: audienceForRound(round.id), difficulty: cfg?.difficulty || difficulty, theme, count: 1, existingQuestions: validExisting.filter(q => q !== round.questions[qIndex]) },
+        { roundType: round.round_type, audience: audienceForRound(round.id), difficulty: cfg?.difficulty || difficulty, theme, count: 1, quizQuestions: selected?.quiz_rounds.flatMap(item => item.questions.filter(q => item.id !== round.id || q !== round.questions[qIndex])), existingQuestions: validExisting.filter(q => q !== round.questions[qIndex]) },
         exclusions,
       );
       if (result.questions.length === 0) {
@@ -1139,6 +1139,7 @@ export default function QuizBuilderPage() {
       theme: bulkConfig[r.id]?.theme ?? r.theme ?? "",
       count: shortfalls[r.id],
       existingQuestions: validQuestionsForRound(r.round_type, r.questions),
+      quizQuestions: selected.quiz_rounds.flatMap(item => item.questions),
       allowedQuestionTypes: bulkConfig[r.id]?.allowedQuestionTypes,
     }));
     // Persist the theme/difficulty each round is being generated with right
@@ -1281,7 +1282,7 @@ export default function QuizBuilderPage() {
         // takes priority over the round-level Include: Picture/Music
         // checkboxes below - so a host can ask for "just one picture
         // question" without having to change the round's default mix.
-        [{ roundType: round.round_type, brainTeaser, audience: audienceForRound(round.id), difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, existingQuestions: validQuestionsForRound(round.round_type, round.questions), allowedQuestionTypes: typeOverride ?? cfg?.allowedQuestionTypes }],
+        [{ roundType: round.round_type, brainTeaser, audience: audienceForRound(round.id), difficulty: effectiveDifficulty, theme: effectiveTheme, count: n, quizQuestions: selected?.quiz_rounds.flatMap(item => item.questions), existingQuestions: validQuestionsForRound(round.round_type, round.questions), allowedQuestionTypes: typeOverride ?? cfg?.allowedQuestionTypes }],
         (_idx, status) => setGeneratingMoreStatus(status + capNote),
       );
       // Same stale-snapshot bug as runBulkGenerate above: `round` here is

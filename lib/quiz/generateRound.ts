@@ -118,6 +118,7 @@ export type RoundGenerationSpec = {
   // Questions already present in this Quiz Plan round. They are validation
   // context only: never returned as newly generated questions.
   existingQuestions?: Array<Question | Record<string, unknown>>;
+  quizQuestions?: Array<Question | Record<string, unknown>>;
   // Host override for which question types this round draws from - only
   // honoured for "bonus" and "regular" rounds (the other round types have a
   // structurally fixed type mix for functional reasons: multi_tap/music/
@@ -160,6 +161,7 @@ export async function generateValidatedRound(
   wallClockScale = 1,
 ): Promise<RoundGenerationResult> {
   if (typeof resolveGenerationIntent === "function") spec = { ...spec, ...resolveGenerationIntent(spec.theme, spec.audience) };
+  exclusions.quizQuestions = [...(exclusions.quizQuestions || []), ...(spec.quizQuestions || []) as Question[]];
   const { roundType, difficulty, theme } = spec;
   if (roundType === COUNTRY_ROUND) {
     const previous = [...(exclusions.historyQuestions || []), ...(spec.existingQuestions || [])];
@@ -591,6 +593,7 @@ export async function generateAllRounds(
   // round's in-flight state.
   const perRoundExclusions = specs.map(() => ({
     used: [...baseExclusions.used],
+    quizQuestions: [] as Question[],
     historyQuestions: [...(baseExclusions.historyQuestions || [])],
     usedFingerprints: new Set(baseExclusions.usedFingerprints),
     usedAnswers: [...baseExclusions.usedAnswers],
@@ -601,7 +604,7 @@ export async function generateAllRounds(
   // been copied into the permanent library yet. Seed each request with its
   // own existing questions so a top-up cannot recreate an answer/fact that
   // is already visibly present in that same round.
-  const allExistingQuestions = specs.flatMap(spec => spec.existingQuestions || []);
+  const allExistingQuestions = specs.flatMap(spec => [...(spec.existingQuestions || []), ...(spec.quizQuestions || [])]);
   specs.forEach((_spec, idx) => {
     allExistingQuestions.forEach(question => registerAccepted(perRoundExclusions[idx], question as Question));
   });

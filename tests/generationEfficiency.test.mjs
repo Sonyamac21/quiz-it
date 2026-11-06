@@ -500,3 +500,41 @@ test('quality reviewer distinguishes supplied lyric text from absent audio trans
   assert.match(r.requests[0].prompt, /does not require an audio clip or a separate transcript/);
   assert.match(r.requests[0].prompt, /Still reject an incorrect lyric or answer/);
 });
+
+test('dinosaur topic guard spans species, answer formats and other quiz rounds', () => {
+  const core = validationRunner({}).exports;
+  const existing = { ...candidate, question_text: 'Which dinosaur ate meat?', correct_answer: 'Tyrannosaurus rex' };
+  const other = { ...candidate, question_type: 'multi_tap', question_text: 'Select all plant-eating dinosaurs.', option_a: 'Triceratops', option_b: 'Stegosaurus', correct_answer: 'a,b' };
+  assert.match(core.quizTopicConflict(other, [existing], 'family general knowledge'), /Dinosaurs already/);
+  assert.equal(core.quizTopicConflict(other, [existing], 'Dinosaurs'), null);
+  assert.equal(core.quizTopicConflict({ ...candidate, question_text: 'What do chickens lay?', correct_answer: 'Eggs' }, [existing], ''), null);
+  assert.equal(core.quizTopicConflict({ ...candidate, question_text: 'Which ocean is largest?', correct_answer: 'Pacific' }, [existing], ''), null);
+});
+
+test('topic repetition is rejected before paid history or quality checks, but history alone does not ban a topic', async () => {
+  const r = validationRunner({});
+  const previous = { ...candidate, question_text: 'Triceratops had how many horns?', correct_answer: '3' };
+  const next = { ...candidate, question_text: 'How many legs did Tyrannosaurus rex walk on?', correct_answer: '2' };
+  const exclusions = r.exports.emptyExclusionState();
+  exclusions.quizQuestions = [previous];
+  const result = await r.exports.validateCandidate(next, [], r.exports.createGenerationContext('number', false).report.stages, '', exclusions);
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /repeated-quiz-topic/);
+  assert.equal(r.requests.length, 0);
+  exclusions.quizQuestions = [];
+  exclusions.historyQuestions = [previous];
+  assert.equal(r.exports.duplicateRejectionReason(next, [], '', exclusions), null);
+});
+
+test('concurrent rounds share reserved topics before either finishes saving', async () => {
+  const { quizTopicConflict } = validationRunner({}).exports;
+  let drafts = 0;
+  const r = runner(0, {
+    generateOne: async type => ({ question_type: type, question_text: ++drafts <= 2 ? `Which dinosaur has feature ${drafts}?` : `Fresh unrelated fact ${drafts}`, correct_answer: String(drafts) }),
+    registerAccepted: (state, q) => { (state.quizQuestions ??= []).push(q); },
+    duplicateRejectionReason: (q, current, theme, exclusions) => quizTopicConflict(q, [...current, ...(exclusions.quizQuestions || [])], theme),
+  });
+  const results = await r.runAll(Array.from({length:2}, () => ({ count:1, roundType:'regular', theme:'', difficulty:'easy', allowedQuestionTypes:['number'] })));
+  assert.equal(results.flatMap(result => result.questions).length, 2);
+  assert.equal(results.flatMap(result => result.questions).filter(q => /dinosaur/.test(q.question_text)).length, 1);
+});

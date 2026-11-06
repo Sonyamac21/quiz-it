@@ -403,6 +403,8 @@ export function stageLabel(stage: ValidationStage): string {
 export type ExclusionState = {
   used: string[];
   historyQuestions?: Question[];
+  // Current quiz only; never populate this from permanent history.
+  quizQuestions?: Question[];
   attemptedFlagSubjects?: Set<string>;
   usedFingerprints: Set<string>;
   usedAnswers: string[];
@@ -483,6 +485,7 @@ export async function loadUsedQuestions(onProgress?: (message: string) => void):
 // Supplement full history with unsaved questions in the active round.
 export function quickExclusionState(currentRoundQuestions: Record<string, unknown>[]): ExclusionState {
   const state = emptyExclusionState();
+  state.quizQuestions = [...currentRoundQuestions] as Question[];
   currentRoundQuestions.forEach(q => {
     const pairs = (q as { pairs?: Array<{ a?: { label?: string }; b?: { label?: string } }> }).pairs;
     if (Array.isArray(pairs)) pairs.forEach(pair => {
@@ -504,6 +507,7 @@ export function blacklistRejected(state: ExclusionState, q: Question) {
 }
 
 export function registerAccepted(state: ExclusionState, q: Question) {
+  (state.quizQuestions ??= []).push(q);
   const pairs = (q as unknown as { pairs?: Array<{ a?: { label?: string }; b?: { label?: string } }> }).pairs;
   if (Array.isArray(pairs)) {
     for (const pair of pairs) {
@@ -793,6 +797,7 @@ export async function generateDraftBatch(requests: DraftRequest[], opts: { theme
   const avoid = [...Array.from(opts.exclusions.rejectedTexts).slice(-10), ...history].join(" | ").slice(0, 3200);
   const slots = requests.map((request, index) => ({ slot: index, type: request.type, topic: request.topic, difficulty: request.difficulty, multiTapCorrectCount: request.multiTapCorrectCount, freshSubject: reserveFlagSubject(opts.theme || request.topic, opts.exclusions) }));
   const prompt = `${audienceBrief(opts.audience)}
+${quizVarietyGuidance(opts.exclusions, opts.theme)}
 Write ${requests.length} different quiz questions, one per slot below, in slot order. Think of the complete set before writing. Use a different primary subject and fact for every question. Preserve the requested theme, difficulty and type. Choose straightforward, stable, unambiguous facts you know confidently. Avoid awkward phrasing, trivia about minor plot details, unsupported exact numbers and answer giveaways. Check your own wording and answer before returning it. Different factual questions may share an ordinary numeric answer across separate rounds.
 Used or rejected facts to avoid, including paraphrases: ${avoid || "none"}.
 Previous problem to avoid: ${opts.replacementFeedback || "none"}.
@@ -870,6 +875,7 @@ BEFORE writing any question, ask yourself: "Would ${opts.audience === "families"
 FIRST-PASS CHECK (do silently): consider several different facts and entities; reject any that paraphrase an excluded question or reuse its entity, answer or knowledge test; then choose the strongest stable fact with one clear natural answer. Check only player-visible content for venue suitability—unseen plots, lyrics and themes do not make a mainstream work unsuitable.
 TOPIC: ${topic}
 ${flagSubject ? `FRESH SUBJECT: Focus this candidate on the national flag of ${flagSubject}. Test a clear, verifiable feature, symbol or design fact. Do not substitute another country or the usual Nepal/Switzerland/Denmark examples. The subject name is internal direction, not a required part of the player-visible wording. If the requested type needs several countries, anchor it on this country and choose fresh comparisons.` : ""}
+${quizVarietyGuidance(exclusions, theme)}
 ${opts.replacementFeedback ? "Avoid the problem in the previous rejected candidate: " + opts.replacementFeedback : ""}
 ${roundType === "bonus" ? `BONUS THEME CONTRACT: Every question must directly test the host's theme "${theme || topic}". Use a different fact and subject for each question. Do not drift into movie/music trivia merely associated with the theme. For a colour theme, ask about colours themselves in varied contexts (nature, flags, everyday objects, art or sport), not the name of a film with colourful characters. All text must stand alone: never say "this bird", "this picture" or "this song" without supplied media. Prefer natural, specific questions over tenuous associations.` : ""}
 TYPE: ${typeInstructions[type]}
@@ -1157,7 +1163,26 @@ Return ONLY a JSON array of one object with question_text, question_type (multip
   }
 }
 
+// High-confidence topic guard, independent of answer wording and format.
+// Only explicit subject mentions count; option decoys must not consume topics.
+const DINOSAUR_SUBJECT = /\b(?:dinosaurs?|tyrannosaurus|t[.\s-]*rex|triceratops|stegosaurus|brachiosaurus|diplodocus|velociraptors?|brontosaurus|ankylosaurus|spinosaurus|jurassic|cretaceous)\b/i;
+function quizVarietyGuidance(exclusions: ExclusionState, theme: string): string {
+  return quizTopicConflict({ question_text: "dinosaurs", correct_answer: "", question_type: "text_answer" } as Question, exclusions.quizQuestions || [], theme)
+    ? "QUIZ VARIETY: Dinosaurs have already been used in this quiz plan. Do not write another dinosaur, prehistoric-reptile, species, diet, horns or fossil question. Choose a fresh unrelated subject."
+    : "";
+}
+export function quizTopicConflict(q: Question, others: Question[], theme: string): string | null {
+  if (DINOSAUR_SUBJECT.test(theme)) return null;
+  const subject = (question: Question) => `${question.question_text || ""} ${resolveAnswerText(question) || ""} ${["picture", "audio"].includes(question.question_type) ? question.option_a || "" : ""}`;
+  if (DINOSAUR_SUBJECT.test(subject(q)) && others.some(other => DINOSAUR_SUBJECT.test(subject(other)))) {
+    return "Dinosaurs already appear in this quiz. Choose a different narrow subject, not another dinosaur species, diet or body feature.";
+  }
+  return null;
+}
+
 export function duplicateRejectionReason(q: Question, currentRound: Question[], theme: string, exclusions: ExclusionState): string | null {
+  const topicConflict = quizTopicConflict(q, [...currentRound, ...(exclusions.quizQuestions || [])], theme);
+  if (topicConflict) return "repeated-quiz-topic: " + topicConflict;
   const COMMON = new Set([
     "flag","flags","colour","colours","color","colors","national","pictured","picture","identify","what","which","where","when","who","that","this","with","from","have","been","were","they","their","about","only","does","into","than","other","more","over","some","also","after","before","known","the","and","for","are","but","not","you","all","can","had","her","him","his","how","man","new","now","old","see","two","way","boy","did","its","let","put","say","she","too","use","was","your","them","then","here","there","was","are",
     "film","films","movie","movies","song","songs","music","character","characters","name","named","names","actor","actress","actors","voice","voiced","played","plays","play","called","feature","features","featured","animated","animation","show","shows","series","episode","famous","first","last","title","titled","released","release","year","years","won","wins","winner","story","stories","franchise","sequel","original","company","brand","team","player","country","city","capital","word","words","number",
@@ -1305,7 +1330,7 @@ export async function runCombinedValidation(q: Question, currentRound: Question[
     audienceBrief(q._audience) + " FINAL QUALITY must reject questions unsuitable for this audience, including adult-level assumed knowledge in kids/families mode. " +
     "Perform three INDEPENDENT checks on one commercial pub-quiz question and return all three verdicts in one tool call. " +
     "MODERATION: Judge only player-visible Question, Options, Answer and explicitly described player-visible media. Internal media lookup is private metadata: use its literal title/artist/subject only to identify and fact-check the answer. Never infer or analyse lyrics, plot, themes, subtext, artist history or character history. Allow mainstream commercial music, films, books and TV unless the actual presented title/content is inappropriate. A neutral factual alcohol reference is allowed; promotion is not. Reject only genuinely explicit sexual material, crude anatomical language, illegal-drug promotion, pork promotion, religious or LGBTQ+ advocacy or sensitive discussion, Iran or Israel political content, hate speech, slurs, harassment, discrimination, graphic violence, or clearly offensive/prohibited presented content. 'Name this song' with lookup 'Mr. Brightside - The Killers' must pass. Also verify the answer is factually correct. " +
-    "ROUND BALANCE: Different countries' flags are different subjects. Shared flag vocabulary, colours, or identification format alone is not repetition. In any explicitly themed round, allow repeated theme vocabulary and task format when the tested facts or entities differ. Compare only with accepted questions. Reject only with HIGH confidence for the same primary entity, same narrow subtopic, or effectively the same underlying knowledge. Broad-category overlap is allowed; incidental/weak relationships pass; never reject merely for the same country. If themed, the shared theme is intentional, but repeated franchises/entities inside it are not. conflict_index is the 1-based accepted-question index, otherwise null. " +
+    "ROUND BALANCE: Different countries' flags are different subjects. Shared flag vocabulary, colours, or identification format alone is not repetition. In any explicitly themed round, allow repeated theme vocabulary and task format when the tested facts or entities differ. Compare only with accepted questions. Reject only with HIGH confidence for the same primary entity, same narrow subtopic, or effectively the same underlying knowledge. Two dinosaur identification/diet/body-feature questions repeat one narrow subject even if they name different species and answers. Broad family/animals themes do not exempt this repetition; only an explicit dinosaur theme does. Broad-category overlap is allowed; incidental/weak relationships pass; never reject merely for the same country. If themed, the shared theme is intentional, but repeated franchises/entities inside it are not. conflict_index is the 1-based accepted-question index, otherwise null. " +
     "THEME RELEVANCE: If a theme is supplied, quality_ok must be false unless the question directly tests that theme; a tangential association is insufficient. " +
     "INTERNATIONAL SUITABILITY: Unless explicitly requested by the host's theme, reject niche local UK television/comedy, domestic adverts and other trivia requiring a British upbringing. Globally famous British subjects remain valid; nationality alone is not grounds for rejection. " +
     "MULTI TAP: A valid question has one correct SET of selected options, not one correct individual option. Independently test only the six displayed options against the exact stated criterion and reject if any true option is unkeyed or any false option is keyed. It is NOT a failure that another qualifying country/person/item exists outside those six options. A phrase such as 'Which three of these' scopes the count to the displayed options. Accept natural select-all wording including 'Tap only', 'Choose', 'Select all', and numbered 'Which' phrases; judge meaning rather than a fixed prefix. Reject genuinely ambiguous criteria or a single-answer fact disguised as multiple selection. " +

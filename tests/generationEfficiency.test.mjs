@@ -474,3 +474,29 @@ test('single-question replacements also interpret younger as audience guidance',
   assert.match(r.requests[0].prompt, /TOPIC: familiar family general knowledge/);
   assert.doesNotMatch(r.requests[0].prompt, /TOPIC: younger/);
 });
+
+test('valid Multi Tap set is retained when its size differs from the suggested count', async () => {
+  const draft = { question_type: 'multi_tap', question_text: 'Select all mammals.', option_a: 'Dolphin', option_b: 'Tiger', option_c: 'Whale', option_d: 'Dog', option_e: 'Salmon', option_f: 'Eagle', correct_answer: 'a,b,c,d' };
+  const r = validationRunner({ content: [{ type: 'text', text: JSON.stringify([draft]) }] });
+  const context = r.exports.createGenerationContext('multi_tap', false);
+  const q = await r.exports.generateOne('multi_tap', 'animals', context, {
+    theme: '', roundType: 'multi_tap', difficulty: 'easy', multiTapCorrectCount: 6,
+    exclusions: { used: [], usedAnswers: [], rejectedTexts: new Set(), rejectedFingerprints: new Set(), usedFingerprints: new Set() },
+  });
+  assert.ok(q, context.error);
+  assert.deepEqual(JSON.parse(JSON.stringify(q.correct_answer.split(',').map(key => q[`option_${key}`]).sort())), ['Dog', 'Dolphin', 'Tiger', 'Whale']);
+  assert.equal(r.requests.length, 1);
+});
+
+test('a relative who clause does not turn a complete fictional name into a partial name', () => {
+  const { partialNameAnswerError } = validationRunner({}).exports;
+  assert.equal(partialNameAnswerError({ question_text: 'In the fairy tale, what is the name of the girl with very long hair who is locked in a tower?', correct_answer: 'Rapunzel' }), null);
+  assert.match(partialNameAnswerError({ question_text: 'Who played the lead?', correct_answer: 'Smith' }), /Person answers/);
+});
+
+test('quality reviewer distinguishes supplied lyric text from absent audio transcripts', async () => {
+  const r = validationRunner({ content: [{ type: 'tool_use', name: 'return_validation_result', input: { moderation_ok: true, quality_ok: true, balance_ok: true } }] });
+  await r.exports.runCombinedValidation({ ...candidate, question_type: 'text_answer', question_text: 'Complete this quoted line.', correct_answer: 'word' }, [], '');
+  assert.match(r.requests[0].prompt, /does not require an audio clip or a separate transcript/);
+  assert.match(r.requests[0].prompt, /Still reject an incorrect lyric or answer/);
+});

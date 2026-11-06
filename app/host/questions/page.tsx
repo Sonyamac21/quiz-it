@@ -392,7 +392,7 @@ export default function QuestionsPage() {
     const acceptedCounts: Record<string, number> = {};
     const inFlightCounts: Record<string, number> = {};
     const multiTapAnswerPlan = roundType === "multi_tap"
-      ? shuffle(Array.from({ length: count }, (_, index) => (index % 5) + 2))
+      ? shuffle(Array.from({ length: count }, (_, index) => (index % 4) + 2))
       : [];
     const multiTapTargets: Record<number, number> = {};
     multiTapAnswerPlan.forEach(answerCount => { multiTapTargets[answerCount] = (multiTapTargets[answerCount] || 0) + 1; });

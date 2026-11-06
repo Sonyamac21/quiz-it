@@ -1474,7 +1474,7 @@ export default function QuizBuilderPage() {
     if (!selected || savingRoundsRef.current || bulkRunning || generatingMoreId || swappingKey) return;
     if (items.some(round => pendingGenerated[round.id]?.length)) { showToast("Save retained generated questions first, so they are included in your saved round.", "info"); return; }
     if (prepareAgain && !await confirmDialog(
-      "First save independent copies of every populated round in Saved for later. Then empty this plan's questions so you can choose the correct audience and categories and generate fresh questions. No AI generation starts until you choose Generate.",
+      "Save independent copies in Saved for later, then clear the selected round(s) in this plan so you can choose the audience and categories and generate fresh questions. No AI generation starts until you choose Generate.",
       { title: "Save rounds and prepare again?", confirmLabel: "Save rounds and reset questions" }
     )) return;
     savingRoundsRef.current = true;
@@ -2045,7 +2045,7 @@ export default function QuizBuilderPage() {
                     <details className="qi-action-menu"><summary>More round options</summary><div>
                     <HostButton onClick={() => moveRound(activeIndex, -1)} disabled={activeIndex === 0}>UP</HostButton>
                     <HostButton onClick={() => moveRound(activeIndex, 1)} disabled={activeIndex === selected.quiz_rounds.length - 1}>DOWN</HostButton>
-                    <HostButton onClick={() => saveRoundsForLater([activeRound])} disabled={savingRounds || bulkRunning || generatingMoreId !== null || swappingKey !== null}>{savingRounds ? "Saving…" : "Save round for later"}</HostButton>
+                    <HostButton onClick={() => saveRoundsForLater([activeRound], true)} disabled={savingRounds || bulkRunning || generatingMoreId !== null || swappingKey !== null}>{savingRounds ? "Saving…" : "Save round for later"}</HostButton>
                     <HostButton onClick={() => duplicateRound(activeRound)}>COPY</HostButton>
                     <HostButton className="qi-action-danger" onClick={() => removeRound(activeRound)}>REMOVE</HostButton>
                     </div></details>

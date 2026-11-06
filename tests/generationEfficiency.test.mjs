@@ -538,3 +538,15 @@ test('concurrent rounds share reserved topics before either finishes saving', as
   assert.equal(results.flatMap(result => result.questions).length, 2);
   assert.equal(results.flatMap(result => result.questions).filter(q => /dinosaur/.test(q.question_text)).length, 1);
 });
+
+test('a single-round top-up receives topics from unselected quiz rounds', async () => {
+  const { quizTopicConflict } = validationRunner({}).exports;
+  let drafts = 0;
+  const r = runner(0, {
+    generateOne: async type => ({ question_type: type, question_text: ++drafts === 1 ? 'Which dinosaur ate plants?' : 'Which ocean is largest?', correct_answer: String(drafts) }),
+    duplicateRejectionReason: (q, current, theme, exclusions) => quizTopicConflict(q, [...current, ...(exclusions.quizQuestions || [])], theme),
+  });
+  const result = await r.runSpec({ count:1, roundType:'regular', theme:'', difficulty:'easy', allowedQuestionTypes:['number'], quizQuestions:[{ question_type:'number', question_text:'Triceratops had how many horns?', correct_answer:'3' }] });
+  assert.equal(result.questions.length, 1);
+  assert.equal(result.questions[0].question_text, 'Which ocean is largest?');
+});

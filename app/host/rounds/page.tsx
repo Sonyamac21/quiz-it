@@ -218,10 +218,15 @@ export default function RoundsPage() {
           );
           return (
             <div style={{ marginTop: 8 }}>
+              {rounds.some(round => round.folder === "Saved for later") && <section id="saved-for-later" style={{ marginBottom: 24 }}>
+                <div className="fbh-lbl">Saved for later</div>
+                <p style={{ color: "#B9A8D9" }}>Reuse these complete rounds from Quiz Plans → Add a round → Or use a saved round.</p>
+                {roundGrid(rounds.filter(round => round.folder === "Saved for later"))}
+              </section>}
               <div className="fbh-lbl">All Rounds</div>
               {unfiled.length === 0 && <p style={{ font: "400 12px 'Inter'", color: "#6B5A8E" }}>Nothing unfiled - everything below is tucked into a folder.</p>}
               {unfiled.length > 0 && roundGrid(unfiled)}
-              {folderNames.map(folder => {
+              {folderNames.filter(folder => folder !== "Saved for later").map(folder => {
                 const inFolder = rounds.filter(r => r.folder === folder);
                 return (
                   <details key={folder} open={folder === "Saved for later" || undefined} style={{ marginTop: 14 }}>

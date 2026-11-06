@@ -49,3 +49,18 @@ repeat prevention, structural readiness, the rendered clue/flag component,
 zero AI requests, and PostgreSQL permissions, clue projection, first-guess
 immutability and server stamping. Run `npm test`, `npx tsc --noEmit`, and
 `npm run build -- --webpack` before release.
+
+## Release verification — 6 November 2026
+
+The migration was applied to production after a rollback-only dry run. The
+production projection check confirmed that future clues, the future flag,
+the answer and accepted aliases are withheld before reveal.
+
+A separate five-country practice plan was created without changing the
+existing quiz. In its live rehearsal, the handset submitted `UAE` on clue one,
+remained locked as the host advanced to the flag on clue four, and earned
+exactly 10 points after clue five. A host refresh restored clue four correctly.
+A second correct guess, submitted at clue five, earned exactly 2 points,
+bringing the test team's total to 12. The practice session was then closed.
+
+All 248 automated checks, TypeScript checking and the production build passed.

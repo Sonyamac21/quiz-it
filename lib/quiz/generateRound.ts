@@ -25,6 +25,7 @@
 // bundle into each call sequentially seeded, or merge bundles between waves -
 // see generateAllRounds() in this file for the batch orchestrator.
 
+import { buildCountryQuestions, COUNTRY_ROUND } from "@/lib/quiz/countryRound";
 import { PURSUIT_TOTAL_QUESTIONS } from "@/lib/quiz/pursuit";
 import { generatePairs } from "@/lib/quiz/generatePairs";
 import { generatePairsQuestions } from "@/lib/quiz/pairs";
@@ -160,6 +161,15 @@ export async function generateValidatedRound(
 ): Promise<RoundGenerationResult> {
   if (typeof resolveGenerationIntent === "function") spec = { ...spec, ...resolveGenerationIntent(spec.theme, spec.audience) };
   const { roundType, difficulty, theme } = spec;
+  if (roundType === COUNTRY_ROUND) {
+    const previous = [...(exclusions.historyQuestions || []), ...(spec.existingQuestions || [])];
+    const requested = Math.max(0, Math.min(spec.count, 5 - (spec.existingQuestions?.length || 0)));
+    const questions = buildCountryQuestions(requested, previous);
+    (exclusions.historyQuestions ??= []).push(...questions);
+    questions.forEach(q => onAccept?.(q));
+    const stoppedEarly = questions.length < requested;
+    return { spec, questions, report: [], stoppedEarly, finalStatus: stoppedEarly ? `Added ${questions.length} countries. All unused country packs have been used; edit clues manually or choose another round. No AI charges.` : `Added ${questions.length} countries with five clues each. No AI charges.` };
+  }
   if (roundType === "pairs") {
     const count = Math.max(0, Math.floor(spec.count));
     const batch = await generatePairsQuestions(count, async index => {

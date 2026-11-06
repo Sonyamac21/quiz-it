@@ -8,6 +8,7 @@
 // Keep in sync with ROUND_TYPE_LABEL in app/host/quiz/page.tsx if a new
 // round type is added there.
 export const ROUND_TYPE_RULES: Record<string, { label: string; blurb: string }> = {
+  where_in_world: { label: "Where in the World?", blurb: "Five countries, five clues each. One guess per country. A correct guess after clue 1, 2, 3, 4 or 5 earns 10, 8, 6, 4 or 2 points. Wait for a clue or lock in your answer. No speed bonuses or Power Cards." },
   regular: {
     label: "General Knowledge",
     blurb: "Standard quiz questions - multiple choice, type-in text, numbers, or put-in-order sequence.",

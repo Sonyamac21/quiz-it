@@ -219,3 +219,49 @@ test('immediate library restriction removes anonymous grants without changing ow
     await db.exec('reset role');
   } finally { await db.close(); }
 });
+
+test('country clue migration hides future clues and stamps a single immutable guess at its server clue band', async () => {
+  const db=await fixture();
+  try {
+    await db.exec(sql('202610130001_launch_security.sql'));
+    await db.exec(sql('202611050001_country_clue_round.sql'));
+    await db.exec(sql('202611050001_country_clue_round.sql')); // Reapply safely, without wrapping recursively.
+    const question={question_text:'Name the country.',question_type:'text_answer',round_type:'where_in_world',correct_answer:'Japan',country_aliases:['Nippon'],country_clues:['Hokkaido','Ryokan','Shinkansen','Mount Fuji','Tokyo'],country_clue_index:0,country_flag_src:'/country-flags/01.svg',country_flag_clue_index:3};
+    await db.query('update sessions set current_question=$1::jsonb where pin=\'1234\'', [JSON.stringify(question)]);
+    async function asPlayer(query) {
+      await db.exec('set role anon');
+      await db.query("select set_config('request.jwt.claim.sub','',false),set_config('request.headers',$1,false)",[JSON.stringify({'x-quiz-player-token':'blue-token'})]);
+      try {return await db.query(query);} finally {await db.exec('reset role');}
+    }
+    let payload=(await asPlayer("select payload from player_sessions where pin='1234'")).rows[0].payload;
+    assert.deepEqual(payload.current_question.country_clues,['Hokkaido']);
+    assert.equal(payload.current_question.correct_answer,'');
+    assert.equal(payload.current_question.country_aliases,undefined);
+    assert.equal(payload.current_question.country_flag_src,undefined);
+    assert.equal(payload.allow_power_cards,false);
+    assert.equal(JSON.stringify(payload).includes('Tokyo'),false);
+    await assert.rejects(asPlayer("insert into answers(session_pin,team_name,round_number,question_index,answer_text,country_clue_index) values('1234','Blue',1,0,'Japan',0)"),/permission denied/);
+    for(let index=0;index<5;index++) {
+      await db.query("update sessions set current_question_index=$1,current_question=jsonb_set(current_question,'{country_clue_index}',$2::jsonb) where pin='1234'",[index,String(index)]);
+      await asPlayer(`insert into answers(session_pin,team_name,round_number,question_index,answer_text) values('1234','Blue',1,${index},'Japan')`);
+      const visible=(await asPlayer("select payload from player_sessions where pin='1234'")).rows[0].payload.current_question;
+      assert.equal(visible.country_clues.length,index+1);
+      assert.equal(visible.country_flag_src,index>=3 ? '/country-flags/01.svg' : undefined);
+      const row=(await db.query(`select * from answers where question_index=${index}`)).rows[0];
+      assert.equal(row.country_clue_index,index);
+      await db.exec("update sessions set current_question=jsonb_set(current_question,'{country_clue_index}','4') where pin='1234'");
+      await asPlayer(`insert into answers(session_pin,team_name,round_number,question_index,answer_text) values('1234','Blue',1,${index},'Wrong') on conflict(session_pin,team_name,round_number,question_index) do nothing`);
+      const unchanged=(await db.query(`select * from answers where question_index=${index}`)).rows[0];
+      assert.equal(unchanged.answer_text,'Japan');
+      assert.equal(unchanged.country_clue_index,index);
+    }
+    await db.exec("update sessions set phase='answer' where pin='1234'");
+    payload=(await asPlayer("select payload from player_sessions where pin='1234'")).rows[0].payload;
+    assert.equal(payload.current_question.correct_answer,'Japan');
+    assert.deepEqual(payload.current_question.country_aliases,['Nippon']);
+    assert.equal(payload.current_question.country_clues.length,5);
+    await assert.rejects(asPlayer("insert into answers(session_pin,team_name,round_number,question_index,answer_text) values('1234','Blue',1,4,'Japan')"),/closed|not accepting answers/);
+    await db.exec("update sessions set phase='question',current_question_index=5,current_question=jsonb_set(current_question,'{country_clue_index}','9') where pin='1234'");
+    await assert.rejects(asPlayer("insert into answers(session_pin,team_name,round_number,question_index,answer_text) values('1234','Blue',1,5,'Japan')"),/not ready/);
+  } finally {await db.close();}
+});

@@ -34,9 +34,12 @@ import { FitBlockText } from "@/components/FitBlockText";
 import { FitScaleBlock } from "@/components/FitScaleBlock";
 import { speedBonusForRank, type FinalBonusMode } from "@/lib/quiz/speedBonus";
 
+import { COUNTRY_ROUND, countryAnswerPoints, countryPoints, isCountryQuestion, type CountryQuestionFields } from "@/lib/quiz/countryRound";
+import { CountryClues } from "@/components/CountryClues";
+
 type HostRealtimeChannel = ReturnType<ReturnType<typeof createSupabaseBrowserClient>["channel"]>;
 
-type Question = {
+type Question = CountryQuestionFields & {
   id?: number;
   question_text: string;
   question_type: string;
@@ -66,7 +69,7 @@ type Round = { id: string; name: string; questions: Question[]; round_type?: str
 // renders each team's crest, so it always fell back to plain initials.
 type Team = { id: string; team_name: string; victory_song: string; session_pin: string; photo_url?: string | null; photo_approved?: boolean | null; };
 const DEFAULT_POINTS_PER_QUESTION = 10;
-type Answer = { session_pin: string; id: string; team_name: string; round_number?: number | null; question_index: number; answer_text: string; submitted_at: string; };
+type Answer = { session_pin: string; id: string; team_name: string; round_number?: number | null; question_index: number; answer_text: string; submitted_at: string; country_clue_index?: number | null; };
 type UnoCard = { id: string; team_name: string; card_type: string; played_at: string; round_number?: number | null; };
 type Score = { team_name: string; total_points: number; round_points: number; correct_count: number; fastest_count: number; };
 
@@ -100,6 +103,7 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
       "Reverse can only be played in Rounds 1 and 2 — don't save it too long.",
       "Have fun, play fair, and good luck!",
     ],
+    where_in_world: ["Five countries. Five clues per country, revealed one at a time.", "A correct answer after clue 1, 2, 3, 4 or 5 earns 10, 8, 6, 4 or 2 points.", "One locked guess per team per country. Wait for another clue or submit your answer.", "No speed bonuses, penalties or Power Cards. Maximum round score: 50."],
     regular: [
       // Regular rounds draw from multiple_choice, text_answer, number, and
       // sequence only \u2014 multi_tap ("tap-all-that-apply") is its own
@@ -166,7 +170,7 @@ function buildRules(opts: { timerSeconds: number; timerRange?: [number, number];
 // Labels match the Quiz Plan builder's own ROUND_TYPE_LABELS (app/host/quizzes/page.tsx)
 // so a round the host named/typed as "Regular" doesn't get relabelled "General
 // Knowledge" once it's live - same round, same name, everywhere the host sees it.
-const ROUND_TYPE_LABEL: Record<string,string> = { regular: "Regular", multi_tap: "Multi Tap", music: "Music Round", hot_seat: "Hot Seat", pursuit: "The Pursuit", bonus: "Bonus Round", hard_deck: "The Hard Deck", nearest_wins: "Nearest Wins", pairs: "Match Made" };
+const ROUND_TYPE_LABEL: Record<string,string> = { where_in_world: "Where in the World?", regular: "Regular", multi_tap: "Multi Tap", music: "Music Round", hot_seat: "Hot Seat", pursuit: "The Pursuit", bonus: "Bonus Round", hard_deck: "The Hard Deck", nearest_wins: "Nearest Wins", pairs: "Match Made" };
 
 
 
@@ -190,6 +194,8 @@ function QuizControllerInner() {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [selectedRound, setSelectedRound] = useState<Round|null>(null);
   const [qIdx, setQIdx] = useState(0);
+  const [countryClueIndex, setCountryClueIndex] = useState(0);
+  const countryCluePending = useRef(false);
   const [hostPhase, setHostPhase] = useState<HostPhase>("waiting");
   const [teams, setTeams] = useState<Team[]>([]);
   const [answers, setAnswers] = useState<Answer[]>([]);
@@ -504,7 +510,7 @@ function QuizControllerInner() {
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [hostPhase, selectedRound, qIdx, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, finalBonusMode, timerDuration, dangerZone, dangerPenalty, wipeoutMode, timeLeft, isLastQ, pursuitActive, hardDeckActive, pairsActive]);
+  }, [hostPhase, selectedRound, qIdx, countryClueIndex, connected, answers, teams, currentQ, sessionId, sessionPin, pointsPerQ, timeBonus, finalBonusMode, timerDuration, dangerZone, dangerPenalty, wipeoutMode, timeLeft, isLastQ, pursuitActive, hardDeckActive, pairsActive]);
 
   async function handleSpacebar() {
     if (pursuitActive) return; // The Pursuit panel owns Space while it's running.
@@ -555,7 +561,10 @@ function QuizControllerInner() {
     }
     else if (activePhase === "preview") { await doSendQuestion(); }
     else if (activePhase === "question") {
-      if (currentQ?.question_type === "picture" && picSubPhase === "image_only") {
+      if (isCountryQuestion(currentQ)) {
+        if (countryClueIndex < 4) await doNextCountryClue();
+        else await doRevealAnswer();
+      } else if (currentQ?.question_type === "picture" && picSubPhase === "image_only") {
         await doRevealPictureQuestion();
         setPicSubPhase("question_visible");
       } else {
@@ -618,6 +627,7 @@ function QuizControllerInner() {
       }
     }
     if (typeof data.current_question_index === "number") setQIdx(data.current_question_index);
+    setCountryClueIndex(Number((data.current_question as CountryQuestionFields | null)?.country_clue_index) || 0);
     if (typeof data.round_number === "number") {
       setRoundNumber(data.round_number);
       roundNumberRef.current = data.round_number;
@@ -936,7 +946,7 @@ function QuizControllerInner() {
     const selectedIsFinalRound = rounds.length > 0 && selectedRound?.position === rounds[rounds.length - 1]?.position;
     correctEntries.forEach((entry, idx) => {
       const availableBonus = q.question_type === "multi_tap" ? 4 : timeBonus;
-      rankBonus[entry.teamName] = selectedRound?.round_type === "hot_seat"
+      rankBonus[entry.teamName] = isCountryQuestion(q) || selectedRound?.round_type === "hot_seat"
         ? 0
         : speedBonusForRank(idx, availableBonus, selectedIsFinalRound, finalBonusMode);
     });
@@ -996,6 +1006,16 @@ function QuizControllerInner() {
     for (const team of teamList) {
       const ans = getLatestAnswer(team.team_name);
       if (!ans) continue;
+      if (isCountryQuestion(q)) {
+        const correct = isAnswerCorrect(ans, q);
+        const delta = countryAnswerPoints(ans, q);
+        lastDeltasRef.current[team.team_name] = delta;
+        if (!delta) continue;
+        const result = await applyScoreDelta(supabase, sessionPin, team.team_name, delta, { eventKey: `autoscore:${sessionPin}:r${roundNumber}:${qIdx}:${team.team_name}:country`, isCorrect: correct, syncScoreboard: false });
+        if (result.error) failedTeams.push(team.team_name);
+        if (result.scoreboardSyncError) scoreboardSyncFailed = true;
+        continue;
+      }
       if (q.question_type === "nearest_wins") {
         const isWinner = nwWinners.some(e => e.teamName === team.team_name);
         if (!isWinner) {
@@ -1624,6 +1644,10 @@ function QuizControllerInner() {
   // PHASE ACTIONS
   async function doStartRound() {
     if (!selectedRound || !sessionId) return;
+    if (selectedRound.round_type === COUNTRY_ROUND) {
+      const { data, error } = await createSupabaseBrowserClient().rpc("country_round_ready");
+      if (error || !data) { showToast("The country round database update is not installed yet.", "error", 7000); return; }
+    }
     clearHostPreviewRecovery(window.sessionStorage);
     stopVictorySong();
     stopTickAudio();
@@ -1661,7 +1685,7 @@ function QuizControllerInner() {
       fastest_team: null,
       fastest_song: null,
       hide_leaderboard: selectedRound.hide_leaderboard ?? false,
-      allow_power_cards: selectedRound.allow_power_cards ?? true,
+      allow_power_cards: selectedRound.round_type === COUNTRY_ROUND ? false : selectedRound.allow_power_cards ?? true,
       hot_seat_status: "idle",
       hot_seat_team: null,
       hot_seat_locked_teams: [],
@@ -1687,6 +1711,7 @@ function QuizControllerInner() {
   async function doPreviewQuestion(idx: number) {
     if (!selectedRound || !sessionId) return;
     setQIdx(idx);
+    setCountryClueIndex(0);
     setAnswers([]);
     setFastestTeam(null); fastestTeamRef.current = null; scoredFastestTeamRef.current = null;
     setFastestSong(null);
@@ -1715,6 +1740,7 @@ function QuizControllerInner() {
     // the team list while teams are actively answering.
     setControlsOpen(false);
     const q = selectedRound.questions[qIdx];
+    if (isCountryQuestion(q)) setCountryClueIndex(0);
     const isHotSeat = selectedRound.round_type === "hot_seat";
     hostPhaseRef.current = isHotSeat ? "hot_seat" : "question";
     setHostPhase(hostPhaseRef.current);
@@ -1731,7 +1757,7 @@ function QuizControllerInner() {
     setScrambledTeams([]);
     const { error: sendErr } = await supabase.from("sessions").update({
       phase: isHotSeat ? "hot_seat" : "question",
-      current_question: q,
+      current_question: isCountryQuestion(q) ? { ...q, country_clue_index: 0 } : q,
       current_question_index: qIdx,
       timer_started_at: null,
       fastest_team: null,
@@ -1745,7 +1771,13 @@ function QuizControllerInner() {
       blocked_teams: [],
       scrambled_teams: [],
     }).eq("id", sessionId);
-    if (sendErr) console.error("SESSION UPDATE FAILED [doSendQuestion]:", sendErr);
+    if (sendErr) {
+      console.error("SESSION UPDATE FAILED [doSendQuestion]:", sendErr);
+      if (isCountryQuestion(q)) {
+        hostPhaseRef.current = "preview"; setHostPhase("preview");
+        showToast("The country did not go live. Please retry Send Live.", "error", 7000); return;
+      }
+    }
     // Record actual play-time usage for repeat-prevention - this only fires for
     // questions that came from (or were saved into) the library, i.e. have an id.
     // Older rounds generated before the library existed simply won't have one,
@@ -1783,7 +1815,20 @@ function QuizControllerInner() {
     await supabase.from("sessions").update({ picture_sub_phase: "question_visible" }).eq("id", sessionId);
   }
 
+  async function doNextCountryClue() {
+    if (!sessionId || !currentQ || !isCountryQuestion(currentQ) || hostPhaseRef.current !== "question" || countryClueIndex >= 4 || countryCluePending.current) return;
+    countryCluePending.current = true;
+    try {
+      const next = countryClueIndex + 1;
+      const { data, error } = await createSupabaseBrowserClient().from("sessions").update({ current_question: { ...currentQ, country_clue_index: next } })
+        .eq("id", sessionId).eq("phase", "question").eq("round_number", roundNumber).eq("current_question_index", qIdx).eq("current_question->>country_clue_index", String(countryClueIndex)).select("id").maybeSingle();
+      if (error || !data) { showToast("The clue could not be advanced. Refresh to check the live clue before retrying.", "error", 7000); return; }
+      setCountryClueIndex(next);
+    } finally { countryCluePending.current = false; }
+  }
+
   async function doStartTimer() {
+    if (isCountryQuestion(currentQ)) return;
     if (!sessionId || timerStartPendingRef.current) return;
     timerStartPendingRef.current = true;
     stopTickAudio();
@@ -1895,14 +1940,24 @@ function QuizControllerInner() {
     hostPhaseRef.current = "answer";
     setHostPhase("answer");
     const supabase = createSupabaseBrowserClient();
-    await supabase.from("sessions").update({ phase: "answer" }).eq("id", sessionId);
+    const { error: revealError } = await supabase.from("sessions").update({ phase: "answer" }).eq("id", sessionId);
+    if (revealError) {
+      hostPhaseRef.current = "question"; setHostPhase("question");
+      scoringInProgressRef.current = false; setScoringInProgress(false); revealingRef.current = false;
+      showToast("Could not close answering. Retry Reveal before scoring.", "error", 7000); return;
+    }
     // Fetch answers fresh from the DB right before scoring instead of trusting
     // the `answers` React state, which is fed by a realtime subscription plus a
     // 2.5s safety-net poll - if the host hits Reveal right after the last team
     // submits, that state can still be lagging the database by up to ~2.5s,
     // which silently scored against incomplete/stale data (missed points,
     // leaderboard reflecting an earlier question's submissions).
-    const { data: freshAnswers } = await scopedAnswersQuery(sessionPin, qIdx);
+    const { data: freshAnswers, error: freshAnswerError } = await scopedAnswersQuery(sessionPin, qIdx);
+    if (isCountryQuestion(currentQ) && freshAnswerError) {
+      setScoringError("Could not confirm country guesses. Retry scoring to award the correct clue points.");
+      scoringInProgressRef.current = false; setScoringInProgress(false); revealingRef.current = false;
+      return;
+    }
     const answersToScore = freshAnswers ?? answers;
     setAnswers(answersToScore);
     try {
@@ -2080,7 +2135,7 @@ function QuizControllerInner() {
   }
 
   async function doOfferSpinToWin() {
-    if (!sessionId) return;
+    if (!sessionId || isCountryQuestion(currentQ)) return;
     spinTriggeredRef.current = false;
     setSpinOffered(true);
     setDecisionMade(true);
@@ -2235,9 +2290,9 @@ function QuizControllerInner() {
   // big desk picker). Behaviour identical to the original inline handler.
   function applyRoundConfiguration(round: Round | null) {
     setPointsPerQ(round?.points_per_question ?? DEFAULT_POINTS_PER_QUESTION);
-    setDangerZone(round?.danger_zone_enabled ?? false);
+    setDangerZone(round?.round_type === COUNTRY_ROUND ? false : round?.danger_zone_enabled ?? false);
     setDangerPenalty(round?.danger_zone_penalty ?? 5);
-    setTimeBonus(round?.max_time_bonus ?? 5);
+    setTimeBonus(round?.round_type === COUNTRY_ROUND ? 0 : round?.max_time_bonus ?? 5);
   }
 
   async function chooseRound(r: (typeof rounds)[number] | null) {
@@ -2287,6 +2342,7 @@ function QuizControllerInner() {
     hostPhase === "round_start" ? (selectedRound?.round_type === "pursuit" ? "SPACE: Start The Pursuit" : selectedRound?.round_type === "hard_deck" ? "SPACE: Start The Hard Deck" : selectedRound?.round_type === "pairs" ? "SPACE: Start Match Made" : "SPACE: Preview First Question") :
     hostPhase === "preview" ? "SPACE: Send Question Live" :
     hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "SPACE: Reveal Question Text" :
+    hostPhase === "question" && isCountryQuestion(currentQ) ? (countryClueIndex < 4 ? `SPACE: Reveal Clue ${countryClueIndex + 2}` : "SPACE: Reveal Country") :
     hostPhase === "question" ? "SPACE: Start Timer" :
     hostPhase === "timer" ? "SPACE: Reveal Answer" :
     hostPhase === "hot_seat" && hotSeatAnswerIsCorrect ? "SPACE: Award Points & Reveal" :
@@ -2306,6 +2362,7 @@ function QuizControllerInner() {
     hostPhase === "round_start" ? (selectedRound?.round_type === "pursuit" ? "Start The Pursuit" : selectedRound?.round_type === "hard_deck" ? "Start The Hard Deck" : selectedRound?.round_type === "pairs" ? "Start Match Made" : "Preview First Question") :
     hostPhase === "preview" ? "Send Question Live" :
     hostPhase === "question" && currentQ?.question_type === "picture" && picSubPhase === "image_only" ? "Reveal Question Text" :
+    hostPhase === "question" && isCountryQuestion(currentQ) ? (countryClueIndex < 4 ? `Reveal Clue ${countryClueIndex + 2} · ${countryPoints(countryClueIndex + 1)} points` : "Reveal Country & Score") :
     hostPhase === "question" ? "Start Timer" :
     hostPhase === "timer" ? "Reveal Answer" :
     hostPhase === "hot_seat" && hotSeatAnswerIsCorrect ? "Award Points & Reveal" :
@@ -2595,7 +2652,7 @@ function QuizControllerInner() {
                   question to go back to. Hot Seat/Pursuit/Hard Deck don't
                   use Spin to Win, so this only needs to appear during the
                   regular question flow. */}
-              {qIdx > 0 && ["preview", "question", "timer", "answer", "celebration"].includes(hostPhase) && (
+              {!isCountryQuestion(currentQ) && qIdx > 0 && ["preview", "question", "timer", "answer", "celebration"].includes(hostPhase) && (
                 <Button variant="secondary" onClick={async () => { if (await confirmDialog("Go back and re-offer the spin for the previous question's fastest correct team?")) goBackToOfferSpin(); }}>Back — Offer Spin</Button>
               )}
             </div>
@@ -2804,7 +2861,7 @@ function QuizControllerInner() {
                 <>
                   <FitBlockText className="qi-mc-celebration__team" maxViewportHeight={0.12} minFontSize={20}>{fastestTeam || ""}</FitBlockText>
                   <div style={{ fontSize:16, color:"rgba(255,255,255,0.5)", marginBottom:32 }}>Victory song playing...</div>
-                  {!decisionMade && (
+                  {!decisionMade && !isCountryQuestion(currentQ) && (
                     <div style={{ display:"flex", gap:12, justifyContent:"center", marginBottom:24 }}>
                       <button onClick={doOfferSpinToWin} style={{ padding:"10px 20px", borderRadius:10, background:"rgba(190,38,193,0.3)", border:"1px solid #BE26C1", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>Offer Spin to Win</button>
                     </div>
@@ -2923,6 +2980,7 @@ function QuizControllerInner() {
                 {currentQ.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")}
               </h1>
 
+              {isCountryQuestion(currentQ) && <CountryClues question={currentQ} index={countryClueIndex} preview={hostPhase === "preview"} compact />}
               {hostPhase === "hot_seat" && (
                 <div className={`qi-hot-seat-host${hotSeatCurrentAnswer ? " qi-hot-seat-host--answered" : hotSeatStatus === "claimed" ? " qi-hot-seat-host--claimed" : ""}`} role="status" aria-live="assertive">
                   <div className="qi-hot-seat-host__label">HOT SEAT · QUESTION {qIdx + 1} OF {selectedRound.questions.length}</div>
@@ -3040,7 +3098,7 @@ function QuizControllerInner() {
               <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doStartRound}>Start Round</button>
               <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={() => doPreviewQuestion(qIdx)} disabled={hostPhase==="preview"}>Preview Q</button>
               <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doSendQuestion} disabled={hostPhase!=="preview"}>Send Live</button>
-              <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doStartTimer} disabled={hostPhase==="timer"}>{hostPhase==="timer" ? timeLeft+"s" : "Timer"}</button>
+              <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={isCountryQuestion(currentQ) ? doNextCountryClue : doStartTimer} disabled={hostPhase==="timer" || (isCountryQuestion(currentQ) && (hostPhase !== "question" || countryClueIndex >= 4))}>{isCountryQuestion(currentQ) ? "Next clue" : hostPhase==="timer" ? timeLeft+"s" : "Timer"}</button>
               <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doRevealAnswer} disabled={hostPhase==="answer"}>Reveal</button>
               <button className="qi-button qi-button--quiet qi-mc-manual__button" disabled={scoringInProgress} onClick={doCelebrate}>{scoringInProgress ? "Confirming scores…" : "Celebrate"}</button>
               <button className="qi-button qi-button--quiet qi-mc-manual__button" onClick={doDumpQuestion} title="Skip this question without scoring it - stays in the round for next time">Dump Q</button>

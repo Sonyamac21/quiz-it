@@ -13,7 +13,10 @@
 // same verdict autoScore actually used to award points, for every type, with
 // no risk of the two disagreeing (they're now literally the same function).
 
-export type ScorableQuestion = {
+import { countryGuessCorrect, isCountryQuestion, type CountryQuestionFields } from "./countryRound.ts";
+
+export type ScorableQuestion = CountryQuestionFields & {
+  round_type?: string;
   question_text?: string;
   question_type: string;
   option_a: string | null;
@@ -300,6 +303,7 @@ export function nearestWinsDistance(ans: ScorableAnswer, q: ScorableQuestion): n
 }
 
 export function isAnswerCorrect(ans: ScorableAnswer, q: ScorableQuestion): boolean {
+  if (isCountryQuestion(q)) return countryGuessCorrect(ans.answer_text, q);
   if (q.question_type === "nearest_wins") return false;
   if (q.question_type === "multiple_choice") {
     const submitted = ans.answer_text.trim().toLowerCase();

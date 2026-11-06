@@ -27,7 +27,11 @@ import { CountUp } from "@/components/CountUp";
 import { FitBlockText } from "@/components/FitBlockText";
 import { HotSeatDisplay } from "@/components/HotSeatDisplay";
 
-type Question = {
+import { isCountryQuestion, type CountryQuestionFields } from "@/lib/quiz/countryRound";
+import { CountryClues } from "@/components/CountryClues";
+
+type Question = CountryQuestionFields & {
+  round_type?: string;
   question_text: string;
   question_type: string;
   option_a: string | null;
@@ -2467,7 +2471,7 @@ function DisplayScreenInner() {
     // shorter content block vertically instead,
     // while multiple_choice/multi_tap (which already fill the middle with
     // their options grid) keep the original top-anchored flow.
-    const isCompact = allOpts.length === 0 && question.question_type !== "audio";
+    const isCompact = !isCountryQuestion(question) && allOpts.length === 0 && question.question_type !== "audio";
     return (
       <div className="fbl fbl-stage qi-display-stage qi-display-question">
         <PowerCardOverlays currentAnnounce={currentAnnounce} announceVisible={announceVisible} roundCardPlays={roundCardPlays} roundNumber={roundNumber} />
@@ -2483,6 +2487,7 @@ function DisplayScreenInner() {
             {tLeft > 0 && <div className={"qi-display-picture-timer" + (tLeft <= 5 ? " is-urgent" : "")}>{tLeft}</div>}
           </div>
           <FitQuestionText className="qd-q" text={question.question_text.replace(/^Play this track:\s*/i, "").replace(/^Show teams this image:\s*/i, "")} />
+          {isCountryQuestion(question) && <CountryClues question={question} />}
           {allOpts.length > 0 && (
             <div className="qd-opts">
               {allOpts.map((opt) => (

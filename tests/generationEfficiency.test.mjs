@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import * as countryRound from '../lib/quiz/countryRound.ts';
 
 const source = readFileSync(new URL('../lib/quiz/generateRound.ts', import.meta.url), 'utf8');
 function runner(rejectCount = 0, overrides = {}) {
@@ -11,6 +12,7 @@ function runner(rejectCount = 0, overrides = {}) {
   let checks = 0;
   const feedback = [];
   const core = {
+    ...countryRound,
     MAX_AI_CONCURRENCY: 8,
     PURSUIT_TOTAL_QUESTIONS: 7,
     loadUsedQuestions: async () => ({ used: [], usedAnswers: [], usedFingerprints: new Set(), rejectedFingerprints: new Set(), rejectedTexts: new Set() }),
@@ -31,6 +33,17 @@ function runner(rejectCount = 0, overrides = {}) {
   });
   return { runSpec: spec => exports.generateValidatedRound(spec, {}), runAll: (specs, onComplete) => exports.generateAllRounds(specs, undefined, onComplete), run: (count, audience, theme = '') => exports.generateValidatedRound({ count, audience, roundType: 'regular', difficulty: 'medium', theme, allowedQuestionTypes: ['number'] }, {}), calls: () => calls, feedback };
 }
+
+test('country packs fill five countries and single-slot top-ups without any AI requests', async () => {
+  const r = runner();
+  const full = await r.runSpec({ roundType: countryRound.COUNTRY_ROUND, count: 5, difficulty: 'mixed', theme: '' });
+  assert.equal(full.questions.length,5);
+  assert.equal(full.stoppedEarly,false);
+  const topup = await r.runSpec({ roundType: countryRound.COUNTRY_ROUND, count: 5, difficulty: 'mixed', theme: '', existingQuestions: full.questions.slice(0,4) });
+  assert.equal(topup.questions.length,1);
+  assert.equal(full.questions.slice(0,4).some(q=>q.correct_answer===topup.questions[0].correct_answer),false);
+  assert.equal(r.calls(),0);
+});
 
 test('optional failed media slots become playable questions without extra retry budget', async () => {
   const topics = [];

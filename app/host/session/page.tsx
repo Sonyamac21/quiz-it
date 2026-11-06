@@ -187,6 +187,10 @@ export default function SessionPage() {
     const plan = quizzes.find(quiz => quiz.id === selectedQuizId);
     const preflight = getQuizPreflight(plan);
     if (!preflight.ready) { setCreateError("This Quiz Plan is not ready: " + preflight.blockers.map(issue => issue.message).join(" ")); return; }
+    if (plan?.quiz_rounds?.some(round => round.round_type === "where_in_world")) {
+      const { data: ready, error } = await createSupabaseBrowserClient().rpc("country_round_ready");
+      if (error || !ready) { setCreateError("Where in the World? is awaiting its database update. Please contact support before starting this quiz."); return; }
+    }
     setCreating(true);
     setCreateError("");
     // Host-reported bug: "duplicate key value violates unique constraint

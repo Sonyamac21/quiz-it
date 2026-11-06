@@ -14,6 +14,7 @@
 // accepts whichever shape each caller's Supabase select produced (the
 // dashboard, Calendar, and planner each declare their own local row types)
 // without needing a cast at every call site.
+import { countryGuessCorrect, countryQuestionError, COUNTRY_ROUND } from "./countryRound.ts";
 import { readPairsQuestions } from "./pairs.ts";
 import { isVercelBlobUrl } from "../media/blobUrl.ts";
 type PlanRound = { id: string; round_type: string; questions: unknown[]; name?: string; target_count?: number | null };
@@ -35,7 +36,7 @@ export type QuizPreflight = {
   warnings: QuizPreflightIssue[];
 };
 
-const QUESTION_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "nearest_wins", "pursuit", "hot_seat", "bonus", "pairs"]);
+const QUESTION_ROUND_TYPES = new Set([COUNTRY_ROUND, "regular", "music", "multi_tap", "nearest_wins", "pursuit", "hot_seat", "bonus", "pairs"]);
 
 // A search/watch-page URL is not an audio clip. Use this same rule in the
 // planner, dashboard, session preflight and Music Prep summaries.
@@ -74,6 +75,11 @@ export function getQuizPreflight(quiz: Plan): QuizPreflight {
       blockers.push({ code: "empty-round", roundId: round.id, message: `${roundName} has no questions.` });
       continue;
     }
+    if (round.round_type === COUNTRY_ROUND && questions.length !== 5) blockers.push({ code: "country-count", roundId: round.id, message: `${roundName} needs exactly 5 countries.` });
+    if (round.round_type === COUNTRY_ROUND && questions.some((raw, index) => {
+      const q = (raw || {}) as { correct_answer: string; country_aliases?: string[] };
+      return questions.slice(0, index).some(previous => countryGuessCorrect(String(q.correct_answer || ""), (previous || {}) as typeof q));
+    })) blockers.push({ code: "country-repeat", roundId: round.id, message: `${roundName} needs five different countries.` });
     if (round.round_type === "hot_seat" && questions.length !== 5) {
       blockers.push({ code: "hot-seat-count", roundId: round.id, message: `${roundName} must contain exactly 5 questions (currently ${questions.length}).` });
     }
@@ -88,6 +94,10 @@ export function getQuizPreflight(quiz: Plan): QuizPreflight {
       const question = (raw || {}) as Record<string, unknown>;
       const label = `${roundName}, question ${index + 1}`;
       if (round.round_type === "pairs" || !QUESTION_ROUND_TYPES.has(round.round_type)) return;
+      if (round.round_type === COUNTRY_ROUND) {
+        const issue = countryQuestionError(question);
+        if (issue) blockers.push({ code: "country-clues", roundId: round.id, message: `${label}: ${issue}` });
+      }
       const type = String(question.question_type || "");
       const answer = String(question.correct_answer ?? "").trim();
       if (!String(question.question_text || "").trim() || !answer || !["multiple_choice", "multi_tap", "sequence", "text", "text_answer", "number", "nearest_wins", "picture", "audio"].includes(type)) {

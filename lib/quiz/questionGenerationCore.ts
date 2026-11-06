@@ -63,6 +63,11 @@ export const FAMILY_TOPIC_BUCKETS = [
 export const FAMILY_MUSIC_TOPICS = ["well-known songs from family animated films", "familiar children's singalong songs", "clean upbeat songs familiar to children and parents"];
 
 export type Question = {
+  country_clues?: string[];
+  country_aliases?: string[];
+  country_clue_index?: number;
+  country_flag_src?: string | null;
+  country_flag_clue_index?: number;
   id?: number;
   _uid?: string;
   brain_teaser?: boolean;

@@ -26,7 +26,11 @@ import { isAnswerCorrect } from "@/lib/quiz/answerScoring";
 import { FitBlockText } from "@/components/FitBlockText";
 import { getRoundRulesBlurb } from "@/lib/quiz/roundRulesCopy";
 
-type Question = {
+import { isCountryQuestion, type CountryQuestionFields } from "@/lib/quiz/countryRound";
+import { CountryClues } from "@/components/CountryClues";
+
+type Question = CountryQuestionFields & {
+  round_type?: string;
   question_text: string;
   question_type: string;
   option_a: string | null;
@@ -1380,7 +1384,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
   // designed against it and letting a team play Reverse/Steal/etc mid-race
   // would corrupt results in ways nobody's accounted for. Treated the same
   // as Hot Seat: unavailable for the duration of the round, not just hidden.
-  const powerCardsUsableNow = allowPowerCards && phase !== "pursuit" && phase !== "pairs" && phase !== "hot_seat" && phase !== "quiz_end";
+  const powerCardsUsableNow = !isCountryQuestion(question) && allowPowerCards && phase !== "pursuit" && phase !== "pairs" && phase !== "hot_seat" && phase !== "quiz_end";
   const PowerCards = () => (
     powerCardsUsableNow ? <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: 4, borderTop: "1px solid rgba(255,255,255,0.06)", background: bg }}>
       <UnoPlayerCards key={roundStartedAt} teamName={teamName} sessionPin={sessionPin} playerToken={playerToken} roundNumber={roundNumber} compact={true} enabled={powerCardsUsableNow} />
@@ -1492,7 +1496,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
       return (
         <div className="qi-player-state qi-player-spin-choice" style={{ height: "100dvh", overflow: "hidden", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24, textAlign: "center" as const }}>
           <div style={{ fontFamily: "'Bruno Ace SC',var(--font-logo),cursive", fontSize: 24, letterSpacing: ".12em", textShadow: "0 0 24px rgba(190,38,193,.6)" }}><span style={{ color: "#BE26C1" }}>SPIN</span> TO WIN</div>
-          {error && (
+        {error && (
             <div role="alert" style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,59,78,0.12)", border: "1px solid rgba(255,59,78,0.5)", color: "#FF3B4E", font: "600 13px 'Inter'", textAlign: "center" as const }}>{error}</div>
           )}
           <button onClick={chooseSpin} style={{ width: "min(64vw,260px)", aspectRatio: "1", borderRadius: "50%", background: "radial-gradient(circle at 50% 40%, rgba(217,79,220,0.35), #150A2E 72%)", border: "2px solid #D94FDC", color: "#fff", font: "800 34px 'Inter'", letterSpacing: ".2em", cursor: "pointer", boxShadow: "0 0 46px rgba(190,38,193,0.5)" }}>SPIN</button>
@@ -2285,6 +2289,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           </FitBlockText>
         </div>
         <div ref={qScrollRef} className="qi-player-question-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
+        {isCountryQuestion(question) && <CountryClues question={question} compact />}
         {error && (
           <div role="alert" style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)", color: "#ef4444", fontSize: 13, marginBottom: 10, textAlign: "center" as const }}>{error}</div>
         )}
@@ -2395,7 +2400,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
           <PlayerResultBanner tone="locked" title={submissionPending ? "LOCKING…" : "LOCKED IN ✓"}>{mySubmittedDisplay || "Waiting for the reveal"}</PlayerResultBanner>
         )}
         </div>
-        {phase === "hot_seat" ? <div className="qi-player-cards-paused">You are in the Hot Seat</div> : phase === "pursuit" ? <div className="qi-player-cards-paused">Power Cards unavailable during The Pursuit</div> : allowPowerCards ? (
+        {phase === "hot_seat" ? <div className="qi-player-cards-paused">You are in the Hot Seat</div> : phase === "pursuit" ? <div className="qi-player-cards-paused">Power Cards unavailable during The Pursuit</div> : powerCardsUsableNow ? (
           // Host, live: "I want the thick black line above the powercards
           // gone" - removed entirely rather than just thinned, per her
           // literal ask. No border, no padding of its own.

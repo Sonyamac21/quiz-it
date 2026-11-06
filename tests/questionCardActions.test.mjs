@@ -25,7 +25,7 @@ const page = readFileSync(new URL("../app/host/quizzes/page.tsx", import.meta.ur
 test("round-prep question card grows in normal flow on hover, but actions never relocate", () => {
   assert.doesNotMatch(page, /qi-prep-question-preview/);
   assert.match(page, /const isCardHovered = !isEditing && hoveredQuestionKey === editKey/);
-  assert.match(page, /height: isEditing \|\| isPairs \|\| isCardHovered \? undefined : 190/);
+  assert.match(page, /height: isEditing \|\| isPairs \|\| isCardHovered \|\| activeRound\.round_type === COUNTRY_ROUND \? undefined : 190/);
   assert.match(page, /const questionActions = \([\s\S]*>EDIT<\/HostButton>[\s\S]*"REGEN"/);
   // questionActions appears exactly once in the returned JSX (never a
   // second, hover-only copy inside some other container).

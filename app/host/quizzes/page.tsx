@@ -1,4 +1,7 @@
 "use client";
+import { COUNTRY_ROUND, countryQuestionError } from "@/lib/quiz/countryRound";
+import { CountryClues } from "@/components/CountryClues";
+import { CountryClueEditor } from "@/components/CountryClueEditor";
 import type { QuizAudience } from "@/lib/quiz/questionGenerationCore";
 import { resolveGenerationIntent } from "@/lib/quiz/questionGenerationCore";
 
@@ -39,6 +42,7 @@ const QUESTION_TYPE_BADGE: Record<string, { code: string; label: string; color: 
 };
 
 function targetQuestionCount(roundType: string, savedTarget?: number | null): number {
+  if (roundType === COUNTRY_ROUND) return 5;
   if (roundType === "pairs") return savedTarget && savedTarget > 0 ? savedTarget : 5;
   if (roundType === "pursuit") return PURSUIT_TOTAL_QUESTIONS;
   if (roundType === "hot_seat") return HOT_SEAT_TOTAL_QUESTIONS;
@@ -444,7 +448,7 @@ export default function QuizBuilderPage() {
   }, [selectedId]);
   function roundReadiness(round: QuizRound) {
     const configuredCount = bulkConfig[round.id]?.count;
-    const target = round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS
+    const target = round.round_type === COUNTRY_ROUND ? 5 : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS
       : round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS
       : configuredCount && configuredCount > 0 ? configuredCount
       : targetQuestionCount(round.round_type, round.target_count);
@@ -500,6 +504,7 @@ export default function QuizBuilderPage() {
     setQuizzes(prev => prev.map(q => q.id !== selected?.id ? q : { ...q, quiz_rounds: q.quiz_rounds.map(r => r.id === round.id ? { ...r, target_count: count } : r) }));
   }
   const ROUND_TYPE_LABELS: Record<string, string> = {
+    where_in_world: "Where in the World?",
     regular: "Regular",
     multi_tap: "Multi Tap",
     nearest_wins: "Nearest Wins",
@@ -517,7 +522,7 @@ export default function QuizBuilderPage() {
   // through to its default mixed-type branch for any unrecognised round
   // type), it just gets its own label/tab so it's distinguishable in the
   // running order.
-  const GENERATABLE_ROUND_TYPES = new Set(["regular", "music", "multi_tap", "pursuit", "hot_seat", "bonus", "pairs"]);
+  const GENERATABLE_ROUND_TYPES = new Set([COUNTRY_ROUND, "regular", "music", "multi_tap", "pursuit", "hot_seat", "bonus", "pairs"]);
   // Adds a brand-new, empty round straight into this Quiz Plan's running order
   // (no need to first create/save it in the Round Library) and immediately
   // selects it in the Generate All panel with sensible defaults, so a host can
@@ -528,7 +533,7 @@ export default function QuizBuilderPage() {
     if (!selected) return;
     const supabase = createSupabaseBrowserClient();
     const existingOfType = selected.quiz_rounds.filter(r => r.round_type === roundType).length;
-    const name = ROUND_TYPE_LABELS[roundType] + " Round" + (existingOfType ? " " + (existingOfType + 1) : "");
+    const name = ROUND_TYPE_LABELS[roundType] + (roundType === COUNTRY_ROUND ? "" : " Round") + (existingOfType ? " " + (existingOfType + 1) : "");
     const { data, error: insertError } = await supabase.from("quiz_rounds").insert({
       quiz_id: selected.id,
       source_round_id: null,
@@ -548,11 +553,11 @@ export default function QuizBuilderPage() {
       // keeps it correct across reloads.
       target_count: targetQuestionCount(roundType),
       hide_leaderboard: false,
-      allow_power_cards: true,
+      allow_power_cards: roundType !== COUNTRY_ROUND,
       points_per_question: null,
       danger_zone_enabled: false,
       danger_zone_penalty: 5,
-      max_time_bonus: 5,
+      max_time_bonus: roundType === COUNTRY_ROUND ? 0 : 5,
     }).select("*").single();
     if (insertError || !data) return;
     const newRound = data as QuizRound;
@@ -814,6 +819,7 @@ export default function QuizBuilderPage() {
   // Send a question you don't want in this quiz back to the reusable
   // Question Library instead of just deleting it outright.
   async function moveQuestionToLibrary(round: QuizRound, qIndex: number) {
+    if (round.round_type === COUNTRY_ROUND) { showToast("Country clues are saved together in the Round Library. They cannot be split into a plain question.", "info"); return; }
     const q = round.questions[qIndex] as Record<string, unknown> | undefined;
     if (!q) return;
     const supabase = createSupabaseBrowserClient();
@@ -852,6 +858,7 @@ export default function QuizBuilderPage() {
       if (error || !data) throw new Error("Could not load the latest round before saving. " + (error?.message || ""));
       return { questions: (data.questions || []) as Record<string, unknown>[], target_count: data.target_count as number | null };
     }, async (before, after) => {
+      if (round.round_type === COUNTRY_ROUND && after.questions.length > 5) throw new Error("This round already has five countries. Remove or replace one before adding another.");
       let query = supabase.from("quiz_rounds").update({ questions: after.questions, ...(growTarget ? { target_count: after.target_count } : {}) }).eq("id", round.id).eq("questions", JSON.stringify(before.questions));
       if (growTarget) query = before.target_count === null ? query.is("target_count", null) : query.eq("target_count", before.target_count);
       const { data, error } = await query.select("id").maybeSingle();
@@ -863,6 +870,17 @@ export default function QuizBuilderPage() {
     setPendingGenerated(prev => { const next = { ...prev }; delete next[round.id]; return next; });
     try { localStorage.removeItem(`qi_pending_questions_${round.id}`); } catch { /* An idempotent retry will not duplicate saved questions. */ }
     return saved;
+  }
+
+  async function addBlankCountryQuestion(round: QuizRound) {
+    if (round.questions.length >= 5) return;
+    const question = { _uid: crypto.randomUUID(), question_text: "Name the country.", question_type: "text_answer", round_type: COUNTRY_ROUND, correct_answer: "", country_clues: ["", "", "", "", ""], country_aliases: [], country_flag_src: null, country_flag_clue_index: 3 };
+    try {
+      const saved = await saveGeneratedQuestions(round, [question]);
+      const updated = { ...round, questions: saved.questions };
+      setQuizzes(prev => prev.map(quiz => ({ ...quiz, quiz_rounds: quiz.quiz_rounds.map(r => r.id === round.id ? updated : r) })));
+      startEditQuestion(updated, saved.questions.findIndex(q => q._uid === question._uid), question);
+    } catch (error) { showToast(error instanceof Error ? error.message : "Could not add a country.", "error"); }
   }
 
   async function retrySavingGeneratedQuestions(round: QuizRound) {
@@ -884,6 +902,7 @@ export default function QuizBuilderPage() {
   }
 
   async function addGeneratedQuestionsToLibrary(questions: Record<string, unknown>[], roundType: string, difficulty: string) {
+    if (roundType === COUNTRY_ROUND) return; // Full clue packs are retained in the round library JSON, not the flat question bank.
     const usable = questions.filter(q => typeof q.question_text === "string" && q.question_text.trim());
     if (!usable.length) return;
     const supabase = createSupabaseBrowserClient();
@@ -990,6 +1009,12 @@ export default function QuizBuilderPage() {
       const v = q["option_" + letter];
       if (v != null) draft["option_" + letter] = String(v);
     });
+    if (round.round_type === COUNTRY_ROUND) {
+      draft.country_flag_src = String(q.country_flag_src || "");
+      draft.country_flag_clue_index = String(q.country_flag_clue_index ?? 3);
+      draft.country_aliases_text = ((q.country_aliases || []) as string[]).join(", ");
+      ((q.country_clues || []) as string[]).forEach((clue, i) => { draft[`country_clue_${i}`] = clue; });
+    }
     setEditDraft(draft);
     setEditingKey(key);
     setPhotoCandidates([]);
@@ -998,6 +1023,16 @@ export default function QuizBuilderPage() {
   async function saveEditQuestion(round: QuizRound, qIndex: number) {
     const original = round.questions[qIndex] as Record<string, unknown>;
     const updated: Record<string, unknown> = { ...original, ...editDraft };
+    if (round.round_type === COUNTRY_ROUND) {
+      updated.country_clues = Array.from({ length: 5 }, (_, i) => editDraft[`country_clue_${i}`]?.trim() || "");
+      updated.country_aliases = (editDraft.country_aliases_text || "").split(",").map(a => a.trim()).filter(Boolean);
+      updated.country_flag_src = editDraft.country_flag_src || null;
+      updated.country_flag_clue_index = Number(editDraft.country_flag_clue_index ?? 3);
+      delete updated.country_aliases_text;
+      for (let i = 0; i < 5; i++) delete updated[`country_clue_${i}`];
+      const issue = countryQuestionError(updated);
+      if (issue) { showToast(issue, "error"); return; }
+    }
     if (["number", "nearest_wins"].includes(String(updated.question_type))) {
       for (const letter of ["b", "c", "d", "e", "f"]) updated[`option_${letter}`] = null;
     }
@@ -1079,7 +1114,7 @@ export default function QuizBuilderPage() {
     const shortfalls: Record<string, number> = {};
     targets.forEach(r => {
       const cfgCount = bulkConfig[r.id]?.count;
-      const effectiveTarget = r.round_type === "hot_seat" || r.round_type === "pursuit"
+      const effectiveTarget = r.round_type === COUNTRY_ROUND || r.round_type === "hot_seat" || r.round_type === "pursuit"
         ? targetQuestionCount(r.round_type)
         : Number.isFinite(cfgCount) && (cfgCount as number) > 0
         ? (cfgCount as number)
@@ -1188,7 +1223,7 @@ export default function QuizBuilderPage() {
     // clamp here too, not just inside generateValidatedRound, so a host
     // asking for more than the round has room for gets told plainly instead
     // of the request silently getting cut down with no explanation.
-    const fixedTotal = round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS : null;
+    const fixedTotal = round.round_type === COUNTRY_ROUND ? 5 : round.round_type === "pursuit" ? PURSUIT_TOTAL_QUESTIONS : round.round_type === "hot_seat" ? HOT_SEAT_TOTAL_QUESTIONS : null;
     const roomLeft = fixedTotal === null ? null : Math.max(0, fixedTotal - round.questions.length);
     if (roomLeft === 0) { setGeneratingMoreStatus(`"${round.name}" already has all ${fixedTotal} questions.`); return; }
     let n = Math.max(0, Math.floor(requested));
@@ -1959,6 +1994,7 @@ export default function QuizBuilderPage() {
                   </div>
                 </div>
                 <div style={{ color: "#B9A8D9", font: "400 13px 'Inter'", marginBottom: 10 }}>{activeRound.round_type === "pairs" ? `${readPairsQuestions(activeRound.questions).length} questions · 3 pairs per question` : `${activeRound.questions.length} questions · ${ROUND_TYPE_LABELS[activeRound.round_type] || activeRound.round_type.replaceAll("_", " ")}`}</div>
+                {activeRound.round_type === COUNTRY_ROUND && <p style={{ color: "#C9BDDE", margin: "12px 0" }}>5 countries · 5 clues each · 10 → 8 → 6 → 4 → 2 points. One guess per country. Checked clue packs, no AI charges. Edit any country to personalise its clues. Power Cards, penalties and speed bonuses are off.</p>}
                 {!activeReadiness.ready && (
                   <details open key={activeRound.id} style={{ marginBottom: 12, padding: "10px 12px", border: "1px solid #806325", borderRadius: 8, color: "#FFC533", fontSize: 13 }}>
                     <summary style={{ cursor: "pointer", fontWeight: 600 }}>What this round needs</summary>
@@ -1970,7 +2006,7 @@ export default function QuizBuilderPage() {
 
                 {settingsOpen && (
                   <>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", alignItems: "center", gap: 18, marginBottom: 12, padding: 12, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
+                    {activeRound.round_type !== COUNTRY_ROUND && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", alignItems: "center", gap: 18, marginBottom: 12, padding: 12, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
                       <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                         Points per Q
                         <input
@@ -2013,7 +2049,7 @@ export default function QuizBuilderPage() {
                           style={{ width: 56, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }}
                         />
                       </label>
-                    </div>
+                    </div>}
                     {isGeneratable && (
                       <div style={{ display: "grid", gap: 8, padding: 10, marginBottom: 12, borderRadius: 10, background: "#150A2E", border: "1px solid #2E1A52" }}>
                         <label style={{ display: "flex", alignItems: "center", gap: 8, font: "600 13px 'Inter'", color: "#fff" }}>
@@ -2023,10 +2059,11 @@ export default function QuizBuilderPage() {
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, alignItems: "center" }}>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Questions
-                            {activeRound.round_type === "pursuit" || activeRound.round_type === "hot_seat"
+                            {activeRound.round_type === COUNTRY_ROUND || activeRound.round_type === "pursuit" || activeRound.round_type === "hot_seat"
                               ? <span style={{ color: "#fff" }}>{targetQuestionCount(activeRound.round_type)} (fixed)</span>
                               : <input type="number" value={cfg.count} onChange={e => updateBulkConfig(activeRound.id, { count: Number(e.target.value) || 0 })} onBlur={e => void persistRoundTargetCount(activeRound, Number(e.target.value) || 0)} style={{ width: 64, padding: "6px 8px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff" }} />}
                           </label>
+                          {activeRound.round_type !== COUNTRY_ROUND && <>
                           <label style={{ display: "flex", alignItems: "center", gap: 6, font: "400 13px 'Inter'", color: "#B9A8D9" }}>
                             Theme
                             <input type="text" value={cfg.theme} onChange={e => updateBulkConfig(activeRound.id, { theme: e.target.value })} onBlur={() => {
@@ -2058,6 +2095,7 @@ export default function QuizBuilderPage() {
                               <option value="hard">Hard</option>
                             </select>
                           </label>
+                          </>}
                         </div>
                         {(activeRound.round_type === "bonus" || activeRound.round_type === "regular") && (
                           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", paddingTop: 4, borderTop: "1px solid #2E1A52", marginTop: 2 }}>
@@ -2117,11 +2155,12 @@ export default function QuizBuilderPage() {
                           style={{ width: 48, padding: "8px 6px", borderRadius: 8, background: "#0A0118", border: "1px solid #2E1A52", color: "#fff", textAlign: "center" as const }}
                         />
                         <HostButton onClick={() => generateMoreForRound(activeRound, generateMoreCounts[activeRound.id] ?? 5)} disabled={generatingMoreId === activeRound.id}>
-                          {generatingMoreId === activeRound.id ? "GENERATING..." : "+ GENERATE WITH AI"}
+                          {generatingMoreId === activeRound.id ? "Preparing…" : activeRound.round_type === COUNTRY_ROUND ? "Add country packs · free" : "+ GENERATE WITH AI"}
                         </HostButton>
                       </div>
                     )}
-                    {activeRound.round_type !== "pairs" && (
+                    {activeRound.round_type === COUNTRY_ROUND && <HostButton onClick={() => addBlankCountryQuestion(activeRound)} disabled={activeRound.questions.length >= 5 || bulkRunning || generatingMoreId !== null}>Write country clues</HostButton>}
+                    {activeRound.round_type !== "pairs" && activeRound.round_type !== COUNTRY_ROUND && (
                       <HostButton onClick={() => {
                         if (anyAddPanelOpen) { setLibraryOpenId(null); setRandomOpenId(null); setAddQuestionOpenId(null); setAiGenerateOpenId(null); return; }
                         setLibrarySearch("");
@@ -2365,7 +2404,7 @@ export default function QuizBuilderPage() {
                           // flow rather than an absolutely-positioned popover).
                           // Shrunk from 260 to match SpeedQuizzing's denser card
                           // size.
-                          height: isEditing || isPairs || isCardHovered ? undefined : 190,
+                          height: isEditing || isPairs || isCardHovered || activeRound.round_type === COUNTRY_ROUND ? undefined : 190,
                           zIndex: isCardHovered ? 5 : undefined,
                           display: isEditing ? undefined : "flex",
                           flexDirection: isEditing ? undefined : "column",
@@ -2407,6 +2446,7 @@ export default function QuizBuilderPage() {
                         )}
                         {isEditing ? (
                           <div style={{ display: "grid", gap: 6 }}>
+                            {activeRound.round_type === COUNTRY_ROUND && <CountryClueEditor draft={editDraft} onChange={(field, value) => setEditDraft(draft => ({ ...draft, [field]: value }))} />}
                             <textarea
                               value={editDraft.question_text ?? ""}
                               onChange={e => setEditDraft(d => ({ ...d, question_text: e.target.value }))}
@@ -2565,7 +2605,7 @@ export default function QuizBuilderPage() {
                             <>
                             <div style={{ font: "400 12px 'Inter'", color: "#D9CCF2", lineHeight: 1.4 }}>
                               {isBrainTeaser && <div style={{ color: "#FFC533", fontWeight: 700, marginBottom: 6 }}>Brain Teaser{qi === activeRound.questions.length - 1 ? " · Final question" : ""}</div>}
-                              <strong style={{ color: "#6B5A8E" }}>{"⠿ "}{qi + 1}.</strong> {String(qr.question_text ?? "")}
+                              <strong style={{ color: "#6B5A8E" }}>{"⠿ "}{qi + 1}.</strong> {activeRound.round_type === COUNTRY_ROUND ? String(qr.correct_answer || "New country") : String(qr.question_text ?? "")}
                             </div>
                             {isAudio && (
                               <div style={{ marginTop: 5 }}>
@@ -2594,6 +2634,7 @@ export default function QuizBuilderPage() {
                                 this always took the options-list branch below, which never
                                 shows correct_answer at all. That silently hid the correct
                                 answer for every Number question in this card. */}
+                            {activeRound.round_type === COUNTRY_ROUND && <CountryClues question={q as { country_clues?: string[] }} preview compact />}
                             {(() => {
                               const usesLetterOptionsAsAnswers = qType === "multiple_choice" || qType === "sequence" || qType === "multi_tap";
                               return usesLetterOptionsAsAnswers && options.length > 0 ? (
@@ -2665,7 +2706,7 @@ export default function QuizBuilderPage() {
                                   content as a `pairs` array with no question_text/
                                   correct_answer of their own (see the comment on
                                   addGeneratedQuestionsToLibrary above). */}
-                              {!isPairs && (
+                              {!isPairs && activeRound.round_type !== COUNTRY_ROUND && (
                                 <HostButton className="qi-btn-sm" style={{ width: "100%" }} onClick={() => { void moveQuestionToLibrary(activeRound, qi); showToast("Moved to the library.", "success", 2500); }} title="Save this question to the library and remove it from this round">TO LIBRARY</HostButton>
                               )}
                               <span style={{ color: "#6B5A8E", font: "400 9px 'Inter'" }}>Drag to reorder</span>

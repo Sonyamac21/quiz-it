@@ -80,3 +80,14 @@ test('live timer preview changes playing audio and survives stale session pollin
   api.stopShowAudio('timer');
   assert.equal(api.playShowAudio('lock.mp3', { channel: 'timer' }).volume, 0);
 });
+
+test('a distinct celebration can replay a song that already ended', () => {
+  const { api } = harness();
+  const first = api.playShowAudio('team.mp3', { channel: 'music' });
+  first.onended();
+  assert.equal(api.playShowAudio('team.mp3', { channel: 'music' }), null);
+  const replay = api.playShowAudio('team.mp3', { channel: 'music', replay: true });
+  assert.ok(replay);
+  assert.notEqual(replay, first);
+  assert.equal(replay.paused, false);
+});

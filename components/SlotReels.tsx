@@ -20,6 +20,12 @@ export const SLOT_SEGS = [
   { label: "Last Place", color: "#ffe3e6", bg: "#5C1522", positive: false },
 ];
 
+const LAST_REEL_DURATION_MS = 6800;
+const LAST_REEL_DELAY_MS = 1400;
+const REBEL_PAUSE_MS = 1200;
+const REBEL_CORRECTION_MS = 2000;
+export const SLOT_REVEAL_MS = LAST_REEL_DURATION_MS + LAST_REEL_DELAY_MS + REBEL_PAUSE_MS + REBEL_CORRECTION_MS;
+
 const SEG_H = 120;
 const STRIP_COUNT = 20;
 const STRIP: typeof SLOT_SEGS = [];
@@ -268,8 +274,8 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
     const results = [winSegIdx, winSegIdx, winSegIdx];
     results[rebelReel] = rebelIdx;
 
-    const durations = [2800, 4000, 6800];
-    const delays = [0, 600, 1400];
+    const durations = [2800, 4000, LAST_REEL_DURATION_MS];
+    const delays = [0, 600, LAST_REEL_DELAY_MS];
     const easePowers = [4, 4, 2];
 
     [0, 1, 2].forEach((i) => {
@@ -281,7 +287,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
           scheduleTimeout(() => {
             const rebelStart = reelTops.current[rebelReel];
             const rebelTarget = landReelOn(winSegIdx, rng, REEL_H);
-            animReel(rebelReel, rebelStart, rebelTarget, 2000, 0, 2, () => {
+            animReel(rebelReel, rebelStart, rebelTarget, REBEL_CORRECTION_MS, 0, 2, () => {
               const actualResult = SLOT_SEGS[winSegIdx];
               scheduleTimeout(() => {
                 setOverlay(actualResult);
@@ -294,7 +300,7 @@ export function SlotReels({ targetIdx, teamName, victorySong, size = "full", spi
                 resetReels();
               }, 0);
             });
-          }, 1200);
+          }, REBEL_PAUSE_MS);
         } : undefined
       );
     });

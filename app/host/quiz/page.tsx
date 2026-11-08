@@ -4,7 +4,7 @@ import { leaderboardVisibilityUpdate } from "@/lib/quiz/leaderboardVisibility";
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { SlotReels, SLOT_SEGS } from "@/components/SlotReels";
+import { SlotReels, SLOT_REVEAL_MS, SLOT_SEGS } from "@/components/SlotReels";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HardDeckPanel } from "@/components/HardDeckPanel";
@@ -1407,18 +1407,17 @@ function QuizControllerInner() {
       }
       // Previously scored the instant the spin was triggered - the reel
       // animation (SlotReels: 3 reels landing over ~8.2s, then a ~2s "rebel
-      // reel" correction) takes about 10s to visually settle, so the
+      // reel" correction and pause) takes about 11.4s to settle, so the
       // leaderboard/handset totals were updating up to 10 seconds before the
       // room could actually see the result, spoiling it. Delayed to land
       // together with the animation instead of ahead of it.
-      const SPIN_REVEAL_MS = 10200;
       if (payoutTeam) setTimeout(async () => {
         const confirmed = await applySpinResult(winIdx, payoutTeam, nonce, pin);
         // Keep the stored target, nonce and team intact when scoring is
         // unconfirmed. A reconnect or the host retry control can then safely
         // repeat the same idempotent payout instead of losing the result.
         if (confirmed) setTimeout(() => finalizeSpinSession(pin), 9800);
-      }, SPIN_REVEAL_MS);
+      }, SLOT_REVEAL_MS);
       else {
         console.error("triggerSpinIfChosen: no fastest-team name available (ref cleared and no override passed) - spin payout skipped.");
         setSpinFeedback({ ok: false, message: "Spin points were not awarded: no winning team was identified. Check the team's score before continuing." });

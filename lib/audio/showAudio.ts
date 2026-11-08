@@ -125,7 +125,7 @@ export function stopAllShowAudio() {
 
 export function playShowAudio(
   file: string,
-  options: { channel?: ShowAudioChannel; volume?: number; loop?: boolean } = {},
+  options: { channel?: ShowAudioChannel; volume?: number; loop?: boolean; replay?: boolean } = {},
 ) {
   if (typeof Audio === "undefined") return null;
   const channel = options.channel ?? "cue";
@@ -170,7 +170,7 @@ export function playShowAudio(
   // Keep the cross-tab guard long enough to cover a full celebration; an
   // explicit stopShowAudio call still clears it for an intentional replay.
   const dedupeWindowMs = channel === "music" ? 30000 : 600;
-  if (now - lastStarted < dedupeWindowMs) return active.get(channel) || null;
+  if (!options.replay && now - lastStarted < dedupeWindowMs) return active.get(channel) || null;
   stopShowAudio(channel);
   recentlyStarted.set(dedupeKey, now);
   if (typeof window !== "undefined") {

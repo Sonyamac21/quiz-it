@@ -6,6 +6,6 @@ export function playPositiveSpinAudio(song?: string, audioEnabled = true) {
   playShowAudio("airhorn.mp3", { channel: "cue", volume: 0.65 });
   if (song) {
     stopShowAudio("music");
-    playShowAudio(victorySongAudioFile(song), { channel: "music" });
+    playShowAudio(victorySongAudioFile(song), { channel: "music", replay: true });
   }
 }

@@ -965,7 +965,7 @@ function DisplayScreenInner() {
     // play to its natural end - no forced stop timer, so it is never cut short.
     stopShowAudio("music");
     if (winnerTeam?.victory_song) {
-      playShowAudio(victorySongAudioFile(winnerTeam.victory_song), { channel: "music", volume: 0.9 });
+      playShowAudio(victorySongAudioFile(winnerTeam.victory_song), { channel: "music", volume: 0.9, replay: true });
     }
   }
   function handleRevealNext(nextCount: number, currentScores: Score[] = quizEndScores) {
@@ -2173,10 +2173,9 @@ function DisplayScreenInner() {
   if (phase === "quiz_end") {
     const sorted = [...quizEndScores].sort((a,b) => a.total_points - b.total_points);
     const revealed = sorted.slice(0, revealedCount);
-    const top3 = [...quizEndScores].sort((a,b) => b.total_points - a.total_points).slice(0,3);
 
     if (trophyVisible || (sorted.length > 0 && revealedCount >= sorted.length)) {
-      const winner = top3[0];
+      const winner = sorted.at(-1);
       const winnerTeamRow = winner ? teams.find(t => t.team_name === winner.team_name) : null;
       const winnerPhoto = winnerTeamRow?.photo_approved ? getMediaUrl(winnerTeamRow.photo_url) : null;
       const confetti = [

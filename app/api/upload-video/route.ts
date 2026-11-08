@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
+import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -26,6 +27,24 @@ export async function POST(req: NextRequest) {
         { error: { message: "Video storage isn't configured yet - BLOB_READ_WRITE_TOKEN is missing." } },
         { status: 500 }
       );
+    }
+
+    if (req.headers.get("content-type")?.includes("application/json")) {
+      const body = await req.json() as HandleUploadBody;
+      if (body.type !== "blob.generate-client-token" || !/^venue-video\/\d+\.(mp4|webm|mov)$/.test(body.payload?.pathname ?? "")) {
+        return NextResponse.json({ error: { message: "Invalid venue video upload request." } }, { status: 400 });
+      }
+      const result = await handleUpload({
+        request: req,
+        body,
+        onBeforeGenerateToken: async () => ({
+          allowedContentTypes: ACCEPTED_TYPES,
+          maximumSizeInBytes: MAX_UPLOAD_BYTES,
+          addRandomSuffix: true,
+          validUntil: Date.now() + 10 * 60_000,
+        }),
+      });
+      return NextResponse.json(result);
     }
 
     const formData = await req.formData() as unknown as { get(name: string): FormDataEntryValue | null };

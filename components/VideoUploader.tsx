@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { uploadVenueVideo } from "@/lib/media/uploadVenueVideo";
 import { getMediaUrl } from "@/lib/getMediaUrl";
 
 type Props = {
@@ -77,24 +78,14 @@ export function VideoUploader({ currentUrl, onUploaded }: Props) {
     setUploading(true);
     setError("");
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload-video", { method: "POST", body: formData });
-      const raw = await res.text();
-      let data: { url?: string; fileName?: string; fileSize?: number; error?: { message?: string } } = {};
-      try { data = raw ? JSON.parse(raw) : {}; } catch {
-        throw new Error(!res.ok ? (raw.slice(0, 120) || `Upload failed (status ${res.status})`) : "Upload failed - unexpected server response");
-      }
-      if (!res.ok || data.error || !data.url) {
-        throw new Error(data?.error?.message || "Upload failed");
-      }
-      onUploaded(data.url);
+      const video = await uploadVenueVideo(file);
+      onUploaded(video.url);
       const supabase = createSupabaseBrowserClient();
       supabase.from("media_assets").insert({
-        file_name: data.fileName,
+        file_name: video.pathname.split("/").pop() || file.name,
         media_type: "video",
-        file_url: data.url,
-        file_size: data.fileSize,
+        file_url: video.url,
+        file_size: file.size,
       }).then(({ error: insertErr }) => { if (insertErr) console.error("Failed to log media_asset:", insertErr); });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed - please try again.");

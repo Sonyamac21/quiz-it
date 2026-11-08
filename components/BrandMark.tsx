@@ -127,9 +127,10 @@ export function BrandMark({
     if (!el) return;
     const update = () => setTargetWidth(el.clientWidth);
     update();
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    return () => observer.disconnect();
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(update) : null;
+    observer?.observe(el);
+    window.addEventListener("resize", update);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", update); };
   }, [stretch]);
 
   function handleMeasured(index: number, width: number) {

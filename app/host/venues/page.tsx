@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ImageUploader } from "@/components/ImageUploader";
+import { uploadVenueVideo } from "@/lib/media/uploadVenueVideo";
 import { VideoUploader } from "@/components/VideoUploader";
 import { HostButton, HostInput, HostLabel, HostLoading, HostShell } from "@/components/fable/HostConsole";
 import { useConfirmDialog } from "@/components/ui/quiz-it-ui";
@@ -137,15 +138,14 @@ export default function VenueManagerPage(){
       });
       setIntroStatus("Uploading…");
       const file=new File([blob],(form.venue_name||"venue").replace(/\s+/g,"-").toLowerCase()+"-intro."+fileExt,{type:blob.type});
-      const formData=new FormData();formData.append("file",file);
-      const res=await fetch("/api/upload-video",{method:"POST",body:formData});
-      const raw=await res.text();let data:{url?:string;error?:{message?:string}}={};
-      try{data=raw?JSON.parse(raw):{};}catch{throw new Error(!res.ok?(raw.slice(0,120)||"Upload failed"):"Upload failed - unexpected server response");}
-      if(!res.ok||data.error||!data.url)throw new Error(data?.error?.message||"Upload failed");
-      set("hero_video_url",data.url);
-      const supabase=createSupabaseBrowserClient();
-      await supabase.from("venues").update({hero_video_url:data.url,updated_at:new Date().toISOString()}).eq("id",editing);
-      setVenues(prev=>prev.map(v=>v.id===editing?{...v,hero_video_url:data.url as string}:v));
+      const video = await uploadVenueVideo(file);
+      const supabase = createSupabaseBrowserClient();
+      const { data: saved, error: saveError } = await supabase.from("venues")
+        .update({ hero_video_url: video.url, updated_at: new Date().toISOString() })
+        .eq("id", editing).select("id").maybeSingle();
+      if (saveError || !saved) throw new Error(saveError?.message || "The intro uploaded, but could not be saved to this venue.");
+      set("hero_video_url", video.url);
+      setVenues(prev => prev.map(v => v.id === editing ? { ...v, hero_video_url: video.url } : v));
       setIntroStatus("Done - saved as this venue's Hero Video.");
       setTimeout(()=>setIntroStatus(""),4000);
     }catch(e){

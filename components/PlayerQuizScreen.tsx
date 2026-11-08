@@ -407,9 +407,9 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     if (typeof document !== "undefined" && "fonts" in document) {
       document.fonts.ready.then(fit).catch(() => {});
     }
-    const observer = new ResizeObserver(fit);
-    observer.observe(scroll);
-    if (aInner) observer.observe(aInner);
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(fit) : null;
+    observer?.observe(scroll);
+    if (aInner) observer?.observe(aInner);
     window.addEventListener("resize", fit);
     // Host, live, repeatedly, same amount every time regardless of question
     // length: iOS Safari can report 100dvh against its "large" (toolbars
@@ -427,7 +427,7 @@ export function PlayerQuizScreen({ teamName, sessionPin, playerToken = "" }: Pro
     return () => {
       cancelAnimationFrame(frame);
       clearTimeout(settleTimer);
-      observer.disconnect();
+      observer?.disconnect();
       window.removeEventListener("resize", fit);
       vv?.removeEventListener("resize", fit);
     };

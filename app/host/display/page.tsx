@@ -2202,7 +2202,7 @@ function DisplayScreenInner() {
               {winnerPhoto && !brokenImageUrls.has(winnerPhoto) ? <img src={winnerPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={() => markImageBroken(winnerPhoto)} /> : (winner ? teamInitials(winner.team_name) : "?")}
               <div className="wc-crown">👑</div>
             </div>
-            <div className="wc-name">{(winner?.team_name || "").toUpperCase()}</div>
+            <FitBlockText className="wc-name" maxViewportHeight={0.22} minFontSize={28}>{(winner?.team_name || "").toUpperCase()}</FitBlockText>
             <div className="wc-champ">CHAMPIONS</div>
             <div className="wc-meta tnum">{(winner?.total_points ?? 0).toLocaleString()} POINTS</div>
             <div className="wc-photo">📸 GET UP HERE — YOUR PHOTO&rsquo;S WAITING</div>

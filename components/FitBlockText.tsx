@@ -106,13 +106,13 @@ export function FitBlockText({ as = "div", children, className, maxViewportHeigh
       });
     };
     fit();
-    const observer = new ResizeObserver(fit);
-    if (element.parentElement) observer.observe(element.parentElement);
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(fit) : null;
+    if (element.parentElement) observer?.observe(element.parentElement);
     window.addEventListener("resize", fit);
     document.fonts?.addEventListener?.("loadingdone", fit);
     return () => {
       cancelAnimationFrame(frame);
-      observer.disconnect();
+      observer?.disconnect();
       window.removeEventListener("resize", fit);
       document.fonts?.removeEventListener?.("loadingdone", fit);
     };

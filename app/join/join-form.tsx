@@ -90,10 +90,10 @@ export function JoinForm() {
     if (!el) return;
     const publish = () => document.documentElement.style.setProperty("--qi-player-brand-bar-height", `${el.offsetHeight}px`);
     publish();
-    const observer = new ResizeObserver(publish);
-    observer.observe(el);
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(publish) : null;
+    observer?.observe(el);
     window.addEventListener("resize", publish);
-    return () => { observer.disconnect(); window.removeEventListener("resize", publish); };
+    return () => { observer?.disconnect(); window.removeEventListener("resize", publish); };
   }, [done]);
 
   useEffect(() => {
@@ -186,7 +186,13 @@ export function JoinForm() {
         .eq("pin", value.trim())
         .single();
       // Dignified wrong-PIN per the design: empty the slots, one soft line, no red/shake.
-      if (error || !data) { setPin(""); setPinError("That PIN isn't live — check the big screen."); return; }
+      if (error || !data) {
+        setPin("");
+        setPinError(error && error.code !== "PGRST116"
+          ? "Could not reach the quiz. Check your connection and try again."
+          : "That PIN isn't live. Check the big screen.");
+        return;
+      }
       if (data.status === "finished") { setPin(""); setPinError("This quiz has already ended."); return; }
       setStep("name");
     } catch { setPin(""); setPinError("Something went wrong. Try again."); }
@@ -233,6 +239,7 @@ export function JoinForm() {
 
   async function handleNameNext() {
     if (!teamName.trim()) { setError("Please enter your team name"); return; }
+    if (Array.from(teamName.trim()).length > 100) { setError("Use a team name of 100 characters or fewer."); return; }
     setError("");
     try {
       const supabase = createSupabaseBrowserClient();
@@ -299,7 +306,7 @@ export function JoinForm() {
         // never the join itself.
         try {
           const preparedPhoto = await prepareParticipantPhoto(photoFile);
-          const path = pin + "-" + teamName.trim().replace(/\s+/g, "-").toLowerCase() + "-" + Date.now() + ".jpg";
+          const path = pin + "-" + Date.now() + "-" + Math.random().toString(36).slice(2) + ".jpg";
           const { error: uploadError } = await supabase.storage.from("team-photos").upload(path, preparedPhoto, {
             contentType: "image/jpeg",
             cacheControl: "3600",
@@ -459,7 +466,10 @@ export function JoinForm() {
         <input
           value={teamName}
           onChange={e => setTeamName(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && handleNameNext()}
+          onKeyDown={e => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) void handleNameNext();
+          }}
+          dir="auto"
           placeholder="Enter your team name..."
           autoFocus
           style={{ padding:"14px 18px", borderRadius:12, background:"rgba(255,255,255,0.1)", color:"#fff", border:"1.5px solid rgba(190,38,193,0.6)", fontSize:22, fontFamily:"'Inter',sans-serif", outline:"none", letterSpacing:1 }}

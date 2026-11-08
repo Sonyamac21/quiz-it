@@ -2411,9 +2411,9 @@ function QuizControllerInner() {
       style={
         railWidthPx != null
           ? { gridTemplateColumns: `minmax(0, 1fr) ${railWidthPx}px` }
-          : teamColumnCount >= 3
+          : teamColumns !== "auto" && teamColumnCount >= 3
           ? { gridTemplateColumns: `minmax(0, 1fr) minmax(${teamColumnCount === 4 ? 760 : 620}px, ${teamColumnCount === 4 ? 62 : 52}vw)` }
-          : teamColumnCount === 2
+          : teamColumns !== "auto" && teamColumnCount === 2
           ? { gridTemplateColumns: "minmax(0, 1fr) minmax(640px, 46vw)" }
           : undefined
       }
@@ -3225,11 +3225,11 @@ function QuizControllerInner() {
                   <div key={t.id} className="qi-mc-team-card" style={{ width: "100%", boxSizing: "border-box" }}>
                     <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                       <TeamBadge name={t.team_name} size={20} avatarUrl={t.photo_approved ? t.photo_url : null} style={{ fontSize:7, flexShrink:0 }} />
-                      <span style={{ fontWeight:700, fontSize:13, flex:1, color:"#fff" }}>{t.team_name}</span>
+                      <span dir="auto" title={t.team_name} style={{ fontWeight:700, fontSize:13, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"#fff" }}>{t.team_name}</span>
                       <PowerCardDots teamName={t.team_name} />
                     </div>
                     {t.victory_song && (
-                      <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)", paddingLeft:13, marginTop:3 }}>♪ {t.victory_song.replace(/\s*SQS\s*$/i,"").replace(/[-_]+$/,"").replace(/[-_]/g," ").trim()}</div>
+                      <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)", paddingLeft:13, marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>♪ {t.victory_song.replace(/\s*SQS\s*$/i,"").replace(/[-_]+$/,"").replace(/[-_]/g," ").trim()}</div>
                     )}
                   </div>
                 ))}

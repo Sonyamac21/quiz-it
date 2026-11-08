@@ -2409,7 +2409,7 @@ button, input, select, textarea { font: inherit; }
 .qi-display-celebration .qi-display-fastest-shockwave { width:var(--qi-celebration-photo-size); }
 .qi-display-celebration .qi-display-fastest-photo::before { width:calc(var(--qi-celebration-photo-size) * 1.1); }
 .qi-display-no-winner { position: relative; z-index: 2; max-width: 80vw; color: #b9a8d9; font-size: clamp(42px,5.5vw,92px); font-weight: 850; line-height: 1.06; text-align: center; }
-.qi-display-winner .wc-name { font-size: clamp(52px,8vw,140px); }
+.qi-display-winner .wc-name { width: min(90vw, 1600px); overflow-wrap: anywhere; font-size: clamp(52px,8vw,140px); }
 .qi-display-winner .wc-crest { width: clamp(110px,12vw,200px); }
 .qi-display-winner .wc-champ { font-size: clamp(22px,2.5vw,44px); }
 .qi-display-winner .wc-meta { font-size: clamp(16px,1.5vw,25px); }
@@ -2436,7 +2436,7 @@ button, input, select, textarea { font: inherit; }
    at 52px, dwarfed by the 104px SPIN TO WIN title right above it on the
    same screen and unreadable on a real TV from across a room. Raised to
    read as the actual headline moment it is. */
-.qi-display-spin-winner-name { position: relative; display: inline-block; margin-top: 6px; color: #fff; font-size: clamp(56px,9vw,150px); font-weight: 900; letter-spacing: -.02em; text-shadow: 0 8px 32px rgba(190,38,193,.5); animation: nameSlam .55s .15s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
+.qi-display-spin-winner-name { max-width: 100%; overflow-wrap: anywhere; position: relative; display: inline-block; margin-top: 6px; color: #fff; font-size: clamp(56px,9vw,150px); font-weight: 900; letter-spacing: -.02em; text-shadow: 0 8px 32px rgba(190,38,193,.5); animation: nameSlam .55s .15s var(--ease-settle, cubic-bezier(.22,1.2,.36,1)) both; }
 .qi-display-spin-winner-name::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,.75) 50%, transparent 60%); background-size: 250% 100%; background-position: 150% 0; mix-blend-mode: overlay; animation: nameShine 1s .65s ease-out both; pointer-events: none; }
 /* The "little extra" for Spin to Win specifically - a quick starburst of
    sparkle glints behind the winner name, distinct from the plain photo/ring
